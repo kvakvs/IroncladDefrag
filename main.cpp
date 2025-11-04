@@ -1,48 +1,85 @@
-#include <windows.h>
+#include <Windows.h>
+#include <winrt/windows.foundation.collections.h>
+#include <winrt/windows.foundation.h>
+#include <winrt/windows.ui.xaml.controls.h>
+#include <winrt/windows.ui.xaml.markup.h>
+#include <winrt/windows.ui.xaml.h>
 
-LRESULT CALLBACK WindowProc(HWND hwnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    switch (uMsg) {
-    case WM_DESTROY:
-        PostQuitMessage(0);
-        return 0;
-    case WM_PAINT:
-        {
-            PAINTSTRUCT ps;
-            HDC hdc = BeginPaint(hwnd, &ps);
-            FillRect(hdc, &ps.rcPaint, reinterpret_cast<HBRUSH>(COLOR_WINDOW + 1));
-            EndPaint(hwnd, &ps);
-            return 0;
-        }
-    default:
-        return DefWindowProc(hwnd, uMsg, wParam, lParam);
+using namespace winrt;
+using namespace Windows::UI::Xaml;
+using namespace Windows::UI::Xaml::Controls;
+using namespace Windows::ApplicationModel::Activation;
+using namespace Windows::Foundation::Collections;
+
+struct IroncladDefragApp : ApplicationT<IroncladDefragApp> {
+    void OnLaunched(LaunchActivatedEventArgs const&) {
+        // Create the root panel
+        const StackPanel rootPanel;
+        rootPanel.Orientation(Orientation::Vertical);
+
+        // Create the MenuBar
+        const MenuBar menuBar;
+
+        // File menu
+        const MenuBarItem fileMenu;
+        fileMenu.Title(L"File");
+
+        const MenuFlyoutItem openItem;
+        openItem.Text(L"Open");
+
+        const MenuFlyoutItem saveItem;
+        saveItem.Text(L"Save");
+
+        const MenuFlyoutItem exitItem;
+        exitItem.Text(L"Exit");
+        exitItem.Click([](IInspectable const&, RoutedEventArgs const&) {
+            Application::Current().Exit();
+        });
+
+        const auto fileMenuItems = fileMenu.Items().as<IVector<MenuFlyoutItemBase>>();
+        fileMenuItems.Append(openItem);
+        fileMenuItems.Append(saveItem);
+        fileMenuItems.Append(exitItem);
+
+        // Edit menu
+        const MenuBarItem editMenu;
+        editMenu.Title(L"Edit");
+
+        const MenuFlyoutItem cutItem;
+        cutItem.Text(L"Cut");
+
+        const MenuFlyoutItem copyItem;
+        copyItem.Text(L"Copy");
+
+        const MenuFlyoutItem pasteItem;
+        pasteItem.Text(L"Paste");
+
+        const auto editMenuItems = editMenu.Items().as<IVector<MenuFlyoutItemBase>>();
+        editMenuItems.Append(cutItem);
+        editMenuItems.Append(copyItem);
+        editMenuItems.Append(pasteItem);
+
+        // Add menus to MenuBar
+        const auto menuBarItems = menuBar.Items().as<IVector<MenuBarItem>>();
+        menuBarItems.Append(fileMenu);
+        menuBarItems.Append(editMenu);
+
+        // Add MenuBar to root panel
+        rootPanel.Children().Append(menuBar);
+
+        // Add a welcome message
+        const TextBlock welcomeText;
+        welcomeText.Text(L"Welcome to WinUI 3!");
+        welcomeText.Margin(ThicknessHelper::FromUniformLength(20));
+        rootPanel.Children().Append(welcomeText);
+
+        // Set the content of the window
+        this->Content(rootPanel);
     }
-}
+};
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR lpCmdLine, int nCmdShow) {
-    constexpr wchar_t CLASS_NAME[] = L"IroncladDefragWindowClass";
-
-    WNDCLASSW wc = {};
-    wc.lpfnWndProc = WindowProc;
-    wc.hInstance = hInstance;
-    wc.lpszClassName = CLASS_NAME;
-    wc.hCursor = LoadCursor(nullptr, IDC_ARROW);
-
-    RegisterClassW(&wc);
-
-    HWND hwnd = CreateWindowExW(0, CLASS_NAME, L"Ironclad Defrag", WS_OVERLAPPEDWINDOW, CW_USEDEFAULT, CW_USEDEFAULT,
-                                800, 600, nullptr, nullptr, hInstance, nullptr);
-
-    if (hwnd == nullptr) {
-        return 0;
-    }
-
-    ShowWindow(hwnd, nCmdShow);
-
-    MSG msg = {};
-    while (GetMessage(&msg, nullptr, 0, 0)) {
-        TranslateMessage(&msg);
-        DispatchMessage(&msg);
-    }
-
+int WINAPI WinMain(HINSTANCE, HINSTANCE, LPSTR, int) {
+    init_apartment();
+    Application::Start([](auto&&) { make<IroncladDefragApp>(); });
     return 0;
 }
