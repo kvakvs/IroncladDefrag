@@ -8,90 +8,66 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_WIN32_EXECUTABLE ON)
 add_compile_options(/MP)
 
-# Path to unpacked WinUI 3 NuGet
-set(WINDOWSAPPSDK_VER "2.0.250930001-experimental1")
-set(WINDOWSAPPSDK_DIR "$ENV{USERPROFILE}/.nuget/packages/microsoft.windowsappsdk/${WINDOWSAPPSDK_VER}")
-include_directories(${WINDOWSAPPSDK_DIR}/include)
-link_directories(${WINDOWSAPPSDK_DIR}/lib/x64)
-
-set(WINUI_SDK_DIR "${CMAKE_SOURCE_DIR}/external/Microsoft.WindowsAppSDK.${WINDOWSAPPSDK_VER}/build/native")
-
-# --- Detect Windows SDK manually ---
-set(WIN_SDK_DIR "C:/Program Files (x86)/Windows Kits/10")
-
-# Include directories (shared, ucrt, um)
-set(WIN_SDK_INCLUDE_DIRS
-        "${WIN_SDK_DIR}/Include/10.0.19041.0/um"
-        "${WIN_SDK_DIR}/Include/10.0.19041.0/ucrt"
-        "${WIN_SDK_DIR}/Include/10.0.19041.0/shared"
-        "${WIN_SDK_DIR}/Include/10.0.19041.0/winrt"
+include_directories(
+        ${CMAKE_SOURCE_DIR}/3rdparty/wxWidgets/include
+        ${CMAKE_SOURCE_DIR}/3rdparty/wxWidgets/include/msvc
+        ${CMAKE_SOURCE_DIR}/3rdparty/wxWidgets/lib/vc14x_x64_dll
 )
-
-# Library directories
-set(WIN_SDK_LIB_DIRS
-        "${WIN_SDK_DIR}/Lib/10.0.19041.0/um/x64"
-        "${WIN_SDK_DIR}/Lib/10.0.19041.0/ucrt/x64"
+link_directories(
+        ${CMAKE_SOURCE_DIR}/3rdparty/wxWidgets/lib/vc14x_x64_dll
 )
-
-# For generated/ directory run powershell ./generate-winrt.ps1
-include_directories(${WIN_SDK_INCLUDE_DIRS})
-link_directories(${WIN_SDK_LIB_DIRS})
 
 add_executable(IroncladDefrag WIN32
-        main.cpp
-        model/FileMetadata.cpp
-        model/FileMetadata.h
-        model/FragmentMap.cpp
-        model/FragmentMap.h
-        model/FreeSpaceMap.cpp
-        model/FreeSpaceMap.h
-        model/DiskGeometry.cpp
-        model/DiskGeometry.h
-        model/Units.h
-        precompiled.h
-        precompiled.cpp
-        ui/MainWindow.h
-        ui/IroncladDefragApp.h
-        ui/IroncladDefragApp.cpp
-        ui/MainWindow.cpp)
+        src/precompiled.h
+        src/precompiled.cpp
+        src/main.cpp
+        src/model/FileMetadata.cpp
+        src/model/FileMetadata.h
+        src/model/FragmentMap.cpp
+        src/model/FragmentMap.h
+        src/model/FreeSpaceMap.cpp
+        src/model/FreeSpaceMap.h
+        src/model/DiskGeometry.cpp
+        src/model/DiskGeometry.h
+        src/model/Units.h
+        src/ui/App.cpp
+        src/ui/App.h)
+target_precompile_headers(IroncladDefrag PRIVATE src/precompiled.h)
 
-# Enable precompiled headers
-target_precompile_headers(IroncladDefrag PRIVATE precompiled.h)
-
-# Include directories
-include_directories(
-        ${CMAKE_SOURCE_DIR}/generated
-        ${WINUI_SDK_DIR}/include
-        ${WindowsSDK_INCLUDE_DIRS}
-)
-# Library directories
-link_directories(
-        ${WINUI_SDK_DIR}/lib/x64
-)
-
-# Set library directories
-target_link_directories(IroncladDefrag PRIVATE
-        "${APPSDK_LIB_DIR}"
-        "$ENV{ProgramFiles\(x86\)}/Windows Kits/10/Lib/${WINDOWS_SDK_VERSION}um/${APPSDK_ARCH}"
-)
-
-# Link required libraries
+# Link wxWidgets libraries
 target_link_libraries(IroncladDefrag PRIVATE
-        WindowsApp.lib
-#        Microsoft.UI.Xaml.lib
-        OneCoreUAP.lib
-        runtimeobject.lib
-        #------
-        user32.lib
-        gdi32.lib
-        comdlg32.lib
-        d2d1.lib
-        dwrite.lib
-        dxgi.lib
+        # Debug libraries (used in Debug configuration)
+        debug wxbase33ud.lib
+        debug wxmsw33ud_core.lib
+        debug wxmsw33ud_adv.lib
+        debug wxpngd.lib
+        debug wxzlibd.lib
+        debug wxtiffd.lib
+        debug wxjpegd.lib
+        debug wxexpatd.lib
+
+        # Release libraries (used in Release configuration)
+        optimized wxbase33u.lib
+        optimized wxmsw33u_core.lib
+        optimized wxmsw33u_adv.lib
+        optimized wxpng.lib
+        optimized wxzlib.lib
+        optimized wxtiff.lib
+        optimized wxjpeg.lib
+        optimized wxexpat.lib
+
+        # Windows system libraries
+        comctl32
+        rpcrt4
+        winmm
+        advapi32
+        wsock32
 )
-# Ensure manifest embedding for Windows App SDK runtime
-#add_custom_command(TARGET IroncladDefrag POST_BUILD
-#        COMMAND mt.exe -manifest "${WINUI_SDK_DIR}/bin/x64/Microsoft.WindowsAppRuntime.Manifest" -outputresource:$<TARGET_FILE:IroncladDefrag>;#1
+#target_link_libraries(IroncladDefrag PRIVATE
+#        $<$<CONFIG:Debug>:wxbase33ud.lib>
+#        $<$<CONFIG:Debug>:wxmsw33ud_core.lib>
+#        $<$<CONFIG:Release>:wxbase33u.lib>
+#        $<$<CONFIG:Release>:wxmsw33u_core.lib>
 #)
 
 # Enable C++/WinRT
@@ -104,6 +80,8 @@ target_compile_options(IroncladDefrag PRIVATE
 target_compile_definitions(IroncladDefrag PRIVATE
         UNICODE
         _UNICODE
-        WINRT_LEAN_AND_MEAN
         WIN32_LEAN_AND_MEAN
+        #--- wxWidgets settings ---
+        WXUSINGDLL
+        wxMSVC_VERSION_ABI_COMPAT
 )
