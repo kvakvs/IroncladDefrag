@@ -1,5 +1,6 @@
 #include "../precompiled.h"
 #include "App.h"
+#include "MainFrame.h"
 
 wxBEGIN_EVENT_TABLE(icd::App, wxApp)
 wxEND_EVENT_TABLE()
@@ -19,10 +20,8 @@ namespace icd {
         if (!wxApp::OnInit())
             return false;
 
-        // TODO: Create main frame window
-        // Example:
-        // MainFrame* frame = new MainFrame("Ironclad Defrag", wxDefaultPosition, wxSize(800, 600));
-        // frame->Show(true);
+        MainFrame* frame = new MainFrame("Ironclad Defrag");
+        frame->Show(true);
 
         return true;
     }

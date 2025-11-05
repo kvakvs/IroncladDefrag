@@ -31,7 +31,10 @@ add_executable(IroncladDefrag WIN32
         src/model/DiskGeometry.h
         src/model/Units.h
         src/ui/App.cpp
-        src/ui/App.h)
+        src/ui/App.h
+        src/ui/MainFrame.cpp
+        src/ui/MainFrame.h
+)
 target_precompile_headers(IroncladDefrag PRIVATE src/precompiled.h)
 
 # Link wxWidgets libraries
@@ -85,3 +88,41 @@ target_compile_definitions(IroncladDefrag PRIVATE
         WXUSINGDLL
         wxMSVC_VERSION_ABI_COMPAT
 )
+
+# Copy wxWidgets DLLs to build directory
+# CMAKE_COMMAND -E copy_if_different only copies if source is newer than destination
+set(WXWIDGETS_DLL_DIR "${CMAKE_SOURCE_DIR}/3rdparty/wxWidgets/lib/vc14x_x64_dll")
+
+# Debug DLLs
+set(WXWIDGETS_DEBUG_DLLS
+        wxbase331ud_vc14x_x64.dll
+        wxmsw331ud_core_vc14x_x64.dll
+        wxmsw331ud_adv_vc14x_x64.dll
+)
+
+# Release DLLs
+set(WXWIDGETS_RELEASE_DLLS
+        wxbase331u_vc14x_x64.dll
+        wxmsw331u_core_vc14x_x64.dll
+        wxmsw331u_adv_vc14x_x64.dll
+)
+
+# Copy DLLs based on configuration
+foreach(dll ${WXWIDGETS_DEBUG_DLLS})
+    add_custom_command(TARGET IroncladDefrag POST_BUILD
+            COMMAND ${CMAKE_COMMAND} -E copy_if_different
+            "${WXWIDGETS_DLL_DIR}/${dll}"
+            "$<TARGET_FILE_DIR:IroncladDefrag>"
+            COMMENT "Copying ${dll} to build directory (if needed)"
+            VERBATIM
+    )
+endforeach()
+
+# Note: For multi-config generators (Visual Studio, Xcode), you can use generator expressions
+# to copy different DLLs based on build configuration:
+# add_custom_command(TARGET IroncladDefrag POST_BUILD
+#     COMMAND ${CMAKE_COMMAND} -E $<IF:$<CONFIG:Debug>,echo "Debug",echo "Release">
+#     COMMAND ${CMAKE_COMMAND} -E copy_if_different
+#         "$<$<CONFIG:Debug>:${WXWIDGETS_DLL_DIR}/wxbase331ud_vc14x_x64.dll>$<$<CONFIG:Release>:${WXWIDGETS_DLL_DIR}/wxbase331u_vc14x_x64.dll>"
+#         "$<TARGET_FILE_DIR:IroncladDefrag>"
+# )
