@@ -51,8 +51,8 @@ add_executable(IroncladDefrag WIN32
         precompiled.h
         precompiled.cpp
         ui/MainWindow.h
-        ui/App.h
-        ui/App.cpp
+        ui/IroncladDefragApp.h
+        ui/IroncladDefragApp.cpp
         ui/MainWindow.cpp)
 
 # Enable precompiled headers
@@ -78,7 +78,7 @@ target_link_directories(IroncladDefrag PRIVATE
 # Link required libraries
 target_link_libraries(IroncladDefrag PRIVATE
         WindowsApp.lib
-        Microsoft.UI.Xaml.lib
+#        Microsoft.UI.Xaml.lib
         OneCoreUAP.lib
         runtimeobject.lib
         #------
@@ -90,21 +90,20 @@ target_link_libraries(IroncladDefrag PRIVATE
         dxgi.lib
 )
 # Ensure manifest embedding for Windows App SDK runtime
-add_custom_command(TARGET IroncladDefrag POST_BUILD
-        COMMAND mt.exe -manifest "${WINUI_SDK_DIR}/bin/x64/Microsoft.WindowsAppRuntime.Manifest" -outputresource:$<TARGET_FILE:IroncladDefrag>;#1
-)
+#add_custom_command(TARGET IroncladDefrag POST_BUILD
+#        COMMAND mt.exe -manifest "${WINUI_SDK_DIR}/bin/x64/Microsoft.WindowsAppRuntime.Manifest" -outputresource:$<TARGET_FILE:IroncladDefrag>;#1
+#)
 
-#
-## Enable C++/WinRT
-#target_compile_options(IroncladDefrag PRIVATE
-#        /await:strict
-#        /EHsc
-#        /Zc:__cplusplus
-#)
-## Set necessary definitions
-#target_compile_definitions(IroncladDefrag PRIVATE
-#        UNICODE
-#        _UNICODE
-#        WINRT_LEAN_AND_MEAN
-#        WIN32_LEAN_AND_MEAN
-#)
+# Enable C++/WinRT
+target_compile_options(IroncladDefrag PRIVATE
+        /await:strict
+        /EHsc
+        /Zc:__cplusplus
+)
+# Set necessary definitions
+target_compile_definitions(IroncladDefrag PRIVATE
+        UNICODE
+        _UNICODE
+        WINRT_LEAN_AND_MEAN
+        WIN32_LEAN_AND_MEAN
+)

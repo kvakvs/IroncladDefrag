@@ -4,9 +4,10 @@
 #include <Windows.h>
 #include <unknwn.h>
 
-// WinRT headers
+// WinRT + WinUI 3 headers
 #include <winrt/windows.foundation.collections.h>
 #include <winrt/windows.foundation.h>
+
 #include <winrt/Microsoft.UI.Xaml.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.h>
 #include <winrt/Microsoft.UI.Xaml.Controls.Primitives.h>
