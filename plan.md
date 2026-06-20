@@ -263,6 +263,43 @@ Important test scenarios:
 - Almost-full drive with limited temporary free space.
 - Drive with locked, hidden, system, sparse, compressed, or reparse-point files.
 
+## Phase 10: Deployment
+
+Add a repeatable Windows release packaging path:
+
+- Create an NSIS installer script for IroncladDefrag.
+- Use the system-installed NSIS toolchain at `C:\Program Files (x86)\NSIS\`, specifically `makensis.exe`.
+- Build distribution packages from the Release build output.
+- Include `IroncladDefrag.exe` and all required wxWidgets/runtime DLLs.
+- Embed and display the generated release version and current short git hash in installer metadata, installed files, and package naming where practical.
+- Write generated release artifacts to a repo-local distribution directory such as `dist/`.
+
+Versioning scheme:
+
+- Use `YYYY.MM.N`.
+- `YYYY` is the 4-digit release year.
+- `MM` is the 2-digit release month.
+- `N` is a sequential number starting from `0` and incrementing for each subsequent release in the same month.
+- Package filenames should include version and short git hash, for example `IroncladDefrag-2026.06.0-14c935f-setup.exe`.
+
+Deployment tooling should:
+
+- Build or require a completed Release configuration before packaging.
+- Read the current short git hash with `git rev-parse --short HEAD`.
+- Determine the next monthly sequence from existing `dist/` artifacts or accept an explicit release sequence input.
+- Invoke `C:\Program Files (x86)\NSIS\makensis.exe` with the generated version and git hash.
+- Fail clearly when NSIS, the Release executable, or required DLLs are missing.
+
+Add a batch file `make-installer.bat' which will build release and pack the correctly named release installer.
+
+Exit criteria:
+
+- A Release build can be packaged into a versioned NSIS installer under `dist/`.
+- The installer filename contains `YYYY.MM.N` and the current short git hash.
+- The installer installs the executable and required DLLs.
+- The installed app can launch from the install directory.
+- The uninstaller removes installed files.
+
 ## Suggested Milestone Order
 
 1. Model constructors/accessors, controller boundary, background job skeleton.
@@ -276,6 +313,7 @@ Important test scenarios:
 9. Single-file defragmentation execution on controlled data.
 10. Bounded data-drive plan execution.
 11. Advanced profiles, persistence, and broader validation.
+12. NSIS deployment packaging and versioned distribution artifacts.
 
 ## Non-Goals For Early Versions
 
