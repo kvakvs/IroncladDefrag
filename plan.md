@@ -102,6 +102,27 @@ Exit criteria:
 - An analysed drive can be summarized by file class, size bucket, type, recency, and expected placement.
 - Classification is deterministic and independent from the UI.
 
+## Phase 3.5: Drive Map Visualization
+
+Add the first usable drive map inside the multidocument analysis UI:
+
+- Replace each analysed-drive document tab content with a split view.
+- Use the top 75% of the split view for a read-only drive cluster map visualization.
+- Use the bottom 25% of the split view for the current text details already shown in the analysis page.
+- Render the map as a grid of boxes, defaulting to 2x2 pixels per box with a 1 pixel interval between boxes.
+- Make the map box size configurable, with 2x2 pixels and 1 pixel spacing as the default.
+- Calculate clusters-per-box from the analysed drive cluster count and the available map viewport size.
+- Recalculate map scaling whenever the document tab or window is resized.
+- Use current analysis and classification data to color occupied, free, fragmented, excluded/risky, hot/cold, and unknown regions where available.
+- Keep the visualization read-only: no selection-to-move, planning, TRIM, defrag, or file movement behavior.
+
+Exit criteria:
+
+- An analysed drive opens in a split document view.
+- The map resizes and recalculates clusters-per-box on window resize.
+- The bottom details pane remains visible and uses about 25% of the tab height.
+- The visualization is read-only and does not trigger planning or movement.
+
 ## Phase 4: Configurable Optimization Profiles
 
 Add user-selectable modes and settings. Each mode should share a common settings model and strategy interface.
@@ -185,7 +206,7 @@ Exit criteria:
 Build the full user workflow around the service layer:
 
 - All-disks panel with status, capacity, file system, and capability badges.
-- Drive map panel showing zones, occupied regions, free space, fragmented files, selected file class, and planned moves.
+- Enhance the existing Phase 3.5 drive map with strategy zones, selected file class filtering, planned moves, and workflow controls.
 - Analysis summary panel with fragmentation, free-space, hot/cold/large-file distribution, and recommendations.
 - Optimization controls with profile selection and settings.
 - Plan preview with affected files, bytes moved, estimated benefit, and warnings.
@@ -242,12 +263,13 @@ Important test scenarios:
 2. Drive enumeration and read-only analysis summary.
 3. Cluster extent and free-space map scanner.
 4. Data-drive classification rules.
-5. Optimization settings and profile UI.
-6. Dry-run placement planner for balanced data-drive optimization.
-7. Plan preview UI.
-8. Single-file defragmentation execution on controlled data.
-9. Bounded data-drive plan execution.
-10. Advanced profiles, persistence, and broader validation.
+5. Drive map split view and resizable cluster-grid visualization.
+6. Optimization settings and profile UI.
+7. Dry-run placement planner for balanced data-drive optimization.
+8. Plan preview UI.
+9. Single-file defragmentation execution on controlled data.
+10. Bounded data-drive plan execution.
+11. Advanced profiles, persistence, and broader validation.
 
 ## Non-Goals For Early Versions
 
@@ -256,4 +278,3 @@ Important test scenarios:
 - Moving files without dry-run preview.
 - Supporting every Windows file-system feature in the first implementation.
 - Running disk analysis or movement on the UI thread.
-

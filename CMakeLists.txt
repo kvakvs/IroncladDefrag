@@ -51,6 +51,8 @@ add_executable(IroncladDefrag WIN32
         src/support/Logger.h
         src/ui/App.cpp
         src/ui/App.h
+        src/ui/DriveMapPanel.cpp
+        src/ui/DriveMapPanel.h
         src/ui/DriveAnalysisPage.cpp
         src/ui/DriveAnalysisPage.h
         src/ui/MainFrame.cpp

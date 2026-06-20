@@ -62,7 +62,12 @@ Defines `icd::MainFrame`, the top-level `wxFrame`. Currently owns menu bar creat
 - `src/ui/DriveAnalysisPage.h`
 - `src/ui/DriveAnalysisPage.cpp`
 
-Defines a simple analysis-result document page shown in the main notebook, with summary labels and a drive-map TODO placeholder.
+Defines an analysis-result document page shown in the main notebook, with a vertical splitter containing the drive map above scrollable summary/classification labels.
+
+- `src/ui/DriveMapPanel.h`
+- `src/ui/DriveMapPanel.cpp`
+
+Defines the read-only cluster-grid drive map. It renders fixed-size cells, recalculates clusters-per-box on resize, and colors ranges from analysis/classification data without performing disk I/O or move planning.
 
 ## Model Layer
 

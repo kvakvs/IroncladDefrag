@@ -29,7 +29,9 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/MainFrame.*` defines the top-level window. It owns menu setup, Exit/About handling, status text, drive-analysis menu entries, and the `wxNotebook` document surface.
 
-`src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as summary labels plus a visible drive-map TODO placeholder.
+`src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a split document page: a read-only drive map in the top pane and scrollable summary/classification labels in the bottom pane.
+
+`src/ui/DriveMapPanel.*` renders the first read-only cluster visualization for an analysed drive. It consumes only the in-memory `AnalysisResult`, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
 
 The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch.
 
@@ -95,6 +97,7 @@ The following architecture pieces are implied by the product goals but are not p
 - Move planner that minimizes moved data.
 - Defragmentation/move executor with cancellation, progress reporting, and error handling.
 - Tests or validation harnesses.
+- Interactive drive-map workflow controls such as selection, filtering, strategy overlays, and planned-move visualization.
 
 ## Expected Direction
 
