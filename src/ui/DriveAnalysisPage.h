@@ -20,6 +20,11 @@ private:
     wxStaticText* files = nullptr;
     wxStaticText* fragmentation = nullptr;
     wxStaticText* freeSpace = nullptr;
+    wxStaticText* classificationSizes = nullptr;
+    wxStaticText* classificationTypes = nullptr;
+    wxStaticText* classificationRecency = nullptr;
+    wxStaticText* classificationPlacement = nullptr;
+    wxStaticText* classificationSafety = nullptr;
     wxStaticText* warnings = nullptr;
     wxStaticText* todo = nullptr;
     std::wstring driveRoot;

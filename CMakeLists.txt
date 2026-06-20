@@ -29,6 +29,8 @@ add_executable(IroncladDefrag WIN32
         src/app/ApplicationController.h
         src/app/BackgroundJob.cpp
         src/app/BackgroundJob.h
+        src/classification/FileClassifier.cpp
+        src/classification/FileClassifier.h
         src/model/DomainTypes.h
         src/model/FileMetadata.cpp
         src/model/FileMetadata.h

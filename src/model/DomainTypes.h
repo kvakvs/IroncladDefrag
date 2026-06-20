@@ -1,8 +1,10 @@
 #pragma once
 
 #include <chrono>
+#include <cstddef>
 #include <cstdint>
 #include <filesystem>
+#include <map>
 #include <string>
 #include <vector>
 
@@ -60,14 +62,41 @@ struct DiskZone {
 
 enum class FileSizeClass { Unknown, Tiny, Small, Medium, Large, Huge };
 enum class FileTemperature { Unknown, Hot, Warm, Cool, Cold, Stale };
+enum class BroadFileType { Unknown, Media, Archive, Document, Executable, SourceProject, Backup, VirtualDisk, Other };
+enum class ExpectedPlacementZone { None, Fast, Balanced, Slow, LargeFile };
+enum class FragmentationBenefit { Unknown, None, Low, Medium, High };
 
 // Describes a file's coarse optimization-relevant classification.
 struct FileClass {
     FileSizeClass sizeClass = FileSizeClass::Unknown;
     FileTemperature temperature = FileTemperature::Unknown;
     FileMetadata::FileType type = FileMetadata::FileType::Unknown;
+    BroadFileType broadType = BroadFileType::Unknown;
+    ExpectedPlacementZone expectedPlacement = ExpectedPlacementZone::Balanced;
+    FragmentationBenefit fragmentationBenefit = FragmentationBenefit::Unknown;
+    double fragmentationBenefitScore = 0.0;
     bool excluded = false;
     bool moveOnlyWhenExplicit = false;
+    std::wstring directoryRuleReason;
+    std::wstring exclusionReason;
+};
+
+// Stores classification output for one analysed file while keeping file data in AnalysisResult::files.
+struct FileClassification {
+    std::size_t fileIndex = 0;
+    FileClass classification;
+};
+
+// Stores aggregate counts used to summarize classification without rescanning per-file results.
+struct ClassificationSummary {
+    std::map<FileSizeClass, count64_t> sizeCounts;
+    std::map<BroadFileType, count64_t> typeCounts;
+    std::map<FileTemperature, count64_t> temperatureCounts;
+    std::map<ExpectedPlacementZone, count64_t> placementCounts;
+    count64_t excludedFiles = count64_t();
+    count64_t explicitOnlyFiles = count64_t();
+    count64_t beneficialFragmentationFiles = count64_t();
+    count64_t highBenefitFragmentationFiles = count64_t();
 };
 
 enum class OptimizationMode {
@@ -115,6 +144,8 @@ struct AnalysisResult {
     VolumeInfo volume;
     DiskGeometry geometry;
     std::vector<FileMetadata> files;
+    std::vector<FileClassification> classifications;
+    ClassificationSummary classificationSummary;
     FreeSpaceMap freeSpace;
     // Stores aggregate metrics derived during read-only analysis.
     struct AnalysisStats {

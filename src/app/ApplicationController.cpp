@@ -2,6 +2,7 @@
 
 #include "../analysis/DriveAnalysisService.h"
 #include "../analysis/FakeAnalysisService.h"
+#include "../classification/FileClassifier.h"
 #include "../platform/windows/DriveEnumerator.h"
 #include "../support/Logger.h"
 
@@ -94,6 +95,7 @@ bool ApplicationController::StartFakeAnalysis()
             completed.state = JobState::Completed;
             completed.percentComplete = 100.0;
             completed.statusMessage = L"Synthetic analysis complete.";
+            result = FileClassifier().Classify(std::move(result));
             NotifyProgress(completed);
             NotifyCompletion(result);
             Logger::Info(L"Synthetic analysis job completed.");
@@ -147,6 +149,8 @@ bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
                 Logger::Info(L"Read-only drive analysis cancelled.");
                 return;
             }
+
+            result = FileClassifier().Classify(std::move(result));
 
             {
                 std::lock_guard lock(analysisMutex);

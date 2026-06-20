@@ -14,6 +14,7 @@ namespace icd::win {
 namespace {
 constexpr std::uint64_t InvalidLcn = static_cast<std::uint64_t>(-1);
 
+// todo: use std::min<data type>()
 std::uint64_t MinU64(std::uint64_t lhs, std::uint64_t rhs)
 {
     return lhs < rhs ? lhs : rhs;

@@ -15,7 +15,7 @@ Startup currently follows this path:
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
 4. `icd::MainFrame` creates the top menu, status bar, and tabbed analysis document area. The Analysis menu refreshes visible drives, starts read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, and read-only drive analysis service. There is still no defragmentation executor, move planner, strategy implementation, TRIM action, or file movement implementation.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, and deterministic data-drive classification service. There is still no defragmentation executor, move planner, strategy implementation, TRIM action, or file movement implementation.
 
 ## Layers
 
@@ -45,6 +45,10 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 `src/analysis/FakeAnalysisService.*` remains a synthetic analysis helper for development. It deliberately performs no drive enumeration, cluster scanning, or disk writes.
 
+## Classification Layer
+
+`src/classification/FileClassifier.*` classifies analysed files by size, broad type, recency, directory hints, fragmentation benefit, move-safety status, and expected placement zone. Classification is deterministic, in-memory, and independent from wxWidgets and Win32 APIs.
+
 ## Windows Platform Boundary
 
 `src/platform/windows/DriveEnumerator.*` enumerates visible drives, volume metadata, media/capability status, and disabled reasons using read-only Win32 calls.
@@ -58,7 +62,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 `src/model` contains domain data structures and unit types:
 
 - `Units.h` provides type-safe quantity wrappers for counts, indexes, byte counts, sector counts, and throughput.
-- `DomainTypes.h` defines domain value types for drives, volumes, disk zones, file classes, optimization profiles/settings, analysis results, placement plans, move plans, job progress, drive capabilities, and analysis statistics.
+- `DomainTypes.h` defines domain value types for drives, volumes, disk zones, file classes, classification results/summaries, optimization profiles/settings, analysis results, placement plans, move plans, job progress, drive capabilities, and analysis statistics.
 - `FileMetadata.*` models file path, size, timestamps, type, parent directory, and cluster fragment locations.
 - `FragmentMap.*` models file fragmentation using sector ranges and aggregate fragment state.
 - `FreeSpaceMap.*` models free-space blocks and free-space fragmentation metrics.

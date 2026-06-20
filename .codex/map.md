@@ -40,6 +40,13 @@ Runs read-only analysis for a selected drive: recursive file metadata scan, retr
 
 Simulates long-running analysis and returns a synthetic `AnalysisResult`. It performs no real drive I/O.
 
+## Classification Layer
+
+- `src/classification/FileClassifier.h`
+- `src/classification/FileClassifier.cpp`
+
+Classifies completed analysis snapshots by size, broad file type, recency, directory hints, fragmentation benefit, safety status, and expected placement zone.
+
 ## UI Layer
 
 - `src/ui/App.h`
@@ -65,7 +72,7 @@ Defines `icd::Quantity` and project-specific type aliases for counts, indexes, b
 
 - `src/model/DomainTypes.h`
 
-Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, optimization settings/profiles, analysis results/stats, placement/move plans, and job progress.
+Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, classification results/summaries, optimization settings/profiles, analysis results/stats, placement/move plans, and job progress.
 
 - `src/model/FileMetadata.h`
 - `src/model/FileMetadata.cpp`
