@@ -26,6 +26,8 @@ enum
 };
 
 namespace {
+constexpr auto StatusThrottleInterval = std::chrono::milliseconds(100);
+
 void EnableMenuItemIfPresent(wxMenuBar* menuBar, int id, bool enabled)
 {
     if (menuBar != nullptr && menuBar->FindItem(id) != nullptr) {
@@ -65,14 +67,16 @@ wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
 wxEND_EVENT_TABLE()
 
 MainFrame::MainFrame(const wxString& title)
-    : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(800, 600))
+    : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(800, 600)),
+      statusFlushTimer(this)
 {
     CreateMenuBar();
     CreateDocumentArea();
     
     // Create a status bar
     CreateStatusBar();
-    SetStatusText("Welcome to Ironclad Defrag");
+    SetStatusTextImmediate("Welcome to Ironclad Defrag");
+    Bind(wxEVT_TIMER, &MainFrame::OnStatusFlushTimer, this, statusFlushTimer.GetId());
 
     controller.SetProgressCallback([this](const JobProgress& progress) {
         CallAfter([this, progress]() {
@@ -102,6 +106,67 @@ MainFrame::~MainFrame()
 {
     controller.ClearCallbacks();
     controller.CancelActiveJob();
+}
+
+// Applies important status messages immediately and clears any delayed progress text.
+void MainFrame::SetStatusTextImmediate(const wxString& text)
+{
+    statusFlushTimer.Stop();
+    pendingStatusText.clear();
+    hasPendingStatusText = false;
+    lastStatusTextTimestamp = {};
+    wxFrame::SetStatusText(text);
+}
+
+// Coalesces high-frequency progress text so the status bar updates at most ten times per second.
+void MainFrame::SetStatusTextThrottled(const wxString& text)
+{
+    const auto now = std::chrono::steady_clock::now();
+    if (lastStatusTextTimestamp == std::chrono::steady_clock::time_point{} ||
+        now - lastStatusTextTimestamp >= StatusThrottleInterval) {
+        statusFlushTimer.Stop();
+        pendingStatusText.clear();
+        hasPendingStatusText = false;
+        lastStatusTextTimestamp = now;
+        wxFrame::SetStatusText(text);
+        return;
+    }
+
+    pendingStatusText = text;
+    hasPendingStatusText = true;
+    const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+        StatusThrottleInterval - (now - lastStatusTextTimestamp));
+    const int delayMs = (std::max)(1, static_cast<int>(remaining.count()));
+    statusFlushTimer.StartOnce(delayMs);
+}
+
+// Flushes the latest delayed progress text once the throttle interval has elapsed.
+void MainFrame::FlushPendingStatusText()
+{
+    if (!hasPendingStatusText) {
+        lastStatusTextTimestamp = {};
+        return;
+    }
+
+    const auto now = std::chrono::steady_clock::now();
+    if (lastStatusTextTimestamp != std::chrono::steady_clock::time_point{} &&
+        now - lastStatusTextTimestamp < StatusThrottleInterval) {
+        const auto remaining = std::chrono::duration_cast<std::chrono::milliseconds>(
+            StatusThrottleInterval - (now - lastStatusTextTimestamp));
+        const int delayMs = (std::max)(1, static_cast<int>(remaining.count()));
+        statusFlushTimer.StartOnce(delayMs);
+        return;
+    }
+
+    wxFrame::SetStatusText(pendingStatusText);
+    pendingStatusText.clear();
+    hasPendingStatusText = false;
+    lastStatusTextTimestamp = {};
+}
+
+void MainFrame::OnStatusFlushTimer(wxTimerEvent&)
+{
+    FlushPendingStatusText();
 }
 
 void MainFrame::CreateMenuBar()
@@ -211,7 +276,7 @@ void MainFrame::CreateDocumentArea()
         if (profile.has_value()) {
             RunFastLane(*profile);
         } else {
-            SetStatusText("Single-file defragmentation profile is unavailable.");
+            SetStatusTextImmediate("Single-file defragmentation profile is unavailable.");
         }
     });
     workflowPanel->SetFullOptimizeCallback([this]() {
@@ -227,7 +292,7 @@ void MainFrame::CreateDocumentArea()
         controller.SetActiveProfile(profile);
         workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
         ResetSelectedAnalysisWorkflow();
-        SetStatusText(wxString::Format("Active profile: %s", wxString(profile.name)));
+        SetStatusTextImmediate(wxString::Format("Active profile: %s", wxString(profile.name)));
         UpdateAnalysisMenuState(controller.IsJobRunning());
     });
     workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
@@ -371,7 +436,7 @@ void MainFrame::StartAnalysisForDrive(const DriveInfo& drive)
         workflowPanel->SetRecentAnalysisSummary(controller.GetRecentAnalysisSummary(drive.rootPath));
     }
     UpdateAnalysisMenuState(true);
-    SetStatusText(wxString::Format("Starting read-only analysis for %s", wxString(drive.rootPath)));
+    SetStatusTextImmediate(wxString::Format("Starting read-only analysis for %s", wxString(drive.rootPath)));
 
     if (!controller.StartDriveAnalysis(drive)) {
         UpdateAnalysisMenuState(false);
@@ -382,13 +447,13 @@ bool MainFrame::BuildPlacementIntentForSelected()
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive before building placement intent.");
+        SetStatusTextImmediate("Select an analysed drive before building placement intent.");
         return false;
     }
 
     const std::optional<PlacementPlan> plan = controller.BuildPlacementPlan(*driveRoot);
     if (!plan.has_value()) {
-        SetStatusText("No completed analysis snapshot is available for the selected drive.");
+        SetStatusTextImmediate("No completed analysis snapshot is available for the selected drive.");
         return false;
     }
 
@@ -399,7 +464,7 @@ bool MainFrame::BuildPlacementIntentForSelected()
     if (workflowPanel != nullptr) {
         workflowPanel->SetPlacementPlan(*plan);
     }
-    SetStatusText(wxString(plan->summary));
+    SetStatusTextImmediate(wxString(plan->summary));
     UpdateAnalysisMenuState(false);
     return true;
 }
@@ -408,13 +473,13 @@ bool MainFrame::BuildMovePlanForSelected(bool showDialog)
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive before building a move plan.");
+        SetStatusTextImmediate("Select an analysed drive before building a move plan.");
         return false;
     }
 
     const std::optional<MovePlan> plan = controller.BuildMovePlan(*driveRoot);
     if (!plan.has_value()) {
-        SetStatusText("No completed analysis snapshot is available for the selected drive.");
+        SetStatusTextImmediate("No completed analysis snapshot is available for the selected drive.");
         return false;
     }
 
@@ -430,7 +495,7 @@ bool MainFrame::BuildMovePlanForSelected(bool showDialog)
         MovePlanDialog dialog(this, *plan);
         dialog.ShowModal();
     }
-    SetStatusText(wxString(plan->summary));
+    SetStatusTextImmediate(wxString(plan->summary));
     UpdateAnalysisMenuState(false);
     return true;
 }
@@ -439,13 +504,13 @@ bool MainFrame::ReviewSelectedMovePlan()
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive before reviewing a move plan.");
+        SetStatusTextImmediate("Select an analysed drive before reviewing a move plan.");
         return false;
     }
 
     const std::optional<MovePlan> plan = controller.GetMovePlan(*driveRoot);
     if (!plan.has_value()) {
-        SetStatusText("Build a move plan before reviewing it.");
+        SetStatusTextImmediate("Build a move plan before reviewing it.");
         return false;
     }
 
@@ -458,13 +523,13 @@ bool MainFrame::ExecuteSelectedMovePlan()
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive before executing a move plan.");
+        SetStatusTextImmediate("Select an analysed drive before executing a move plan.");
         return false;
     }
 
     const std::optional<MovePlan> plan = controller.GetMovePlan(*driveRoot);
     if (!plan.has_value()) {
-        SetStatusText("Build a move plan before executing it.");
+        SetStatusTextImmediate("Build a move plan before executing it.");
         return false;
     }
 
@@ -474,13 +539,13 @@ bool MainFrame::ExecuteSelectedMovePlan()
                      "Execution Blocked",
                      wxOK | wxICON_WARNING,
                      this);
-        SetStatusText("Execution blocked: dry-run-only profile.");
+        SetStatusTextImmediate("Execution blocked: dry-run-only profile.");
         return false;
     }
 
     if (plan->impossible || plan->operations.empty()) {
-        SetStatusText(plan->impossible ? "Execution blocked: move plan is impossible."
-                                       : "Execution blocked: move plan has no operations.");
+        SetStatusTextImmediate(plan->impossible ? "Execution blocked: move plan is impossible."
+                                                : "Execution blocked: move plan has no operations.");
         return false;
     }
 
@@ -495,12 +560,12 @@ bool MainFrame::ExecuteSelectedMovePlan()
         dialog.SetYesNoLabels("Run Elevated", "Cancel");
         if (dialog.ShowModal() == wxID_YES) {
             if (controller.RelaunchElevatedForExecution()) {
-                SetStatusText("UAC elevation requested. Rebuild or reopen the plan in the elevated instance before executing.");
+                SetStatusTextImmediate("UAC elevation requested. Rebuild or reopen the plan in the elevated instance before executing.");
             } else {
-                SetStatusText("Unable to request UAC elevation.");
+                SetStatusTextImmediate("Unable to request UAC elevation.");
             }
         } else {
-            SetStatusText("Execution cancelled before elevation.");
+            SetStatusTextImmediate("Execution cancelled before elevation.");
         }
         return false;
     }
@@ -515,12 +580,12 @@ bool MainFrame::ExecuteSelectedMovePlan()
                                                    static_cast<unsigned long long>(plan->metrics.affectedFiles.getValue()),
                                                    bytesLabel.c_str());
     if (wxMessageBox(confirmation, "Confirm Move Execution", wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES) {
-        SetStatusText("Move execution cancelled before start.");
+        SetStatusTextImmediate("Move execution cancelled before start.");
         return false;
     }
 
     if (controller.StartMovePlanExecution(*driveRoot)) {
-        SetStatusText("Starting move execution...");
+        SetStatusTextImmediate("Starting move execution...");
         UpdateAnalysisMenuState(true);
         return true;
     }
@@ -570,14 +635,14 @@ void MainFrame::ResetSelectedAnalysisWorkflow()
 void MainFrame::OnRefreshDrives(wxCommandEvent& event)
 {
     RefreshDriveMenu();
-    SetStatusText("Drive list refreshed.");
+    SetStatusTextImmediate("Drive list refreshed.");
 }
 
 void MainFrame::OnAnalyseDrive(wxCommandEvent& event)
 {
     const auto item = driveMenuItems.find(event.GetId());
     if (item == driveMenuItems.end()) {
-        SetStatusText("Drive menu item is no longer available.");
+        SetStatusTextImmediate("Drive menu item is no longer available.");
         return;
     }
 
@@ -587,7 +652,7 @@ void MainFrame::OnAnalyseDrive(wxCommandEvent& event)
 
 void MainFrame::OnCancelAnalysis(wxCommandEvent& event)
 {
-    SetStatusText("Cancelling active job...");
+    SetStatusTextImmediate("Cancelling active job...");
     controller.RequestCancelActiveJob();
     UpdateAnalysisMenuState(true);
 }
@@ -601,7 +666,7 @@ void MainFrame::OnProfiles(wxCommandEvent&)
             workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
         }
         ResetSelectedAnalysisWorkflow();
-        SetStatusText(wxString::Format("Active profile: %s", wxString(dialog.GetSelectedProfile().name)));
+        SetStatusTextImmediate(wxString::Format("Active profile: %s", wxString(dialog.GetSelectedProfile().name)));
         UpdateAnalysisMenuState(false);
     }
 }
@@ -615,7 +680,7 @@ void MainFrame::OnSafetySettings(wxCommandEvent&)
             workflowPanel->SetSafetySettings(controller.GetSafetySettings());
         }
         ResetSelectedAnalysisWorkflow();
-        SetStatusText("Safety settings saved. Rebuild placement and move plans to apply them.");
+        SetStatusTextImmediate("Safety settings saved. Rebuild placement and move plans to apply them.");
         UpdateAnalysisMenuState(false);
     }
 }
@@ -657,31 +722,28 @@ void MainFrame::OnClose(wxCloseEvent& event)
 
 void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 {
-    if (workflowPanel != nullptr) {
-        workflowPanel->SetProgress(progress);
-    }
     switch (progress.state) {
     case JobState::Running:
-        SetStatusText(wxString::Format("%.0f%% - %s %s",
-                                       progress.percentComplete,
-                                       wxString(progress.statusMessage),
-                                       wxString(progress.currentItem)));
+        SetStatusTextThrottled(wxString::Format("%.0f%% - %s %s",
+                                                progress.percentComplete,
+                                                wxString(progress.statusMessage),
+                                                wxString(progress.currentItem)));
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Cancelled:
-        SetStatusText(progress.statusMessage.empty() ? wxString("Job cancelled.") : wxString(progress.statusMessage));
+        SetStatusTextImmediate(progress.statusMessage.empty() ? wxString("Job cancelled.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Completed:
-        SetStatusText(progress.statusMessage.empty() ? wxString("Job complete.") : wxString(progress.statusMessage));
+        SetStatusTextImmediate(progress.statusMessage.empty() ? wxString("Job complete.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Failed:
-        SetStatusText(progress.statusMessage.empty() ? wxString("Job failed.") : wxString(progress.statusMessage));
+        SetStatusTextImmediate(progress.statusMessage.empty() ? wxString("Job failed.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Cancelling:
-        SetStatusText("Cancelling active job...");
+        SetStatusTextImmediate("Cancelling active job...");
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Idle:
@@ -692,7 +754,7 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 
 void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
 {
-    SetStatusText(wxString(result.summary));
+    SetStatusTextImmediate(wxString(result.summary));
     OpenOrUpdateAnalysisPage(result);
     if (driveListPanel != nullptr) {
         driveListPanel->SetSelectedDrive(result.drive.rootPath);
@@ -707,7 +769,7 @@ void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
 
 void MainFrame::OnMoveExecutionComplete(const MoveExecutionResult& result)
 {
-    SetStatusText(wxString(result.summary));
+    SetStatusTextImmediate(wxString(result.summary));
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (driveRoot.has_value()) {
         const auto page = analysisPages.find(*driveRoot);
@@ -723,7 +785,7 @@ void MainFrame::OnMoveExecutionComplete(const MoveExecutionResult& result)
 
 void MainFrame::OnAnalysisError(const std::wstring& message)
 {
-    SetStatusText(wxString(message));
+    SetStatusTextImmediate(wxString(message));
     if (workflowPanel != nullptr) {
         workflowPanel->SetBusy(false);
     }

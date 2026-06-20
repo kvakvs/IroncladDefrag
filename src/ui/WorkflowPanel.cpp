@@ -105,11 +105,6 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
     buttonRows->Add(fastRow, 0, wxEXPAND);
     root->Add(buttonRows, 0, wxEXPAND | wxLEFT | wxRIGHT, 3);
 
-    progressGauge = new wxGauge(this, wxID_ANY, 100);
-    progressText = new wxStaticText(this, wxID_ANY, "Progress: idle");
-    root->Add(progressGauge, 0, wxEXPAND | wxLEFT | wxRIGHT | wxTOP, 6);
-    root->Add(progressText, 0, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
-
     auto* details = new wxNotebook(this, wxID_ANY);
     auto* summaryPanel = new wxPanel(details, wxID_ANY);
     auto* summarySizer = new wxBoxSizer(wxVERTICAL);
@@ -205,8 +200,6 @@ void WorkflowPanel::SetDrive(const std::optional<DriveInfo>& drive)
         warningsText->SetValue("");
         planWarningText.clear();
         executionText->SetValue("");
-        progressGauge->SetValue(0);
-        progressText->SetLabel("Progress: idle");
     }
 
     if (selectedDrive.has_value()) {
@@ -235,8 +228,6 @@ void WorkflowPanel::SetAnalysis(const AnalysisResult& result)
     warningsText->SetValue("");
     planWarningText.clear();
     executionText->SetValue("");
-    progressGauge->SetValue(100);
-    progressText->SetLabel("Progress: analysis complete");
     driveText->SetLabel(wxString::Format("Drive: %s | %s", wxString(result.drive.displayName), wxString(ui::CapabilityBadge(result.drive))));
     UpdateWarningText();
     UpdateControls();
@@ -289,17 +280,6 @@ void WorkflowPanel::SetExecutionResult(const MoveExecutionResult& result)
         text << L"- ... " << (result.operationResults.size() - resultsToShow) << L" more operation results\n";
     }
     executionText->SetValue(text.str());
-    UpdateControls();
-}
-
-void WorkflowPanel::SetProgress(const JobProgress& progress)
-{
-    const int percent = (std::max)(0, (std::min)(100, static_cast<int>(progress.percentComplete)));
-    progressGauge->SetValue(percent);
-    progressText->SetLabel(wxString::Format("Progress: %.0f%% - %s %s",
-                                            progress.percentComplete,
-                                            wxString(progress.statusMessage),
-                                            wxString(progress.currentItem)));
     UpdateControls();
 }
 

@@ -6,11 +6,13 @@
 #include "DriveAnalysisPage.h"
 #include "WorkflowPanel.h"
 
+#include <chrono>
 #include <optional>
 #include <unordered_map>
 #include <vector>
-#include <wx/wx.h>
 #include <wx/notebook.h>
+#include <wx/timer.h>
+#include <wx/wx.h>
 
 namespace icd {
 
@@ -51,8 +53,13 @@ private:
     void OnAnalysisError(const std::wstring& message);
     void OpenOrUpdateAnalysisPage(const AnalysisResult& result);
     std::optional<std::wstring> GetSelectedDriveRoot() const;
+    void SetStatusTextImmediate(const wxString& text);
+    void SetStatusTextThrottled(const wxString& text);
+    void FlushPendingStatusText();
+    void OnStatusFlushTimer(wxTimerEvent& event);
 
     ApplicationController controller;
+    wxTimer statusFlushTimer;
     wxMenu* analysisMenu = nullptr;
     wxMenu* optimizationMenu = nullptr;
     DriveListPanel* driveListPanel = nullptr;
@@ -62,6 +69,9 @@ private:
     std::unordered_map<int, DriveInfo> driveMenuItems;
     std::unordered_map<std::wstring, DriveAnalysisPage*> analysisPages;
     std::wstring activeDriveRoot;
+    wxString pendingStatusText;
+    bool hasPendingStatusText = false;
+    std::chrono::steady_clock::time_point lastStatusTextTimestamp{};
 
     wxDECLARE_EVENT_TABLE();
 };

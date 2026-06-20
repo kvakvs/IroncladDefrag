@@ -7,7 +7,6 @@
 #include <vector>
 #include <wx/button.h>
 #include <wx/choice.h>
-#include <wx/gauge.h>
 #include <wx/panel.h>
 #include <wx/stattext.h>
 #include <wx/textctrl.h>
@@ -27,7 +26,6 @@ public:
     void SetPlacementPlan(const PlacementPlan& plan);
     void SetMovePlan(const MovePlan& plan);
     void SetExecutionResult(const MoveExecutionResult& result);
-    void SetProgress(const JobProgress& progress);
     void SetProfiles(const std::vector<OptimizationProfile>& nextProfiles, const OptimizationProfile& activeProfile);
     void SetSafetySettings(const SafetySettings& settings);
     void SetRecentAnalysisSummary(const std::optional<RecentAnalysisSummary>& summary);
@@ -61,10 +59,8 @@ private:
     wxStaticText* analysisText = nullptr;
     wxStaticText* placementText = nullptr;
     wxStaticText* planText = nullptr;
-    wxStaticText* progressText = nullptr;
     wxStaticText* profileLabel = nullptr;
     wxChoice* profileChoice = nullptr;
-    wxGauge* progressGauge = nullptr;
     wxTextCtrl* warningsText = nullptr;
     wxTextCtrl* executionText = nullptr;
     wxButton* refreshButton = nullptr;
