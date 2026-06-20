@@ -2,9 +2,17 @@
 apply: always
 ---
 
+# About
+
 This is a Windows x64 application implementing a disk analyser and defragmenter for 
 Windows. This is a simple GUI application with top menu, all disks information panel, 
 current drive map panel and controls and info panel in the bottom.
+
+## Tools
+- "C:\Program Files\" contains system-installed CMAKE.
+- The host has Visual Studio community 2026 installed.
+
+# Design
 
 The supported functions are:
 - Analysis of a drive (file map, fragmentation of files and free space, etc.)

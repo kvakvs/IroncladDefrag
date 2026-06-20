@@ -8,6 +8,7 @@
 - `.clang-format` - C++ formatting rules based on LLVM style with 4-space indentation and 120-column limit.
 - `.gitignore` - ignored files.
 - `CMakeLists.txt` - single executable target, wxWidgets include/library paths, compile definitions, precompiled header setup, and post-build DLL copying.
+- `cmake-build.bat` - configures Visual Studio 2026 x64 files into `build/` and builds the selected configuration.
 
 ## Source Root
 
@@ -64,3 +65,4 @@ Stored wxWidgets source/header/library archives.
 ## Build Output
 
 - `cmake-build-debug` - existing local debug build directory. Treat as generated output unless the user explicitly asks about it.
+- `build` - Visual Studio build directory used by `cmake-build.bat`. Treat as generated output unless the user explicitly asks about it.
