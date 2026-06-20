@@ -4,8 +4,10 @@
 #include "Units.h"
 
 namespace icd {
+// Stores a file's sector fragments and derived contiguous/fragment-count state.
 class FragmentMap {
 public:
+    // Describes one sector range occupied by a file fragment.
     struct Fragment {
         index64_t startSector;
         index64_t endSector;

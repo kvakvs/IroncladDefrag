@@ -6,6 +6,7 @@
 
 namespace icd {
 
+// Runs one cancellable worker thread so long drive operations stay off the UI thread.
 class BackgroundJob {
 public:
     using Work = std::function<void(const std::atomic_bool& cancellationRequested)>;

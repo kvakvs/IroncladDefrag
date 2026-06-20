@@ -7,14 +7,17 @@
 
 namespace icd {
 
+// Stores drive geometry and coarse performance zones used by analysis and future placement strategies.
 class DiskGeometry {
 public:
+    // Describes a hardware-style cylinder zone when low-level geometry is available.
     struct ZoneInfo {
         index32_t startCylinder;
         sector_count32_t sectorsPerTrack;
         megabyte_sec_t transferRate; // MB/s
     };
 
+    // Describes an analysis-friendly sector range with approximate performance characteristics.
     struct PerformanceZone {
         index64_t startSector;
         index64_t endSector;

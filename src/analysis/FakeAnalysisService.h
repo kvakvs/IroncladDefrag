@@ -7,6 +7,7 @@
 
 namespace icd {
 
+// Produces synthetic analysis data for development without touching real drives.
 class FakeAnalysisService {
 public:
     using ProgressCallback = std::function<void(const JobProgress&)>;

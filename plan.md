@@ -64,6 +64,7 @@ Exit criteria:
 Implement drive discovery and safe analysis before any movement:
 
 - Enumerate local fixed drives and display volume label, file system, capacity, free space, cluster size, and privilege/capability status.
+- Turn Analyze menu into a popup submenu with available mechanical disk drives. Other non-mechanical and network drives can be shown in 'disabled' state.
 - Read drive geometry and map it to logical performance zones.
 - Scan files and collect path, size, timestamps, attributes, file type, directory, and cluster extents.
 - Build file fragmentation metrics from cluster extents.

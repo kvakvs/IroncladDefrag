@@ -21,6 +21,8 @@ add_executable(IroncladDefrag WIN32
         src/precompiled.h
         src/precompiled.cpp
         src/main.cpp
+        src/analysis/DriveAnalysisService.cpp
+        src/analysis/DriveAnalysisService.h
         src/analysis/FakeAnalysisService.cpp
         src/analysis/FakeAnalysisService.h
         src/app/ApplicationController.cpp
@@ -37,10 +39,18 @@ add_executable(IroncladDefrag WIN32
         src/model/DiskGeometry.cpp
         src/model/DiskGeometry.h
         src/model/Units.h
+        src/platform/windows/DriveEnumerator.cpp
+        src/platform/windows/DriveEnumerator.h
+        src/platform/windows/UniqueHandle.cpp
+        src/platform/windows/UniqueHandle.h
+        src/platform/windows/VolumeQueries.cpp
+        src/platform/windows/VolumeQueries.h
         src/support/Logger.cpp
         src/support/Logger.h
         src/ui/App.cpp
         src/ui/App.h
+        src/ui/DriveAnalysisPage.cpp
+        src/ui/DriveAnalysisPage.h
         src/ui/MainFrame.cpp
         src/ui/MainFrame.h
 )

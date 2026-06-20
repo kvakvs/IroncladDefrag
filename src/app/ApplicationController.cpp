@@ -1,5 +1,8 @@
 #include "ApplicationController.h"
 
+#include "../analysis/DriveAnalysisService.h"
+#include "../analysis/FakeAnalysisService.h"
+#include "../platform/windows/DriveEnumerator.h"
 #include "../support/Logger.h"
 
 #include <exception>
@@ -55,6 +58,12 @@ void ApplicationController::ClearCallbacks()
     errorCallback = nullptr;
 }
 
+std::vector<DriveInfo> ApplicationController::EnumerateDrives() const
+{
+    win::DriveEnumerator enumerator;
+    return enumerator.Enumerate();
+}
+
 bool ApplicationController::StartFakeAnalysis()
 {
     if (activeJob.IsRunning()) {
@@ -106,6 +115,78 @@ bool ApplicationController::StartFakeAnalysis()
     return started;
 }
 
+// Starts a cancellable worker job that runs read-only analysis away from the UI thread.
+bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
+{
+    if (activeJob.IsRunning()) {
+        NotifyError(L"Analysis is already running.");
+        return false;
+    }
+
+    if (!drive.capabilities.canAnalyze) {
+        NotifyError(L"Selected drive is not enabled for read-only analysis.");
+        return false;
+    }
+
+    Logger::Info(L"Starting read-only drive analysis for " + drive.rootPath);
+    const bool started = activeJob.Start([this, drive](const std::atomic_bool& cancellationRequested) {
+        try {
+            DriveAnalysisService service;
+            AnalysisResult result = service.Run(drive, cancellationRequested, [this](const JobProgress& progress) {
+                NotifyProgress(progress);
+            });
+
+            if (cancellationRequested.load()) {
+                result.stats.cancelled = true;
+                JobProgress cancelled;
+                cancelled.state = JobState::Cancelled;
+                cancelled.percentComplete = 0.0;
+                cancelled.statusMessage = L"Drive analysis cancelled.";
+                cancelled.cancellationRequested = true;
+                NotifyProgress(cancelled);
+                Logger::Info(L"Read-only drive analysis cancelled.");
+                return;
+            }
+
+            {
+                std::lock_guard lock(analysisMutex);
+                completedAnalyses[result.drive.rootPath] = result;
+            }
+
+            JobProgress completed;
+            completed.state = JobState::Completed;
+            completed.percentComplete = 100.0;
+            completed.statusMessage = L"Drive analysis complete.";
+            completed.itemsProcessed = result.stats.scannedFiles;
+            NotifyProgress(completed);
+            NotifyCompletion(result);
+            Logger::Info(L"Read-only drive analysis completed for " + result.drive.rootPath);
+        } catch (const std::exception& ex) {
+            const std::wstring message = L"Drive analysis failed: " + ToWide(ex.what());
+            Logger::Error(message);
+            NotifyError(message);
+        } catch (...) {
+            const std::wstring message = L"Drive analysis failed with an unknown error.";
+            Logger::Error(message);
+            NotifyError(message);
+        }
+    });
+
+    if (!started) {
+        NotifyError(L"Unable to start drive analysis job.");
+    }
+
+    return started;
+}
+
+void ApplicationController::RequestCancelActiveJob()
+{
+    if (activeJob.IsRunning()) {
+        Logger::Info(L"Requesting cancellation of active analysis job.");
+        activeJob.RequestCancel();
+    }
+}
+
 void ApplicationController::CancelActiveJob()
 {
     if (activeJob.IsRunning()) {
@@ -119,6 +200,17 @@ void ApplicationController::CancelActiveJob()
 bool ApplicationController::IsJobRunning() const
 {
     return activeJob.IsRunning();
+}
+
+std::vector<AnalysisResult> ApplicationController::GetAnalysisSnapshots() const
+{
+    std::lock_guard lock(analysisMutex);
+    std::vector<AnalysisResult> snapshots;
+    snapshots.reserve(completedAnalyses.size());
+    for (const auto& [root, result] : completedAnalyses) {
+        snapshots.push_back(result);
+    }
+    return snapshots;
 }
 
 void ApplicationController::NotifyProgress(const JobProgress& progress)

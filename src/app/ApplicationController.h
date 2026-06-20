@@ -3,13 +3,15 @@
 #include <functional>
 #include <mutex>
 #include <string>
+#include <unordered_map>
+#include <vector>
 
-#include "../analysis/FakeAnalysisService.h"
 #include "../model/DomainTypes.h"
 #include "BackgroundJob.h"
 
 namespace icd {
 
+// Orchestrates UI-facing drive discovery, analysis jobs, callbacks, and cached snapshots.
 class ApplicationController {
 public:
     using ProgressCallback = std::function<void(const JobProgress&)>;
@@ -27,9 +29,13 @@ public:
     void SetErrorCallback(ErrorCallback callback);
     void ClearCallbacks();
 
+    std::vector<DriveInfo> EnumerateDrives() const;
     bool StartFakeAnalysis();
+    bool StartDriveAnalysis(const DriveInfo& drive);
+    void RequestCancelActiveJob();
     void CancelActiveJob();
     bool IsJobRunning() const;
+    std::vector<AnalysisResult> GetAnalysisSnapshots() const;
 
 private:
     void NotifyProgress(const JobProgress& progress);
@@ -41,6 +47,8 @@ private:
     CompletionCallback completionCallback;
     ErrorCallback errorCallback;
     BackgroundJob activeJob;
+    mutable std::mutex analysisMutex;
+    std::unordered_map<std::wstring, AnalysisResult> completedAnalyses;
 };
 
 } // namespace icd

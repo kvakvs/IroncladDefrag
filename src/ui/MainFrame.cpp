@@ -8,12 +8,15 @@ enum
 {
     ID_Exit = wxID_EXIT,
     ID_About = wxID_ABOUT,
-    ID_Analyse = wxID_HIGHEST + 1,
-    ID_CancelAnalysis
+    ID_RefreshDrives = wxID_HIGHEST + 1,
+    ID_CancelAnalysis,
+    ID_FirstDrive = wxID_HIGHEST + 100,
+    ID_LastDrive = ID_FirstDrive + 25
 };
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
-    EVT_MENU(ID_Analyse, MainFrame::OnAnalyse)
+    EVT_MENU(ID_RefreshDrives, MainFrame::OnRefreshDrives)
+    EVT_MENU_RANGE(ID_FirstDrive, ID_LastDrive, MainFrame::OnAnalyseDrive)
     EVT_MENU(ID_CancelAnalysis, MainFrame::OnCancelAnalysis)
     EVT_MENU(ID_Exit, MainFrame::OnExit)
     EVT_MENU(ID_About, MainFrame::OnAbout)
@@ -24,6 +27,7 @@ MainFrame::MainFrame(const wxString& title)
     : wxFrame(nullptr, wxID_ANY, title, wxDefaultPosition, wxSize(800, 600))
 {
     CreateMenuBar();
+    CreateDocumentArea();
     
     // Create a status bar
     CreateStatusBar();
@@ -44,6 +48,7 @@ MainFrame::MainFrame(const wxString& title)
             OnAnalysisError(message);
         });
     });
+    RefreshDriveMenu();
     UpdateAnalysisMenuState(false);
 }
 
@@ -64,13 +69,78 @@ void MainFrame::CreateMenuBar()
     // Add menu to menu bar
     menuBar->Append(fileMenu, "&File");
 
-    wxMenu* analysisMenu = new wxMenu;
-    analysisMenu->Append(ID_Analyse, "&Analyse\tF5", "Run a synthetic analysis job");
-    analysisMenu->Append(ID_CancelAnalysis, "&Cancel Analysis\tEsc", "Cancel the active synthetic analysis job");
+    analysisMenu = new wxMenu;
     menuBar->Append(analysisMenu, "&Analysis");
     
     // Set the menu bar
     SetMenuBar(menuBar);
+}
+
+void MainFrame::CreateDocumentArea()
+{
+    documents = new wxNotebook(this, wxID_ANY);
+
+    auto* welcome = new wxPanel(documents, wxID_ANY);
+    auto* welcomeSizer = new wxBoxSizer(wxVERTICAL);
+    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Select Analysis > Refresh Drives, then choose an enabled drive."),
+                      0,
+                      wxALL,
+                      12);
+    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Drive map TODO: analysed drives will open as document tabs."),
+                      0,
+                      wxLEFT | wxRIGHT | wxBOTTOM,
+                      12);
+    welcome->SetSizer(welcomeSizer);
+    documents->AddPage(welcome, "Start", true);
+
+    auto* sizer = new wxBoxSizer(wxVERTICAL);
+    sizer->Add(documents, 1, wxEXPAND);
+    SetSizer(sizer);
+}
+
+// Rebuilds the Analysis menu from current drive capabilities.
+void MainFrame::RefreshDriveMenu()
+{
+    if (analysisMenu == nullptr) {
+        return;
+    }
+
+    while (analysisMenu->GetMenuItemCount() > 0) {
+        wxMenuItem* item = analysisMenu->FindItemByPosition(0);
+        analysisMenu->Destroy(item);
+    }
+
+    driveMenuItems.clear();
+    analysisMenu->Append(ID_RefreshDrives, "&Refresh Drives", "Refresh visible local drives");
+    analysisMenu->AppendSeparator();
+
+    const bool running = controller.IsJobRunning();
+    const std::vector<DriveInfo> drives = controller.EnumerateDrives();
+    int driveId = ID_FirstDrive;
+    for (const DriveInfo& drive : drives) {
+        if (driveId > ID_LastDrive) {
+            break;
+        }
+
+        wxString label(drive.displayName);
+        if (!drive.capabilities.disabledReason.empty()) {
+            label += wxString::Format(" - %s", wxString(drive.capabilities.disabledReason));
+        }
+
+        wxMenuItem* item = analysisMenu->Append(driveId, label, "Run read-only analysis for this drive");
+        item->Enable(drive.capabilities.canAnalyze && !running);
+        driveMenuItems.emplace(driveId, drive);
+        ++driveId;
+    }
+
+    if (driveMenuItems.empty()) {
+        wxMenuItem* item = analysisMenu->Append(wxID_ANY, "No visible drives found");
+        item->Enable(false);
+    }
+
+    analysisMenu->AppendSeparator();
+    analysisMenu->Append(ID_CancelAnalysis, "&Cancel Analysis\tEsc", "Request cancellation of the active analysis job");
+    UpdateAnalysisMenuState(running);
 }
 
 void MainFrame::UpdateAnalysisMenuState(bool running)
@@ -80,25 +150,43 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
         return;
     }
 
-    menuBar->Enable(ID_Analyse, !running);
+    menuBar->Enable(ID_RefreshDrives, !running);
     menuBar->Enable(ID_CancelAnalysis, running);
+
+    for (const auto& [id, drive] : driveMenuItems) {
+        menuBar->Enable(id, drive.capabilities.canAnalyze && !running);
+    }
 }
 
-void MainFrame::OnAnalyse(wxCommandEvent& event)
+void MainFrame::OnRefreshDrives(wxCommandEvent& event)
 {
-    UpdateAnalysisMenuState(true);
-    SetStatusText("Starting synthetic analysis...");
+    RefreshDriveMenu();
+    SetStatusText("Drive list refreshed.");
+}
 
-    if (!controller.StartFakeAnalysis()) {
+void MainFrame::OnAnalyseDrive(wxCommandEvent& event)
+{
+    const auto item = driveMenuItems.find(event.GetId());
+    if (item == driveMenuItems.end()) {
+        SetStatusText("Drive menu item is no longer available.");
+        return;
+    }
+
+    const DriveInfo drive = item->second;
+    activeDriveRoot = drive.rootPath;
+    UpdateAnalysisMenuState(true);
+    SetStatusText(wxString::Format("Starting read-only analysis for %s", wxString(drive.rootPath)));
+
+    if (!controller.StartDriveAnalysis(drive)) {
         UpdateAnalysisMenuState(false);
     }
 }
 
 void MainFrame::OnCancelAnalysis(wxCommandEvent& event)
 {
-    SetStatusText("Cancelling synthetic analysis...");
-    controller.CancelActiveJob();
-    UpdateAnalysisMenuState(false);
+    SetStatusText("Cancelling drive analysis...");
+    controller.RequestCancelActiveJob();
+    UpdateAnalysisMenuState(true);
 }
 
 void MainFrame::OnExit(wxCommandEvent& event)
@@ -125,25 +213,26 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 {
     switch (progress.state) {
     case JobState::Running:
-        SetStatusText(wxString::Format("Synthetic analysis %.0f%% - %s",
+        SetStatusText(wxString::Format("Drive analysis %.0f%% - %s %s",
                                        progress.percentComplete,
-                                       wxString(progress.statusMessage)));
+                                       wxString(progress.statusMessage),
+                                       wxString(progress.currentItem)));
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Cancelled:
-        SetStatusText("Synthetic analysis cancelled.");
+        SetStatusText("Drive analysis cancelled.");
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Completed:
-        SetStatusText("Synthetic analysis complete.");
+        SetStatusText("Drive analysis complete.");
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Failed:
-        SetStatusText("Synthetic analysis failed.");
+        SetStatusText("Drive analysis failed.");
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Cancelling:
-        SetStatusText("Cancelling synthetic analysis...");
+        SetStatusText("Cancelling drive analysis...");
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Idle:
@@ -155,6 +244,7 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
 {
     SetStatusText(wxString(result.summary));
+    OpenOrUpdateAnalysisPage(result);
     UpdateAnalysisMenuState(false);
 }
 
@@ -162,6 +252,28 @@ void MainFrame::OnAnalysisError(const std::wstring& message)
 {
     SetStatusText(wxString(message));
     UpdateAnalysisMenuState(false);
+}
+
+// Opens a new drive document tab or refreshes the existing snapshot for that drive.
+void MainFrame::OpenOrUpdateAnalysisPage(const AnalysisResult& result)
+{
+    if (documents == nullptr) {
+        return;
+    }
+
+    auto existing = analysisPages.find(result.drive.rootPath);
+    if (existing != analysisPages.end()) {
+        existing->second->UpdateResult(result);
+        const int index = documents->FindPage(existing->second);
+        if (index != wxNOT_FOUND) {
+            documents->SetSelection(index);
+        }
+        return;
+    }
+
+    auto* page = new DriveAnalysisPage(documents, result);
+    documents->AddPage(page, wxString(result.drive.rootPath), true);
+    analysisPages.emplace(result.drive.rootPath, page);
 }
 
 } // namespace icd

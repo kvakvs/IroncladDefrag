@@ -45,4 +45,4 @@ The supported functions are:
 
 ## When Editing or Creating Code
 
-- Add oneline intent comments to non-trivial functions explaining why the function exists.
+- Add oneline intent comments to non-trivial functions, and all data structures, explaining why the function or structure exists.

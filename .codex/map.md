@@ -21,7 +21,7 @@
 - `src/app/ApplicationController.h`
 - `src/app/ApplicationController.cpp`
 
-Owns Phase 1 fake-analysis orchestration, progress/completion/error callbacks, and cancellation.
+Owns drive enumeration, selected-drive read-only analysis orchestration, in-memory analysis snapshots, progress/completion/error callbacks, and cancellation.
 
 - `src/app/BackgroundJob.h`
 - `src/app/BackgroundJob.cpp`
@@ -29,6 +29,11 @@ Owns Phase 1 fake-analysis orchestration, progress/completion/error callbacks, a
 Small `std::thread` worker wrapper with cooperative cancellation and destructor-time joining.
 
 ## Analysis Layer
+
+- `src/analysis/DriveAnalysisService.h`
+- `src/analysis/DriveAnalysisService.cpp`
+
+Runs read-only analysis for a selected drive: recursive file metadata scan, retrieval-pointer extent collection, free-space bitmap collection, and summary metrics.
 
 - `src/analysis/FakeAnalysisService.h`
 - `src/analysis/FakeAnalysisService.cpp`
@@ -47,6 +52,11 @@ Defines `icd::App`, the `wxApp` subclass that initializes wxWidgets and shows th
 
 Defines `icd::MainFrame`, the top-level `wxFrame`. Currently owns menu bar creation, Exit/About handlers, and the status bar.
 
+- `src/ui/DriveAnalysisPage.h`
+- `src/ui/DriveAnalysisPage.cpp`
+
+Defines a simple analysis-result document page shown in the main notebook, with summary labels and a drive-map TODO placeholder.
+
 ## Model Layer
 
 - `src/model/Units.h`
@@ -55,7 +65,7 @@ Defines `icd::Quantity` and project-specific type aliases for counts, indexes, b
 
 - `src/model/DomainTypes.h`
 
-Defines Phase 1 value types for drive/volume metadata, disk zones, file classes, optimization settings/profiles, analysis results, placement/move plans, and job progress.
+Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, optimization settings/profiles, analysis results/stats, placement/move plans, and job progress.
 
 - `src/model/FileMetadata.h`
 - `src/model/FileMetadata.cpp`
@@ -76,6 +86,23 @@ Defines `icd::FreeSpaceMap`, free-space sector blocks, total free space, fragmen
 - `src/model/DiskGeometry.cpp`
 
 Defines `icd::DiskGeometry`, basic disk geometry, zone layout, and performance zones.
+
+## Windows Platform Boundary
+
+- `src/platform/windows/UniqueHandle.h`
+- `src/platform/windows/UniqueHandle.cpp`
+
+RAII wrapper for Win32 handles.
+
+- `src/platform/windows/DriveEnumerator.h`
+- `src/platform/windows/DriveEnumerator.cpp`
+
+Enumerates visible drives and read-only volume/media/capability status.
+
+- `src/platform/windows/VolumeQueries.h`
+- `src/platform/windows/VolumeQueries.cpp`
+
+Queries file extents and volume free-space bitmap through read-only FSCTL calls.
 
 ## Support Layer
 

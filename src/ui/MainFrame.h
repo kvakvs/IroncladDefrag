@@ -2,11 +2,15 @@
 #pragma once
 
 #include "../app/ApplicationController.h"
+#include "DriveAnalysisPage.h"
 
+#include <unordered_map>
 #include <wx/wx.h>
+#include <wx/notebook.h>
 
 namespace icd {
 
+// Owns the main wxWidgets frame, menus, status text, and analysis document tabs.
 class MainFrame : public wxFrame
 {
 public:
@@ -15,8 +19,11 @@ public:
 
 private:
     void CreateMenuBar();
+    void CreateDocumentArea();
+    void RefreshDriveMenu();
     void UpdateAnalysisMenuState(bool running);
-    void OnAnalyse(wxCommandEvent& event);
+    void OnRefreshDrives(wxCommandEvent& event);
+    void OnAnalyseDrive(wxCommandEvent& event);
     void OnCancelAnalysis(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
@@ -24,8 +31,14 @@ private:
     void OnAnalysisProgress(const JobProgress& progress);
     void OnAnalysisComplete(const AnalysisResult& result);
     void OnAnalysisError(const std::wstring& message);
+    void OpenOrUpdateAnalysisPage(const AnalysisResult& result);
 
     ApplicationController controller;
+    wxMenu* analysisMenu = nullptr;
+    wxNotebook* documents = nullptr;
+    std::unordered_map<int, DriveInfo> driveMenuItems;
+    std::unordered_map<std::wstring, DriveAnalysisPage*> analysisPages;
+    std::wstring activeDriveRoot;
 
     wxDECLARE_EVENT_TABLE();
 };

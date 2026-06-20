@@ -5,8 +5,10 @@
 
 namespace icd {
 
+// Stores free-space ranges and derived free-space fragmentation metrics.
 class FreeSpaceMap {
 public:
+    // Describes one contiguous free sector range on a volume.
     struct FreeBlock {
         index64_t startSector;
         count64_t sectorCount;

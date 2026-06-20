@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <cstdint>
 #include <filesystem>
 #include <string>
 #include <vector>
@@ -14,6 +15,26 @@ namespace icd {
 
 enum class DriveKind { Unknown, Mechanical, SolidState, Removable, Network };
 
+// Describes user-visible volume facts collected during read-only drive discovery.
+struct VolumeInfo {
+    std::wstring label;
+    std::wstring fileSystem;
+    byte_count64_t totalBytes = byte_count64_t();
+    byte_count64_t freeBytes = byte_count64_t();
+    byte_count64_t bytesPerCluster = byte_count64_t();
+};
+
+// Describes which read-only drive-analysis operations are available for a drive.
+struct DriveCapabilityStatus {
+    bool mediaKnown = false;
+    bool canOpenVolume = false;
+    bool canQueryBitmap = false;
+    bool canQueryExtents = false;
+    bool canAnalyze = false;
+    std::wstring disabledReason;
+};
+
+// Describes a discovered drive and the analysis capabilities attached to it.
 struct DriveInfo {
     std::wstring rootPath;
     std::wstring displayName;
@@ -21,28 +42,26 @@ struct DriveInfo {
     bool isFixed = false;
     bool supportsTrim = false;
     bool supportsFileMove = false;
-};
-
-struct VolumeInfo {
-    std::wstring label;
-    std::wstring fileSystem;
-    byte_count64_t totalBytes;
-    byte_count64_t freeBytes;
-    byte_count64_t bytesPerCluster;
+    VolumeInfo volume;
+    byte_count64_t bytesPerSector = byte_count64_t();
+    count64_t sectorsPerCluster = count64_t();
+    DriveCapabilityStatus capabilities;
 };
 
 enum class DiskZoneRole { Fast, Balanced, Slow, LargeFile, FreeSpaceReserve };
 
+// Describes a logical placement zone used by future optimization strategies.
 struct DiskZone {
     DiskZoneRole role = DiskZoneRole::Balanced;
-    index64_t startSector;
-    count64_t sectorCount;
+    index64_t startSector = index64_t();
+    count64_t sectorCount = count64_t();
     bool enabled = true;
 };
 
 enum class FileSizeClass { Unknown, Tiny, Small, Medium, Large, Huge };
 enum class FileTemperature { Unknown, Hot, Warm, Cool, Cold, Stale };
 
+// Describes a file's coarse optimization-relevant classification.
 struct FileClass {
     FileSizeClass sizeClass = FileSizeClass::Unknown;
     FileTemperature temperature = FileTemperature::Unknown;
@@ -63,6 +82,7 @@ enum class OptimizationMode {
     SingleFileDefragmentation
 };
 
+// Stores configurable knobs shared by future optimization profiles.
 struct OptimizationSettings {
     bool enableFastZone = true;
     bool enableBalancedZone = true;
@@ -82,54 +102,73 @@ struct OptimizationSettings {
     std::chrono::hours coldRecency = std::chrono::hours(24 * 180);
 };
 
+// Names a selectable optimization profile and the settings it uses.
 struct OptimizationProfile {
     OptimizationMode mode = OptimizationMode::BalancedDataDrive;
     std::wstring name = L"Balanced data-drive optimization";
     OptimizationSettings settings;
 };
 
+// Stores the read-only analysis snapshot for one drive.
 struct AnalysisResult {
     DriveInfo drive;
     VolumeInfo volume;
     DiskGeometry geometry;
     std::vector<FileMetadata> files;
     FreeSpaceMap freeSpace;
+    // Stores aggregate metrics derived during read-only analysis.
+    struct AnalysisStats {
+        count64_t scannedFiles = count64_t();
+        count64_t skippedFiles = count64_t();
+        count64_t inaccessibleFiles = count64_t();
+        count64_t filesWithExtents = count64_t();
+        count64_t fragmentedFiles = count64_t();
+        count64_t totalFragments = count64_t();
+        count64_t freeSpaceBlocks = count64_t();
+        count64_t largestFreeBlockSectors = count64_t();
+        bool freeSpaceMapAvailable = false;
+        bool cancelled = false;
+    } stats;
     bool synthetic = false;
     std::wstring summary;
 };
 
+// Stores target placement intent before concrete move planning exists.
 struct PlacementPlan {
     OptimizationProfile profile;
     std::vector<DiskZone> zones;
     std::wstring summary;
 };
 
+// Describes one future file move without executing it.
 struct MoveOperation {
     std::filesystem::path filePath;
-    index64_t sourceStartCluster;
-    index64_t targetStartCluster;
-    count64_t clusterCount;
-    byte_count64_t estimatedBytes;
+    index64_t sourceStartCluster = index64_t();
+    index64_t targetStartCluster = index64_t();
+    count64_t clusterCount = count64_t();
+    byte_count64_t estimatedBytes = byte_count64_t();
     std::wstring reason;
 };
 
+// Stores a dry-run-friendly sequence of future move operations.
 struct MovePlan {
     OptimizationProfile profile;
     std::vector<MoveOperation> operations;
-    byte_count64_t estimatedBytesToMove;
+    byte_count64_t estimatedBytesToMove = byte_count64_t();
     bool dryRun = true;
     std::wstring summary;
 };
 
 enum class JobState { Idle, Running, Cancelling, Cancelled, Completed, Failed };
 
+// Describes progress from worker jobs without depending on wxWidgets.
 struct JobProgress {
     JobState state = JobState::Idle;
     double percentComplete = 0.0;
     std::wstring statusMessage;
     std::wstring currentItem;
-    count64_t itemsProcessed;
-    count64_t totalItems;
+    count64_t itemsProcessed = count64_t();
+    count64_t totalItems = count64_t();
     bool cancellationRequested = false;
 };
 
