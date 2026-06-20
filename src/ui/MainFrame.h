@@ -2,10 +2,13 @@
 #pragma once
 
 #include "../app/ApplicationController.h"
+#include "DriveListPanel.h"
 #include "DriveAnalysisPage.h"
+#include "WorkflowPanel.h"
 
 #include <optional>
 #include <unordered_map>
+#include <vector>
 #include <wx/wx.h>
 #include <wx/notebook.h>
 
@@ -23,6 +26,13 @@ private:
     void CreateDocumentArea();
     void RefreshDriveMenu();
     void UpdateAnalysisMenuState(bool running);
+    void SelectDrive(const DriveInfo& drive);
+    void StartAnalysisForDrive(const DriveInfo& drive);
+    bool BuildPlacementIntentForSelected();
+    bool BuildMovePlanForSelected(bool showDialog);
+    bool ReviewSelectedMovePlan();
+    bool ExecuteSelectedMovePlan();
+    bool RunFastLane(const OptimizationProfile& profile);
     void OnRefreshDrives(wxCommandEvent& event);
     void OnAnalyseDrive(wxCommandEvent& event);
     void OnCancelAnalysis(wxCommandEvent& event);
@@ -43,7 +53,10 @@ private:
     ApplicationController controller;
     wxMenu* analysisMenu = nullptr;
     wxMenu* optimizationMenu = nullptr;
+    DriveListPanel* driveListPanel = nullptr;
     wxNotebook* documents = nullptr;
+    WorkflowPanel* workflowPanel = nullptr;
+    std::vector<DriveInfo> visibleDrives;
     std::unordered_map<int, DriveInfo> driveMenuItems;
     std::unordered_map<std::wstring, DriveAnalysisPage*> analysisPages;
     std::wstring activeDriveRoot;

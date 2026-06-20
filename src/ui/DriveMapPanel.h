@@ -16,7 +16,8 @@ struct DriveMapRenderSettings {
     int cellGap = 1;
 };
 
-enum class DriveMapRenderMode { ActualLayout, IntendedPlacement };
+enum class DriveMapRenderMode { ActualLayout, IntendedPlacement, PlannedMoves };
+enum class DriveMapClassFilter { All, Hot, Cold, LargeFile, Fragmented, Risky, Free };
 
 // Names the visible state chosen for a drive-map cluster range.
 enum class DriveMapRangeState { Unknown, Free, Occupied, Hot, Cold, LargeFile, Fragmented, Risky };
@@ -35,13 +36,18 @@ public:
 
     void UpdateResult(const AnalysisResult& result);
     void UpdatePlacementPlan(const PlacementPlan& plan);
+    void UpdateMovePlan(const MovePlan& plan);
     void SetRenderMode(DriveMapRenderMode mode);
+    void SetClassFilter(DriveMapClassFilter filter);
+    void SetShowPlannedMoves(bool show);
 
 private:
     void BuildRanges();
     void RecalculateScale(const wxSize& size);
     void OnPaint(wxPaintEvent& event);
     void OnSize(wxSizeEvent& event);
+    void DrawPlannedMoveOverlays(wxDC& dc) const;
+    void DrawClusterRangeOutline(wxDC& dc, std::uint64_t startCluster, std::uint64_t clusterCount, const wxPen& pen) const;
 
     std::uint64_t GetTotalClusters() const;
     DriveMapRangeState StateForBox(std::uint64_t startCluster,
@@ -50,7 +56,10 @@ private:
 
     AnalysisResult analysis;
     std::optional<PlacementPlan> placementPlan;
+    std::optional<MovePlan> movePlan;
     DriveMapRenderMode renderMode = DriveMapRenderMode::ActualLayout;
+    DriveMapClassFilter classFilter = DriveMapClassFilter::All;
+    bool showPlannedMoves = false;
     DriveMapRenderSettings settings;
     std::vector<DriveMapRange> ranges;
     std::uint64_t totalClusters = 1;

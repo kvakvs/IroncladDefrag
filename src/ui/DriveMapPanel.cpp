@@ -72,6 +72,27 @@ namespace {
         }
     }
 
+    // Decides whether a map range survives the current class filter.
+    bool FilterAllowsState(DriveMapClassFilter filter, DriveMapRangeState state) {
+        switch (filter) {
+        case DriveMapClassFilter::Hot:
+            return state == DriveMapRangeState::Hot;
+        case DriveMapClassFilter::Cold:
+            return state == DriveMapRangeState::Cold;
+        case DriveMapClassFilter::LargeFile:
+            return state == DriveMapRangeState::LargeFile;
+        case DriveMapClassFilter::Fragmented:
+            return state == DriveMapRangeState::Fragmented;
+        case DriveMapClassFilter::Risky:
+            return state == DriveMapRangeState::Risky;
+        case DriveMapClassFilter::Free:
+            return state == DriveMapRangeState::Free;
+        case DriveMapClassFilter::All:
+        default:
+            return true;
+        }
+    }
+
     // Derives the visual state for a file range using classification first and raw file safety second.
     DriveMapRangeState StateForFile(const FileMetadata& file, const FileClass* classification) {
         const auto& flags = file.GetAttributeFlags();
@@ -87,6 +108,10 @@ namespace {
         }
 
         if (classification != nullptr) {
+            if (classification->expectedPlacement == ExpectedPlacementZone::LargeFile ||
+                classification->sizeClass == FileSizeClass::Large || classification->sizeClass == FileSizeClass::Huge) {
+                return DriveMapRangeState::LargeFile;
+            }
             if (classification->expectedPlacement == ExpectedPlacementZone::Fast ||
                 classification->temperature == FileTemperature::Hot ||
                 classification->temperature == FileTemperature::Warm) {
@@ -174,7 +199,9 @@ DriveMapPanel::DriveMapPanel(wxWindow* parent, const AnalysisResult& result) :
 void DriveMapPanel::UpdateResult(const AnalysisResult& result) {
     analysis = result;
     placementPlan.reset();
+    movePlan.reset();
     renderMode = DriveMapRenderMode::ActualLayout;
+    showPlannedMoves = false;
     BuildRanges();
     RecalculateScale(GetClientSize());
     Refresh();
@@ -186,17 +213,46 @@ void DriveMapPanel::UpdatePlacementPlan(const PlacementPlan& plan) {
     Refresh();
 }
 
+void DriveMapPanel::UpdateMovePlan(const MovePlan& plan) {
+    movePlan = plan;
+    showPlannedMoves = true;
+    BuildRanges();
+    Refresh();
+}
+
 void DriveMapPanel::SetRenderMode(DriveMapRenderMode mode) {
-    const DriveMapRenderMode nextMode =
-        mode == DriveMapRenderMode::IntendedPlacement && !placementPlan.has_value()
-            ? DriveMapRenderMode::ActualLayout
-            : mode;
+    DriveMapRenderMode nextMode = mode;
+    if (nextMode == DriveMapRenderMode::IntendedPlacement && !placementPlan.has_value()) {
+        nextMode = DriveMapRenderMode::ActualLayout;
+    }
+    if (nextMode == DriveMapRenderMode::PlannedMoves && !movePlan.has_value()) {
+        nextMode = placementPlan.has_value() ? DriveMapRenderMode::IntendedPlacement : DriveMapRenderMode::ActualLayout;
+    }
     if (renderMode == nextMode) {
         return;
     }
 
     renderMode = nextMode;
     BuildRanges();
+    Refresh();
+}
+
+void DriveMapPanel::SetClassFilter(DriveMapClassFilter filter) {
+    if (classFilter == filter) {
+        return;
+    }
+
+    classFilter = filter;
+    BuildRanges();
+    Refresh();
+}
+
+void DriveMapPanel::SetShowPlannedMoves(bool show) {
+    if (showPlannedMoves == show) {
+        return;
+    }
+
+    showPlannedMoves = show;
     Refresh();
 }
 
@@ -208,7 +264,7 @@ void DriveMapPanel::BuildRanges() {
     for (const auto& block : analysis.freeSpace.GetFreeBlocks()) {
         const auto start = block.startSector.getValue();
         const auto count = block.sectorCount.getValue();
-        if (count > 0) {
+        if (count > 0 && FilterAllowsState(classFilter, DriveMapRangeState::Free)) {
             ranges.push_back({start, count, DriveMapRangeState::Free});
         }
     }
@@ -226,6 +282,9 @@ void DriveMapPanel::BuildRanges() {
                                        classification,
                                        intent == intentsByFile.end() ? nullptr : intent->second)
                 : StateForFile(file, classification);
+        if (!FilterAllowsState(classFilter, state)) {
+            continue;
+        }
 
         for (const auto& fragment : file.GetFragments()) {
             const auto start = fragment.startCluster.getValue();
@@ -287,6 +346,9 @@ void DriveMapPanel::OnPaint(wxPaintEvent&) {
             const auto startCluster = boxIndex * clustersPerBox;
             if (startCluster >= totalClusters) {
                 flushRun();
+                if ((showPlannedMoves || renderMode == DriveMapRenderMode::PlannedMoves) && movePlan.has_value()) {
+                    DrawPlannedMoveOverlays(dc);
+                }
                 return;
             }
 
@@ -313,12 +375,59 @@ void DriveMapPanel::OnPaint(wxPaintEvent&) {
 
         flushRun();
     }
+
+    if ((showPlannedMoves || renderMode == DriveMapRenderMode::PlannedMoves) && movePlan.has_value()) {
+        DrawPlannedMoveOverlays(dc);
+    }
 }
 
 void DriveMapPanel::OnSize(wxSizeEvent& event) {
     RecalculateScale(event.GetSize());
     Refresh();
     event.Skip();
+}
+
+void DriveMapPanel::DrawPlannedMoveOverlays(wxDC& dc) const {
+    const wxPen sourcePen(wxColour(241, 91, 91), 1, wxPENSTYLE_SOLID);
+    const wxPen targetPen(wxColour(245, 214, 92), 1, wxPENSTYLE_SOLID);
+    for (const MoveOperation& operation : movePlan->operations) {
+        DrawClusterRangeOutline(dc, operation.sourceStartCluster.getValue(), operation.clusterCount.getValue(), sourcePen);
+        DrawClusterRangeOutline(dc, operation.targetStartCluster.getValue(), operation.clusterCount.getValue(), targetPen);
+    }
+}
+
+void DriveMapPanel::DrawClusterRangeOutline(wxDC& dc,
+                                            std::uint64_t startCluster,
+                                            std::uint64_t clusterCount,
+                                            const wxPen& pen) const {
+    if (clusterCount == 0 || clustersPerBox == 0) {
+        return;
+    }
+
+    const std::uint64_t endCluster = (std::min)(totalClusters, SaturatingRangeEnd(startCluster, clusterCount));
+    if (startCluster >= totalClusters || endCluster <= startCluster) {
+        return;
+    }
+
+    const std::uint64_t firstBox = startCluster / clustersPerBox;
+    const std::uint64_t lastBox = (endCluster - 1) / clustersPerBox;
+    const int pitchX = (std::max)(1, settings.cellWidth + settings.cellGap);
+    const int pitchY = (std::max)(1, settings.cellHeight + settings.cellGap);
+    dc.SetBrush(*wxTRANSPARENT_BRUSH);
+    dc.SetPen(pen);
+
+    for (std::uint64_t box = firstBox; box <= lastBox; ++box) {
+        const int row = static_cast<int>(box / static_cast<std::uint64_t>(columns));
+        const int column = static_cast<int>(box % static_cast<std::uint64_t>(columns));
+        if (row >= rows) {
+            break;
+        }
+
+        const int x = column * pitchX;
+        const int y = row * pitchY;
+        dc.DrawRectangle(x - 1, y - 1, settings.cellWidth + 2, settings.cellHeight + 2);
+    }
+    dc.SetPen(*wxTRANSPARENT_PEN);
 }
 
 std::uint64_t DriveMapPanel::GetTotalClusters() const {

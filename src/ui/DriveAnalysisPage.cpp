@@ -122,6 +122,23 @@ namespace {
         return "Legend: red risky/excluded, blue fast target, purple slow target, teal large-file target, "
                "green balanced target, light gray free, dark gray no target.";
     }
+
+    const char* PlannedMapLegend() {
+        return "Legend: actual colors plus red source outlines and yellow target outlines for planned moves.";
+    }
+
+    std::wstring BuildRecommendationText(const AnalysisResult& result) {
+        if (result.stats.freeSpaceMapAvailable && result.stats.freeSpaceBlocks.getValue() > 128) {
+            return L"Recommendation: free space is heavily split; review free-space optimization.";
+        }
+        if (result.classificationSummary.highBenefitFragmentationFiles.getValue() > 0) {
+            return L"Recommendation: build a dry-run plan to inspect high-benefit fragmentation candidates.";
+        }
+        if (result.classificationSummary.placementCounts.size() > 1) {
+            return L"Recommendation: inspect placement intent for hot, cold, and large-file distribution.";
+        }
+        return L"Recommendation: analysis is available; plan only when the selected profile has a useful target.";
+    }
 } // namespace
 
 DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& result) : wxPanel(parent, wxID_ANY) {
@@ -130,49 +147,92 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     detailsPanel = new wxScrolledWindow(splitter, wxID_ANY);
     detailsPanel->SetScrollRate(0, 8);
 
-    mapModeToggle = new wxToggleButton(detailsPanel, wxID_ANY, "Actual map");
-    mapModeToggle->Enable(false);
-
     auto* detailsSizer = new wxBoxSizer(wxVERTICAL);
+    auto* mapControls = new wxBoxSizer(wxHORIZONTAL);
+    mapModeChoice = new wxChoice(detailsPanel, wxID_ANY);
+    mapModeChoice->Append("Actual");
+    mapModeChoice->Append("Intended");
+    mapModeChoice->Append("Planned");
+    mapModeChoice->SetSelection(0);
+    classFilterChoice = new wxChoice(detailsPanel, wxID_ANY);
+    classFilterChoice->Append("All");
+    classFilterChoice->Append("Hot");
+    classFilterChoice->Append("Cold");
+    classFilterChoice->Append("Large");
+    classFilterChoice->Append("Fragmented");
+    classFilterChoice->Append("Risky");
+    classFilterChoice->Append("Free");
+    classFilterChoice->SetSelection(0);
+    plannedMovesCheck = new wxCheckBox(detailsPanel, wxID_ANY, "Move outlines");
+    plannedMovesCheck->Enable(false);
+    mapControls->Add(new wxStaticText(detailsPanel, wxID_ANY, "Map"), 0, wxALIGN_CENTER_VERTICAL | wxALL, 6);
+    mapControls->Add(mapModeChoice, 0, wxALIGN_CENTER_VERTICAL | wxALL, 4);
+    mapControls->Add(new wxStaticText(detailsPanel, wxID_ANY, "Filter"), 0, wxALIGN_CENTER_VERTICAL | wxALL, 6);
+    mapControls->Add(classFilterChoice, 0, wxALIGN_CENTER_VERTICAL | wxALL, 4);
+    mapControls->Add(plannedMovesCheck, 0, wxALIGN_CENTER_VERTICAL | wxALL, 4);
+    detailsSizer->Add(mapControls, 0, wxEXPAND);
 
-    title = new wxStaticText(detailsPanel, wxID_ANY, "");
-    volume = new wxStaticText(detailsPanel, wxID_ANY, "");
-    files = new wxStaticText(detailsPanel, wxID_ANY, "");
-    fragmentation = new wxStaticText(detailsPanel, wxID_ANY, "");
-    freeSpace = new wxStaticText(detailsPanel, wxID_ANY, "");
-    classificationSizes = new wxStaticText(detailsPanel, wxID_ANY, "");
-    classificationTypes = new wxStaticText(detailsPanel, wxID_ANY, "");
-    classificationRecency = new wxStaticText(detailsPanel, wxID_ANY, "");
-    classificationPlacement = new wxStaticText(detailsPanel, wxID_ANY, "");
-    classificationSafety = new wxStaticText(detailsPanel, wxID_ANY, "");
-    placementIntent = new wxStaticText(detailsPanel, wxID_ANY, "");
-    movePlan = new wxStaticText(detailsPanel, wxID_ANY, "");
-    legend = new wxStaticText(detailsPanel, wxID_ANY, ActualMapLegend());
-    warnings = new wxStaticText(detailsPanel, wxID_ANY, "");
-    todo = new wxStaticText(detailsPanel, wxID_ANY,
-                            "Drive map is read-only. Planning and movement controls are not active.");
+    detailsTabs = new wxNotebook(detailsPanel, wxID_ANY);
+    auto* summaryTab = new wxPanel(detailsTabs, wxID_ANY);
+    auto* planTab = new wxPanel(detailsTabs, wxID_ANY);
+    auto* warningsTab = new wxPanel(detailsTabs, wxID_ANY);
+    auto* executionTab = new wxPanel(detailsTabs, wxID_ANY);
+
+    title = new wxStaticText(summaryTab, wxID_ANY, "");
+    volume = new wxStaticText(summaryTab, wxID_ANY, "");
+    files = new wxStaticText(summaryTab, wxID_ANY, "");
+    fragmentation = new wxStaticText(summaryTab, wxID_ANY, "");
+    freeSpace = new wxStaticText(summaryTab, wxID_ANY, "");
+    classificationSizes = new wxStaticText(summaryTab, wxID_ANY, "");
+    classificationTypes = new wxStaticText(summaryTab, wxID_ANY, "");
+    classificationRecency = new wxStaticText(summaryTab, wxID_ANY, "");
+    classificationPlacement = new wxStaticText(summaryTab, wxID_ANY, "");
+    classificationSafety = new wxStaticText(summaryTab, wxID_ANY, "");
+    recommendations = new wxStaticText(summaryTab, wxID_ANY, "");
+    placementIntent = new wxStaticText(planTab, wxID_ANY, "");
+    movePlan = new wxStaticText(planTab, wxID_ANY, "");
+    legend = new wxStaticText(planTab, wxID_ANY, ActualMapLegend());
+    warnings = new wxStaticText(warningsTab, wxID_ANY, "");
+    execution = new wxStaticText(executionTab, wxID_ANY, "Execution: not started.");
 
     wxFont titleFont = title->GetFont();
     titleFont.SetPointSize(titleFont.GetPointSize() + 2);
     titleFont.SetWeight(wxFONTWEIGHT_BOLD);
     title->SetFont(titleFont);
 
-    detailsSizer->Add(title, 0, wxALL | wxEXPAND, 12);
-    detailsSizer->Add(volume, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(files, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(fragmentation, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(freeSpace, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(classificationSizes, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(classificationTypes, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(classificationRecency, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(classificationPlacement, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(classificationSafety, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(mapModeToggle, 0, wxLEFT | wxRIGHT | wxBOTTOM, 12);
-    detailsSizer->Add(placementIntent, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(movePlan, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(legend, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(warnings, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
-    detailsSizer->Add(todo, 0, wxALL | wxEXPAND, 12);
+    auto* summarySizer = new wxBoxSizer(wxVERTICAL);
+    summarySizer->Add(title, 0, wxALL | wxEXPAND, 8);
+    summarySizer->Add(volume, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(files, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(fragmentation, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(freeSpace, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(classificationSizes, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(classificationTypes, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(classificationRecency, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(classificationPlacement, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(classificationSafety, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summarySizer->Add(recommendations, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    summaryTab->SetSizer(summarySizer);
+
+    auto* planSizer = new wxBoxSizer(wxVERTICAL);
+    planSizer->Add(placementIntent, 0, wxALL | wxEXPAND, 8);
+    planSizer->Add(movePlan, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    planSizer->Add(legend, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 8);
+    planTab->SetSizer(planSizer);
+
+    auto* warningSizer = new wxBoxSizer(wxVERTICAL);
+    warningSizer->Add(warnings, 0, wxALL | wxEXPAND, 8);
+    warningsTab->SetSizer(warningSizer);
+
+    auto* executionSizer = new wxBoxSizer(wxVERTICAL);
+    executionSizer->Add(execution, 0, wxALL | wxEXPAND, 8);
+    executionTab->SetSizer(executionSizer);
+
+    detailsTabs->AddPage(summaryTab, "Summary", true);
+    detailsTabs->AddPage(planTab, "Plan");
+    detailsTabs->AddPage(warningsTab, "Warnings");
+    detailsTabs->AddPage(executionTab, "Execution");
+    detailsSizer->Add(detailsTabs, 1, wxEXPAND | wxLEFT | wxRIGHT | wxBOTTOM, 6);
     detailsPanel->SetSizer(detailsSizer);
 
     splitter->SetMinimumPaneSize(96);
@@ -183,7 +243,9 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     pageSizer->Add(splitter, 1, wxEXPAND);
     SetSizer(pageSizer);
     splitter->Bind(wxEVT_SIZE, &DriveAnalysisPage::OnSize, this);
-    mapModeToggle->Bind(wxEVT_TOGGLEBUTTON, &DriveAnalysisPage::OnMapModeToggle, this);
+    mapModeChoice->Bind(wxEVT_CHOICE, &DriveAnalysisPage::OnMapControlsChanged, this);
+    classFilterChoice->Bind(wxEVT_CHOICE, &DriveAnalysisPage::OnMapControlsChanged, this);
+    plannedMovesCheck->Bind(wxEVT_CHECKBOX, &DriveAnalysisPage::OnMapControlsChanged, this);
 
     UpdateResult(result);
     SetDefaultSashPosition();
@@ -192,9 +254,10 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
 void DriveAnalysisPage::UpdateResult(const AnalysisResult& result) {
     driveRoot = result.drive.rootPath;
     mapPanel->UpdateResult(result);
-    mapModeToggle->SetValue(false);
-    mapModeToggle->Enable(false);
-    UpdateMapModeToggle();
+    mapModeChoice->SetSelection(0);
+    plannedMovesCheck->SetValue(false);
+    plannedMovesCheck->Enable(false);
+    UpdateMapControls();
 
     std::wstringstream volumeText;
     volumeText << L"Volume: " << result.volume.label << L" (" << result.volume.fileSystem << L"), "
@@ -253,15 +316,16 @@ void DriveAnalysisPage::UpdateResult(const AnalysisResult& result) {
     classificationSafety->SetLabel(classificationSafetyText.str());
     placementIntent->SetLabel("Placement intent: not built for this analysis snapshot.");
     movePlan->SetLabel("Move plan: not built for this analysis snapshot.");
+    recommendations->SetLabel(BuildRecommendationText(result));
     warnings->SetLabel(warningsText.str());
+    execution->SetLabel("Execution: not started.");
     detailsPanel->FitInside();
     Layout();
 }
 
 void DriveAnalysisPage::UpdatePlacementPlan(const PlacementPlan& plan) {
     mapPanel->UpdatePlacementPlan(plan);
-    mapModeToggle->Enable(true);
-    UpdateMapModeToggle();
+    UpdateMapControls();
 
     std::wstringstream text;
     text << L"Placement intent: " << plan.profile.name << L", zones enabled " << CountEnabledZones(plan) << L"/"
@@ -274,6 +338,11 @@ void DriveAnalysisPage::UpdatePlacementPlan(const PlacementPlan& plan) {
 }
 
 void DriveAnalysisPage::UpdateMovePlan(const MovePlan& plan) {
+    mapPanel->UpdateMovePlan(plan);
+    plannedMovesCheck->Enable(true);
+    plannedMovesCheck->SetValue(true);
+    UpdateMapControls();
+
     std::wstringstream text;
     text << L"Move plan: " << plan.metrics.affectedFiles.getValue() << L" files, "
          << FormatBytes(plan.estimatedBytesToMove) << L" estimated moved, skipped "
@@ -288,6 +357,37 @@ void DriveAnalysisPage::UpdateMovePlan(const MovePlan& plan) {
     }
     text << L".";
     movePlan->SetLabel(text.str());
+
+    std::wstringstream warningText;
+    if (!plan.issues.empty()) {
+        warningText << L"Issues:\n";
+        for (const MovePlanIssue& issue : plan.issues) {
+            warningText << L"- " << (issue.blocking ? L"blocking: " : L"note: ") << issue.message << L"\n";
+        }
+        warningText << L"\n";
+    }
+
+    warningText << L"Skipped candidates:\n";
+    const std::size_t skippedToShow = (std::min)(std::size_t(20), plan.skippedCandidates.size());
+    for (std::size_t index = 0; index < skippedToShow; ++index) {
+        const SkippedMoveCandidate& skipped = plan.skippedCandidates[index];
+        warningText << L"- file #" << skipped.fileIndex << L": " << skipped.detail << L"\n";
+    }
+    if (plan.skippedCandidates.size() > skippedToShow) {
+        warningText << L"- ... " << (plan.skippedCandidates.size() - skippedToShow) << L" more skipped candidates\n";
+    }
+    warnings->SetLabel(warningText.str());
+    detailsPanel->FitInside();
+    Layout();
+}
+
+void DriveAnalysisPage::UpdateExecutionResult(const MoveExecutionResult& result) {
+    std::wstringstream text;
+    text << result.summary << L"\n";
+    text << L"Moved: " << result.metrics.movedOperations.getValue() << L", skipped "
+         << result.metrics.skippedOperations.getValue() << L", failed " << result.metrics.failedOperations.getValue()
+         << L", verification failures " << result.metrics.verificationFailures.getValue() << L".";
+    execution->SetLabel(text.str());
     detailsPanel->FitInside();
     Layout();
 }
@@ -309,21 +409,53 @@ void DriveAnalysisPage::OnSize(wxSizeEvent& event) {
     event.Skip();
 }
 
-void DriveAnalysisPage::OnMapModeToggle(wxCommandEvent&) {
-    mapPanel->SetRenderMode(mapModeToggle->GetValue() ? DriveMapRenderMode::IntendedPlacement
-                                                      : DriveMapRenderMode::ActualLayout);
-    UpdateMapModeToggle();
+void DriveAnalysisPage::OnMapControlsChanged(wxCommandEvent&) {
+    UpdateMapControls();
     detailsPanel->FitInside();
     Layout();
 }
 
-void DriveAnalysisPage::UpdateMapModeToggle() {
-    if (mapModeToggle->GetValue()) {
-        mapModeToggle->SetLabel("Intended placement");
+void DriveAnalysisPage::UpdateMapControls() {
+    DriveMapRenderMode renderMode = DriveMapRenderMode::ActualLayout;
+    if (mapModeChoice->GetSelection() == 1) {
+        renderMode = DriveMapRenderMode::IntendedPlacement;
+    } else if (mapModeChoice->GetSelection() == 2) {
+        renderMode = DriveMapRenderMode::PlannedMoves;
+    }
+    mapPanel->SetRenderMode(renderMode);
+
+    DriveMapClassFilter filter = DriveMapClassFilter::All;
+    switch (classFilterChoice->GetSelection()) {
+    case 1:
+        filter = DriveMapClassFilter::Hot;
+        break;
+    case 2:
+        filter = DriveMapClassFilter::Cold;
+        break;
+    case 3:
+        filter = DriveMapClassFilter::LargeFile;
+        break;
+    case 4:
+        filter = DriveMapClassFilter::Fragmented;
+        break;
+    case 5:
+        filter = DriveMapClassFilter::Risky;
+        break;
+    case 6:
+        filter = DriveMapClassFilter::Free;
+        break;
+    default:
+        break;
+    }
+    mapPanel->SetClassFilter(filter);
+    mapPanel->SetShowPlannedMoves(plannedMovesCheck->GetValue());
+
+    if (renderMode == DriveMapRenderMode::IntendedPlacement) {
         legend->SetLabel(IntendedMapLegend());
+    } else if (renderMode == DriveMapRenderMode::PlannedMoves) {
+        legend->SetLabel(PlannedMapLegend());
     }
     else {
-        mapModeToggle->SetLabel("Actual map");
         legend->SetLabel(ActualMapLegend());
     }
 }

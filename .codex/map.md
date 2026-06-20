@@ -86,17 +86,22 @@ Defines `icd::App`, the `wxApp` subclass that initializes wxWidgets and shows th
 - `src/ui/MainFrame.h`
 - `src/ui/MainFrame.cpp`
 
-Defines `icd::MainFrame`, the top-level `wxFrame`. Currently owns menu bar creation, Exit/About handlers, and the status bar.
+Defines `icd::MainFrame`, the top-level `wxFrame`. Owns menu bar creation, Exit/About handlers, the status bar, all-disks panel wiring, analysis document tabs, workflow panel wiring, and shared command paths for analysis, planning, fast-lane actions, review, and execution.
+
+- `src/ui/DriveListPanel.h`
+- `src/ui/DriveListPanel.cpp`
+
+Defines the top all-disks panel with drive status, capacity/free space, file-system, analysis/move/TRIM badges, refresh, selection, and analyse callbacks.
 
 - `src/ui/DriveAnalysisPage.h`
 - `src/ui/DriveAnalysisPage.cpp`
 
-Defines an analysis-result document page shown in the main notebook, with a vertical splitter containing the drive map above scrollable summary/classification and placement-intent labels.
+Defines an analysis-result document page shown in the main notebook, with a vertical splitter containing the drive map above tabbed summary, plan, warning/skipped-file, and execution views.
 
 - `src/ui/DriveMapPanel.h`
 - `src/ui/DriveMapPanel.cpp`
 
-Defines the read-only cluster-grid drive map. It renders fixed-size cells, recalculates clusters-per-box on resize, and can switch between actual analysis/classification colors and intended-placement colors from an in-memory `PlacementPlan`.
+Defines the cluster-grid drive map. It renders fixed-size cells, recalculates clusters-per-box on resize, switches between actual analysis/classification colors, intended-placement colors, and planned-move overlays, and supports file-class filters.
 
 - `src/ui/ProfileSettingsDialog.h`
 - `src/ui/ProfileSettingsDialog.cpp`
@@ -107,6 +112,16 @@ Defines the modal in-memory editor for selecting profiles and changing core opti
 - `src/ui/MovePlanDialog.cpp`
 
 Defines the inspection dialog for dry-run move plans, skipped candidates, issues, cancellation boundaries, and rollback notes.
+
+- `src/ui/UIFormatting.h`
+- `src/ui/UIFormatting.cpp`
+
+Defines UI-only formatting helpers for byte quantities, drive kinds, capability badges, and profile mode labels.
+
+- `src/ui/WorkflowPanel.h`
+- `src/ui/WorkflowPanel.cpp`
+
+Defines the bottom Phase 7 workflow panel with stage status, profile selection, analysis/plan/execution summaries, progress, step-by-step commands, and quick/full fast-lane commands.
 
 ## Model Layer
 

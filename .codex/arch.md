@@ -2,7 +2,7 @@
 
 ## Application Shape
 
-IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based shell with read-only drive discovery and analysis, dry-run move planning, and a bounded Phase 6 move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, execution services, Windows platform-boundary code, and domain model types. TRIM actions and the full Phase 7 workflow are not implemented yet.
+IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based workflow with read-only drive discovery and analysis, dry-run move planning, visible Phase 7 drive-to-plan-to-execute controls, and a bounded Phase 6 move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, execution services, Windows platform-boundary code, and domain model types. TRIM actions are not implemented yet.
 
 The app is built as a Windows subsystem executable with CMake and MSVC-oriented wxWidgets libraries vendored under `3rdparty/wxWidgets`.
 
@@ -13,9 +13,9 @@ Startup currently follows this path:
 1. `src/main.cpp` defines `wWinMain`, disables wx debug support, and calls `wxEntry()`.
 2. `wxIMPLEMENT_APP(icd::App)` registers the application class.
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
-4. `icd::MainFrame` creates the top menu, status bar, and tabbed analysis document area. The Analysis menu refreshes visible drives, starts read-only analysis for enabled drives, and can request cancellation.
+4. `icd::MainFrame` creates the top menu, status bar, all-disks panel, tabbed analysis document area, and bottom workflow panel. The Analysis menu and visible controls refresh visible drives, start read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, dry-run optimization profile/placement-intent layer, dry-run move planning, and a conservative move-plan execution path. There is still no TRIM action, full Phase 7 workflow, or advanced visual move confirmation.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, dry-run optimization profile/placement-intent layer, dry-run move planning, conservative move-plan execution path, visible staged workflow controls, and planned-move map overlays. There is still no TRIM action or advanced resumable pause support.
 
 ## Layers
 
@@ -27,15 +27,21 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/App.*` defines the wx application lifecycle. It is responsible for initializing the GUI and creating the main frame.
 
-`src/ui/MainFrame.*` defines the top-level window. It owns menu setup, Exit/About handling, status text, drive-analysis menu entries, and the `wxNotebook` document surface.
+`src/ui/MainFrame.*` defines the top-level window. It owns menu setup, Exit/About handling, status text, drive-analysis menu entries, the all-disks panel, the `wxNotebook` document surface, and the bottom workflow panel wiring.
 
-`src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a split document page: a read-only drive map in the top pane and scrollable summary/classification labels in the bottom pane.
+`src/ui/DriveListPanel.*` displays discovered drives with capacity, file-system, capability, move, and TRIM badges. It forwards refresh, selection, and analyse requests to `MainFrame`.
 
-`src/ui/DriveMapPanel.*` renders the first read-only cluster visualization for an analysed drive. It consumes in-memory `AnalysisResult` and optional `PlacementPlan` data, can switch between actual layout and intended-placement coloring, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
+`src/ui/WorkflowPanel.*` displays the selected-drive stage, profile selector, analysis summary, plan preview, warnings/skipped candidates, execution summary, progress gauge, step-by-step commands, and fast-lane quick/full optimize commands.
+
+`src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a split document page: a drive map in the top pane and tabbed summary, plan, warning/skipped-file, and execution labels in the bottom pane.
+
+`src/ui/DriveMapPanel.*` renders the cluster visualization for an analysed drive. It consumes in-memory `AnalysisResult`, optional `PlacementPlan`, and optional `MovePlan` data, can switch between actual layout, intended-placement coloring, and planned-move overlays, supports file-class filters, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
 
 `src/ui/ProfileSettingsDialog.*` provides the modal Phase 4 profile editor for core optimization settings. It edits profiles in memory only and does not persist files.
 
-`src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. Execution is exposed separately through the main Optimization menu.
+`src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. Execution is exposed separately through the main Optimization menu and workflow panel.
+
+`src/ui/UIFormatting.*` contains small UI-only formatting helpers for byte quantities, drive kinds, capability badges, and profile mode labels.
 
 The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch. Phase 6 execution reports only through the status bar.
 
@@ -115,7 +121,7 @@ The following architecture pieces are implied by the product goals but are not p
 - Write-capable move strategy implementations.
 - Advanced write-capable move strategy implementations beyond bounded whole-file moves from existing plans.
 - Tests or validation harnesses.
-- Interactive drive-map workflow controls such as selection, filtering, strategy overlays, and planned-move visualization.
+- Interactive file selection on the drive map and detailed per-file inspection.
 
 ## Expected Direction
 

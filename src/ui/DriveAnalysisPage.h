@@ -3,9 +3,11 @@
 #include "../model/DomainTypes.h"
 #include "DriveMapPanel.h"
 
+#include <wx/checkbox.h>
+#include <wx/choice.h>
+#include <wx/notebook.h>
 #include <wx/scrolwin.h>
 #include <wx/splitter.h>
-#include <wx/tglbtn.h>
 #include <wx/wx.h>
 
 namespace icd {
@@ -18,17 +20,19 @@ public:
     void UpdateResult(const AnalysisResult& result);
     void UpdatePlacementPlan(const PlacementPlan& plan);
     void UpdateMovePlan(const MovePlan& plan);
+    void UpdateExecutionResult(const MoveExecutionResult& result);
     const std::wstring& GetDriveRoot() const { return driveRoot; }
 
 private:
     void SetDefaultSashPosition(const wxSize& size = wxDefaultSize);
     void OnSize(wxSizeEvent& event);
-    void OnMapModeToggle(wxCommandEvent& event);
-    void UpdateMapModeToggle();
+    void OnMapControlsChanged(wxCommandEvent& event);
+    void UpdateMapControls();
 
     wxSplitterWindow* splitter = nullptr;
     DriveMapPanel* mapPanel = nullptr;
     wxScrolledWindow* detailsPanel = nullptr;
+    wxNotebook* detailsTabs = nullptr;
     wxStaticText* title = nullptr;
     wxStaticText* volume = nullptr;
     wxStaticText* files = nullptr;
@@ -39,12 +43,15 @@ private:
     wxStaticText* classificationRecency = nullptr;
     wxStaticText* classificationPlacement = nullptr;
     wxStaticText* classificationSafety = nullptr;
-    wxToggleButton* mapModeToggle = nullptr;
+    wxStaticText* recommendations = nullptr;
+    wxChoice* mapModeChoice = nullptr;
+    wxChoice* classFilterChoice = nullptr;
+    wxCheckBox* plannedMovesCheck = nullptr;
     wxStaticText* placementIntent = nullptr;
     wxStaticText* movePlan = nullptr;
     wxStaticText* legend = nullptr;
     wxStaticText* warnings = nullptr;
-    wxStaticText* todo = nullptr;
+    wxStaticText* execution = nullptr;
     std::wstring driveRoot;
 };
 

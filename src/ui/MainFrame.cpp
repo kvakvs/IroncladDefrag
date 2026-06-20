@@ -134,6 +134,8 @@ void MainFrame::CreateMenuBar()
 
 void MainFrame::CreateDocumentArea()
 {
+    driveListPanel = new DriveListPanel(this);
+    workflowPanel = new WorkflowPanel(this);
     documents = new wxNotebook(this, wxID_ANY);
     documents->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& event) {
         UpdateAnalysisMenuState(controller.IsJobRunning());
@@ -142,11 +144,11 @@ void MainFrame::CreateDocumentArea()
 
     auto* welcome = new wxPanel(documents, wxID_ANY);
     auto* welcomeSizer = new wxBoxSizer(wxVERTICAL);
-    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Select Analysis > Refresh Drives, then choose an enabled drive."),
+    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Refresh drives, select an enabled disk, then run analysis."),
                       0,
                       wxALL,
                       12);
-    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Drive map TODO: analysed drives will open as document tabs."),
+    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Analysed drives open as workflow tabs with map, plan, and execution views."),
                       0,
                       wxLEFT | wxRIGHT | wxBOTTOM,
                       12);
@@ -154,8 +156,72 @@ void MainFrame::CreateDocumentArea()
     documents->AddPage(welcome, "Start", true);
 
     auto* sizer = new wxBoxSizer(wxVERTICAL);
+    sizer->Add(driveListPanel, 0, wxEXPAND);
     sizer->Add(documents, 1, wxEXPAND);
+    sizer->Add(workflowPanel, 0, wxEXPAND);
     SetSizer(sizer);
+
+    driveListPanel->SetRefreshCallback([this]() {
+        wxCommandEvent event;
+        OnRefreshDrives(event);
+    });
+    driveListPanel->SetAnalyzeCallback([this](const DriveInfo& drive) {
+        StartAnalysisForDrive(drive);
+    });
+    driveListPanel->SetSelectionChangedCallback([this](const DriveInfo& drive) {
+        SelectDrive(drive);
+    });
+
+    workflowPanel->SetRefreshCallback([this]() {
+        wxCommandEvent event;
+        OnRefreshDrives(event);
+    });
+    workflowPanel->SetAnalyzeCallback([this]() {
+        const auto drive = std::find_if(visibleDrives.begin(), visibleDrives.end(), [this](const DriveInfo& item) {
+            return item.rootPath == activeDriveRoot;
+        });
+        if (drive != visibleDrives.end()) {
+            StartAnalysisForDrive(*drive);
+        }
+    });
+    workflowPanel->SetCancelCallback([this]() {
+        wxCommandEvent event;
+        OnCancelAnalysis(event);
+    });
+    workflowPanel->SetSettingsCallback([this]() {
+        wxCommandEvent event;
+        OnProfiles(event);
+    });
+    workflowPanel->SetBuildPlacementCallback([this]() {
+        BuildPlacementIntentForSelected();
+    });
+    workflowPanel->SetBuildPlanCallback([this]() {
+        BuildMovePlanForSelected(false);
+    });
+    workflowPanel->SetQuickDefragCallback([this]() {
+        const std::optional<OptimizationProfile> profile = controller.GetProfile(OptimizationMode::SingleFileDefragmentation);
+        if (profile.has_value()) {
+            RunFastLane(*profile);
+        } else {
+            SetStatusText("Single-file defragmentation profile is unavailable.");
+        }
+    });
+    workflowPanel->SetFullOptimizeCallback([this]() {
+        RunFastLane(controller.GetActiveProfile());
+    });
+    workflowPanel->SetReviewPlanCallback([this]() {
+        ReviewSelectedMovePlan();
+    });
+    workflowPanel->SetExecuteCallback([this]() {
+        ExecuteSelectedMovePlan();
+    });
+    workflowPanel->SetProfileChangedCallback([this](const OptimizationProfile& profile) {
+        controller.SetActiveProfile(profile);
+        workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
+        SetStatusText(wxString::Format("Active profile: %s", wxString(profile.name)));
+        UpdateAnalysisMenuState(controller.IsJobRunning());
+    });
+    workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
 }
 
 // Rebuilds the Analysis menu from current drive capabilities.
@@ -175,9 +241,19 @@ void MainFrame::RefreshDriveMenu()
     analysisMenu->AppendSeparator();
 
     const bool running = controller.IsJobRunning();
-    const std::vector<DriveInfo> drives = controller.EnumerateDrives();
+    visibleDrives = controller.EnumerateDrives();
+    if (driveListPanel != nullptr) {
+        driveListPanel->SetDrives(visibleDrives);
+        if (!activeDriveRoot.empty()) {
+            driveListPanel->SetSelectedDrive(activeDriveRoot);
+        }
+        driveListPanel->SetBusy(running);
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetBusy(running);
+    }
     int driveId = ID_FirstDrive;
-    for (const DriveInfo& drive : drives) {
+    for (const DriveInfo& drive : visibleDrives) {
         if (driveId > ID_LastDrive) {
             break;
         }
@@ -226,24 +302,61 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
     EnableMenuItemIfPresent(menuBar,
                             ID_ExecuteMovePlan,
                             !running && selectedDrive.has_value() && controller.HasExecutableMovePlan(*selectedDrive));
+    if (driveListPanel != nullptr) {
+        driveListPanel->SetBusy(running);
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetBusy(running);
+        workflowPanel->SetExecuteAllowed(selectedDrive.has_value() && controller.HasExecutableMovePlan(*selectedDrive));
+    }
 }
 
-void MainFrame::OnRefreshDrives(wxCommandEvent& event)
+void MainFrame::SelectDrive(const DriveInfo& drive)
 {
-    RefreshDriveMenu();
-    SetStatusText("Drive list refreshed.");
-}
-
-void MainFrame::OnAnalyseDrive(wxCommandEvent& event)
-{
-    const auto item = driveMenuItems.find(event.GetId());
-    if (item == driveMenuItems.end()) {
-        SetStatusText("Drive menu item is no longer available.");
-        return;
+    activeDriveRoot = drive.rootPath;
+    if (driveListPanel != nullptr) {
+        driveListPanel->SetSelectedDrive(drive.rootPath);
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetDrive(drive);
     }
 
-    const DriveInfo drive = item->second;
+    const auto existingPage = analysisPages.find(drive.rootPath);
+    if (existingPage != analysisPages.end() && documents != nullptr) {
+        const int index = documents->FindPage(existingPage->second);
+        if (index != wxNOT_FOUND) {
+            documents->SetSelection(index);
+        }
+    }
+
+    for (const AnalysisResult& snapshot : controller.GetAnalysisSnapshots()) {
+        if (snapshot.drive.rootPath == drive.rootPath && workflowPanel != nullptr) {
+            workflowPanel->SetAnalysis(snapshot);
+            if (const std::optional<PlacementPlan> placement = controller.GetPlacementPlan(drive.rootPath)) {
+                workflowPanel->SetPlacementPlan(*placement);
+            }
+            if (const std::optional<MovePlan> plan = controller.GetMovePlan(drive.rootPath)) {
+                workflowPanel->SetMovePlan(*plan);
+            }
+            if (const std::optional<MoveExecutionResult> result = controller.GetMoveExecutionResult(drive.rootPath)) {
+                workflowPanel->SetExecutionResult(*result);
+            }
+            break;
+        }
+    }
+
+    UpdateAnalysisMenuState(controller.IsJobRunning());
+}
+
+void MainFrame::StartAnalysisForDrive(const DriveInfo& drive)
+{
     activeDriveRoot = drive.rootPath;
+    if (driveListPanel != nullptr) {
+        driveListPanel->SetSelectedDrive(drive.rootPath);
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetDrive(drive);
+    }
     UpdateAnalysisMenuState(true);
     SetStatusText(wxString::Format("Starting read-only analysis for %s", wxString(drive.rootPath)));
 
@@ -252,81 +365,94 @@ void MainFrame::OnAnalyseDrive(wxCommandEvent& event)
     }
 }
 
-void MainFrame::OnCancelAnalysis(wxCommandEvent& event)
-{
-    SetStatusText("Cancelling drive analysis...");
-    controller.RequestCancelActiveJob();
-    UpdateAnalysisMenuState(true);
-}
-
-void MainFrame::OnProfiles(wxCommandEvent&)
-{
-    ProfileSettingsDialog dialog(this, controller.GetProfiles(), controller.GetActiveProfile());
-    if (dialog.ShowModal() == wxID_OK) {
-        controller.SetActiveProfile(dialog.GetSelectedProfile());
-        SetStatusText(wxString::Format("Active profile: %s", wxString(dialog.GetSelectedProfile().name)));
-        UpdateAnalysisMenuState(false);
-    }
-}
-
-void MainFrame::OnBuildPlacementIntent(wxCommandEvent&)
+bool MainFrame::BuildPlacementIntentForSelected()
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive tab before building placement intent.");
-        return;
+        SetStatusText("Select an analysed drive before building placement intent.");
+        return false;
     }
 
     const std::optional<PlacementPlan> plan = controller.BuildPlacementPlan(*driveRoot);
     if (!plan.has_value()) {
         SetStatusText("No completed analysis snapshot is available for the selected drive.");
-        return;
+        return false;
     }
 
     const auto page = analysisPages.find(*driveRoot);
     if (page != analysisPages.end()) {
         page->second->UpdatePlacementPlan(*plan);
     }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetPlacementPlan(*plan);
+    }
     SetStatusText(wxString(plan->summary));
+    UpdateAnalysisMenuState(false);
+    return true;
 }
 
-void MainFrame::OnBuildMovePlan(wxCommandEvent&)
+bool MainFrame::BuildMovePlanForSelected(bool showDialog)
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive tab before building a move plan.");
-        return;
+        SetStatusText("Select an analysed drive before building a move plan.");
+        return false;
     }
 
     const std::optional<MovePlan> plan = controller.BuildMovePlan(*driveRoot);
     if (!plan.has_value()) {
         SetStatusText("No completed analysis snapshot is available for the selected drive.");
-        return;
+        return false;
     }
 
     const auto page = analysisPages.find(*driveRoot);
     if (page != analysisPages.end()) {
         page->second->UpdateMovePlan(*plan);
     }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetMovePlan(*plan);
+    }
 
-    MovePlanDialog dialog(this, *plan);
-    dialog.ShowModal();
+    if (showDialog) {
+        MovePlanDialog dialog(this, *plan);
+        dialog.ShowModal();
+    }
     SetStatusText(wxString(plan->summary));
     UpdateAnalysisMenuState(false);
+    return true;
 }
 
-void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
+bool MainFrame::ReviewSelectedMovePlan()
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
-        SetStatusText("Select an analysed drive tab before executing a move plan.");
-        return;
+        SetStatusText("Select an analysed drive before reviewing a move plan.");
+        return false;
+    }
+
+    const std::optional<MovePlan> plan = controller.GetMovePlan(*driveRoot);
+    if (!plan.has_value()) {
+        SetStatusText("Build a move plan before reviewing it.");
+        return false;
+    }
+
+    MovePlanDialog dialog(this, *plan);
+    dialog.ShowModal();
+    return true;
+}
+
+bool MainFrame::ExecuteSelectedMovePlan()
+{
+    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
+    if (!driveRoot.has_value()) {
+        SetStatusText("Select an analysed drive before executing a move plan.");
+        return false;
     }
 
     const std::optional<MovePlan> plan = controller.GetMovePlan(*driveRoot);
     if (!plan.has_value()) {
         SetStatusText("Build a move plan before executing it.");
-        return;
+        return false;
     }
 
     if (plan->profile.settings.dryRunOnly) {
@@ -336,13 +462,13 @@ void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
                      wxOK | wxICON_WARNING,
                      this);
         SetStatusText("Execution blocked: dry-run-only profile.");
-        return;
+        return false;
     }
 
     if (plan->impossible || plan->operations.empty()) {
         SetStatusText(plan->impossible ? "Execution blocked: move plan is impossible."
                                        : "Execution blocked: move plan has no operations.");
-        return;
+        return false;
     }
 
     const MoveExecutionPrivilegeStatus privileges = controller.GetMoveExecutionPrivilegeStatus(*driveRoot);
@@ -363,7 +489,7 @@ void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
         } else {
             SetStatusText("Execution cancelled before elevation.");
         }
-        return;
+        return false;
     }
 
     const wxString driveLabel(*driveRoot);
@@ -377,15 +503,86 @@ void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
                                                    bytesLabel.c_str());
     if (wxMessageBox(confirmation, "Confirm Move Execution", wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES) {
         SetStatusText("Move execution cancelled before start.");
-        return;
+        return false;
     }
 
     if (controller.StartMovePlanExecution(*driveRoot)) {
         SetStatusText("Starting move execution...");
         UpdateAnalysisMenuState(true);
-    } else {
+        return true;
+    }
+
+    UpdateAnalysisMenuState(false);
+    return false;
+}
+
+bool MainFrame::RunFastLane(const OptimizationProfile& profile)
+{
+    controller.SetActiveProfile(profile);
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
+    }
+
+    if (!BuildPlacementIntentForSelected()) {
+        return false;
+    }
+    if (!BuildMovePlanForSelected(false)) {
+        return false;
+    }
+    return ExecuteSelectedMovePlan();
+}
+
+void MainFrame::OnRefreshDrives(wxCommandEvent& event)
+{
+    RefreshDriveMenu();
+    SetStatusText("Drive list refreshed.");
+}
+
+void MainFrame::OnAnalyseDrive(wxCommandEvent& event)
+{
+    const auto item = driveMenuItems.find(event.GetId());
+    if (item == driveMenuItems.end()) {
+        SetStatusText("Drive menu item is no longer available.");
+        return;
+    }
+
+    const DriveInfo drive = item->second;
+    StartAnalysisForDrive(drive);
+}
+
+void MainFrame::OnCancelAnalysis(wxCommandEvent& event)
+{
+    SetStatusText("Cancelling active job...");
+    controller.RequestCancelActiveJob();
+    UpdateAnalysisMenuState(true);
+}
+
+void MainFrame::OnProfiles(wxCommandEvent&)
+{
+    ProfileSettingsDialog dialog(this, controller.GetProfiles(), controller.GetActiveProfile());
+    if (dialog.ShowModal() == wxID_OK) {
+        controller.SetActiveProfile(dialog.GetSelectedProfile());
+        if (workflowPanel != nullptr) {
+            workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
+        }
+        SetStatusText(wxString::Format("Active profile: %s", wxString(dialog.GetSelectedProfile().name)));
         UpdateAnalysisMenuState(false);
     }
+}
+
+void MainFrame::OnBuildPlacementIntent(wxCommandEvent&)
+{
+    BuildPlacementIntentForSelected();
+}
+
+void MainFrame::OnBuildMovePlan(wxCommandEvent&)
+{
+    BuildMovePlanForSelected(true);
+}
+
+void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
+{
+    ExecuteSelectedMovePlan();
 }
 
 void MainFrame::OnExit(wxCommandEvent& event)
@@ -410,6 +607,9 @@ void MainFrame::OnClose(wxCloseEvent& event)
 
 void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 {
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetProgress(progress);
+    }
     switch (progress.state) {
     case JobState::Running:
         SetStatusText(wxString::Format("%.0f%% - %s %s",
@@ -431,7 +631,7 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Cancelling:
-        SetStatusText("Cancelling drive analysis...");
+        SetStatusText("Cancelling active job...");
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Idle:
@@ -444,18 +644,38 @@ void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
 {
     SetStatusText(wxString(result.summary));
     OpenOrUpdateAnalysisPage(result);
+    if (driveListPanel != nullptr) {
+        driveListPanel->SetSelectedDrive(result.drive.rootPath);
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetAnalysis(result);
+    }
+    activeDriveRoot = result.drive.rootPath;
     UpdateAnalysisMenuState(false);
 }
 
 void MainFrame::OnMoveExecutionComplete(const MoveExecutionResult& result)
 {
     SetStatusText(wxString(result.summary));
+    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
+    if (driveRoot.has_value()) {
+        const auto page = analysisPages.find(*driveRoot);
+        if (page != analysisPages.end()) {
+            page->second->UpdateExecutionResult(result);
+        }
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetExecutionResult(result);
+    }
     UpdateAnalysisMenuState(false);
 }
 
 void MainFrame::OnAnalysisError(const std::wstring& message)
 {
     SetStatusText(wxString(message));
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetBusy(false);
+    }
     UpdateAnalysisMenuState(false);
 }
 
@@ -484,7 +704,7 @@ void MainFrame::OpenOrUpdateAnalysisPage(const AnalysisResult& result)
 std::optional<std::wstring> MainFrame::GetSelectedDriveRoot() const
 {
     if (documents == nullptr) {
-        return std::nullopt;
+        return activeDriveRoot.empty() ? std::nullopt : std::optional<std::wstring>(activeDriveRoot);
     }
 
     const int selection = documents->GetSelection();
@@ -494,6 +714,9 @@ std::optional<std::wstring> MainFrame::GetSelectedDriveRoot() const
 
     auto* page = dynamic_cast<DriveAnalysisPage*>(documents->GetPage(selection));
     if (page == nullptr) {
+        if (!activeDriveRoot.empty() && controller.HasAnalysisSnapshot(activeDriveRoot)) {
+            return activeDriveRoot;
+        }
         return std::nullopt;
     }
 

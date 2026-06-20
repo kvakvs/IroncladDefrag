@@ -240,6 +240,12 @@ std::vector<AnalysisResult> ApplicationController::GetAnalysisSnapshots() const
     return snapshots;
 }
 
+bool ApplicationController::HasAnalysisSnapshot(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(analysisMutex);
+    return completedAnalyses.find(driveRoot) != completedAnalyses.end();
+}
+
 std::vector<OptimizationProfile> ApplicationController::GetProfiles() const
 {
     std::lock_guard lock(profileMutex);
@@ -250,6 +256,17 @@ OptimizationProfile ApplicationController::GetActiveProfile() const
 {
     std::lock_guard lock(profileMutex);
     return activeProfile;
+}
+
+std::optional<OptimizationProfile> ApplicationController::GetProfile(OptimizationMode mode) const
+{
+    std::lock_guard lock(profileMutex);
+    for (const OptimizationProfile& profile : profiles) {
+        if (profile.mode == mode) {
+            return profile;
+        }
+    }
+    return std::nullopt;
 }
 
 void ApplicationController::SetActiveProfile(const OptimizationProfile& profile)
@@ -362,7 +379,7 @@ bool ApplicationController::HasExecutableMovePlan(const std::wstring& driveRoot)
     }
 
     const MovePlan& plan = found->second;
-    return !plan.impossible && !plan.operations.empty();
+    return !plan.profile.settings.dryRunOnly && !plan.impossible && !plan.operations.empty();
 }
 
 MoveExecutionPrivilegeStatus ApplicationController::GetMoveExecutionPrivilegeStatus(const std::wstring& driveRoot) const

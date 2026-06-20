@@ -39,8 +39,10 @@ public:
     void CancelActiveJob();
     bool IsJobRunning() const;
     std::vector<AnalysisResult> GetAnalysisSnapshots() const;
+    bool HasAnalysisSnapshot(const std::wstring& driveRoot) const;
     std::vector<OptimizationProfile> GetProfiles() const;
     OptimizationProfile GetActiveProfile() const;
+    std::optional<OptimizationProfile> GetProfile(OptimizationMode mode) const;
     void SetActiveProfile(const OptimizationProfile& profile);
     std::optional<PlacementPlan> BuildPlacementPlan(const std::wstring& driveRoot);
     std::optional<PlacementPlan> GetPlacementPlan(const std::wstring& driveRoot) const;
