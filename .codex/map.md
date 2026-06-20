@@ -21,7 +21,7 @@
 - `src/app/ApplicationController.h`
 - `src/app/ApplicationController.cpp`
 
-Owns drive enumeration, selected-drive read-only analysis orchestration, in-memory analysis snapshots, progress/completion/error callbacks, and cancellation.
+Owns drive enumeration, selected-drive read-only analysis orchestration, in-memory analysis snapshots, move-plan execution orchestration, progress/completion/error callbacks, and cancellation.
 
 - `src/app/BackgroundJob.h`
 - `src/app/BackgroundJob.cpp`
@@ -69,6 +69,13 @@ Builds read-only placement intent from completed analysis snapshots and the acti
 
 Builds conservative dry-run move plans from analysis snapshots and placement intent, with simulated destination reservations only.
 
+## Execution Layer
+
+- `src/execution/MoveExecutor.h`
+- `src/execution/MoveExecutor.cpp`
+
+Runs the bounded Phase 6 execution pass for existing move plans. It rejects dry-run-only/impossible/empty plans, revalidates files before movement, calls the Windows move boundary, verifies extents afterward, reports progress, and records per-file execution results.
+
 ## UI Layer
 
 - `src/ui/App.h`
@@ -109,7 +116,7 @@ Defines `icd::Quantity` and project-specific type aliases for counts, indexes, b
 
 - `src/model/DomainTypes.h`
 
-Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, classification results/summaries, optimization settings/profiles, analysis results/stats, placement/move plans, and job progress.
+Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, classification results/summaries, optimization settings/profiles, analysis results/stats, placement/move plans, execution results, and job progress.
 
 - `src/model/FileMetadata.h`
 - `src/model/FileMetadata.cpp`
@@ -147,6 +154,11 @@ Enumerates visible drives and read-only volume/media/capability status. It keeps
 - `src/platform/windows/VolumeQueries.cpp`
 
 Queries file extents and volume free-space bitmap through read-only FSCTL calls.
+
+- `src/platform/windows/VolumeMoveOperations.h`
+- `src/platform/windows/VolumeMoveOperations.cpp`
+
+Probes elevation/manage-volume capability, requests UAC relaunch through `ShellExecuteW` with `runas`, opens write-capable volume/file handles, and wraps `FSCTL_MOVE_FILE`.
 
 ## Support Layer
 

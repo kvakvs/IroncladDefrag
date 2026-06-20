@@ -3,10 +3,12 @@
 #include "../analysis/DriveAnalysisService.h"
 #include "../analysis/FakeAnalysisService.h"
 #include "../classification/FileClassifier.h"
+#include "../execution/MoveExecutor.h"
 #include "../optimization/MovePlanner.h"
 #include "../optimization/PlacementPlanner.h"
 #include "../optimization/ProfileCatalog.h"
 #include "../platform/windows/DriveEnumerator.h"
+#include "../platform/windows/VolumeMoveOperations.h"
 #include "../support/Logger.h"
 
 #include <exception>
@@ -56,6 +58,12 @@ void ApplicationController::SetCompletionCallback(CompletionCallback callback)
     completionCallback = std::move(callback);
 }
 
+void ApplicationController::SetExecutionCompletionCallback(ExecutionCompletionCallback callback)
+{
+    std::lock_guard lock(callbackMutex);
+    executionCompletionCallback = std::move(callback);
+}
+
 void ApplicationController::SetErrorCallback(ErrorCallback callback)
 {
     std::lock_guard lock(callbackMutex);
@@ -67,6 +75,7 @@ void ApplicationController::ClearCallbacks()
     std::lock_guard lock(callbackMutex);
     progressCallback = nullptr;
     completionCallback = nullptr;
+    executionCompletionCallback = nullptr;
     errorCallback = nullptr;
 }
 
@@ -168,6 +177,7 @@ bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
                 completedAnalyses[result.drive.rootPath] = result;
                 placementPlans.erase(result.drive.rootPath);
                 movePlans.erase(result.drive.rootPath);
+                executionResults.erase(result.drive.rootPath);
             }
 
             JobProgress completed;
@@ -274,6 +284,7 @@ std::optional<PlacementPlan> ApplicationController::BuildPlacementPlan(const std
         std::lock_guard lock(analysisMutex);
         placementPlans[driveRoot] = plan;
         movePlans.erase(driveRoot);
+        executionResults.erase(driveRoot);
     }
 
     return plan;
@@ -320,6 +331,7 @@ std::optional<MovePlan> ApplicationController::BuildMovePlan(const std::wstring&
     {
         std::lock_guard lock(analysisMutex);
         movePlans[driveRoot] = plan;
+        executionResults.erase(driveRoot);
     }
 
     return plan;
@@ -330,6 +342,104 @@ std::optional<MovePlan> ApplicationController::GetMovePlan(const std::wstring& d
     std::lock_guard lock(analysisMutex);
     const auto found = movePlans.find(driveRoot);
     if (found == movePlans.end()) {
+        return std::nullopt;
+    }
+    return found->second;
+}
+
+bool ApplicationController::HasMovePlan(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(analysisMutex);
+    return movePlans.find(driveRoot) != movePlans.end();
+}
+
+MoveExecutionPrivilegeStatus ApplicationController::GetMoveExecutionPrivilegeStatus(const std::wstring& driveRoot) const
+{
+    return win::ProbeMovePrivileges(driveRoot);
+}
+
+bool ApplicationController::RelaunchElevatedForExecution() const
+{
+    return win::RelaunchElevated();
+}
+
+// Starts a cancellable worker job that executes a bounded move plan away from the UI thread.
+bool ApplicationController::StartMovePlanExecution(const std::wstring& driveRoot)
+{
+    if (activeJob.IsRunning()) {
+        NotifyError(L"A job is already running.");
+        return false;
+    }
+
+    AnalysisResult analysis;
+    MovePlan plan;
+    {
+        std::lock_guard lock(analysisMutex);
+        const auto analysisFound = completedAnalyses.find(driveRoot);
+        const auto planFound = movePlans.find(driveRoot);
+        if (analysisFound == completedAnalyses.end() || planFound == movePlans.end()) {
+            NotifyError(L"Build a move plan before executing it.");
+            return false;
+        }
+
+        analysis = analysisFound->second;
+        plan = planFound->second;
+    }
+
+    if (plan.profile.settings.dryRunOnly) {
+        NotifyError(L"Execution is blocked because the active plan was built from a dry-run-only profile.");
+        return false;
+    }
+
+    if (plan.impossible || plan.operations.empty()) {
+        NotifyError(plan.impossible ? L"Execution is blocked because the move plan is impossible."
+                                    : L"Execution is blocked because the move plan has no operations.");
+        return false;
+    }
+
+    Logger::Info(L"Starting move-plan execution for " + driveRoot);
+    const bool started = activeJob.Start([this, analysis, plan](const std::atomic_bool& cancellationRequested) {
+        try {
+            MoveExecutionResult result = MoveExecutor().Execute(analysis, plan, cancellationRequested, [this](const JobProgress& progress) {
+                NotifyProgress(progress);
+            });
+
+            {
+                std::lock_guard lock(analysisMutex);
+                executionResults[analysis.drive.rootPath] = result;
+            }
+
+            JobProgress completed;
+            completed.state = result.cancelled ? JobState::Cancelled : (result.blocked ? JobState::Failed : JobState::Completed);
+            completed.percentComplete = result.cancelled || result.blocked ? 0.0 : 100.0;
+            completed.statusMessage = result.summary;
+            completed.cancellationRequested = result.cancelled;
+            NotifyProgress(completed);
+            NotifyExecutionCompletion(result);
+            Logger::Info(L"Move-plan execution finished for " + analysis.drive.rootPath);
+        } catch (const std::exception& ex) {
+            const std::wstring message = L"Move-plan execution failed: " + ToWide(ex.what());
+            Logger::Error(message);
+            NotifyError(message);
+        } catch (...) {
+            const std::wstring message = L"Move-plan execution failed with an unknown error.";
+            Logger::Error(message);
+            NotifyError(message);
+        }
+    });
+
+    if (!started) {
+        NotifyError(L"Unable to start move-plan execution job.");
+    }
+
+    return started;
+}
+
+std::optional<MoveExecutionResult> ApplicationController::GetMoveExecutionResult(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(analysisMutex);
+    const auto found = executionResults.find(driveRoot);
+    if (found == executionResults.end()) {
         return std::nullopt;
     }
     return found->second;
@@ -354,6 +464,19 @@ void ApplicationController::NotifyCompletion(const AnalysisResult& result)
     {
         std::lock_guard lock(callbackMutex);
         callback = completionCallback;
+    }
+
+    if (callback) {
+        callback(result);
+    }
+}
+
+void ApplicationController::NotifyExecutionCompletion(const MoveExecutionResult& result)
+{
+    ExecutionCompletionCallback callback;
+    {
+        std::lock_guard lock(callbackMutex);
+        callback = executionCompletionCallback;
     }
 
     if (callback) {

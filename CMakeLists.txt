@@ -31,6 +31,8 @@ add_executable(IroncladDefrag WIN32
         src/app/BackgroundJob.h
         src/classification/FileClassifier.cpp
         src/classification/FileClassifier.h
+        src/execution/MoveExecutor.cpp
+        src/execution/MoveExecutor.h
         src/model/DomainTypes.h
         src/model/FileMetadata.cpp
         src/model/FileMetadata.h
@@ -53,6 +55,8 @@ add_executable(IroncladDefrag WIN32
         src/platform/windows/DriveEnumerator.h
         src/platform/windows/UniqueHandle.cpp
         src/platform/windows/UniqueHandle.h
+        src/platform/windows/VolumeMoveOperations.cpp
+        src/platform/windows/VolumeMoveOperations.h
         src/platform/windows/VolumeQueries.cpp
         src/platform/windows/VolumeQueries.h
         src/support/Logger.cpp
@@ -99,6 +103,7 @@ target_link_libraries(IroncladDefrag PRIVATE
         rpcrt4
         winmm
         advapi32
+        shell32
         wsock32
 )
 #target_link_libraries(IroncladDefrag PRIVATE

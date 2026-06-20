@@ -17,6 +17,7 @@ class ApplicationController {
 public:
     using ProgressCallback = std::function<void(const JobProgress&)>;
     using CompletionCallback = std::function<void(const AnalysisResult&)>;
+    using ExecutionCompletionCallback = std::function<void(const MoveExecutionResult&)>;
     using ErrorCallback = std::function<void(const std::wstring&)>;
 
     ApplicationController();
@@ -27,6 +28,7 @@ public:
 
     void SetProgressCallback(ProgressCallback callback);
     void SetCompletionCallback(CompletionCallback callback);
+    void SetExecutionCompletionCallback(ExecutionCompletionCallback callback);
     void SetErrorCallback(ErrorCallback callback);
     void ClearCallbacks();
 
@@ -44,21 +46,29 @@ public:
     std::optional<PlacementPlan> GetPlacementPlan(const std::wstring& driveRoot) const;
     std::optional<MovePlan> BuildMovePlan(const std::wstring& driveRoot);
     std::optional<MovePlan> GetMovePlan(const std::wstring& driveRoot) const;
+    bool HasMovePlan(const std::wstring& driveRoot) const;
+    MoveExecutionPrivilegeStatus GetMoveExecutionPrivilegeStatus(const std::wstring& driveRoot) const;
+    bool RelaunchElevatedForExecution() const;
+    bool StartMovePlanExecution(const std::wstring& driveRoot);
+    std::optional<MoveExecutionResult> GetMoveExecutionResult(const std::wstring& driveRoot) const;
 
 private:
     void NotifyProgress(const JobProgress& progress);
     void NotifyCompletion(const AnalysisResult& result);
+    void NotifyExecutionCompletion(const MoveExecutionResult& result);
     void NotifyError(const std::wstring& message);
 
     mutable std::mutex callbackMutex;
     ProgressCallback progressCallback;
     CompletionCallback completionCallback;
+    ExecutionCompletionCallback executionCompletionCallback;
     ErrorCallback errorCallback;
     BackgroundJob activeJob;
     mutable std::mutex analysisMutex;
     std::unordered_map<std::wstring, AnalysisResult> completedAnalyses;
     std::unordered_map<std::wstring, PlacementPlan> placementPlans;
     std::unordered_map<std::wstring, MovePlan> movePlans;
+    std::unordered_map<std::wstring, MoveExecutionResult> executionResults;
     mutable std::mutex profileMutex;
     std::vector<OptimizationProfile> profiles;
     OptimizationProfile activeProfile;

@@ -205,6 +205,11 @@ Exit criteria:
 
 Build the full user workflow around the service layer:
 
+The user must be able to have fast lane or slow lane:
+    - Analyze always the first step regardless, other steps are disabled until drive is analyzed.
+    - After analyze - only select the task (analyze, defrag quick or full optimize) and the app does everything from start to end
+    - After analyze - click step by step, allowing user to stop to review analysis results and plans.
+    
 - All-disks panel with status, capacity, file system, and capability badges.
 - Enhance the existing Phase 3.5 drive map with strategy zones, selected file class filtering, planned moves, and workflow controls.
 - Analysis summary panel with fragmentation, free-space, hot/cold/large-file distribution, and recommendations.
@@ -213,6 +218,7 @@ Build the full user workflow around the service layer:
 - Execution controls for start, pause/cancel where supported, and progress.
 - Error and skipped-file views.
 - Settings dialog for global defaults and per-profile configuration.
+- Indicate the current progress stage, and visually highlight the moved files, use the gap between the drive map rectangles to draw outline.
 
 The first GUI implementation can be simple, but long-running operations must remain off the UI thread.
 

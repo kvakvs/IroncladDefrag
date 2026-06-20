@@ -307,4 +307,76 @@ struct JobProgress {
     bool cancellationRequested = false;
 };
 
+// Describes whether the current process can perform privileged file moves.
+struct MoveExecutionPrivilegeStatus {
+    bool isElevated = false;
+    bool manageVolumePrivilegeEnabled = false;
+    bool canOpenVolumeForMove = false;
+    bool canMoveFiles = false;
+    std::uint32_t lastError = 0;
+    std::wstring message;
+};
+
+enum class MoveExecutionState { Pending, Moved, Skipped, Failed, VerificationFailed };
+
+enum class MoveExecutionSkipReason {
+    None,
+    DryRunOnly,
+    EmptyPlan,
+    ImpossiblePlan,
+    ExecutionLimitReached,
+    CancellationRequested,
+    InvalidFileIndex,
+    PathOutsideDrive,
+    FileMissing,
+    FileChanged,
+    LockedOrUnavailable,
+    UnsafeAttributes,
+    MissingExtents,
+    UnsupportedClusterCount,
+    MoveFailed,
+    VerificationFailed,
+    PrivilegeMissing
+};
+
+// Records one auditable execution message without depending on the logger sink.
+struct MoveExecutionLogEntry {
+    std::chrono::system_clock::time_point timestamp = std::chrono::system_clock::now();
+    std::wstring message;
+};
+
+// Records the result of attempting, skipping, or verifying one planned move.
+struct MoveExecutionOperationResult {
+    std::size_t fileIndex = 0;
+    std::filesystem::path filePath;
+    MoveExecutionState state = MoveExecutionState::Pending;
+    MoveExecutionSkipReason reason = MoveExecutionSkipReason::None;
+    std::uint32_t windowsError = 0;
+    byte_count64_t bytesConsidered = byte_count64_t();
+    count64_t fragmentsBefore = count64_t();
+    count64_t fragmentsAfter = count64_t();
+    std::wstring detail;
+};
+
+// Stores aggregate execution results for the status bar and later audit UI.
+struct MoveExecutionMetrics {
+    count64_t attemptedOperations = count64_t();
+    count64_t movedOperations = count64_t();
+    count64_t skippedOperations = count64_t();
+    count64_t failedOperations = count64_t();
+    count64_t verificationFailures = count64_t();
+    byte_count64_t movedBytes = byte_count64_t();
+};
+
+// Stores the outcome of a bounded real move-plan execution run.
+struct MoveExecutionResult {
+    MoveExecutionPrivilegeStatus privileges;
+    std::vector<MoveExecutionOperationResult> operationResults;
+    std::vector<MoveExecutionLogEntry> log;
+    MoveExecutionMetrics metrics;
+    bool blocked = false;
+    bool cancelled = false;
+    std::wstring summary;
+};
+
 } // namespace icd

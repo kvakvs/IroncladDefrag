@@ -29,11 +29,13 @@ private:
     void OnProfiles(wxCommandEvent& event);
     void OnBuildPlacementIntent(wxCommandEvent& event);
     void OnBuildMovePlan(wxCommandEvent& event);
+    void OnExecuteMovePlan(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
     void OnAnalysisProgress(const JobProgress& progress);
     void OnAnalysisComplete(const AnalysisResult& result);
+    void OnMoveExecutionComplete(const MoveExecutionResult& result);
     void OnAnalysisError(const std::wstring& message);
     void OpenOrUpdateAnalysisPage(const AnalysisResult& result);
     std::optional<std::wstring> GetSelectedDriveRoot() const;

@@ -5,6 +5,8 @@
 #include "MovePlanDialog.h"
 #include "ProfileSettingsDialog.h"
 
+#include <sstream>
+
 namespace icd {
 
 enum
@@ -16,6 +18,7 @@ enum
     ID_Profiles,
     ID_BuildPlacementIntent,
     ID_BuildMovePlan,
+    ID_ExecuteMovePlan,
     ID_FirstDrive = wxID_HIGHEST + 100,
     ID_LastDrive = ID_FirstDrive + 25
 };
@@ -27,6 +30,22 @@ void EnableMenuItemIfPresent(wxMenuBar* menuBar, int id, bool enabled)
         menuBar->Enable(id, enabled);
     }
 }
+
+std::wstring FormatBytes(byte_count64_t bytes)
+{
+    double value = static_cast<double>(bytes.getValue());
+    const wchar_t* units[] = {L"B", L"KB", L"MB", L"GB", L"TB"};
+    int unitIndex = 0;
+    while (value >= 1024.0 && unitIndex < 4) {
+        value /= 1024.0;
+        ++unitIndex;
+    }
+
+    std::wstringstream stream;
+    stream.precision(unitIndex == 0 ? 0 : 1);
+    stream << std::fixed << value << L" " << units[unitIndex];
+    return stream.str();
+}
 } // namespace
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -36,6 +55,7 @@ wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(ID_Profiles, MainFrame::OnProfiles)
     EVT_MENU(ID_BuildPlacementIntent, MainFrame::OnBuildPlacementIntent)
     EVT_MENU(ID_BuildMovePlan, MainFrame::OnBuildMovePlan)
+    EVT_MENU(ID_ExecuteMovePlan, MainFrame::OnExecuteMovePlan)
     EVT_MENU(ID_Exit, MainFrame::OnExit)
     EVT_MENU(ID_About, MainFrame::OnAbout)
     EVT_CLOSE(MainFrame::OnClose)
@@ -59,6 +79,11 @@ MainFrame::MainFrame(const wxString& title)
     controller.SetCompletionCallback([this](const AnalysisResult& result) {
         CallAfter([this, result]() {
             OnAnalysisComplete(result);
+        });
+    });
+    controller.SetExecutionCompletionCallback([this](const MoveExecutionResult& result) {
+        CallAfter([this, result]() {
+            OnMoveExecutionComplete(result);
         });
     });
     controller.SetErrorCallback([this](const std::wstring& message) {
@@ -98,6 +123,9 @@ void MainFrame::CreateMenuBar()
     optimizationMenu->Append(ID_BuildMovePlan,
                              "Build &Move Plan",
                              "Build and inspect a dry-run move plan for the selected analysed drive");
+    optimizationMenu->Append(ID_ExecuteMovePlan,
+                             "&Execute Move Plan...",
+                             "Execute the selected analysed drive's current bounded move plan");
     menuBar->Append(optimizationMenu, "&Optimization");
     
     // Set the menu bar
@@ -191,9 +219,13 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
         EnableMenuItemIfPresent(menuBar, id, drive.capabilities.canAnalyze && !running);
     }
 
+    const std::optional<std::wstring> selectedDrive = GetSelectedDriveRoot();
     EnableMenuItemIfPresent(menuBar, ID_Profiles, !running);
-    EnableMenuItemIfPresent(menuBar, ID_BuildPlacementIntent, !running && GetSelectedDriveRoot().has_value());
-    EnableMenuItemIfPresent(menuBar, ID_BuildMovePlan, !running && GetSelectedDriveRoot().has_value());
+    EnableMenuItemIfPresent(menuBar, ID_BuildPlacementIntent, !running && selectedDrive.has_value());
+    EnableMenuItemIfPresent(menuBar, ID_BuildMovePlan, !running && selectedDrive.has_value());
+    EnableMenuItemIfPresent(menuBar,
+                            ID_ExecuteMovePlan,
+                            !running && selectedDrive.has_value() && controller.HasMovePlan(*selectedDrive));
 }
 
 void MainFrame::OnRefreshDrives(wxCommandEvent& event)
@@ -280,6 +312,80 @@ void MainFrame::OnBuildMovePlan(wxCommandEvent&)
     MovePlanDialog dialog(this, *plan);
     dialog.ShowModal();
     SetStatusText(wxString(plan->summary));
+    UpdateAnalysisMenuState(false);
+}
+
+void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
+{
+    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
+    if (!driveRoot.has_value()) {
+        SetStatusText("Select an analysed drive tab before executing a move plan.");
+        return;
+    }
+
+    const std::optional<MovePlan> plan = controller.GetMovePlan(*driveRoot);
+    if (!plan.has_value()) {
+        SetStatusText("Build a move plan before executing it.");
+        return;
+    }
+
+    if (plan->profile.settings.dryRunOnly) {
+        wxMessageBox("The selected move plan was built with Dry-run only enabled. Disable Dry-run only in the profile, rebuild the "
+                     "move plan, then execute it.",
+                     "Execution Blocked",
+                     wxOK | wxICON_WARNING,
+                     this);
+        SetStatusText("Execution blocked: dry-run-only profile.");
+        return;
+    }
+
+    if (plan->impossible || plan->operations.empty()) {
+        SetStatusText(plan->impossible ? "Execution blocked: move plan is impossible."
+                                       : "Execution blocked: move plan has no operations.");
+        return;
+    }
+
+    const MoveExecutionPrivilegeStatus privileges = controller.GetMoveExecutionPrivilegeStatus(*driveRoot);
+    if (!privileges.canMoveFiles) {
+        wxMessageDialog dialog(this,
+                               wxString(privileges.message) +
+                                   "\n\nClick Run Elevated to restart IroncladDefrag with UAC. No moves will run in this "
+                                   "non-elevated instance.",
+                               "Elevation Required",
+                               wxYES_NO | wxICON_WARNING);
+        dialog.SetYesNoLabels("Run Elevated", "Cancel");
+        if (dialog.ShowModal() == wxID_YES) {
+            if (controller.RelaunchElevatedForExecution()) {
+                SetStatusText("UAC elevation requested. Rebuild or reopen the plan in the elevated instance before executing.");
+            } else {
+                SetStatusText("Unable to request UAC elevation.");
+            }
+        } else {
+            SetStatusText("Execution cancelled before elevation.");
+        }
+        return;
+    }
+
+    const wxString driveLabel(*driveRoot);
+    const wxString bytesLabel(FormatBytes(plan->estimatedBytesToMove));
+    const wxString confirmation = wxString::Format("Execute a bounded Phase 6 move plan for %s?\n\n"
+                                                   "Operations: %llu\n"
+                                                   "Estimated bytes: %s\n\n"
+                                                   "Use only on controlled test data or a disposable NTFS volume.",
+                                                   driveLabel.c_str(),
+                                                   static_cast<unsigned long long>(plan->metrics.affectedFiles.getValue()),
+                                                   bytesLabel.c_str());
+    if (wxMessageBox(confirmation, "Confirm Move Execution", wxYES_NO | wxNO_DEFAULT | wxICON_WARNING, this) != wxYES) {
+        SetStatusText("Move execution cancelled before start.");
+        return;
+    }
+
+    if (controller.StartMovePlanExecution(*driveRoot)) {
+        SetStatusText("Starting move execution...");
+        UpdateAnalysisMenuState(true);
+    } else {
+        UpdateAnalysisMenuState(false);
+    }
 }
 
 void MainFrame::OnExit(wxCommandEvent& event)
@@ -306,22 +412,22 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 {
     switch (progress.state) {
     case JobState::Running:
-        SetStatusText(wxString::Format("Drive analysis %.0f%% - %s %s",
+        SetStatusText(wxString::Format("%.0f%% - %s %s",
                                        progress.percentComplete,
                                        wxString(progress.statusMessage),
                                        wxString(progress.currentItem)));
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Cancelled:
-        SetStatusText("Drive analysis cancelled.");
+        SetStatusText(progress.statusMessage.empty() ? wxString("Job cancelled.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Completed:
-        SetStatusText("Drive analysis complete.");
+        SetStatusText(progress.statusMessage.empty() ? wxString("Job complete.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Failed:
-        SetStatusText("Drive analysis failed.");
+        SetStatusText(progress.statusMessage.empty() ? wxString("Job failed.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Cancelling:
@@ -338,6 +444,12 @@ void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
 {
     SetStatusText(wxString(result.summary));
     OpenOrUpdateAnalysisPage(result);
+    UpdateAnalysisMenuState(false);
+}
+
+void MainFrame::OnMoveExecutionComplete(const MoveExecutionResult& result)
+{
+    SetStatusText(wxString(result.summary));
     UpdateAnalysisMenuState(false);
 }
 

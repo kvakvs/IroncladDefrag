@@ -2,7 +2,7 @@
 
 ## Application Shape
 
-IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based shell with read-only drive discovery and analysis. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, Windows platform-boundary code, and domain model types. File-move planning, move execution, and strategy-selection services are not implemented yet.
+IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based shell with read-only drive discovery and analysis, dry-run move planning, and a bounded Phase 6 move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, execution services, Windows platform-boundary code, and domain model types. TRIM actions and the full Phase 7 workflow are not implemented yet.
 
 The app is built as a Windows subsystem executable with CMake and MSVC-oriented wxWidgets libraries vendored under `3rdparty/wxWidgets`.
 
@@ -15,7 +15,7 @@ Startup currently follows this path:
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
 4. `icd::MainFrame` creates the top menu, status bar, and tabbed analysis document area. The Analysis menu refreshes visible drives, starts read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, dry-run optimization profile/placement-intent layer, and dry-run move planning. There is still no defragmentation executor, move plan executor, TRIM action, or file movement implementation.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, dry-run optimization profile/placement-intent layer, dry-run move planning, and a conservative move-plan execution path. There is still no TRIM action, full Phase 7 workflow, or advanced visual move confirmation.
 
 ## Layers
 
@@ -35,13 +35,13 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/ProfileSettingsDialog.*` provides the modal Phase 4 profile editor for core optimization settings. It edits profiles in memory only and does not persist files.
 
-`src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. It does not offer execution controls.
+`src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. Execution is exposed separately through the main Optimization menu.
 
-The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch.
+The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch. Phase 6 execution reports only through the status bar.
 
 ## Application Controller Layer
 
-`src/app/ApplicationController.*` owns orchestration for drive enumeration, selected-drive read-only analysis, stored in-memory analysis snapshots, and progress/completion/error callbacks for the UI.
+`src/app/ApplicationController.*` owns orchestration for drive enumeration, selected-drive read-only analysis, stored in-memory analysis snapshots, move-plan execution, and progress/completion/error callbacks for the UI.
 
 `src/app/BackgroundJob.*` provides a small `std::thread` worker wrapper with cooperative cancellation and destructor-time joining. It is infrastructure for later real analysis and movement jobs.
 
@@ -65,11 +65,17 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 `src/optimization/MovePlanner.*` converts placement intent into conservative dry-run move plans using only in-memory analysis, free-space, and profile data. It simulates destination reservations and does not write to disk.
 
+## Execution Layer
+
+`src/execution/MoveExecutor.*` performs the bounded Phase 6 execution pass. It rejects dry-run-only, impossible, or empty plans; revalidates file size, attributes, extents, and drive ownership before each move; calls the Windows move boundary; verifies extents after each attempted move; and records per-file outcomes for audit and troubleshooting.
+
 ## Windows Platform Boundary
 
 `src/platform/windows/DriveEnumerator.*` enumerates visible drives, volume metadata, media/capability status, and disabled reasons using read-only Win32 calls. Raw volume bitmap access is optional; eligible fixed drives can still run metadata-only analysis when bitmap access is unavailable.
 
 `src/platform/windows/VolumeQueries.*` contains read-only retrieval-pointer and volume-bitmap FSCTL calls.
+
+`src/platform/windows/VolumeMoveOperations.*` contains write-capable file movement and privilege boundary code. It probes administrator/manage-volume capability, can request a UAC relaunch through `ShellExecuteW` with `runas`, and wraps `FSCTL_MOVE_FILE`.
 
 `src/platform/windows/UniqueHandle.*` provides RAII for Win32 handles.
 
@@ -78,7 +84,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 `src/model` contains domain data structures and unit types:
 
 - `Units.h` provides type-safe quantity wrappers for counts, indexes, byte counts, sector counts, and throughput.
-- `DomainTypes.h` defines domain value types for drives, volumes, disk zones, file classes, classification results/summaries, optimization profiles/settings, analysis results, placement plans, move plans, job progress, drive capabilities, and analysis statistics.
+- `DomainTypes.h` defines domain value types for drives, volumes, disk zones, file classes, classification results/summaries, optimization profiles/settings, analysis results, placement plans, move plans, execution results, job progress, drive capabilities, and analysis statistics.
 - `FileMetadata.*` models file path, size, timestamps, type, parent directory, and cluster fragment locations.
 - `FragmentMap.*` models file fragmentation using sector ranges and aggregate fragment state.
 - `FreeSpaceMap.*` models free-space blocks and free-space fragmentation metrics.
@@ -106,10 +112,8 @@ wxWidgets 3.3.1 headers, libraries, DLLs, and archives are vendored in `3rdparty
 
 The following architecture pieces are implied by the product goals but are not present yet:
 
-- Privileged or write-capable drive operations.
 - Write-capable move strategy implementations.
-- Write-capable move planner and executor that perform real disk operations.
-- Defragmentation/move executor with cancellation, progress reporting, and error handling.
+- Advanced write-capable move strategy implementations beyond bounded whole-file moves from existing plans.
 - Tests or validation harnesses.
 - Interactive drive-map workflow controls such as selection, filtering, strategy overlays, and planned-move visualization.
 
