@@ -31,7 +31,7 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a split document page: a read-only drive map in the top pane and scrollable summary/classification labels in the bottom pane.
 
-`src/ui/DriveMapPanel.*` renders the first read-only cluster visualization for an analysed drive. It consumes only the in-memory `AnalysisResult`, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
+`src/ui/DriveMapPanel.*` renders the first read-only cluster visualization for an analysed drive. It consumes in-memory `AnalysisResult` and optional `PlacementPlan` data, can switch between actual layout and intended-placement coloring, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
 
 `src/ui/ProfileSettingsDialog.*` provides the modal Phase 4 profile editor for core optimization settings. It edits profiles in memory only and does not persist files.
 

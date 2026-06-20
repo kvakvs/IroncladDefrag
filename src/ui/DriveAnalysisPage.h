@@ -5,6 +5,7 @@
 
 #include <wx/scrolwin.h>
 #include <wx/splitter.h>
+#include <wx/tglbtn.h>
 #include <wx/wx.h>
 
 namespace icd {
@@ -22,6 +23,8 @@ public:
 private:
     void SetDefaultSashPosition(const wxSize& size = wxDefaultSize);
     void OnSize(wxSizeEvent& event);
+    void OnMapModeToggle(wxCommandEvent& event);
+    void UpdateMapModeToggle();
 
     wxSplitterWindow* splitter = nullptr;
     DriveMapPanel* mapPanel = nullptr;
@@ -36,6 +39,7 @@ private:
     wxStaticText* classificationRecency = nullptr;
     wxStaticText* classificationPlacement = nullptr;
     wxStaticText* classificationSafety = nullptr;
+    wxToggleButton* mapModeToggle = nullptr;
     wxStaticText* placementIntent = nullptr;
     wxStaticText* movePlan = nullptr;
     wxStaticText* legend = nullptr;

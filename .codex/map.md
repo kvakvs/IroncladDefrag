@@ -96,7 +96,7 @@ Defines an analysis-result document page shown in the main notebook, with a vert
 - `src/ui/DriveMapPanel.h`
 - `src/ui/DriveMapPanel.cpp`
 
-Defines the read-only cluster-grid drive map. It renders fixed-size cells, recalculates clusters-per-box on resize, and colors ranges from analysis/classification data without performing disk I/O or move planning.
+Defines the read-only cluster-grid drive map. It renders fixed-size cells, recalculates clusters-per-box on resize, and can switch between actual analysis/classification colors and intended-placement colors from an in-memory `PlacementPlan`.
 
 - `src/ui/ProfileSettingsDialog.h`
 - `src/ui/ProfileSettingsDialog.cpp`

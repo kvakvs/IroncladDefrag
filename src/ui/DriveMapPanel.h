@@ -3,6 +3,7 @@
 #include "../model/DomainTypes.h"
 
 #include <cstdint>
+#include <optional>
 #include <vector>
 #include <wx/wx.h>
 
@@ -15,8 +16,10 @@ struct DriveMapRenderSettings {
     int cellGap = 1;
 };
 
+enum class DriveMapRenderMode { ActualLayout, IntendedPlacement };
+
 // Names the visible state chosen for a drive-map cluster range.
-enum class DriveMapRangeState { Unknown, Free, Occupied, Hot, Cold, Fragmented, Risky };
+enum class DriveMapRangeState { Unknown, Free, Occupied, Hot, Cold, LargeFile, Fragmented, Risky };
 
 // Stores one cluster range and the highest-level map state known for it.
 struct DriveMapRange {
@@ -31,6 +34,8 @@ public:
     DriveMapPanel(wxWindow* parent, const AnalysisResult& result);
 
     void UpdateResult(const AnalysisResult& result);
+    void UpdatePlacementPlan(const PlacementPlan& plan);
+    void SetRenderMode(DriveMapRenderMode mode);
 
 private:
     void BuildRanges();
@@ -44,6 +49,8 @@ private:
                                    std::size_t& rangeCursor) const;
 
     AnalysisResult analysis;
+    std::optional<PlacementPlan> placementPlan;
+    DriveMapRenderMode renderMode = DriveMapRenderMode::ActualLayout;
     DriveMapRenderSettings settings;
     std::vector<DriveMapRange> ranges;
     std::uint64_t totalClusters = 1;

@@ -225,7 +225,7 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
     EnableMenuItemIfPresent(menuBar, ID_BuildMovePlan, !running && selectedDrive.has_value());
     EnableMenuItemIfPresent(menuBar,
                             ID_ExecuteMovePlan,
-                            !running && selectedDrive.has_value() && controller.HasMovePlan(*selectedDrive));
+                            !running && selectedDrive.has_value() && controller.HasExecutableMovePlan(*selectedDrive));
 }
 
 void MainFrame::OnRefreshDrives(wxCommandEvent& event)

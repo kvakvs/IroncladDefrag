@@ -353,6 +353,18 @@ bool ApplicationController::HasMovePlan(const std::wstring& driveRoot) const
     return movePlans.find(driveRoot) != movePlans.end();
 }
 
+bool ApplicationController::HasExecutableMovePlan(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(analysisMutex);
+    const auto found = movePlans.find(driveRoot);
+    if (found == movePlans.end()) {
+        return false;
+    }
+
+    const MovePlan& plan = found->second;
+    return !plan.impossible && !plan.operations.empty();
+}
+
 MoveExecutionPrivilegeStatus ApplicationController::GetMoveExecutionPrivilegeStatus(const std::wstring& driveRoot) const
 {
     return win::ProbeMovePrivileges(driveRoot);

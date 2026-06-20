@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <cstddef>
+#include <unordered_map>
 
 namespace icd {
 
@@ -29,10 +30,12 @@ namespace {
     int StatePriority(DriveMapRangeState state) {
         switch (state) {
         case DriveMapRangeState::Risky:
-            return 6;
+            return 7;
         case DriveMapRangeState::Fragmented:
-            return 5;
+            return 6;
         case DriveMapRangeState::Hot:
+            return 5;
+        case DriveMapRangeState::LargeFile:
             return 4;
         case DriveMapRangeState::Cold:
             return 3;
@@ -55,6 +58,8 @@ namespace {
             return wxColour(221, 138, 36);
         case DriveMapRangeState::Hot:
             return wxColour(41, 116, 204);
+        case DriveMapRangeState::LargeFile:
+            return wxColour(46, 138, 132);
         case DriveMapRangeState::Cold:
             return wxColour(116, 92, 158);
         case DriveMapRangeState::Occupied:
@@ -97,6 +102,37 @@ namespace {
         return DriveMapRangeState::Occupied;
     }
 
+    // Derives the intended-placement state without changing current file extents.
+    DriveMapRangeState StateForIntendedFile(const FileMetadata& file,
+                                            const FileClass* classification,
+                                            const PlacementPlan::FilePlacementIntent* intent) {
+        const auto& flags = file.GetAttributeFlags();
+        const bool risky = file.IsRiskyOrUnmovable() || flags.system || flags.reparsePoint || flags.sparse ||
+            flags.compressed || flags.encrypted ||
+            (classification != nullptr && (classification->excluded || classification->moveOnlyWhenExplicit));
+        if (risky) {
+            return DriveMapRangeState::Risky;
+        }
+
+        if (intent == nullptr || intent->targetZone == ExpectedPlacementZone::None) {
+            return DriveMapRangeState::Unknown;
+        }
+
+        switch (intent->targetZone) {
+        case ExpectedPlacementZone::Fast:
+            return DriveMapRangeState::Hot;
+        case ExpectedPlacementZone::Slow:
+            return DriveMapRangeState::Cold;
+        case ExpectedPlacementZone::LargeFile:
+            return DriveMapRangeState::LargeFile;
+        case ExpectedPlacementZone::Balanced:
+            return DriveMapRangeState::Occupied;
+        case ExpectedPlacementZone::None:
+        default:
+            return DriveMapRangeState::Unknown;
+        }
+    }
+
     // Finds the classification record for a file index without duplicating per-file path data.
     std::vector<const FileClass*> BuildClassificationIndex(const AnalysisResult& analysis) {
         std::vector<const FileClass*> byFileIndex(analysis.files.size(), nullptr);
@@ -104,6 +140,16 @@ namespace {
             if (item.fileIndex < byFileIndex.size()) {
                 byFileIndex[item.fileIndex] = &item.classification;
             }
+        }
+        return byFileIndex;
+    }
+
+    // Finds placement-intent records by analysed file index for intended map rendering.
+    std::unordered_map<std::size_t, const PlacementPlan::FilePlacementIntent*> BuildIntentIndex(
+        const PlacementPlan& plan) {
+        std::unordered_map<std::size_t, const PlacementPlan::FilePlacementIntent*> byFileIndex;
+        for (const auto& intent : plan.fileIntents) {
+            byFileIndex[intent.fileIndex] = &intent;
         }
         return byFileIndex;
     }
@@ -127,8 +173,30 @@ DriveMapPanel::DriveMapPanel(wxWindow* parent, const AnalysisResult& result) :
 
 void DriveMapPanel::UpdateResult(const AnalysisResult& result) {
     analysis = result;
+    placementPlan.reset();
+    renderMode = DriveMapRenderMode::ActualLayout;
     BuildRanges();
     RecalculateScale(GetClientSize());
+    Refresh();
+}
+
+void DriveMapPanel::UpdatePlacementPlan(const PlacementPlan& plan) {
+    placementPlan = plan;
+    BuildRanges();
+    Refresh();
+}
+
+void DriveMapPanel::SetRenderMode(DriveMapRenderMode mode) {
+    const DriveMapRenderMode nextMode =
+        mode == DriveMapRenderMode::IntendedPlacement && !placementPlan.has_value()
+            ? DriveMapRenderMode::ActualLayout
+            : mode;
+    if (renderMode == nextMode) {
+        return;
+    }
+
+    renderMode = nextMode;
+    BuildRanges();
     Refresh();
 }
 
@@ -146,10 +214,18 @@ void DriveMapPanel::BuildRanges() {
     }
 
     const auto classificationsByFile = BuildClassificationIndex(analysis);
+    const auto intentsByFile = placementPlan.has_value() ? BuildIntentIndex(*placementPlan)
+                                                         : std::unordered_map<std::size_t, const PlacementPlan::FilePlacementIntent*>();
     for (std::size_t fileIndex = 0; fileIndex < analysis.files.size(); ++fileIndex) {
         const auto& file = analysis.files[fileIndex];
         const FileClass* classification = classificationsByFile[fileIndex];
-        const DriveMapRangeState state = StateForFile(file, classification);
+        const auto intent = intentsByFile.find(fileIndex);
+        const DriveMapRangeState state =
+            renderMode == DriveMapRenderMode::IntendedPlacement
+                ? StateForIntendedFile(file,
+                                       classification,
+                                       intent == intentsByFile.end() ? nullptr : intent->second)
+                : StateForFile(file, classification);
 
         for (const auto& fragment : file.GetFragments()) {
             const auto start = fragment.startCluster.getValue();

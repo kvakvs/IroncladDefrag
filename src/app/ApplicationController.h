@@ -47,6 +47,7 @@ public:
     std::optional<MovePlan> BuildMovePlan(const std::wstring& driveRoot);
     std::optional<MovePlan> GetMovePlan(const std::wstring& driveRoot) const;
     bool HasMovePlan(const std::wstring& driveRoot) const;
+    bool HasExecutableMovePlan(const std::wstring& driveRoot) const;
     MoveExecutionPrivilegeStatus GetMoveExecutionPrivilegeStatus(const std::wstring& driveRoot) const;
     bool RelaunchElevatedForExecution() const;
     bool StartMovePlanExecution(const std::wstring& driveRoot);

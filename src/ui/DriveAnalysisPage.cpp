@@ -112,6 +112,16 @@ namespace {
         }
         return count;
     }
+
+    const char* ActualMapLegend() {
+        return "Legend: red risky, orange fragmented, blue hot, purple cold, green occupied, "
+               "light gray free, dark gray unknown.";
+    }
+
+    const char* IntendedMapLegend() {
+        return "Legend: red risky/excluded, blue fast target, purple slow target, teal large-file target, "
+               "green balanced target, light gray free, dark gray no target.";
+    }
 } // namespace
 
 DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& result) : wxPanel(parent, wxID_ANY) {
@@ -120,7 +130,11 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     detailsPanel = new wxScrolledWindow(splitter, wxID_ANY);
     detailsPanel->SetScrollRate(0, 8);
 
+    mapModeToggle = new wxToggleButton(detailsPanel, wxID_ANY, "Actual map");
+    mapModeToggle->Enable(false);
+
     auto* detailsSizer = new wxBoxSizer(wxVERTICAL);
+
     title = new wxStaticText(detailsPanel, wxID_ANY, "");
     volume = new wxStaticText(detailsPanel, wxID_ANY, "");
     files = new wxStaticText(detailsPanel, wxID_ANY, "");
@@ -133,9 +147,7 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     classificationSafety = new wxStaticText(detailsPanel, wxID_ANY, "");
     placementIntent = new wxStaticText(detailsPanel, wxID_ANY, "");
     movePlan = new wxStaticText(detailsPanel, wxID_ANY, "");
-    legend = new wxStaticText(detailsPanel, wxID_ANY,
-                              "Legend: red risky, orange fragmented, blue hot, purple cold, green occupied, "
-                              "light gray free, dark gray unknown.");
+    legend = new wxStaticText(detailsPanel, wxID_ANY, ActualMapLegend());
     warnings = new wxStaticText(detailsPanel, wxID_ANY, "");
     todo = new wxStaticText(detailsPanel, wxID_ANY,
                             "Drive map is read-only. Planning and movement controls are not active.");
@@ -155,6 +167,7 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     detailsSizer->Add(classificationRecency, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(classificationPlacement, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(classificationSafety, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
+    detailsSizer->Add(mapModeToggle, 0, wxLEFT | wxRIGHT | wxBOTTOM, 12);
     detailsSizer->Add(placementIntent, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(movePlan, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(legend, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
@@ -170,6 +183,7 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     pageSizer->Add(splitter, 1, wxEXPAND);
     SetSizer(pageSizer);
     splitter->Bind(wxEVT_SIZE, &DriveAnalysisPage::OnSize, this);
+    mapModeToggle->Bind(wxEVT_TOGGLEBUTTON, &DriveAnalysisPage::OnMapModeToggle, this);
 
     UpdateResult(result);
     SetDefaultSashPosition();
@@ -178,6 +192,9 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
 void DriveAnalysisPage::UpdateResult(const AnalysisResult& result) {
     driveRoot = result.drive.rootPath;
     mapPanel->UpdateResult(result);
+    mapModeToggle->SetValue(false);
+    mapModeToggle->Enable(false);
+    UpdateMapModeToggle();
 
     std::wstringstream volumeText;
     volumeText << L"Volume: " << result.volume.label << L" (" << result.volume.fileSystem << L"), "
@@ -242,6 +259,10 @@ void DriveAnalysisPage::UpdateResult(const AnalysisResult& result) {
 }
 
 void DriveAnalysisPage::UpdatePlacementPlan(const PlacementPlan& plan) {
+    mapPanel->UpdatePlacementPlan(plan);
+    mapModeToggle->Enable(true);
+    UpdateMapModeToggle();
+
     std::wstringstream text;
     text << L"Placement intent: " << plan.profile.name << L", zones enabled " << CountEnabledZones(plan) << L"/"
          << plan.zones.size() << L", targeted " << plan.targetedFiles.getValue() << L", no target "
@@ -286,6 +307,25 @@ void DriveAnalysisPage::SetDefaultSashPosition(const wxSize& size) {
 void DriveAnalysisPage::OnSize(wxSizeEvent& event) {
     SetDefaultSashPosition(event.GetSize());
     event.Skip();
+}
+
+void DriveAnalysisPage::OnMapModeToggle(wxCommandEvent&) {
+    mapPanel->SetRenderMode(mapModeToggle->GetValue() ? DriveMapRenderMode::IntendedPlacement
+                                                      : DriveMapRenderMode::ActualLayout);
+    UpdateMapModeToggle();
+    detailsPanel->FitInside();
+    Layout();
+}
+
+void DriveAnalysisPage::UpdateMapModeToggle() {
+    if (mapModeToggle->GetValue()) {
+        mapModeToggle->SetLabel("Intended placement");
+        legend->SetLabel(IntendedMapLegend());
+    }
+    else {
+        mapModeToggle->SetLabel("Actual map");
+        legend->SetLabel(ActualMapLegend());
+    }
 }
 
 } // namespace icd
