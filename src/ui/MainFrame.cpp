@@ -18,7 +18,6 @@ enum
     ID_CancelAnalysis,
     ID_Profiles,
     ID_SafetySettings,
-    ID_BuildPlacementIntent,
     ID_BuildMovePlan,
     ID_ExecuteMovePlan,
     ID_FirstDrive = wxID_HIGHEST + 100,
@@ -76,7 +75,6 @@ wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(ID_CancelAnalysis, MainFrame::OnCancelAnalysis)
     EVT_MENU(ID_Profiles, MainFrame::OnProfiles)
     EVT_MENU(ID_SafetySettings, MainFrame::OnSafetySettings)
-    EVT_MENU(ID_BuildPlacementIntent, MainFrame::OnBuildPlacementIntent)
     EVT_MENU(ID_BuildMovePlan, MainFrame::OnBuildMovePlan)
     EVT_MENU(ID_ExecuteMovePlan, MainFrame::OnExecuteMovePlan)
     EVT_MENU(ID_Exit, MainFrame::OnExit)
@@ -106,6 +104,11 @@ MainFrame::MainFrame(const wxString& title)
             OnAnalysisComplete(result);
         });
     });
+    controller.SetPlanBuildCompletionCallback([this](const PlanBuildResult& result) {
+        CallAfter([this, result]() {
+            OnPlanBuildComplete(result);
+        });
+    });
     controller.SetExecutionCompletionCallback([this](const MoveExecutionResult& result) {
         CallAfter([this, result]() {
             OnMoveExecutionComplete(result);
@@ -122,6 +125,7 @@ MainFrame::MainFrame(const wxString& title)
 
 MainFrame::~MainFrame()
 {
+    ClosePlanBuildProgress();
     controller.ClearCallbacks();
     controller.CancelActiveJob();
 }
@@ -187,6 +191,43 @@ void MainFrame::OnStatusFlushTimer(wxTimerEvent&)
     FlushPendingStatusText();
 }
 
+// Shows the cancellable planning popup used only for combined move-plan builds.
+void MainFrame::ShowPlanBuildProgress()
+{
+    ClosePlanBuildProgress();
+    planProgressDialog = new wxProgressDialog("Building Plan",
+                                              "Preparing planning data...",
+                                              100,
+                                              this,
+                                              wxPD_APP_MODAL | wxPD_CAN_ABORT | wxPD_ELAPSED_TIME | wxPD_REMAINING_TIME);
+}
+
+void MainFrame::ClosePlanBuildProgress()
+{
+    if (planProgressDialog == nullptr) {
+        return;
+    }
+
+    planProgressDialog->Destroy();
+    planProgressDialog = nullptr;
+}
+
+// Mirrors worker progress into the planning popup and requests cancellation if the user aborts.
+void MainFrame::UpdatePlanBuildProgress(const JobProgress& progress)
+{
+    if (planProgressDialog == nullptr) {
+        return;
+    }
+
+    const int percent = (std::max)(0, (std::min)(100, static_cast<int>(progress.percentComplete)));
+    const bool keepGoing = planProgressDialog->Update(percent, FormatRunningProgressStatus(progress));
+    if (!keepGoing && !planProgressCancelRequested) {
+        planProgressCancelRequested = true;
+        controller.RequestCancelActiveJob();
+        SetStatusTextImmediate("Cancelling move-plan build...");
+    }
+}
+
 void MainFrame::CreateMenuBar()
 {
     wxMenuBar* menuBar = new wxMenuBar;
@@ -204,12 +245,9 @@ void MainFrame::CreateMenuBar()
     optimizationMenu = new wxMenu;
     optimizationMenu->Append(ID_Profiles, "&Profiles...", "Choose and edit optimization profile settings");
     optimizationMenu->Append(ID_SafetySettings, "&Safety Settings...", "Edit global safety guardrails and exclusions");
-    optimizationMenu->Append(ID_BuildPlacementIntent,
-                             "&Build Placement Intent",
-                             "Build dry-run placement intent for the selected analysed drive");
     optimizationMenu->Append(ID_BuildMovePlan,
-                             "Build &Move Plan",
-                             "Build and inspect a dry-run move plan for the selected analysed drive");
+                             "Build &Plan",
+                             "Build placement intent and move plan for the selected analysed drive");
     optimizationMenu->Append(ID_ExecuteMovePlan,
                              "&Execute Move Plan...",
                              "Execute the selected analysed drive's current bounded move plan");
@@ -283,11 +321,8 @@ void MainFrame::CreateDocumentArea()
         wxCommandEvent event;
         OnSafetySettings(event);
     });
-    workflowPanel->SetBuildPlacementCallback([this]() {
-        BuildPlacementIntentForSelected();
-    });
     workflowPanel->SetBuildPlanCallback([this]() {
-        BuildMovePlanForSelected(false);
+        StartMovePlanBuildForSelected(false);
     });
     workflowPanel->SetQuickDefragCallback([this]() {
         const std::optional<OptimizationProfile> profile = controller.GetProfile(OptimizationMode::SingleFileDefragmentation);
@@ -391,7 +426,6 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
     const std::optional<std::wstring> selectedDrive = GetSelectedDriveRoot();
     EnableMenuItemIfPresent(menuBar, ID_Profiles, !running);
     EnableMenuItemIfPresent(menuBar, ID_SafetySettings, !running);
-    EnableMenuItemIfPresent(menuBar, ID_BuildPlacementIntent, !running && selectedDrive.has_value());
     EnableMenuItemIfPresent(menuBar, ID_BuildMovePlan, !running && selectedDrive.has_value());
     EnableMenuItemIfPresent(menuBar,
                             ID_ExecuteMovePlan,
@@ -461,33 +495,7 @@ void MainFrame::StartAnalysisForDrive(const DriveInfo& drive)
     }
 }
 
-bool MainFrame::BuildPlacementIntentForSelected()
-{
-    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
-    if (!driveRoot.has_value()) {
-        SetStatusTextImmediate("Select an analysed drive before building placement intent.");
-        return false;
-    }
-
-    const std::optional<PlacementPlan> plan = controller.BuildPlacementPlan(*driveRoot);
-    if (!plan.has_value()) {
-        SetStatusTextImmediate("No completed analysis snapshot is available for the selected drive.");
-        return false;
-    }
-
-    const auto page = analysisPages.find(*driveRoot);
-    if (page != analysisPages.end()) {
-        page->second->UpdatePlacementPlan(*plan);
-    }
-    if (workflowPanel != nullptr) {
-        workflowPanel->SetPlacementPlan(*plan);
-    }
-    SetStatusTextImmediate(wxString(plan->summary));
-    UpdateAnalysisMenuState(false);
-    return true;
-}
-
-bool MainFrame::BuildMovePlanForSelected(bool showDialog)
+bool MainFrame::StartMovePlanBuildForSelected(bool executeAfterBuild)
 {
     const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
     if (!driveRoot.has_value()) {
@@ -495,27 +503,20 @@ bool MainFrame::BuildMovePlanForSelected(bool showDialog)
         return false;
     }
 
-    const std::optional<MovePlan> plan = controller.BuildMovePlan(*driveRoot);
-    if (!plan.has_value()) {
-        SetStatusTextImmediate("No completed analysis snapshot is available for the selected drive.");
-        return false;
+    this->executeAfterPlanBuild = executeAfterBuild;
+    planProgressCancelRequested = false;
+    ShowPlanBuildProgress();
+    UpdateAnalysisMenuState(true);
+    SetStatusTextImmediate(wxString::Format("Building move plan for %s", wxString(*driveRoot)));
+
+    if (controller.StartMovePlanBuild(*driveRoot)) {
+        return true;
     }
 
-    const auto page = analysisPages.find(*driveRoot);
-    if (page != analysisPages.end()) {
-        page->second->UpdateMovePlan(*plan);
-    }
-    if (workflowPanel != nullptr) {
-        workflowPanel->SetMovePlan(*plan);
-    }
-
-    if (showDialog) {
-        MovePlanDialog dialog(this, *plan);
-        dialog.ShowModal();
-    }
-    SetStatusTextImmediate(wxString(plan->summary));
+    ClosePlanBuildProgress();
+    this->executeAfterPlanBuild = false;
     UpdateAnalysisMenuState(false);
-    return true;
+    return false;
 }
 
 bool MainFrame::ReviewSelectedMovePlan()
@@ -619,13 +620,7 @@ bool MainFrame::RunFastLane(const OptimizationProfile& profile)
         workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
     }
 
-    if (!BuildPlacementIntentForSelected()) {
-        return false;
-    }
-    if (!BuildMovePlanForSelected(false)) {
-        return false;
-    }
-    return ExecuteSelectedMovePlan();
+    return StartMovePlanBuildForSelected(true);
 }
 
 void MainFrame::ResetSelectedAnalysisWorkflow()
@@ -703,14 +698,9 @@ void MainFrame::OnSafetySettings(wxCommandEvent&)
     }
 }
 
-void MainFrame::OnBuildPlacementIntent(wxCommandEvent&)
-{
-    BuildPlacementIntentForSelected();
-}
-
 void MainFrame::OnBuildMovePlan(wxCommandEvent&)
 {
-    BuildMovePlanForSelected(true);
+    StartMovePlanBuildForSelected(false);
 }
 
 void MainFrame::OnExecuteMovePlan(wxCommandEvent&)
@@ -733,6 +723,7 @@ void MainFrame::OnAbout(wxCommandEvent& event)
 
 void MainFrame::OnClose(wxCloseEvent& event)
 {
+    ClosePlanBuildProgress();
     controller.ClearCallbacks();
     controller.CancelActiveJob();
     event.Skip();
@@ -742,22 +733,27 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 {
     switch (progress.state) {
     case JobState::Running:
+        UpdatePlanBuildProgress(progress);
         SetStatusTextThrottled(FormatRunningProgressStatus(progress));
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Cancelled:
+        ClosePlanBuildProgress();
         SetStatusTextImmediate(progress.statusMessage.empty() ? wxString("Job cancelled.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Completed:
+        ClosePlanBuildProgress();
         SetStatusTextImmediate(progress.statusMessage.empty() ? wxString("Job complete.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Failed:
+        ClosePlanBuildProgress();
         SetStatusTextImmediate(progress.statusMessage.empty() ? wxString("Job failed.") : wxString(progress.statusMessage));
         UpdateAnalysisMenuState(false);
         break;
     case JobState::Cancelling:
+        UpdatePlanBuildProgress(progress);
         SetStatusTextImmediate("Cancelling active job...");
         UpdateAnalysisMenuState(true);
         break;
@@ -780,6 +776,53 @@ void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
     }
     activeDriveRoot = result.drive.rootPath;
     UpdateAnalysisMenuState(false);
+}
+
+void MainFrame::OnPlanBuildComplete(const PlanBuildResult& result)
+{
+    ClosePlanBuildProgress();
+    const bool shouldExecute = executeAfterPlanBuild;
+    executeAfterPlanBuild = false;
+    planProgressCancelRequested = false;
+
+    if (result.cancelled) {
+        SetStatusTextImmediate(result.message.empty() ? wxString("Move-plan build cancelled.") : wxString(result.message));
+        UpdateAnalysisMenuState(false);
+        return;
+    }
+
+    if (!result.placementPlan.has_value() || !result.movePlan.has_value()) {
+        SetStatusTextImmediate(result.message.empty() ? wxString("Move-plan build failed.") : wxString(result.message));
+        UpdateAnalysisMenuState(false);
+        return;
+    }
+
+    activeDriveRoot = result.driveRoot;
+    if (driveListPanel != nullptr) {
+        driveListPanel->SetSelectedDrive(result.driveRoot);
+    }
+    const auto page = analysisPages.find(result.driveRoot);
+    if (page != analysisPages.end()) {
+        page->second->UpdatePlacementPlan(*result.placementPlan);
+        page->second->UpdateMovePlan(*result.movePlan);
+        if (documents != nullptr) {
+            const int index = documents->FindPage(page->second);
+            if (index != wxNOT_FOUND) {
+                documents->SetSelection(index);
+            }
+        }
+    }
+    if (workflowPanel != nullptr) {
+        workflowPanel->SetPlacementPlan(*result.placementPlan);
+        workflowPanel->SetMovePlan(*result.movePlan);
+    }
+
+    SetStatusTextImmediate(result.message.empty() ? wxString(result.movePlan->summary) : wxString(result.message));
+    UpdateAnalysisMenuState(false);
+
+    if (shouldExecute) {
+        ExecuteSelectedMovePlan();
+    }
 }
 
 void MainFrame::OnMoveExecutionComplete(const MoveExecutionResult& result)

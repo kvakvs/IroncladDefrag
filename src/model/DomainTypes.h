@@ -5,6 +5,7 @@
 #include <cstdint>
 #include <filesystem>
 #include <map>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -326,6 +327,15 @@ struct MovePlan {
     bool partial = false;
     bool impossible = false;
     std::wstring summary;
+};
+
+// Carries the result of an asynchronous combined placement and move-plan build.
+struct PlanBuildResult {
+    std::wstring driveRoot;
+    std::optional<PlacementPlan> placementPlan;
+    std::optional<MovePlan> movePlan;
+    bool cancelled = false;
+    std::wstring message;
 };
 
 enum class JobState { Idle, Running, Cancelling, Cancelled, Completed, Failed };

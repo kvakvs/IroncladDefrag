@@ -194,19 +194,34 @@ std::wstring ReasonForPlacement(OptimizationMode mode, ExpectedPlacementZone pla
 // Implements the shared dry-run placement-intent behavior for all Phase 4 profiles.
 class BasicPlacementStrategy : public IPlacementStrategy {
 public:
-    PlacementPlan Build(const AnalysisResult& analysis, const OptimizationProfile& profile) const override
+    PlacementPlan Build(const AnalysisResult& analysis,
+                        const OptimizationProfile& profile,
+                        const std::function<bool(double, const std::wstring&)>& progressCallback) const override
     {
         PlacementPlan plan;
         plan.profile = profile;
         plan.zones = BuildZones(analysis, profile.settings);
 
-        for (const FileClassification& item : analysis.classifications) {
+        if (progressCallback && !progressCallback(0.0, L"Preparing placement intent")) {
+            return plan;
+        }
+
+        const std::size_t total = analysis.classifications.size();
+        for (std::size_t index = 0; index < total; ++index) {
+            const FileClassification& item = analysis.classifications[index];
             if (item.fileIndex >= analysis.files.size()) {
                 continue;
             }
 
             const FileClass& classification = item.classification;
             const FileMetadata& file = analysis.files[item.fileIndex];
+            if (progressCallback && (index % 128 == 0 || index + 1 == total)) {
+                const double percent = total == 0 ? 100.0 : (static_cast<double>(index + 1) / static_cast<double>(total)) * 100.0;
+                if (!progressCallback(percent, file.GetPath().wstring())) {
+                    return plan;
+                }
+            }
+
             ExpectedPlacementZone target = ExpectedPlacementZone::None;
             double benefit = BenefitForClass(classification);
 
@@ -240,15 +255,20 @@ public:
         summary << L"Placement intent for " << profile.name << L": " << plan.targetedFiles.getValue()
                 << L" targeted files, " << plan.noTargetFiles.getValue() << L" without target.";
         plan.summary = summary.str();
+        if (progressCallback) {
+            progressCallback(100.0, L"Placement intent built");
+        }
         return plan;
     }
 };
 } // namespace
 
-PlacementPlan PlacementPlanner::Build(const AnalysisResult& analysis, const OptimizationProfile& profile) const
+PlacementPlan PlacementPlanner::Build(const AnalysisResult& analysis,
+                                      const OptimizationProfile& profile,
+                                      const std::function<bool(double, const std::wstring&)>& progressCallback) const
 {
     BasicPlacementStrategy strategy;
-    return strategy.Build(analysis, profile);
+    return strategy.Build(analysis, profile, progressCallback);
 }
 
 } // namespace icd

@@ -18,6 +18,7 @@ class ApplicationController {
 public:
     using ProgressCallback = std::function<void(const JobProgress&)>;
     using CompletionCallback = std::function<void(const AnalysisResult&)>;
+    using PlanBuildCompletionCallback = std::function<void(const PlanBuildResult&)>;
     using ExecutionCompletionCallback = std::function<void(const MoveExecutionResult&)>;
     using ErrorCallback = std::function<void(const std::wstring&)>;
 
@@ -29,6 +30,7 @@ public:
 
     void SetProgressCallback(ProgressCallback callback);
     void SetCompletionCallback(CompletionCallback callback);
+    void SetPlanBuildCompletionCallback(PlanBuildCompletionCallback callback);
     void SetExecutionCompletionCallback(ExecutionCompletionCallback callback);
     void SetErrorCallback(ErrorCallback callback);
     void ClearCallbacks();
@@ -51,6 +53,7 @@ public:
     std::optional<PlacementPlan> BuildPlacementPlan(const std::wstring& driveRoot);
     std::optional<PlacementPlan> GetPlacementPlan(const std::wstring& driveRoot) const;
     std::optional<MovePlan> BuildMovePlan(const std::wstring& driveRoot);
+    bool StartMovePlanBuild(const std::wstring& driveRoot);
     std::optional<MovePlan> GetMovePlan(const std::wstring& driveRoot) const;
     bool HasMovePlan(const std::wstring& driveRoot) const;
     bool HasExecutableMovePlan(const std::wstring& driveRoot) const;
@@ -67,12 +70,14 @@ private:
     void StoreRecentSummary(const AnalysisResult& result);
     void NotifyProgress(const JobProgress& progress);
     void NotifyCompletion(const AnalysisResult& result);
+    void NotifyPlanBuildCompletion(const PlanBuildResult& result);
     void NotifyExecutionCompletion(const MoveExecutionResult& result);
     void NotifyError(const std::wstring& message);
 
     mutable std::mutex callbackMutex;
     ProgressCallback progressCallback;
     CompletionCallback completionCallback;
+    PlanBuildCompletionCallback planBuildCompletionCallback;
     ExecutionCompletionCallback executionCompletionCallback;
     ErrorCallback errorCallback;
     BackgroundJob activeJob;

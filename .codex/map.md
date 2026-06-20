@@ -63,12 +63,12 @@ Serializes/deserializes optimization profiles as deterministic text for future p
 - `src/optimization/PlacementPlanner.h`
 - `src/optimization/PlacementPlanner.cpp`
 
-Builds read-only placement intent from completed analysis snapshots and the active optimization profile.
+Builds read-only placement intent from completed analysis snapshots and the active optimization profile, with optional coarse progress reporting for combined plan builds.
 
 - `src/optimization/MovePlanner.h`
 - `src/optimization/MovePlanner.cpp`
 
-Builds conservative dry-run move plans from analysis snapshots and placement intent, with simulated destination reservations only.
+Builds conservative dry-run move plans from analysis snapshots and placement intent, with simulated destination reservations and optional coarse progress reporting only.
 
 ## Persistence Layer
 
@@ -99,7 +99,7 @@ Defines `icd::App`, the `wxApp` subclass that initializes wxWidgets and shows th
 - `src/ui/MainFrame.h`
 - `src/ui/MainFrame.cpp`
 
-Defines `icd::MainFrame`, the top-level `wxFrame`. Owns menu bar creation, Exit/About handlers, the status bar, all-disks panel wiring, analysis document tabs, workflow panel wiring, and shared command paths for analysis, planning, fast-lane actions, review, and execution.
+Defines `icd::MainFrame`, the top-level `wxFrame`. Owns menu bar creation, Exit/About handlers, the status bar, all-disks panel wiring, analysis document tabs, plan-build progress popup, workflow panel wiring, and shared command paths for analysis, combined planning, fast-lane actions, review, and execution.
 
 - `src/ui/DriveListPanel.h`
 - `src/ui/DriveListPanel.cpp`
@@ -139,7 +139,7 @@ Defines UI-only formatting helpers for byte quantities, drive kinds, capability 
 - `src/ui/WorkflowPanel.h`
 - `src/ui/WorkflowPanel.cpp`
 
-Defines the bottom Phase 7 workflow panel with stage status, profile selection, analysis/plan/execution summaries, progress, step-by-step commands, and quick/full fast-lane commands.
+Defines the bottom Phase 7 workflow panel with stage status, profile selection, analysis/plan/execution summaries, step-by-step commands, and quick/full fast-lane commands.
 
 ## Model Layer
 
@@ -149,7 +149,7 @@ Defines `icd::Quantity` and project-specific type aliases for counts, indexes, b
 
 - `src/model/DomainTypes.h`
 
-Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, classification results/summaries, optimization settings/profiles, analysis results/stats, placement/move plans, execution results, and job progress.
+Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, classification results/summaries, optimization settings/profiles, analysis results/stats, placement/move plans, plan-build results, execution results, and job progress.
 Also defines Phase 8 safety settings, size exclusion ranges, and recent analysis summaries.
 
 - `src/model/FileMetadata.h`

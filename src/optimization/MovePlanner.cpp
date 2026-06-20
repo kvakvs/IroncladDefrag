@@ -202,7 +202,8 @@ std::unordered_map<std::size_t, const PlacementPlan::FilePlacementIntent*> Build
 
 MovePlan MovePlanner::Build(const AnalysisResult& analysis,
                             const PlacementPlan& placementPlan,
-                            const OptimizationProfile& profile) const
+                            const OptimizationProfile& profile,
+                            const std::function<bool(double, const std::wstring&)>& progressCallback) const
 {
     MovePlan plan;
     plan.profile = profile;
@@ -221,7 +222,22 @@ MovePlan MovePlanner::Build(const AnalysisResult& analysis,
     const auto intentsByFile = BuildIntentIndex(placementPlan);
     std::vector<MoveCandidate> candidates;
 
+    if (progressCallback && !progressCallback(0.0, L"Selecting move candidates")) {
+        return plan;
+    }
+
     for (std::size_t fileIndex = 0; fileIndex < analysis.files.size(); ++fileIndex) {
+        if (progressCallback && (fileIndex % 128 == 0 || fileIndex + 1 == analysis.files.size())) {
+            const double percent = analysis.files.empty()
+                                       ? 50.0
+                                       : (static_cast<double>(fileIndex + 1) / static_cast<double>(analysis.files.size())) * 50.0;
+            const std::wstring item =
+                fileIndex < analysis.files.size() ? analysis.files[fileIndex].GetPath().wstring() : L"Selecting move candidates";
+            if (!progressCallback(percent, item)) {
+                return plan;
+            }
+        }
+
         const auto intentFound = intentsByFile.find(fileIndex);
         if (intentFound == intentsByFile.end() || intentFound->second->targetZone == ExpectedPlacementZone::None) {
             AddSkip(plan, fileIndex, MoveSkipReason::DisabledTargetZone, L"no placement target");
@@ -286,7 +302,18 @@ MovePlan MovePlanner::Build(const AnalysisResult& analysis,
         rangesByZone.emplace(static_cast<int>(zone), BuildAvailableRangesForZone(analysis, placementPlan, zone));
     }
 
-    for (const MoveCandidate& candidate : candidates) {
+    for (std::size_t candidateIndex = 0; candidateIndex < candidates.size(); ++candidateIndex) {
+        const MoveCandidate& candidate = candidates[candidateIndex];
+        if (progressCallback && (candidateIndex % 64 == 0 || candidateIndex + 1 == candidates.size())) {
+            const double percent =
+                candidates.empty()
+                    ? 95.0
+                    : 50.0 + (static_cast<double>(candidateIndex + 1) / static_cast<double>(candidates.size())) * 45.0;
+            if (!progressCallback(percent, candidate.file->GetPath().wstring())) {
+                return plan;
+            }
+        }
+
         const std::uint64_t fileBytes = candidate.file->GetSize().getValue();
         if (!unlimitedBudget && plan.estimatedBytesToMove.getValue() + fileBytes > maxBytes) {
             AddSkip(plan, candidate.intent->fileIndex, MoveSkipReason::OverBudget, L"maximum bytes-to-move reached");
@@ -353,6 +380,9 @@ MovePlan MovePlanner::Build(const AnalysisResult& analysis,
     }
     summary << L".";
     plan.summary = summary.str();
+    if (progressCallback) {
+        progressCallback(100.0, L"Move plan built");
+    }
     return plan;
 }
 

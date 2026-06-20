@@ -37,7 +37,6 @@ public:
     void SetCancelCallback(SimpleCallback callback) { cancelCallback = std::move(callback); }
     void SetSettingsCallback(SimpleCallback callback) { settingsCallback = std::move(callback); }
     void SetSafetySettingsCallback(SimpleCallback callback) { safetySettingsCallback = std::move(callback); }
-    void SetBuildPlacementCallback(SimpleCallback callback) { buildPlacementCallback = std::move(callback); }
     void SetBuildPlanCallback(SimpleCallback callback) { buildPlanCallback = std::move(callback); }
     void SetQuickDefragCallback(SimpleCallback callback) { quickDefragCallback = std::move(callback); }
     void SetFullOptimizeCallback(SimpleCallback callback) { fullOptimizeCallback = std::move(callback); }
@@ -68,7 +67,6 @@ private:
     wxButton* cancelButton = nullptr;
     wxButton* settingsButton = nullptr;
     wxButton* safetySettingsButton = nullptr;
-    wxButton* buildPlacementButton = nullptr;
     wxButton* buildPlanButton = nullptr;
     wxButton* quickDefragButton = nullptr;
     wxButton* fullOptimizeButton = nullptr;
@@ -94,7 +92,6 @@ private:
     SimpleCallback cancelCallback;
     SimpleCallback settingsCallback;
     SimpleCallback safetySettingsCallback;
-    SimpleCallback buildPlacementCallback;
     SimpleCallback buildPlanCallback;
     SimpleCallback quickDefragCallback;
     SimpleCallback fullOptimizeCallback;

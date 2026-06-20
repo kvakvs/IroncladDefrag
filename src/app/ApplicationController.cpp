@@ -72,6 +72,12 @@ void ApplicationController::SetCompletionCallback(CompletionCallback callback)
     completionCallback = std::move(callback);
 }
 
+void ApplicationController::SetPlanBuildCompletionCallback(PlanBuildCompletionCallback callback)
+{
+    std::lock_guard lock(callbackMutex);
+    planBuildCompletionCallback = std::move(callback);
+}
+
 void ApplicationController::SetExecutionCompletionCallback(ExecutionCompletionCallback callback)
 {
     std::lock_guard lock(callbackMutex);
@@ -89,6 +95,7 @@ void ApplicationController::ClearCallbacks()
     std::lock_guard lock(callbackMutex);
     progressCallback = nullptr;
     completionCallback = nullptr;
+    planBuildCompletionCallback = nullptr;
     executionCompletionCallback = nullptr;
     errorCallback = nullptr;
 }
@@ -406,6 +413,128 @@ std::optional<MovePlan> ApplicationController::BuildMovePlan(const std::wstring&
     return plan;
 }
 
+bool ApplicationController::StartMovePlanBuild(const std::wstring& driveRoot)
+{
+    if (activeJob.IsRunning()) {
+        NotifyError(L"Another job is already running.");
+        return false;
+    }
+
+    AnalysisResult analysis;
+    {
+        std::lock_guard lock(analysisMutex);
+        const auto analysisFound = completedAnalyses.find(driveRoot);
+        if (analysisFound == completedAnalyses.end()) {
+            NotifyError(L"No completed analysis snapshot is available for the selected drive.");
+            return false;
+        }
+        analysis = analysisFound->second;
+    }
+
+    OptimizationProfile profile = BuildEffectiveProfile(GetActiveProfile());
+    Logger::Info(L"Starting combined move-plan build for " + driveRoot);
+    const bool started = activeJob.Start([this, driveRoot, analysis = std::move(analysis), profile](
+                                             const std::atomic_bool& cancellationRequested) mutable {
+        PlanBuildResult result;
+        result.driveRoot = driveRoot;
+
+        auto report = [this, &cancellationRequested](double percent,
+                                                     std::uint32_t stageIndex,
+                                                     std::wstring stageName,
+                                                     std::wstring message,
+                                                     std::wstring item) {
+            JobProgress progress;
+            progress.state = cancellationRequested.load() ? JobState::Cancelling : JobState::Running;
+            progress.percentComplete = percent;
+            progress.stageIndex = stageIndex;
+            progress.stageCount = 3;
+            progress.statusMessage = std::move(message);
+            progress.stageName = std::move(stageName);
+            progress.currentItem = std::move(item);
+            progress.cancellationRequested = cancellationRequested.load();
+            NotifyProgress(progress);
+            return !cancellationRequested.load();
+        };
+
+        try {
+            if (!report(0.0, 1, L"Prepare planning data", L"Preparing planning data", driveRoot)) {
+                result.cancelled = true;
+                result.message = L"Move-plan build cancelled.";
+                NotifyPlanBuildCompletion(result);
+                return;
+            }
+
+            analysis = ReclassifyForPlanning(std::move(analysis), profile);
+            if (!report(10.0, 1, L"Prepare planning data", L"Planning data prepared", driveRoot)) {
+                result.cancelled = true;
+                result.message = L"Move-plan build cancelled.";
+                NotifyPlanBuildCompletion(result);
+                return;
+            }
+
+            const auto placementProgress = [&](double localPercent, const std::wstring& item) {
+                const double globalPercent = 10.0 + (std::max)(0.0, (std::min)(100.0, localPercent)) * 0.35;
+                return report(globalPercent, 2, L"Build placement intent", L"Building placement intent", item);
+            };
+            PlacementPlan placement = PlacementPlanner().Build(analysis, profile, placementProgress);
+            if (cancellationRequested.load()) {
+                result.cancelled = true;
+                result.message = L"Move-plan build cancelled.";
+                NotifyPlanBuildCompletion(result);
+                return;
+            }
+
+            const auto moveProgress = [&](double localPercent, const std::wstring& item) {
+                const double globalPercent = 45.0 + (std::max)(0.0, (std::min)(100.0, localPercent)) * 0.55;
+                return report(globalPercent, 3, L"Build move plan", L"Building move plan", item);
+            };
+            MovePlan plan = MovePlanner().Build(analysis, placement, profile, moveProgress);
+            if (cancellationRequested.load()) {
+                result.cancelled = true;
+                result.message = L"Move-plan build cancelled.";
+                NotifyPlanBuildCompletion(result);
+                return;
+            }
+
+            {
+                std::lock_guard lock(analysisMutex);
+                completedAnalyses[driveRoot] = analysis;
+                placementPlans[driveRoot] = placement;
+                movePlans[driveRoot] = plan;
+                executionResults.erase(driveRoot);
+            }
+
+            result.placementPlan = std::move(placement);
+            result.movePlan = std::move(plan);
+            result.message = result.movePlan->summary;
+
+            JobProgress completed;
+            completed.state = JobState::Completed;
+            completed.percentComplete = 100.0;
+            completed.statusMessage = L"Move-plan build complete.";
+            NotifyProgress(completed);
+            NotifyPlanBuildCompletion(result);
+            Logger::Info(L"Combined move-plan build completed for " + driveRoot);
+        } catch (const std::exception& ex) {
+            result.message = L"Move-plan build failed: " + ToWide(ex.what());
+            Logger::Error(result.message);
+            NotifyError(result.message);
+            NotifyPlanBuildCompletion(result);
+        } catch (...) {
+            result.message = L"Move-plan build failed with an unknown error.";
+            Logger::Error(result.message);
+            NotifyError(result.message);
+            NotifyPlanBuildCompletion(result);
+        }
+    });
+
+    if (!started) {
+        NotifyError(L"Unable to start move-plan build job.");
+    }
+
+    return started;
+}
+
 std::optional<MovePlan> ApplicationController::GetMovePlan(const std::wstring& driveRoot) const
 {
     std::lock_guard lock(analysisMutex);
@@ -644,6 +773,19 @@ void ApplicationController::NotifyCompletion(const AnalysisResult& result)
     {
         std::lock_guard lock(callbackMutex);
         callback = completionCallback;
+    }
+
+    if (callback) {
+        callback(result);
+    }
+}
+
+void ApplicationController::NotifyPlanBuildCompletion(const PlanBuildResult& result)
+{
+    PlanBuildCompletionCallback callback;
+    {
+        std::lock_guard lock(callbackMutex);
+        callback = planBuildCompletionCallback;
     }
 
     if (callback) {

@@ -15,7 +15,7 @@ Startup currently follows this path:
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
 4. `icd::MainFrame` creates the top menu, status bar, all-disks panel, tabbed analysis document area, and bottom workflow panel. The Analysis menu and visible controls refresh visible drives, start read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service with safety exclusions, persisted optimization/safety settings, dry-run optimization profile/placement-intent layer, dry-run move planning, conservative move-plan execution path, visible staged workflow controls, and planned-move map overlays. There is still no TRIM action or advanced resumable pause support.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service with safety exclusions, persisted optimization/safety settings, combined async placement/move-plan building, conservative move-plan execution path, visible staged workflow controls, and planned-move map overlays. There is still no TRIM action or advanced resumable pause support.
 
 ## Layers
 
@@ -27,7 +27,7 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/App.*` defines the wx application lifecycle. It is responsible for initializing the GUI and creating the main frame.
 
-`src/ui/MainFrame.*` defines the top-level window. It owns menu setup, Exit/About handling, status text, drive-analysis menu entries, the all-disks panel, the `wxNotebook` document surface, and the bottom workflow panel wiring.
+`src/ui/MainFrame.*` defines the top-level window. It owns menu setup, Exit/About handling, status text, drive-analysis menu entries, the all-disks panel, the `wxNotebook` document surface, plan-build progress popup, and the bottom workflow panel wiring.
 
 `src/ui/DriveListPanel.*` displays discovered drives with capacity, file-system, capability, move, and TRIM badges. It forwards refresh, selection, and analyse requests to `MainFrame`.
 
@@ -49,7 +49,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 ## Application Controller Layer
 
-`src/app/ApplicationController.*` owns orchestration for drive enumeration, selected-drive read-only analysis, stored in-memory analysis snapshots, persisted profile/safety settings, recent analysis summaries, move-plan execution, and progress/completion/error callbacks for the UI.
+`src/app/ApplicationController.*` owns orchestration for drive enumeration, selected-drive read-only analysis, stored in-memory analysis snapshots, persisted profile/safety settings, recent analysis summaries, async combined placement/move-plan building, move-plan execution, and progress/completion/error callbacks for the UI.
 
 `src/app/BackgroundJob.*` provides a small `std::thread` worker wrapper with cooperative cancellation and destructor-time joining. It is infrastructure for later real analysis and movement jobs.
 
@@ -69,9 +69,9 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 `src/optimization/OptimizationSettingsSerializer.*` provides deterministic string serialization for future settings persistence without performing file I/O.
 
-`src/optimization/PlacementPlanner.*` produces dry-run placement intent from completed analysis/classification snapshots and the active profile. It does not create move plans or execute disk operations.
+`src/optimization/PlacementPlanner.*` produces dry-run placement intent from completed analysis/classification snapshots and the active profile. It reports coarse progress for combined plan builds and does not execute disk operations.
 
-`src/optimization/MovePlanner.*` converts placement intent into conservative dry-run move plans using only in-memory analysis, free-space, and profile data. It simulates destination reservations and does not write to disk.
+`src/optimization/MovePlanner.*` converts placement intent into conservative dry-run move plans using only in-memory analysis, free-space, and profile data. It reports coarse progress, simulates destination reservations, and does not write to disk.
 
 ## Persistence Layer
 

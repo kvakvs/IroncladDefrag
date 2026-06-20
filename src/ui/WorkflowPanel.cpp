@@ -92,7 +92,6 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
     analyzeButton = AddButton(this, stepRow, "Analyze");
     settingsButton = AddButton(this, stepRow, "Settings");
     safetySettingsButton = AddButton(this, stepRow, "Safety");
-    buildPlacementButton = AddButton(this, stepRow, "Build Intent");
     buildPlanButton = AddButton(this, stepRow, "Build Plan");
     reviewPlanButton = AddButton(this, stepRow, "Review Plan");
     executeButton = AddButton(this, stepRow, "Execute");
@@ -148,11 +147,6 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
     safetySettingsButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         if (safetySettingsCallback) {
             safetySettingsCallback();
-        }
-    });
-    buildPlacementButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-        if (buildPlacementCallback) {
-            buildPlacementCallback();
         }
     });
     buildPlanButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
@@ -331,7 +325,6 @@ void WorkflowPanel::UpdateControls()
     SetActionVisible(profileChoice, showProfile);
     SetActionVisible(settingsButton, showPlanning);
     SetActionVisible(safetySettingsButton, !busy && hasDrive);
-    SetActionVisible(buildPlacementButton, showPlanning);
     SetActionVisible(buildPlanButton, showPlanning);
     SetActionVisible(quickDefragButton, showPlanning);
     SetActionVisible(fullOptimizeButton, showPlanning);
@@ -345,7 +338,7 @@ void WorkflowPanel::UpdateControls()
     } else if (!hasAnalysis) {
         stageText->SetLabel("Stage: analyze drive");
     } else if (!hasPlan) {
-        stageText->SetLabel(hasPlacement ? "Stage: build or review move plan" : "Stage: choose profile and plan");
+        stageText->SetLabel("Stage: choose profile and build plan");
     } else if (hasExecution) {
         stageText->SetLabel("Stage: execution results available");
     } else {

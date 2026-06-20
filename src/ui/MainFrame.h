@@ -11,6 +11,7 @@
 #include <unordered_map>
 #include <vector>
 #include <wx/notebook.h>
+#include <wx/progdlg.h>
 #include <wx/timer.h>
 #include <wx/wx.h>
 
@@ -30,8 +31,7 @@ private:
     void UpdateAnalysisMenuState(bool running);
     void SelectDrive(const DriveInfo& drive);
     void StartAnalysisForDrive(const DriveInfo& drive);
-    bool BuildPlacementIntentForSelected();
-    bool BuildMovePlanForSelected(bool showDialog);
+    bool StartMovePlanBuildForSelected(bool executeAfterBuild);
     bool ReviewSelectedMovePlan();
     bool ExecuteSelectedMovePlan();
     bool RunFastLane(const OptimizationProfile& profile);
@@ -41,7 +41,6 @@ private:
     void OnCancelAnalysis(wxCommandEvent& event);
     void OnProfiles(wxCommandEvent& event);
     void OnSafetySettings(wxCommandEvent& event);
-    void OnBuildPlacementIntent(wxCommandEvent& event);
     void OnBuildMovePlan(wxCommandEvent& event);
     void OnExecuteMovePlan(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
@@ -49,6 +48,7 @@ private:
     void OnClose(wxCloseEvent& event);
     void OnAnalysisProgress(const JobProgress& progress);
     void OnAnalysisComplete(const AnalysisResult& result);
+    void OnPlanBuildComplete(const PlanBuildResult& result);
     void OnMoveExecutionComplete(const MoveExecutionResult& result);
     void OnAnalysisError(const std::wstring& message);
     void OpenOrUpdateAnalysisPage(const AnalysisResult& result);
@@ -57,6 +57,9 @@ private:
     void SetStatusTextThrottled(const wxString& text);
     void FlushPendingStatusText();
     void OnStatusFlushTimer(wxTimerEvent& event);
+    void ShowPlanBuildProgress();
+    void ClosePlanBuildProgress();
+    void UpdatePlanBuildProgress(const JobProgress& progress);
 
     ApplicationController controller;
     wxTimer statusFlushTimer;
@@ -72,6 +75,9 @@ private:
     wxString pendingStatusText;
     bool hasPendingStatusText = false;
     std::chrono::steady_clock::time_point lastStatusTextTimestamp{};
+    wxProgressDialog* planProgressDialog = nullptr;
+    bool planProgressCancelRequested = false;
+    bool executeAfterPlanBuild = false;
 
     wxDECLARE_EVENT_TABLE();
 };
