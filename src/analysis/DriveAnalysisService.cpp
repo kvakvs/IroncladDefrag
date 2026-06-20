@@ -121,6 +121,9 @@ DiskGeometry BuildGeometry(const DriveInfo& drive)
 void ReportProgress(const DriveAnalysisService::ProgressCallback& callback,
                     double percent,
                     std::wstring message,
+                    std::uint32_t stageIndex,
+                    std::uint32_t stageCount,
+                    std::wstring stageName,
                     std::wstring currentItem,
                     const AnalysisResult::AnalysisStats& stats,
                     const std::atomic_bool& cancellationRequested)
@@ -132,7 +135,10 @@ void ReportProgress(const DriveAnalysisService::ProgressCallback& callback,
     JobProgress progress;
     progress.state = cancellationRequested.load() ? JobState::Cancelling : JobState::Running;
     progress.percentComplete = percent;
+    progress.stageIndex = stageIndex;
+    progress.stageCount = stageCount;
     progress.statusMessage = std::move(message);
+    progress.stageName = std::move(stageName);
     progress.currentItem = std::move(currentItem);
     progress.itemsProcessed = stats.scannedFiles;
     progress.totalItems = count64_t(0);
@@ -173,7 +179,15 @@ AnalysisResult DriveAnalysisService::Run(const DriveInfo& drive,
     result.volume = drive.volume;
     result.geometry = BuildGeometry(drive);
 
-    ReportProgress(progressCallback, 0.0, L"Reading free-space bitmap", drive.rootPath, result.stats, cancellationRequested);
+    ReportProgress(progressCallback,
+                   0.0,
+                   L"Reading free-space bitmap",
+                   1,
+                   2,
+                   L"Free-space bitmap",
+                   drive.rootPath,
+                   result.stats,
+                   cancellationRequested);
     const win::FreeSpaceQueryResult freeSpace = win::QueryVolumeFreeSpace(drive.rootPath);
     result.stats.freeSpaceMapAvailable = freeSpace.available;
     if (freeSpace.available) {
@@ -194,7 +208,15 @@ AnalysisResult DriveAnalysisService::Run(const DriveInfo& drive,
     }
 
     std::uint64_t visitedEntries = 0;
-    ReportProgress(progressCallback, 1.0, L"Scanning files", drive.rootPath, result.stats, cancellationRequested);
+    ReportProgress(progressCallback,
+                   1.0,
+                   L"Scanning files",
+                   2,
+                   2,
+                   L"File scan",
+                   drive.rootPath,
+                   result.stats,
+                   cancellationRequested);
 
     while (iterator != end) {
         if (cancellationRequested.load()) {
@@ -280,6 +302,9 @@ AnalysisResult DriveAnalysisService::Run(const DriveInfo& drive,
             ReportProgress(progressCallback,
                            percent > 95.0 ? 95.0 : percent,
                            L"Scanning files",
+                           2,
+                           2,
+                           L"File scan",
                            entry.path().wstring(),
                            result.stats,
                            cancellationRequested);

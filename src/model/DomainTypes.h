@@ -334,7 +334,10 @@ enum class JobState { Idle, Running, Cancelling, Cancelled, Completed, Failed };
 struct JobProgress {
     JobState state = JobState::Idle;
     double percentComplete = 0.0;
+    std::uint32_t stageIndex = 0;
+    std::uint32_t stageCount = 0;
     std::wstring statusMessage;
+    std::wstring stageName;
     std::wstring currentItem;
     count64_t itemsProcessed = count64_t();
     count64_t totalItems = count64_t();

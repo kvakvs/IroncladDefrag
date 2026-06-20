@@ -20,7 +20,10 @@ void ReportProgress(const FakeAnalysisService::ProgressCallback& progressCallbac
     JobProgress progress;
     progress.state = JobState::Running;
     progress.percentComplete = percent;
+    progress.stageIndex = 1;
+    progress.stageCount = 1;
     progress.statusMessage = std::move(status);
+    progress.stageName = L"Synthetic analysis";
     progress.totalItems = count64_t(10);
     progress.itemsProcessed = count64_t(static_cast<std::uint64_t>(percent / 10.0));
     progress.cancellationRequested = cancellationRequested.load();

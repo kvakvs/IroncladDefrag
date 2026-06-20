@@ -50,6 +50,24 @@ std::wstring FormatBytes(byte_count64_t bytes)
     stream << std::fixed << value << L" " << units[unitIndex];
     return stream.str();
 }
+
+wxString FormatRunningProgressStatus(const JobProgress& progress)
+{
+    const wxString status = wxString::Format("%.0f%% - %s %s",
+                                             progress.percentComplete,
+                                             wxString(progress.statusMessage),
+                                             wxString(progress.currentItem));
+    if (progress.stageCount == 0) {
+        return status;
+    }
+
+    const wxString stageName = progress.stageName.empty() ? wxString("Unnamed stage") : wxString(progress.stageName);
+    return wxString::Format("Stage %u of %u '%s' - %s",
+                            progress.stageIndex,
+                            progress.stageCount,
+                            stageName,
+                            status);
+}
 } // namespace
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
@@ -724,10 +742,7 @@ void MainFrame::OnAnalysisProgress(const JobProgress& progress)
 {
     switch (progress.state) {
     case JobState::Running:
-        SetStatusTextThrottled(wxString::Format("%.0f%% - %s %s",
-                                                progress.percentComplete,
-                                                wxString(progress.statusMessage),
-                                                wxString(progress.currentItem)));
+        SetStatusTextThrottled(FormatRunningProgressStatus(progress));
         UpdateAnalysisMenuState(true);
         break;
     case JobState::Cancelled:
