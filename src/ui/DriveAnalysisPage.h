@@ -16,6 +16,7 @@ public:
 
     void UpdateResult(const AnalysisResult& result);
     void UpdatePlacementPlan(const PlacementPlan& plan);
+    void UpdateMovePlan(const MovePlan& plan);
     const std::wstring& GetDriveRoot() const { return driveRoot; }
 
 private:
@@ -36,6 +37,7 @@ private:
     wxStaticText* classificationPlacement = nullptr;
     wxStaticText* classificationSafety = nullptr;
     wxStaticText* placementIntent = nullptr;
+    wxStaticText* movePlan = nullptr;
     wxStaticText* legend = nullptr;
     wxStaticText* warnings = nullptr;
     wxStaticText* todo = nullptr;

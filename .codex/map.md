@@ -64,6 +64,11 @@ Serializes/deserializes optimization profiles as deterministic text for future p
 
 Builds read-only placement intent from completed analysis snapshots and the active optimization profile.
 
+- `src/optimization/MovePlanner.h`
+- `src/optimization/MovePlanner.cpp`
+
+Builds conservative dry-run move plans from analysis snapshots and placement intent, with simulated destination reservations only.
+
 ## UI Layer
 
 - `src/ui/App.h`
@@ -90,6 +95,11 @@ Defines the read-only cluster-grid drive map. It renders fixed-size cells, recal
 - `src/ui/ProfileSettingsDialog.cpp`
 
 Defines the modal in-memory editor for selecting profiles and changing core optimization settings.
+
+- `src/ui/MovePlanDialog.h`
+- `src/ui/MovePlanDialog.cpp`
+
+Defines the inspection dialog for dry-run move plans, skipped candidates, issues, cancellation boundaries, and rollback notes.
 
 ## Model Layer
 

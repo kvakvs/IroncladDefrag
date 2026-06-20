@@ -3,6 +3,7 @@
 #include "../analysis/DriveAnalysisService.h"
 #include "../analysis/FakeAnalysisService.h"
 #include "../classification/FileClassifier.h"
+#include "../optimization/MovePlanner.h"
 #include "../optimization/PlacementPlanner.h"
 #include "../optimization/ProfileCatalog.h"
 #include "../platform/windows/DriveEnumerator.h"
@@ -166,6 +167,7 @@ bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
                 std::lock_guard lock(analysisMutex);
                 completedAnalyses[result.drive.rootPath] = result;
                 placementPlans.erase(result.drive.rootPath);
+                movePlans.erase(result.drive.rootPath);
             }
 
             JobProgress completed;
@@ -271,6 +273,7 @@ std::optional<PlacementPlan> ApplicationController::BuildPlacementPlan(const std
     {
         std::lock_guard lock(analysisMutex);
         placementPlans[driveRoot] = plan;
+        movePlans.erase(driveRoot);
     }
 
     return plan;
@@ -281,6 +284,52 @@ std::optional<PlacementPlan> ApplicationController::GetPlacementPlan(const std::
     std::lock_guard lock(analysisMutex);
     const auto found = placementPlans.find(driveRoot);
     if (found == placementPlans.end()) {
+        return std::nullopt;
+    }
+    return found->second;
+}
+
+std::optional<MovePlan> ApplicationController::BuildMovePlan(const std::wstring& driveRoot)
+{
+    AnalysisResult analysis;
+    std::optional<PlacementPlan> placement;
+    {
+        std::lock_guard lock(analysisMutex);
+        const auto analysisFound = completedAnalyses.find(driveRoot);
+        if (analysisFound == completedAnalyses.end()) {
+            return std::nullopt;
+        }
+        analysis = analysisFound->second;
+
+        const auto placementFound = placementPlans.find(driveRoot);
+        if (placementFound != placementPlans.end()) {
+            placement = placementFound->second;
+        }
+    }
+
+    if (!placement.has_value()) {
+        placement = BuildPlacementPlan(driveRoot);
+        if (!placement.has_value()) {
+            return std::nullopt;
+        }
+    }
+
+    OptimizationProfile profile = GetActiveProfile();
+    MovePlan plan = MovePlanner().Build(analysis, *placement, profile);
+
+    {
+        std::lock_guard lock(analysisMutex);
+        movePlans[driveRoot] = plan;
+    }
+
+    return plan;
+}
+
+std::optional<MovePlan> ApplicationController::GetMovePlan(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(analysisMutex);
+    const auto found = movePlans.find(driveRoot);
+    if (found == movePlans.end()) {
         return std::nullopt;
     }
     return found->second;

@@ -28,6 +28,7 @@ private:
     void OnCancelAnalysis(wxCommandEvent& event);
     void OnProfiles(wxCommandEvent& event);
     void OnBuildPlacementIntent(wxCommandEvent& event);
+    void OnBuildMovePlan(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);

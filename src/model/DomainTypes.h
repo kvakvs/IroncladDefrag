@@ -67,6 +67,18 @@ enum class FileTemperature { Unknown, Hot, Warm, Cool, Cold, Stale };
 enum class BroadFileType { Unknown, Media, Archive, Document, Executable, SourceProject, Backup, VirtualDisk, Other };
 enum class ExpectedPlacementZone { None, Fast, Balanced, Slow, LargeFile };
 enum class FragmentationBenefit { Unknown, None, Low, Medium, High };
+enum class MoveRisk { Low, Medium, High };
+enum class MoveSkipReason {
+    None,
+    Excluded,
+    ExplicitOnly,
+    MissingExtents,
+    AlreadyGoodEnough,
+    OverBudget,
+    TooRisky,
+    NoDestinationRange,
+    DisabledTargetZone
+};
 
 // Describes a file's coarse optimization-relevant classification.
 struct FileClass {
@@ -218,22 +230,67 @@ struct PlacementPlan {
     std::wstring summary;
 };
 
+// Describes a dry-run planning warning or blocker without executing any operation.
+struct MovePlanIssue {
+    std::wstring message;
+    bool blocking = false;
+};
+
+// Stores aggregate dry-run move-plan metrics for UI inspection.
+struct MovePlanSummary {
+    count64_t affectedFiles = count64_t();
+    count64_t skippedFiles = count64_t();
+    count64_t expectedZoneChanges = count64_t();
+    count64_t fragmentationImprovementFiles = count64_t();
+    count64_t freeSpaceReservations = count64_t();
+    byte_count64_t estimatedBytesToMove = byte_count64_t();
+};
+
+// Reserves one simulated destination range during dry-run planning.
+struct ReservedTargetRange {
+    ExpectedPlacementZone zone = ExpectedPlacementZone::None;
+    index64_t startCluster = index64_t();
+    count64_t clusterCount = count64_t();
+};
+
+// Records why a file was skipped by dry-run move planning.
+struct SkippedMoveCandidate {
+    std::size_t fileIndex = 0;
+    MoveSkipReason reason = MoveSkipReason::None;
+    std::wstring detail;
+};
+
 // Describes one future file move without executing it.
 struct MoveOperation {
+    std::size_t fileIndex = 0;
     std::filesystem::path filePath;
     index64_t sourceStartCluster = index64_t();
     index64_t targetStartCluster = index64_t();
     count64_t clusterCount = count64_t();
     byte_count64_t estimatedBytes = byte_count64_t();
+    ExpectedPlacementZone currentZone = ExpectedPlacementZone::None;
+    ExpectedPlacementZone targetZone = ExpectedPlacementZone::None;
+    count64_t fragmentCountBefore = count64_t();
+    count64_t fragmentCountAfterEstimate = count64_t(1);
+    double benefitScore = 0.0;
+    MoveRisk risk = MoveRisk::Low;
     std::wstring reason;
+    std::wstring cancellationBoundary;
+    std::wstring rollbackNote;
 };
 
 // Stores a dry-run-friendly sequence of future move operations.
 struct MovePlan {
     OptimizationProfile profile;
     std::vector<MoveOperation> operations;
+    std::vector<SkippedMoveCandidate> skippedCandidates;
+    std::vector<MovePlanIssue> issues;
+    std::vector<ReservedTargetRange> reservedTargetRanges;
+    MovePlanSummary metrics;
     byte_count64_t estimatedBytesToMove = byte_count64_t();
     bool dryRun = true;
+    bool partial = false;
+    bool impossible = false;
     std::wstring summary;
 };
 

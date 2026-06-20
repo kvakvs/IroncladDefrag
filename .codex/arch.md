@@ -15,7 +15,7 @@ Startup currently follows this path:
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
 4. `icd::MainFrame` creates the top menu, status bar, and tabbed analysis document area. The Analysis menu refreshes visible drives, starts read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, and dry-run optimization profile/placement-intent layer. There is still no defragmentation executor, move plan executor, TRIM action, or file movement implementation.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, dry-run optimization profile/placement-intent layer, and dry-run move planning. There is still no defragmentation executor, move plan executor, TRIM action, or file movement implementation.
 
 ## Layers
 
@@ -34,6 +34,8 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 `src/ui/DriveMapPanel.*` renders the first read-only cluster visualization for an analysed drive. It consumes only the in-memory `AnalysisResult`, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
 
 `src/ui/ProfileSettingsDialog.*` provides the modal Phase 4 profile editor for core optimization settings. It edits profiles in memory only and does not persist files.
+
+`src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. It does not offer execution controls.
 
 The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch.
 
@@ -60,6 +62,8 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 `src/optimization/OptimizationSettingsSerializer.*` provides deterministic string serialization for future settings persistence without performing file I/O.
 
 `src/optimization/PlacementPlanner.*` produces dry-run placement intent from completed analysis/classification snapshots and the active profile. It does not create move plans or execute disk operations.
+
+`src/optimization/MovePlanner.*` converts placement intent into conservative dry-run move plans using only in-memory analysis, free-space, and profile data. It simulates destination reservations and does not write to disk.
 
 ## Windows Platform Boundary
 
@@ -104,7 +108,7 @@ The following architecture pieces are implied by the product goals but are not p
 
 - Privileged or write-capable drive operations.
 - Write-capable move strategy implementations.
-- Move planner that minimizes moved data.
+- Write-capable move planner and executor that perform real disk operations.
 - Defragmentation/move executor with cancellation, progress reporting, and error handling.
 - Tests or validation harnesses.
 - Interactive drive-map workflow controls such as selection, filtering, strategy overlays, and planned-move visualization.

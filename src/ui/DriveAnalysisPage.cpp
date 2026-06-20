@@ -132,6 +132,7 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     classificationPlacement = new wxStaticText(detailsPanel, wxID_ANY, "");
     classificationSafety = new wxStaticText(detailsPanel, wxID_ANY, "");
     placementIntent = new wxStaticText(detailsPanel, wxID_ANY, "");
+    movePlan = new wxStaticText(detailsPanel, wxID_ANY, "");
     legend = new wxStaticText(detailsPanel, wxID_ANY,
                               "Legend: red risky, orange fragmented, blue hot, purple cold, green occupied, "
                               "light gray free, dark gray unknown.");
@@ -155,6 +156,7 @@ DriveAnalysisPage::DriveAnalysisPage(wxWindow* parent, const AnalysisResult& res
     detailsSizer->Add(classificationPlacement, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(classificationSafety, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(placementIntent, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
+    detailsSizer->Add(movePlan, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(legend, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(warnings, 0, wxLEFT | wxRIGHT | wxBOTTOM | wxEXPAND, 12);
     detailsSizer->Add(todo, 0, wxALL | wxEXPAND, 12);
@@ -233,6 +235,7 @@ void DriveAnalysisPage::UpdateResult(const AnalysisResult& result) {
     classificationPlacement->SetLabel(BuildPlacementSummary(result.classificationSummary));
     classificationSafety->SetLabel(classificationSafetyText.str());
     placementIntent->SetLabel("Placement intent: not built for this analysis snapshot.");
+    movePlan->SetLabel("Move plan: not built for this analysis snapshot.");
     warnings->SetLabel(warningsText.str());
     detailsPanel->FitInside();
     Layout();
@@ -245,6 +248,25 @@ void DriveAnalysisPage::UpdatePlacementPlan(const PlacementPlan& plan) {
          << plan.noTargetFiles.getValue() << L", considered " << FormatBytes(plan.bytesConsidered) << L", "
          << (plan.profile.settings.dryRunOnly ? L"dry-run only" : L"dry-run disabled in settings") << L".";
     placementIntent->SetLabel(text.str());
+    detailsPanel->FitInside();
+    Layout();
+}
+
+void DriveAnalysisPage::UpdateMovePlan(const MovePlan& plan) {
+    std::wstringstream text;
+    text << L"Move plan: " << plan.metrics.affectedFiles.getValue() << L" files, "
+         << FormatBytes(plan.estimatedBytesToMove) << L" estimated moved, skipped "
+         << plan.metrics.skippedFiles.getValue() << L", zone changes "
+         << plan.metrics.expectedZoneChanges.getValue() << L", fragmentation improvements "
+         << plan.metrics.fragmentationImprovementFiles.getValue();
+    if (plan.partial) {
+        text << L", partial";
+    }
+    if (plan.impossible) {
+        text << L", impossible";
+    }
+    text << L".";
+    movePlan->SetLabel(text.str());
     detailsPanel->FitInside();
     Layout();
 }

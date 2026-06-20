@@ -43,6 +43,8 @@ add_executable(IroncladDefrag WIN32
         src/model/Units.h
         src/optimization/OptimizationSettingsSerializer.cpp
         src/optimization/OptimizationSettingsSerializer.h
+        src/optimization/MovePlanner.cpp
+        src/optimization/MovePlanner.h
         src/optimization/PlacementPlanner.cpp
         src/optimization/PlacementPlanner.h
         src/optimization/ProfileCatalog.cpp
@@ -61,6 +63,8 @@ add_executable(IroncladDefrag WIN32
         src/ui/DriveMapPanel.h
         src/ui/DriveAnalysisPage.cpp
         src/ui/DriveAnalysisPage.h
+        src/ui/MovePlanDialog.cpp
+        src/ui/MovePlanDialog.h
         src/ui/ProfileSettingsDialog.cpp
         src/ui/ProfileSettingsDialog.h
         src/ui/MainFrame.cpp

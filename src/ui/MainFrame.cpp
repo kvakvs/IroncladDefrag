@@ -2,6 +2,7 @@
 #include "../precompiled.h"
 #include "MainFrame.h"
 
+#include "MovePlanDialog.h"
 #include "ProfileSettingsDialog.h"
 
 namespace icd {
@@ -14,6 +15,7 @@ enum
     ID_CancelAnalysis,
     ID_Profiles,
     ID_BuildPlacementIntent,
+    ID_BuildMovePlan,
     ID_FirstDrive = wxID_HIGHEST + 100,
     ID_LastDrive = ID_FirstDrive + 25
 };
@@ -33,6 +35,7 @@ wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(ID_CancelAnalysis, MainFrame::OnCancelAnalysis)
     EVT_MENU(ID_Profiles, MainFrame::OnProfiles)
     EVT_MENU(ID_BuildPlacementIntent, MainFrame::OnBuildPlacementIntent)
+    EVT_MENU(ID_BuildMovePlan, MainFrame::OnBuildMovePlan)
     EVT_MENU(ID_Exit, MainFrame::OnExit)
     EVT_MENU(ID_About, MainFrame::OnAbout)
     EVT_CLOSE(MainFrame::OnClose)
@@ -92,6 +95,9 @@ void MainFrame::CreateMenuBar()
     optimizationMenu->Append(ID_BuildPlacementIntent,
                              "&Build Placement Intent",
                              "Build dry-run placement intent for the selected analysed drive");
+    optimizationMenu->Append(ID_BuildMovePlan,
+                             "Build &Move Plan",
+                             "Build and inspect a dry-run move plan for the selected analysed drive");
     menuBar->Append(optimizationMenu, "&Optimization");
     
     // Set the menu bar
@@ -187,6 +193,7 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
 
     EnableMenuItemIfPresent(menuBar, ID_Profiles, !running);
     EnableMenuItemIfPresent(menuBar, ID_BuildPlacementIntent, !running && GetSelectedDriveRoot().has_value());
+    EnableMenuItemIfPresent(menuBar, ID_BuildMovePlan, !running && GetSelectedDriveRoot().has_value());
 }
 
 void MainFrame::OnRefreshDrives(wxCommandEvent& event)
@@ -248,6 +255,30 @@ void MainFrame::OnBuildPlacementIntent(wxCommandEvent&)
     if (page != analysisPages.end()) {
         page->second->UpdatePlacementPlan(*plan);
     }
+    SetStatusText(wxString(plan->summary));
+}
+
+void MainFrame::OnBuildMovePlan(wxCommandEvent&)
+{
+    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
+    if (!driveRoot.has_value()) {
+        SetStatusText("Select an analysed drive tab before building a move plan.");
+        return;
+    }
+
+    const std::optional<MovePlan> plan = controller.BuildMovePlan(*driveRoot);
+    if (!plan.has_value()) {
+        SetStatusText("No completed analysis snapshot is available for the selected drive.");
+        return;
+    }
+
+    const auto page = analysisPages.find(*driveRoot);
+    if (page != analysisPages.end()) {
+        page->second->UpdateMovePlan(*plan);
+    }
+
+    MovePlanDialog dialog(this, *plan);
+    dialog.ShowModal();
     SetStatusText(wxString(plan->summary));
 }
 

@@ -42,6 +42,8 @@ public:
     void SetActiveProfile(const OptimizationProfile& profile);
     std::optional<PlacementPlan> BuildPlacementPlan(const std::wstring& driveRoot);
     std::optional<PlacementPlan> GetPlacementPlan(const std::wstring& driveRoot) const;
+    std::optional<MovePlan> BuildMovePlan(const std::wstring& driveRoot);
+    std::optional<MovePlan> GetMovePlan(const std::wstring& driveRoot) const;
 
 private:
     void NotifyProgress(const JobProgress& progress);
@@ -56,6 +58,7 @@ private:
     mutable std::mutex analysisMutex;
     std::unordered_map<std::wstring, AnalysisResult> completedAnalyses;
     std::unordered_map<std::wstring, PlacementPlan> placementPlans;
+    std::unordered_map<std::wstring, MovePlan> movePlans;
     mutable std::mutex profileMutex;
     std::vector<OptimizationProfile> profiles;
     OptimizationProfile activeProfile;
