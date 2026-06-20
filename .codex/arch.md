@@ -39,7 +39,7 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/ProfileSettingsDialog.*` provides the modal profile editor for core optimization settings. Profile changes are persisted through the controller.
 
-`src/ui/SafetySettingsDialog.*` provides the modal Phase 8 editor for global safety guardrails, directory/extension/size exclusions, default dry-run behavior, and global moved-data caps.
+`src/ui/SafetySettingsDialog.*` provides the modal Phase 8 editor for global safety guardrails, directory/extension/size exclusions, optional dry-run-only behavior, and global moved-data caps.
 
 `src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. Execution is exposed separately through the main Optimization menu and workflow panel.
 

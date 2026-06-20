@@ -124,7 +124,7 @@ Defines the modal editor for selecting profiles and changing core optimization s
 - `src/ui/SafetySettingsDialog.h`
 - `src/ui/SafetySettingsDialog.cpp`
 
-Defines the modal editor for global safety guardrails, directory/extension/size exclusions, default dry-run behavior, and global moved-data caps.
+Defines the modal editor for global safety guardrails, directory/extension/size exclusions, optional dry-run-only behavior, and global moved-data caps.
 
 - `src/ui/MovePlanDialog.h`
 - `src/ui/MovePlanDialog.cpp`

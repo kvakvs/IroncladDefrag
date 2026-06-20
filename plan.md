@@ -193,7 +193,7 @@ Add actual file movement only after planning is reliable:
 - Skip changed, locked, unmovable, or unsafe files with clear reasons.
 - Verify extents after each move or batch.
 - Keep an execution log for audit and troubleshooting.
-- Support dry-run as the default mode until the user explicitly starts execution.
+- Keep dry-run-only as an optional safety guardrail while requiring explicit confirmation before execution.
 
 Exit criteria:
 

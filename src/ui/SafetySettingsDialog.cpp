@@ -83,7 +83,7 @@ SafetySettingsDialog::SafetySettingsDialog(wxWindow* parent, const SafetySetting
     : wxDialog(parent, wxID_ANY, "Safety Settings", wxDefaultPosition, wxDefaultSize, wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER)
 {
     auto* root = new wxBoxSizer(wxVERTICAL);
-    defaultDryRunOnly = new wxCheckBox(this, wxID_ANY, "Keep dry-run only enabled by default");
+    defaultDryRunOnly = new wxCheckBox(this, wxID_ANY, "Force dry-run only for new plans");
     excludeProtectedSystemPaths = new wxCheckBox(this, wxID_ANY, "Exclude protected Windows system paths");
     root->Add(defaultDryRunOnly, 0, wxALL, 8);
     root->Add(excludeProtectedSystemPaths, 0, wxLEFT | wxRIGHT | wxBOTTOM, 8);

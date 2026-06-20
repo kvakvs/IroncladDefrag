@@ -162,7 +162,7 @@ struct SizeExclusionRange {
 
 // Stores global safety guardrails that apply across all optimization profiles.
 struct SafetySettings {
-    bool defaultDryRunOnly = true;
+    bool defaultDryRunOnly = false;
     bool excludeProtectedSystemPaths = true;
     std::vector<std::filesystem::path> excludedDirectories;
     std::vector<std::wstring> excludedExtensions;
@@ -186,7 +186,7 @@ struct OptimizationSettings {
     bool preserveDirectoryLocality = true;
     bool allowLargeFileMoves = true;
     bool prioritizeFreeSpaceConsolidation = false;
-    bool dryRunOnly = true;
+    bool dryRunOnly = false;
     std::chrono::hours hotRecency = std::chrono::hours(24 * 14);
     std::chrono::hours warmRecency = std::chrono::hours(24 * 60);
     std::chrono::hours coolRecency = std::chrono::hours(24 * 180);
