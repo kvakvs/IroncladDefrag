@@ -41,6 +41,12 @@ add_executable(IroncladDefrag WIN32
         src/model/DiskGeometry.cpp
         src/model/DiskGeometry.h
         src/model/Units.h
+        src/optimization/OptimizationSettingsSerializer.cpp
+        src/optimization/OptimizationSettingsSerializer.h
+        src/optimization/PlacementPlanner.cpp
+        src/optimization/PlacementPlanner.h
+        src/optimization/ProfileCatalog.cpp
+        src/optimization/ProfileCatalog.h
         src/platform/windows/DriveEnumerator.cpp
         src/platform/windows/DriveEnumerator.h
         src/platform/windows/UniqueHandle.cpp
@@ -55,6 +61,8 @@ add_executable(IroncladDefrag WIN32
         src/ui/DriveMapPanel.h
         src/ui/DriveAnalysisPage.cpp
         src/ui/DriveAnalysisPage.h
+        src/ui/ProfileSettingsDialog.cpp
+        src/ui/ProfileSettingsDialog.h
         src/ui/MainFrame.cpp
         src/ui/MainFrame.h
 )

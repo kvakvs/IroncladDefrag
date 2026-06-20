@@ -15,7 +15,7 @@ Startup currently follows this path:
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
 4. `icd::MainFrame` creates the top menu, status bar, and tabbed analysis document area. The Analysis menu refreshes visible drives, starts read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, read-only drive analysis service, and deterministic data-drive classification service. There is still no defragmentation executor, move planner, strategy implementation, TRIM action, or file movement implementation.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, and dry-run optimization profile/placement-intent layer. There is still no defragmentation executor, move plan executor, TRIM action, or file movement implementation.
 
 ## Layers
 
@@ -32,6 +32,8 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 `src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a split document page: a read-only drive map in the top pane and scrollable summary/classification labels in the bottom pane.
 
 `src/ui/DriveMapPanel.*` renders the first read-only cluster visualization for an analysed drive. It consumes only the in-memory `AnalysisResult`, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
+
+`src/ui/ProfileSettingsDialog.*` provides the modal Phase 4 profile editor for core optimization settings. It edits profiles in memory only and does not persist files.
 
 The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch.
 
@@ -50,6 +52,14 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 ## Classification Layer
 
 `src/classification/FileClassifier.*` classifies analysed files by size, broad type, recency, directory hints, fragmentation benefit, move-safety status, and expected placement zone. Classification is deterministic, in-memory, and independent from wxWidgets and Win32 APIs.
+
+## Optimization Layer
+
+`src/optimization/ProfileCatalog.*` creates the built-in optimization profiles.
+
+`src/optimization/OptimizationSettingsSerializer.*` provides deterministic string serialization for future settings persistence without performing file I/O.
+
+`src/optimization/PlacementPlanner.*` produces dry-run placement intent from completed analysis/classification snapshots and the active profile. It does not create move plans or execute disk operations.
 
 ## Windows Platform Boundary
 
@@ -93,7 +103,7 @@ wxWidgets 3.3.1 headers, libraries, DLLs, and archives are vendored in `3rdparty
 The following architecture pieces are implied by the product goals but are not present yet:
 
 - Privileged or write-capable drive operations.
-- Move strategy interfaces and implementations.
+- Write-capable move strategy implementations.
 - Move planner that minimizes moved data.
 - Defragmentation/move executor with cancellation, progress reporting, and error handling.
 - Tests or validation harnesses.

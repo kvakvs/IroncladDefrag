@@ -15,6 +15,7 @@ public:
     DriveAnalysisPage(wxWindow* parent, const AnalysisResult& result);
 
     void UpdateResult(const AnalysisResult& result);
+    void UpdatePlacementPlan(const PlacementPlan& plan);
     const std::wstring& GetDriveRoot() const { return driveRoot; }
 
 private:
@@ -34,6 +35,7 @@ private:
     wxStaticText* classificationRecency = nullptr;
     wxStaticText* classificationPlacement = nullptr;
     wxStaticText* classificationSafety = nullptr;
+    wxStaticText* placementIntent = nullptr;
     wxStaticText* legend = nullptr;
     wxStaticText* warnings = nullptr;
     wxStaticText* todo = nullptr;

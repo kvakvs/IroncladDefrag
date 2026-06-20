@@ -4,6 +4,7 @@
 #include "../app/ApplicationController.h"
 #include "DriveAnalysisPage.h"
 
+#include <optional>
 #include <unordered_map>
 #include <wx/wx.h>
 #include <wx/notebook.h>
@@ -25,6 +26,8 @@ private:
     void OnRefreshDrives(wxCommandEvent& event);
     void OnAnalyseDrive(wxCommandEvent& event);
     void OnCancelAnalysis(wxCommandEvent& event);
+    void OnProfiles(wxCommandEvent& event);
+    void OnBuildPlacementIntent(wxCommandEvent& event);
     void OnExit(wxCommandEvent& event);
     void OnAbout(wxCommandEvent& event);
     void OnClose(wxCloseEvent& event);
@@ -32,9 +35,11 @@ private:
     void OnAnalysisComplete(const AnalysisResult& result);
     void OnAnalysisError(const std::wstring& message);
     void OpenOrUpdateAnalysisPage(const AnalysisResult& result);
+    std::optional<std::wstring> GetSelectedDriveRoot() const;
 
     ApplicationController controller;
     wxMenu* analysisMenu = nullptr;
+    wxMenu* optimizationMenu = nullptr;
     wxNotebook* documents = nullptr;
     std::unordered_map<int, DriveInfo> driveMenuItems;
     std::unordered_map<std::wstring, DriveAnalysisPage*> analysisPages;

@@ -2,6 +2,7 @@
 
 #include <functional>
 #include <mutex>
+#include <optional>
 #include <string>
 #include <unordered_map>
 #include <vector>
@@ -18,7 +19,7 @@ public:
     using CompletionCallback = std::function<void(const AnalysisResult&)>;
     using ErrorCallback = std::function<void(const std::wstring&)>;
 
-    ApplicationController() = default;
+    ApplicationController();
     ~ApplicationController();
 
     ApplicationController(const ApplicationController&) = delete;
@@ -36,6 +37,11 @@ public:
     void CancelActiveJob();
     bool IsJobRunning() const;
     std::vector<AnalysisResult> GetAnalysisSnapshots() const;
+    std::vector<OptimizationProfile> GetProfiles() const;
+    OptimizationProfile GetActiveProfile() const;
+    void SetActiveProfile(const OptimizationProfile& profile);
+    std::optional<PlacementPlan> BuildPlacementPlan(const std::wstring& driveRoot);
+    std::optional<PlacementPlan> GetPlacementPlan(const std::wstring& driveRoot) const;
 
 private:
     void NotifyProgress(const JobProgress& progress);
@@ -49,6 +55,10 @@ private:
     BackgroundJob activeJob;
     mutable std::mutex analysisMutex;
     std::unordered_map<std::wstring, AnalysisResult> completedAnalyses;
+    std::unordered_map<std::wstring, PlacementPlan> placementPlans;
+    mutable std::mutex profileMutex;
+    std::vector<OptimizationProfile> profiles;
+    OptimizationProfile activeProfile;
 };
 
 } // namespace icd

@@ -113,6 +113,33 @@ enum class OptimizationMode {
     SingleFileDefragmentation
 };
 
+enum class ZoneBoundaryMode { Percent, Bytes };
+
+// Defines one configurable placement-zone boundary using either drive percentage or absolute bytes.
+struct ZoneBoundarySetting {
+    DiskZoneRole role = DiskZoneRole::Balanced;
+    ZoneBoundaryMode mode = ZoneBoundaryMode::Percent;
+    double startPercent = 0.0;
+    double sizePercent = 100.0;
+    byte_count64_t startBytes = byte_count64_t();
+    byte_count64_t sizeBytes = byte_count64_t();
+    bool enabled = true;
+};
+
+// Stores extension-group hints that future profile persistence and strategy UI can edit.
+struct ExtensionGroupRule {
+    BroadFileType type = BroadFileType::Unknown;
+    std::wstring name;
+    std::vector<std::wstring> extensions;
+};
+
+// Stores directory placement overrides for future profile persistence and strategy UI.
+struct DirectoryOverrideRule {
+    std::filesystem::path path;
+    ExpectedPlacementZone placement = ExpectedPlacementZone::Balanced;
+    bool recursive = true;
+};
+
 // Stores configurable knobs shared by future optimization profiles.
 struct OptimizationSettings {
     bool enableFastZone = true;
@@ -120,6 +147,7 @@ struct OptimizationSettings {
     bool enableSlowZone = true;
     bool enableLargeFileZone = true;
     bool enableFreeSpaceReserve = true;
+    std::vector<ZoneBoundarySetting> zoneBoundaries;
     byte_count64_t smallFileThreshold = byte_count64_t(1ull * 1024ull * 1024ull);
     byte_count64_t largeFileThreshold = byte_count64_t(128ull * 1024ull * 1024ull);
     byte_count64_t hugeFileThreshold = byte_count64_t(4ull * 1024ull * 1024ull * 1024ull);
@@ -130,7 +158,12 @@ struct OptimizationSettings {
     bool prioritizeFreeSpaceConsolidation = false;
     bool dryRunOnly = true;
     std::chrono::hours hotRecency = std::chrono::hours(24 * 14);
-    std::chrono::hours coldRecency = std::chrono::hours(24 * 180);
+    std::chrono::hours warmRecency = std::chrono::hours(24 * 60);
+    std::chrono::hours coolRecency = std::chrono::hours(24 * 180);
+    std::chrono::hours coldRecency = std::chrono::hours(24 * 365);
+    std::chrono::hours staleRecency = std::chrono::hours(24 * 365);
+    std::vector<ExtensionGroupRule> extensionGroups;
+    std::vector<DirectoryOverrideRule> directoryOverrides;
 };
 
 // Names a selectable optimization profile and the settings it uses.
@@ -170,6 +203,18 @@ struct AnalysisResult {
 struct PlacementPlan {
     OptimizationProfile profile;
     std::vector<DiskZone> zones;
+    // Stores dry-run target placement for one analysed file without describing a move operation.
+    struct FilePlacementIntent {
+        std::size_t fileIndex = 0;
+        ExpectedPlacementZone targetZone = ExpectedPlacementZone::None;
+        double benefitScore = 0.0;
+        byte_count64_t bytesConsidered = byte_count64_t();
+        std::wstring reason;
+    };
+    std::vector<FilePlacementIntent> fileIntents;
+    count64_t targetedFiles = count64_t();
+    count64_t noTargetFiles = count64_t();
+    byte_count64_t bytesConsidered = byte_count64_t();
     std::wstring summary;
 };
 

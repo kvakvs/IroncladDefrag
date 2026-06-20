@@ -47,6 +47,23 @@ Simulates long-running analysis and returns a synthetic `AnalysisResult`. It per
 
 Classifies completed analysis snapshots by size, broad file type, recency, directory hints, fragmentation benefit, safety status, and expected placement zone.
 
+## Optimization Layer
+
+- `src/optimization/ProfileCatalog.h`
+- `src/optimization/ProfileCatalog.cpp`
+
+Creates the built-in Phase 4 optimization profiles.
+
+- `src/optimization/OptimizationSettingsSerializer.h`
+- `src/optimization/OptimizationSettingsSerializer.cpp`
+
+Serializes/deserializes optimization profiles as deterministic text for future persistence, with no file I/O.
+
+- `src/optimization/PlacementPlanner.h`
+- `src/optimization/PlacementPlanner.cpp`
+
+Builds read-only placement intent from completed analysis snapshots and the active optimization profile.
+
 ## UI Layer
 
 - `src/ui/App.h`
@@ -62,12 +79,17 @@ Defines `icd::MainFrame`, the top-level `wxFrame`. Currently owns menu bar creat
 - `src/ui/DriveAnalysisPage.h`
 - `src/ui/DriveAnalysisPage.cpp`
 
-Defines an analysis-result document page shown in the main notebook, with a vertical splitter containing the drive map above scrollable summary/classification labels.
+Defines an analysis-result document page shown in the main notebook, with a vertical splitter containing the drive map above scrollable summary/classification and placement-intent labels.
 
 - `src/ui/DriveMapPanel.h`
 - `src/ui/DriveMapPanel.cpp`
 
 Defines the read-only cluster-grid drive map. It renders fixed-size cells, recalculates clusters-per-box on resize, and colors ranges from analysis/classification data without performing disk I/O or move planning.
+
+- `src/ui/ProfileSettingsDialog.h`
+- `src/ui/ProfileSettingsDialog.cpp`
+
+Defines the modal in-memory editor for selecting profiles and changing core optimization settings.
 
 ## Model Layer
 

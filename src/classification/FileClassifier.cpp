@@ -267,7 +267,16 @@ ClassificationRules FileClassifier::BuildRules(const OptimizationSettings& setti
     rules.mediumFileThreshold = settings.largeFileThreshold;
     rules.largeFileThreshold = settings.hugeFileThreshold;
     rules.hotRecency = settings.hotRecency;
-    rules.coolRecency = settings.coldRecency;
+    rules.warmRecency = settings.warmRecency;
+    rules.coolRecency = settings.coolRecency;
+    rules.coldRecency = settings.coldRecency;
+    for (const DirectoryOverrideRule& rule : settings.directoryOverrides) {
+        if (rule.placement == ExpectedPlacementZone::Fast) {
+            rules.userHotDirectoryOverrides.push_back(rule.path.wstring());
+        } else if (rule.placement == ExpectedPlacementZone::Slow || rule.placement == ExpectedPlacementZone::LargeFile) {
+            rules.userColdDirectoryOverrides.push_back(rule.path.wstring());
+        }
+    }
     return rules;
 }
 

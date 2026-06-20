@@ -3,6 +3,8 @@
 #include "../analysis/DriveAnalysisService.h"
 #include "../analysis/FakeAnalysisService.h"
 #include "../classification/FileClassifier.h"
+#include "../optimization/PlacementPlanner.h"
+#include "../optimization/ProfileCatalog.h"
 #include "../platform/windows/DriveEnumerator.h"
 #include "../support/Logger.h"
 
@@ -26,6 +28,14 @@ std::wstring ToWide(const char* text)
     return result;
 }
 } // namespace
+
+ApplicationController::ApplicationController()
+{
+    profiles = ProfileCatalog().CreateDefaultProfiles();
+    if (!profiles.empty()) {
+        activeProfile = profiles.front();
+    }
+}
 
 ApplicationController::~ApplicationController()
 {
@@ -155,6 +165,7 @@ bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
             {
                 std::lock_guard lock(analysisMutex);
                 completedAnalyses[result.drive.rootPath] = result;
+                placementPlans.erase(result.drive.rootPath);
             }
 
             JobProgress completed;
@@ -215,6 +226,64 @@ std::vector<AnalysisResult> ApplicationController::GetAnalysisSnapshots() const
         snapshots.push_back(result);
     }
     return snapshots;
+}
+
+std::vector<OptimizationProfile> ApplicationController::GetProfiles() const
+{
+    std::lock_guard lock(profileMutex);
+    return profiles;
+}
+
+OptimizationProfile ApplicationController::GetActiveProfile() const
+{
+    std::lock_guard lock(profileMutex);
+    return activeProfile;
+}
+
+void ApplicationController::SetActiveProfile(const OptimizationProfile& profile)
+{
+    std::lock_guard lock(profileMutex);
+    activeProfile = profile;
+    for (OptimizationProfile& stored : profiles) {
+        if (stored.mode == profile.mode) {
+            stored = profile;
+            return;
+        }
+    }
+    profiles.push_back(profile);
+}
+
+std::optional<PlacementPlan> ApplicationController::BuildPlacementPlan(const std::wstring& driveRoot)
+{
+    AnalysisResult analysis;
+    {
+        std::lock_guard lock(analysisMutex);
+        const auto found = completedAnalyses.find(driveRoot);
+        if (found == completedAnalyses.end()) {
+            return std::nullopt;
+        }
+        analysis = found->second;
+    }
+
+    OptimizationProfile profile = GetActiveProfile();
+    PlacementPlan plan = PlacementPlanner().Build(analysis, profile);
+
+    {
+        std::lock_guard lock(analysisMutex);
+        placementPlans[driveRoot] = plan;
+    }
+
+    return plan;
+}
+
+std::optional<PlacementPlan> ApplicationController::GetPlacementPlan(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(analysisMutex);
+    const auto found = placementPlans.find(driveRoot);
+    if (found == placementPlans.end()) {
+        return std::nullopt;
+    }
+    return found->second;
 }
 
 void ApplicationController::NotifyProgress(const JobProgress& progress)

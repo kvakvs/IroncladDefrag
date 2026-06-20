@@ -2,6 +2,8 @@
 #include "../precompiled.h"
 #include "MainFrame.h"
 
+#include "ProfileSettingsDialog.h"
+
 namespace icd {
 
 enum
@@ -10,14 +12,27 @@ enum
     ID_About = wxID_ABOUT,
     ID_RefreshDrives = wxID_HIGHEST + 1,
     ID_CancelAnalysis,
+    ID_Profiles,
+    ID_BuildPlacementIntent,
     ID_FirstDrive = wxID_HIGHEST + 100,
     ID_LastDrive = ID_FirstDrive + 25
 };
+
+namespace {
+void EnableMenuItemIfPresent(wxMenuBar* menuBar, int id, bool enabled)
+{
+    if (menuBar != nullptr && menuBar->FindItem(id) != nullptr) {
+        menuBar->Enable(id, enabled);
+    }
+}
+} // namespace
 
 wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU(ID_RefreshDrives, MainFrame::OnRefreshDrives)
     EVT_MENU_RANGE(ID_FirstDrive, ID_LastDrive, MainFrame::OnAnalyseDrive)
     EVT_MENU(ID_CancelAnalysis, MainFrame::OnCancelAnalysis)
+    EVT_MENU(ID_Profiles, MainFrame::OnProfiles)
+    EVT_MENU(ID_BuildPlacementIntent, MainFrame::OnBuildPlacementIntent)
     EVT_MENU(ID_Exit, MainFrame::OnExit)
     EVT_MENU(ID_About, MainFrame::OnAbout)
     EVT_CLOSE(MainFrame::OnClose)
@@ -71,6 +86,13 @@ void MainFrame::CreateMenuBar()
 
     analysisMenu = new wxMenu;
     menuBar->Append(analysisMenu, "&Analysis");
+
+    optimizationMenu = new wxMenu;
+    optimizationMenu->Append(ID_Profiles, "&Profiles...", "Choose and edit optimization profile settings");
+    optimizationMenu->Append(ID_BuildPlacementIntent,
+                             "&Build Placement Intent",
+                             "Build dry-run placement intent for the selected analysed drive");
+    menuBar->Append(optimizationMenu, "&Optimization");
     
     // Set the menu bar
     SetMenuBar(menuBar);
@@ -79,6 +101,10 @@ void MainFrame::CreateMenuBar()
 void MainFrame::CreateDocumentArea()
 {
     documents = new wxNotebook(this, wxID_ANY);
+    documents->Bind(wxEVT_NOTEBOOK_PAGE_CHANGED, [this](wxBookCtrlEvent& event) {
+        UpdateAnalysisMenuState(controller.IsJobRunning());
+        event.Skip();
+    });
 
     auto* welcome = new wxPanel(documents, wxID_ANY);
     auto* welcomeSizer = new wxBoxSizer(wxVERTICAL);
@@ -152,12 +178,15 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
         return;
     }
 
-    menuBar->Enable(ID_RefreshDrives, !running);
-    menuBar->Enable(ID_CancelAnalysis, running);
+    EnableMenuItemIfPresent(menuBar, ID_RefreshDrives, !running);
+    EnableMenuItemIfPresent(menuBar, ID_CancelAnalysis, running);
 
     for (const auto& [id, drive] : driveMenuItems) {
-        menuBar->Enable(id, drive.capabilities.canAnalyze && !running);
+        EnableMenuItemIfPresent(menuBar, id, drive.capabilities.canAnalyze && !running);
     }
+
+    EnableMenuItemIfPresent(menuBar, ID_Profiles, !running);
+    EnableMenuItemIfPresent(menuBar, ID_BuildPlacementIntent, !running && GetSelectedDriveRoot().has_value());
 }
 
 void MainFrame::OnRefreshDrives(wxCommandEvent& event)
@@ -189,6 +218,37 @@ void MainFrame::OnCancelAnalysis(wxCommandEvent& event)
     SetStatusText("Cancelling drive analysis...");
     controller.RequestCancelActiveJob();
     UpdateAnalysisMenuState(true);
+}
+
+void MainFrame::OnProfiles(wxCommandEvent&)
+{
+    ProfileSettingsDialog dialog(this, controller.GetProfiles(), controller.GetActiveProfile());
+    if (dialog.ShowModal() == wxID_OK) {
+        controller.SetActiveProfile(dialog.GetSelectedProfile());
+        SetStatusText(wxString::Format("Active profile: %s", wxString(dialog.GetSelectedProfile().name)));
+        UpdateAnalysisMenuState(false);
+    }
+}
+
+void MainFrame::OnBuildPlacementIntent(wxCommandEvent&)
+{
+    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
+    if (!driveRoot.has_value()) {
+        SetStatusText("Select an analysed drive tab before building placement intent.");
+        return;
+    }
+
+    const std::optional<PlacementPlan> plan = controller.BuildPlacementPlan(*driveRoot);
+    if (!plan.has_value()) {
+        SetStatusText("No completed analysis snapshot is available for the selected drive.");
+        return;
+    }
+
+    const auto page = analysisPages.find(*driveRoot);
+    if (page != analysisPages.end()) {
+        page->second->UpdatePlacementPlan(*plan);
+    }
+    SetStatusText(wxString(plan->summary));
 }
 
 void MainFrame::OnExit(wxCommandEvent& event)
@@ -276,6 +336,25 @@ void MainFrame::OpenOrUpdateAnalysisPage(const AnalysisResult& result)
     auto* page = new DriveAnalysisPage(documents, result);
     documents->AddPage(page, wxString(result.drive.rootPath), true);
     analysisPages.emplace(result.drive.rootPath, page);
+}
+
+std::optional<std::wstring> MainFrame::GetSelectedDriveRoot() const
+{
+    if (documents == nullptr) {
+        return std::nullopt;
+    }
+
+    const int selection = documents->GetSelection();
+    if (selection == wxNOT_FOUND) {
+        return std::nullopt;
+    }
+
+    auto* page = dynamic_cast<DriveAnalysisPage*>(documents->GetPage(selection));
+    if (page == nullptr) {
+        return std::nullopt;
+    }
+
+    return page->GetDriveRoot();
 }
 
 } // namespace icd
