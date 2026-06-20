@@ -51,6 +51,10 @@ add_executable(IroncladDefrag WIN32
         src/optimization/PlacementPlanner.h
         src/optimization/ProfileCatalog.cpp
         src/optimization/ProfileCatalog.h
+        src/persistence/AppSettingsSerializer.cpp
+        src/persistence/AppSettingsSerializer.h
+        src/persistence/AppSettingsStore.cpp
+        src/persistence/AppSettingsStore.h
         src/platform/windows/DriveEnumerator.cpp
         src/platform/windows/DriveEnumerator.h
         src/platform/windows/UniqueHandle.cpp
@@ -73,6 +77,8 @@ add_executable(IroncladDefrag WIN32
         src/ui/MovePlanDialog.h
         src/ui/ProfileSettingsDialog.cpp
         src/ui/ProfileSettingsDialog.h
+        src/ui/SafetySettingsDialog.cpp
+        src/ui/SafetySettingsDialog.h
         src/ui/UIFormatting.cpp
         src/ui/UIFormatting.h
         src/ui/WorkflowPanel.cpp

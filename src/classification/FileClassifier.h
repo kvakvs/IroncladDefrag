@@ -25,7 +25,9 @@ struct ClassificationRules {
 // Adds deterministic data-drive file classifications to completed analysis snapshots.
 class FileClassifier {
 public:
-    AnalysisResult Classify(AnalysisResult result, const OptimizationSettings& settings = OptimizationSettings()) const;
+    AnalysisResult Classify(AnalysisResult result,
+                            const OptimizationSettings& settings = OptimizationSettings(),
+                            const SafetySettings& safety = SafetySettings()) const;
 
 private:
     ClassificationRules BuildRules(const OptimizationSettings& settings) const;

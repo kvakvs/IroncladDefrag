@@ -11,7 +11,10 @@
 #include "../platform/windows/VolumeMoveOperations.h"
 #include "../support/Logger.h"
 
+#include <ctime>
 #include <exception>
+#include <iomanip>
+#include <sstream>
 #include <utility>
 
 namespace icd {
@@ -30,6 +33,16 @@ std::wstring ToWide(const char* text)
     }
     return result;
 }
+
+std::wstring CurrentTimestamp()
+{
+    const std::time_t now = std::time(nullptr);
+    std::tm local{};
+    localtime_s(&local, &now);
+    std::wstringstream text;
+    text << std::put_time(&local, L"%Y-%m-%d %H:%M:%S");
+    return text.str();
+}
 } // namespace
 
 ApplicationController::ApplicationController()
@@ -38,6 +51,7 @@ ApplicationController::ApplicationController()
     if (!profiles.empty()) {
         activeProfile = profiles.front();
     }
+    LoadPersistedSettings();
 }
 
 ApplicationController::~ApplicationController()
@@ -115,7 +129,7 @@ bool ApplicationController::StartFakeAnalysis()
             completed.state = JobState::Completed;
             completed.percentComplete = 100.0;
             completed.statusMessage = L"Synthetic analysis complete.";
-            result = FileClassifier().Classify(std::move(result));
+            result = ReclassifyForPlanning(std::move(result), GetActiveProfile());
             NotifyProgress(completed);
             NotifyCompletion(result);
             Logger::Info(L"Synthetic analysis job completed.");
@@ -170,7 +184,7 @@ bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
                 return;
             }
 
-            result = FileClassifier().Classify(std::move(result));
+            result = ReclassifyForPlanning(std::move(result), GetActiveProfile());
 
             {
                 std::lock_guard lock(analysisMutex);
@@ -179,6 +193,7 @@ bool ApplicationController::StartDriveAnalysis(const DriveInfo& drive)
                 movePlans.erase(result.drive.rootPath);
                 executionResults.erase(result.drive.rootPath);
             }
+            StoreRecentSummary(result);
 
             JobProgress completed;
             completed.state = JobState::Completed;
@@ -271,15 +286,59 @@ std::optional<OptimizationProfile> ApplicationController::GetProfile(Optimizatio
 
 void ApplicationController::SetActiveProfile(const OptimizationProfile& profile)
 {
-    std::lock_guard lock(profileMutex);
-    activeProfile = profile;
-    for (OptimizationProfile& stored : profiles) {
-        if (stored.mode == profile.mode) {
-            stored = profile;
-            return;
+    {
+        std::lock_guard lock(profileMutex);
+        activeProfile = profile;
+        bool replaced = false;
+        for (OptimizationProfile& stored : profiles) {
+            if (stored.mode == profile.mode) {
+                stored = profile;
+                replaced = true;
+                break;
+            }
+        }
+        if (!replaced) {
+            profiles.push_back(profile);
         }
     }
-    profiles.push_back(profile);
+    {
+        std::lock_guard lock(analysisMutex);
+        placementPlans.clear();
+        movePlans.clear();
+        executionResults.clear();
+    }
+    SavePersistedSettings();
+}
+
+SafetySettings ApplicationController::GetSafetySettings() const
+{
+    std::lock_guard lock(profileMutex);
+    return safetySettings;
+}
+
+void ApplicationController::SetSafetySettings(const SafetySettings& settings)
+{
+    {
+        std::lock_guard lock(profileMutex);
+        safetySettings = settings;
+    }
+    {
+        std::lock_guard lock(analysisMutex);
+        placementPlans.clear();
+        movePlans.clear();
+        executionResults.clear();
+    }
+    SavePersistedSettings();
+}
+
+std::optional<RecentAnalysisSummary> ApplicationController::GetRecentAnalysisSummary(const std::wstring& driveRoot) const
+{
+    std::lock_guard lock(profileMutex);
+    const auto found = recentAnalysisSummaries.find(driveRoot);
+    if (found == recentAnalysisSummaries.end()) {
+        return std::nullopt;
+    }
+    return found->second;
 }
 
 std::optional<PlacementPlan> ApplicationController::BuildPlacementPlan(const std::wstring& driveRoot)
@@ -294,11 +353,13 @@ std::optional<PlacementPlan> ApplicationController::BuildPlacementPlan(const std
         analysis = found->second;
     }
 
-    OptimizationProfile profile = GetActiveProfile();
+    OptimizationProfile profile = BuildEffectiveProfile(GetActiveProfile());
+    analysis = ReclassifyForPlanning(std::move(analysis), profile);
     PlacementPlan plan = PlacementPlanner().Build(analysis, profile);
 
     {
         std::lock_guard lock(analysisMutex);
+        completedAnalyses[driveRoot] = analysis;
         placementPlans[driveRoot] = plan;
         movePlans.erase(driveRoot);
         executionResults.erase(driveRoot);
@@ -320,7 +381,6 @@ std::optional<PlacementPlan> ApplicationController::GetPlacementPlan(const std::
 std::optional<MovePlan> ApplicationController::BuildMovePlan(const std::wstring& driveRoot)
 {
     AnalysisResult analysis;
-    std::optional<PlacementPlan> placement;
     {
         std::lock_guard lock(analysisMutex);
         const auto analysisFound = completedAnalyses.find(driveRoot);
@@ -328,25 +388,17 @@ std::optional<MovePlan> ApplicationController::BuildMovePlan(const std::wstring&
             return std::nullopt;
         }
         analysis = analysisFound->second;
-
-        const auto placementFound = placementPlans.find(driveRoot);
-        if (placementFound != placementPlans.end()) {
-            placement = placementFound->second;
-        }
     }
 
-    if (!placement.has_value()) {
-        placement = BuildPlacementPlan(driveRoot);
-        if (!placement.has_value()) {
-            return std::nullopt;
-        }
-    }
-
-    OptimizationProfile profile = GetActiveProfile();
-    MovePlan plan = MovePlanner().Build(analysis, *placement, profile);
+    OptimizationProfile profile = BuildEffectiveProfile(GetActiveProfile());
+    analysis = ReclassifyForPlanning(std::move(analysis), profile);
+    PlacementPlan placement = PlacementPlanner().Build(analysis, profile);
+    MovePlan plan = MovePlanner().Build(analysis, placement, profile);
 
     {
         std::lock_guard lock(analysisMutex);
+        completedAnalyses[driveRoot] = analysis;
+        placementPlans[driveRoot] = placement;
         movePlans[driveRoot] = plan;
         executionResults.erase(driveRoot);
     }
@@ -362,6 +414,105 @@ std::optional<MovePlan> ApplicationController::GetMovePlan(const std::wstring& d
         return std::nullopt;
     }
     return found->second;
+}
+
+void ApplicationController::LoadPersistedSettings()
+{
+    const std::optional<AppSettings> stored = settingsStore.Load();
+    if (!stored.has_value()) {
+        return;
+    }
+
+    std::lock_guard lock(profileMutex);
+    if (!stored->profiles.empty()) {
+        profiles = stored->profiles;
+    }
+    safetySettings = stored->safetySettings;
+    recentAnalysisSummaries.clear();
+    for (const RecentAnalysisSummary& summary : stored->recentAnalysisSummaries) {
+        if (!summary.driveRoot.empty()) {
+            recentAnalysisSummaries[summary.driveRoot] = summary;
+        }
+    }
+
+    const auto active = std::find_if(profiles.begin(), profiles.end(), [&](const OptimizationProfile& profile) {
+        return profile.mode == stored->activeProfileMode;
+    });
+    if (active != profiles.end()) {
+        activeProfile = *active;
+    } else if (!profiles.empty()) {
+        activeProfile = profiles.front();
+    }
+}
+
+void ApplicationController::SavePersistedSettings() const
+{
+    AppSettings settings;
+    {
+        std::lock_guard lock(profileMutex);
+        settings.profiles = profiles;
+        settings.activeProfileMode = activeProfile.mode;
+        settings.safetySettings = safetySettings;
+        settings.recentAnalysisSummaries.reserve(recentAnalysisSummaries.size());
+        for (const auto& [root, summary] : recentAnalysisSummaries) {
+            settings.recentAnalysisSummaries.push_back(summary);
+        }
+    }
+    settingsStore.Save(settings);
+}
+
+OptimizationProfile ApplicationController::BuildEffectiveProfile(const OptimizationProfile& profile) const
+{
+    OptimizationProfile effective = profile;
+    SafetySettings safety;
+    {
+        std::lock_guard lock(profileMutex);
+        safety = safetySettings;
+    }
+
+    if (safety.defaultDryRunOnly) {
+        effective.settings.dryRunOnly = true;
+    }
+
+    const std::uint64_t globalLimit = safety.globalMaximumBytesToMove.getValue();
+    const std::uint64_t profileLimit = effective.settings.maximumBytesToMove.getValue();
+    if (globalLimit > 0 && (profileLimit == 0 || globalLimit < profileLimit)) {
+        effective.settings.maximumBytesToMove = byte_count64_t(globalLimit);
+    }
+    return effective;
+}
+
+AnalysisResult ApplicationController::ReclassifyForPlanning(AnalysisResult analysis, const OptimizationProfile& profile) const
+{
+    SafetySettings safety;
+    {
+        std::lock_guard lock(profileMutex);
+        safety = safetySettings;
+    }
+    return FileClassifier().Classify(std::move(analysis), profile.settings, safety);
+}
+
+void ApplicationController::StoreRecentSummary(const AnalysisResult& result)
+{
+    RecentAnalysisSummary summary;
+    summary.driveRoot = result.drive.rootPath;
+    summary.displayName = result.drive.displayName;
+    summary.fileSystem = result.volume.fileSystem;
+    summary.analyzedAt = CurrentTimestamp();
+    summary.totalBytes = result.volume.totalBytes;
+    summary.freeBytes = result.volume.freeBytes;
+    summary.scannedFiles = result.stats.scannedFiles;
+    summary.skippedFiles = result.stats.skippedFiles;
+    summary.inaccessibleFiles = result.stats.inaccessibleFiles;
+    summary.fragmentedFiles = result.stats.fragmentedFiles;
+    summary.freeSpaceBlocks = result.stats.freeSpaceBlocks;
+    summary.freeSpaceMapAvailable = result.stats.freeSpaceMapAvailable;
+
+    {
+        std::lock_guard lock(profileMutex);
+        recentAnalysisSummaries[summary.driveRoot] = summary;
+    }
+    SavePersistedSettings();
 }
 
 bool ApplicationController::HasMovePlan(const std::wstring& driveRoot) const

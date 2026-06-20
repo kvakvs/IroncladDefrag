@@ -33,10 +33,12 @@ private:
     bool ReviewSelectedMovePlan();
     bool ExecuteSelectedMovePlan();
     bool RunFastLane(const OptimizationProfile& profile);
+    void ResetSelectedAnalysisWorkflow();
     void OnRefreshDrives(wxCommandEvent& event);
     void OnAnalyseDrive(wxCommandEvent& event);
     void OnCancelAnalysis(wxCommandEvent& event);
     void OnProfiles(wxCommandEvent& event);
+    void OnSafetySettings(wxCommandEvent& event);
     void OnBuildPlacementIntent(wxCommandEvent& event);
     void OnBuildMovePlan(wxCommandEvent& event);
     void OnExecuteMovePlan(wxCommandEvent& event);

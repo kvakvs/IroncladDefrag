@@ -42,6 +42,67 @@ bool ContainsPathHint(const std::filesystem::path& path, const std::vector<std::
     return false;
 }
 
+bool ContainsDirectoryComponent(const std::filesystem::path& path, const std::vector<std::wstring>& names)
+{
+    for (const auto& part : path) {
+        const std::wstring lowerPart = ToLower(part.wstring());
+        for (const std::wstring& name : names) {
+            if (lowerPart == ToLower(name)) {
+                return true;
+            }
+        }
+    }
+    return false;
+}
+
+bool ExtensionExcluded(const FileMetadata& file, const SafetySettings& safety)
+{
+    const std::wstring extension = LowerExtension(file.GetPath());
+    if (extension.empty()) {
+        return false;
+    }
+
+    for (std::wstring excluded : safety.excludedExtensions) {
+        excluded = ToLower(excluded);
+        if (!excluded.empty() && excluded.front() != L'.') {
+            excluded.insert(excluded.begin(), L'.');
+        }
+        if (extension == excluded) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool SizeExcluded(byte_count64_t size, const SafetySettings& safety)
+{
+    const std::uint64_t value = size.getValue();
+    for (const SizeExclusionRange& range : safety.excludedSizeRanges) {
+        const bool aboveMinimum = !range.hasMinimum || value >= range.minimumBytes.getValue();
+        const bool belowMaximum = !range.hasMaximum || value <= range.maximumBytes.getValue();
+        if (aboveMinimum && belowMaximum) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool DirectoryExcluded(const FileMetadata& file, const SafetySettings& safety)
+{
+    static const std::vector<std::wstring> protectedNames = {
+        L"Windows", L"Program Files", L"Program Files (x86)", L"ProgramData", L"$Recycle.Bin", L"System Volume Information"};
+    if (safety.excludeProtectedSystemPaths && ContainsDirectoryComponent(file.GetPath(), protectedNames)) {
+        return true;
+    }
+
+    std::vector<std::wstring> configured;
+    configured.reserve(safety.excludedDirectories.size());
+    for (const std::filesystem::path& path : safety.excludedDirectories) {
+        configured.push_back(path.wstring());
+    }
+    return ContainsPathHint(file.GetPath(), configured);
+}
+
 // Assigns the file to the size bucket used by data-drive placement defaults.
 FileSizeClass ClassifySize(byte_count64_t size, const ClassificationRules& rules)
 {
@@ -193,9 +254,24 @@ std::wstring BuildDirectoryReason(const FileMetadata& file, const Classification
 }
 
 // Decides whether a file should be excluded or require explicit movement later.
-std::wstring BuildExclusionReason(const FileMetadata& file, bool& excluded, bool& explicitOnly)
+std::wstring BuildExclusionReason(const FileMetadata& file,
+                                  const SafetySettings& safety,
+                                  bool& excluded,
+                                  bool& explicitOnly)
 {
     const FileMetadata::AttributeFlags& flags = file.GetAttributeFlags();
+    if (DirectoryExcluded(file, safety)) {
+        excluded = true;
+        return L"excluded by directory safety rule";
+    }
+    if (ExtensionExcluded(file, safety)) {
+        excluded = true;
+        return L"excluded by extension safety rule";
+    }
+    if (SizeExcluded(file.GetSize(), safety)) {
+        excluded = true;
+        return L"excluded by size safety rule";
+    }
     if (flags.system || flags.reparsePoint || flags.encrypted) {
         excluded = true;
         return L"system, reparse, or encrypted file";
@@ -281,7 +357,9 @@ ClassificationRules FileClassifier::BuildRules(const OptimizationSettings& setti
 }
 
 // Produces per-file classifications and aggregate summaries for one analysis snapshot.
-AnalysisResult FileClassifier::Classify(AnalysisResult result, const OptimizationSettings& settings) const
+AnalysisResult FileClassifier::Classify(AnalysisResult result,
+                                        const OptimizationSettings& settings,
+                                        const SafetySettings& safety) const
 {
     const ClassificationRules rules = BuildRules(settings);
     result.classifications.clear();
@@ -303,7 +381,7 @@ AnalysisResult FileClassifier::Classify(AnalysisResult result, const Optimizatio
         classification.directoryRuleReason = BuildDirectoryReason(file, rules, hotHint, coldHint);
 
         classification.exclusionReason =
-            BuildExclusionReason(file, classification.excluded, classification.moveOnlyWhenExplicit);
+            BuildExclusionReason(file, safety, classification.excluded, classification.moveOnlyWhenExplicit);
 
         classification.fragmentationBenefitScore = ComputeFragmentationBenefitScore(file);
         classification.fragmentationBenefit = classification.fragmentationBenefitScore < 0.0

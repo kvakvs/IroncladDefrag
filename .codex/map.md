@@ -22,6 +22,7 @@
 - `src/app/ApplicationController.cpp`
 
 Owns drive enumeration, selected-drive read-only analysis orchestration, in-memory analysis snapshots, move-plan execution orchestration, progress/completion/error callbacks, and cancellation.
+Also loads/saves persisted profile and safety settings, stores recent non-executable analysis summaries, and reclassifies cached snapshots with current safety settings before planning.
 
 - `src/app/BackgroundJob.h`
 - `src/app/BackgroundJob.cpp`
@@ -69,6 +70,18 @@ Builds read-only placement intent from completed analysis snapshots and the acti
 
 Builds conservative dry-run move plans from analysis snapshots and placement intent, with simulated destination reservations only.
 
+## Persistence Layer
+
+- `src/persistence/AppSettingsSerializer.h`
+- `src/persistence/AppSettingsSerializer.cpp`
+
+Serializes/deserializes versioned application settings text containing active profile mode, profile collection, global safety settings, and recent analysis summaries. It does not persist executable analysis snapshots.
+
+- `src/persistence/AppSettingsStore.h`
+- `src/persistence/AppSettingsStore.cpp`
+
+Loads and atomically saves settings at `%LOCALAPPDATA%\IroncladDefrag\settings.txt`.
+
 ## Execution Layer
 
 - `src/execution/MoveExecutor.h`
@@ -106,7 +119,12 @@ Defines the cluster-grid drive map. It renders fixed-size cells, recalculates cl
 - `src/ui/ProfileSettingsDialog.h`
 - `src/ui/ProfileSettingsDialog.cpp`
 
-Defines the modal in-memory editor for selecting profiles and changing core optimization settings.
+Defines the modal editor for selecting profiles and changing core optimization settings.
+
+- `src/ui/SafetySettingsDialog.h`
+- `src/ui/SafetySettingsDialog.cpp`
+
+Defines the modal editor for global safety guardrails, directory/extension/size exclusions, default dry-run behavior, and global moved-data caps.
 
 - `src/ui/MovePlanDialog.h`
 - `src/ui/MovePlanDialog.cpp`
@@ -132,6 +150,7 @@ Defines `icd::Quantity` and project-specific type aliases for counts, indexes, b
 - `src/model/DomainTypes.h`
 
 Defines value types for drive/volume metadata, drive capabilities, disk zones, file classes, classification results/summaries, optimization settings/profiles, analysis results/stats, placement/move plans, execution results, and job progress.
+Also defines Phase 8 safety settings, size exclusion ranges, and recent analysis summaries.
 
 - `src/model/FileMetadata.h`
 - `src/model/FileMetadata.cpp`

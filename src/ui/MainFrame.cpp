@@ -4,6 +4,7 @@
 
 #include "MovePlanDialog.h"
 #include "ProfileSettingsDialog.h"
+#include "SafetySettingsDialog.h"
 
 #include <sstream>
 
@@ -16,6 +17,7 @@ enum
     ID_RefreshDrives = wxID_HIGHEST + 1,
     ID_CancelAnalysis,
     ID_Profiles,
+    ID_SafetySettings,
     ID_BuildPlacementIntent,
     ID_BuildMovePlan,
     ID_ExecuteMovePlan,
@@ -53,6 +55,7 @@ wxBEGIN_EVENT_TABLE(MainFrame, wxFrame)
     EVT_MENU_RANGE(ID_FirstDrive, ID_LastDrive, MainFrame::OnAnalyseDrive)
     EVT_MENU(ID_CancelAnalysis, MainFrame::OnCancelAnalysis)
     EVT_MENU(ID_Profiles, MainFrame::OnProfiles)
+    EVT_MENU(ID_SafetySettings, MainFrame::OnSafetySettings)
     EVT_MENU(ID_BuildPlacementIntent, MainFrame::OnBuildPlacementIntent)
     EVT_MENU(ID_BuildMovePlan, MainFrame::OnBuildMovePlan)
     EVT_MENU(ID_ExecuteMovePlan, MainFrame::OnExecuteMovePlan)
@@ -117,6 +120,7 @@ void MainFrame::CreateMenuBar()
 
     optimizationMenu = new wxMenu;
     optimizationMenu->Append(ID_Profiles, "&Profiles...", "Choose and edit optimization profile settings");
+    optimizationMenu->Append(ID_SafetySettings, "&Safety Settings...", "Edit global safety guardrails and exclusions");
     optimizationMenu->Append(ID_BuildPlacementIntent,
                              "&Build Placement Intent",
                              "Build dry-run placement intent for the selected analysed drive");
@@ -192,6 +196,10 @@ void MainFrame::CreateDocumentArea()
         wxCommandEvent event;
         OnProfiles(event);
     });
+    workflowPanel->SetSafetySettingsCallback([this]() {
+        wxCommandEvent event;
+        OnSafetySettings(event);
+    });
     workflowPanel->SetBuildPlacementCallback([this]() {
         BuildPlacementIntentForSelected();
     });
@@ -218,10 +226,12 @@ void MainFrame::CreateDocumentArea()
     workflowPanel->SetProfileChangedCallback([this](const OptimizationProfile& profile) {
         controller.SetActiveProfile(profile);
         workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
+        ResetSelectedAnalysisWorkflow();
         SetStatusText(wxString::Format("Active profile: %s", wxString(profile.name)));
         UpdateAnalysisMenuState(controller.IsJobRunning());
     });
     workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
+    workflowPanel->SetSafetySettings(controller.GetSafetySettings());
 }
 
 // Rebuilds the Analysis menu from current drive capabilities.
@@ -297,6 +307,7 @@ void MainFrame::UpdateAnalysisMenuState(bool running)
 
     const std::optional<std::wstring> selectedDrive = GetSelectedDriveRoot();
     EnableMenuItemIfPresent(menuBar, ID_Profiles, !running);
+    EnableMenuItemIfPresent(menuBar, ID_SafetySettings, !running);
     EnableMenuItemIfPresent(menuBar, ID_BuildPlacementIntent, !running && selectedDrive.has_value());
     EnableMenuItemIfPresent(menuBar, ID_BuildMovePlan, !running && selectedDrive.has_value());
     EnableMenuItemIfPresent(menuBar,
@@ -319,6 +330,7 @@ void MainFrame::SelectDrive(const DriveInfo& drive)
     }
     if (workflowPanel != nullptr) {
         workflowPanel->SetDrive(drive);
+        workflowPanel->SetRecentAnalysisSummary(controller.GetRecentAnalysisSummary(drive.rootPath));
     }
 
     const auto existingPage = analysisPages.find(drive.rootPath);
@@ -356,6 +368,7 @@ void MainFrame::StartAnalysisForDrive(const DriveInfo& drive)
     }
     if (workflowPanel != nullptr) {
         workflowPanel->SetDrive(drive);
+        workflowPanel->SetRecentAnalysisSummary(controller.GetRecentAnalysisSummary(drive.rootPath));
     }
     UpdateAnalysisMenuState(true);
     SetStatusText(wxString::Format("Starting read-only analysis for %s", wxString(drive.rootPath)));
@@ -532,6 +545,28 @@ bool MainFrame::RunFastLane(const OptimizationProfile& profile)
     return ExecuteSelectedMovePlan();
 }
 
+void MainFrame::ResetSelectedAnalysisWorkflow()
+{
+    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
+    if (!driveRoot.has_value()) {
+        return;
+    }
+
+    for (const AnalysisResult& snapshot : controller.GetAnalysisSnapshots()) {
+        if (snapshot.drive.rootPath == *driveRoot) {
+            const auto page = analysisPages.find(*driveRoot);
+            if (page != analysisPages.end()) {
+                page->second->UpdateResult(snapshot);
+            }
+            if (workflowPanel != nullptr) {
+                workflowPanel->SetAnalysis(snapshot);
+                workflowPanel->SetRecentAnalysisSummary(std::nullopt);
+            }
+            break;
+        }
+    }
+}
+
 void MainFrame::OnRefreshDrives(wxCommandEvent& event)
 {
     RefreshDriveMenu();
@@ -565,7 +600,22 @@ void MainFrame::OnProfiles(wxCommandEvent&)
         if (workflowPanel != nullptr) {
             workflowPanel->SetProfiles(controller.GetProfiles(), controller.GetActiveProfile());
         }
+        ResetSelectedAnalysisWorkflow();
         SetStatusText(wxString::Format("Active profile: %s", wxString(dialog.GetSelectedProfile().name)));
+        UpdateAnalysisMenuState(false);
+    }
+}
+
+void MainFrame::OnSafetySettings(wxCommandEvent&)
+{
+    SafetySettingsDialog dialog(this, controller.GetSafetySettings());
+    if (dialog.ShowModal() == wxID_OK) {
+        controller.SetSafetySettings(dialog.GetSafetySettings());
+        if (workflowPanel != nullptr) {
+            workflowPanel->SetSafetySettings(controller.GetSafetySettings());
+        }
+        ResetSelectedAnalysisWorkflow();
+        SetStatusText("Safety settings saved. Rebuild placement and move plans to apply them.");
         UpdateAnalysisMenuState(false);
     }
 }
@@ -649,6 +699,7 @@ void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
     }
     if (workflowPanel != nullptr) {
         workflowPanel->SetAnalysis(result);
+        workflowPanel->SetRecentAnalysisSummary(std::nullopt);
     }
     activeDriveRoot = result.drive.rootPath;
     UpdateAnalysisMenuState(false);

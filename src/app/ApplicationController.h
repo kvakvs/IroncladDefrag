@@ -8,6 +8,7 @@
 #include <vector>
 
 #include "../model/DomainTypes.h"
+#include "../persistence/AppSettingsStore.h"
 #include "BackgroundJob.h"
 
 namespace icd {
@@ -44,6 +45,9 @@ public:
     OptimizationProfile GetActiveProfile() const;
     std::optional<OptimizationProfile> GetProfile(OptimizationMode mode) const;
     void SetActiveProfile(const OptimizationProfile& profile);
+    SafetySettings GetSafetySettings() const;
+    void SetSafetySettings(const SafetySettings& settings);
+    std::optional<RecentAnalysisSummary> GetRecentAnalysisSummary(const std::wstring& driveRoot) const;
     std::optional<PlacementPlan> BuildPlacementPlan(const std::wstring& driveRoot);
     std::optional<PlacementPlan> GetPlacementPlan(const std::wstring& driveRoot) const;
     std::optional<MovePlan> BuildMovePlan(const std::wstring& driveRoot);
@@ -56,6 +60,11 @@ public:
     std::optional<MoveExecutionResult> GetMoveExecutionResult(const std::wstring& driveRoot) const;
 
 private:
+    void LoadPersistedSettings();
+    void SavePersistedSettings() const;
+    OptimizationProfile BuildEffectiveProfile(const OptimizationProfile& profile) const;
+    AnalysisResult ReclassifyForPlanning(AnalysisResult analysis, const OptimizationProfile& profile) const;
+    void StoreRecentSummary(const AnalysisResult& result);
     void NotifyProgress(const JobProgress& progress);
     void NotifyCompletion(const AnalysisResult& result);
     void NotifyExecutionCompletion(const MoveExecutionResult& result);
@@ -75,6 +84,9 @@ private:
     mutable std::mutex profileMutex;
     std::vector<OptimizationProfile> profiles;
     OptimizationProfile activeProfile;
+    SafetySettings safetySettings;
+    std::unordered_map<std::wstring, RecentAnalysisSummary> recentAnalysisSummaries;
+    AppSettingsStore settingsStore;
 };
 
 } // namespace icd

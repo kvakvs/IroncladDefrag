@@ -152,6 +152,24 @@ struct DirectoryOverrideRule {
     bool recursive = true;
 };
 
+// Defines one optional byte-size range that should be excluded from movement.
+struct SizeExclusionRange {
+    bool hasMinimum = false;
+    bool hasMaximum = false;
+    byte_count64_t minimumBytes = byte_count64_t();
+    byte_count64_t maximumBytes = byte_count64_t();
+};
+
+// Stores global safety guardrails that apply across all optimization profiles.
+struct SafetySettings {
+    bool defaultDryRunOnly = true;
+    bool excludeProtectedSystemPaths = true;
+    std::vector<std::filesystem::path> excludedDirectories;
+    std::vector<std::wstring> excludedExtensions;
+    std::vector<SizeExclusionRange> excludedSizeRanges;
+    byte_count64_t globalMaximumBytesToMove = byte_count64_t();
+};
+
 // Stores configurable knobs shared by future optimization profiles.
 struct OptimizationSettings {
     bool enableFastZone = true;
@@ -209,6 +227,22 @@ struct AnalysisResult {
     } stats;
     bool synthetic = false;
     std::wstring summary;
+};
+
+// Stores a non-executable persisted summary for showing stale analysis context only.
+struct RecentAnalysisSummary {
+    std::wstring driveRoot;
+    std::wstring displayName;
+    std::wstring fileSystem;
+    std::wstring analyzedAt;
+    byte_count64_t totalBytes = byte_count64_t();
+    byte_count64_t freeBytes = byte_count64_t();
+    count64_t scannedFiles = count64_t();
+    count64_t skippedFiles = count64_t();
+    count64_t inaccessibleFiles = count64_t();
+    count64_t fragmentedFiles = count64_t();
+    count64_t freeSpaceBlocks = count64_t();
+    bool freeSpaceMapAvailable = false;
 };
 
 // Stores target placement intent before concrete move planning exists.

@@ -29,6 +29,8 @@ public:
     void SetExecutionResult(const MoveExecutionResult& result);
     void SetProgress(const JobProgress& progress);
     void SetProfiles(const std::vector<OptimizationProfile>& nextProfiles, const OptimizationProfile& activeProfile);
+    void SetSafetySettings(const SafetySettings& settings);
+    void SetRecentAnalysisSummary(const std::optional<RecentAnalysisSummary>& summary);
     void SetBusy(bool running);
     void SetExecuteAllowed(bool allowed);
 
@@ -36,6 +38,7 @@ public:
     void SetAnalyzeCallback(SimpleCallback callback) { analyzeCallback = std::move(callback); }
     void SetCancelCallback(SimpleCallback callback) { cancelCallback = std::move(callback); }
     void SetSettingsCallback(SimpleCallback callback) { settingsCallback = std::move(callback); }
+    void SetSafetySettingsCallback(SimpleCallback callback) { safetySettingsCallback = std::move(callback); }
     void SetBuildPlacementCallback(SimpleCallback callback) { buildPlacementCallback = std::move(callback); }
     void SetBuildPlanCallback(SimpleCallback callback) { buildPlanCallback = std::move(callback); }
     void SetQuickDefragCallback(SimpleCallback callback) { quickDefragCallback = std::move(callback); }
@@ -48,6 +51,9 @@ private:
     void UpdateControls();
     void UpdateProfileChoice(const OptimizationProfile& activeProfile);
     void AppendIssueText(const MovePlan& plan);
+    void UpdateWarningText();
+    std::wstring BuildSafetyWarningText() const;
+    std::wstring BuildRecentSummaryText() const;
     void OnProfileChanged(wxCommandEvent& event);
 
     wxStaticText* stageText = nullptr;
@@ -65,6 +71,7 @@ private:
     wxButton* analyzeButton = nullptr;
     wxButton* cancelButton = nullptr;
     wxButton* settingsButton = nullptr;
+    wxButton* safetySettingsButton = nullptr;
     wxButton* buildPlacementButton = nullptr;
     wxButton* buildPlanButton = nullptr;
     wxButton* quickDefragButton = nullptr;
@@ -73,7 +80,11 @@ private:
     wxButton* executeButton = nullptr;
 
     std::optional<DriveInfo> selectedDrive;
+    std::optional<RecentAnalysisSummary> recentAnalysisSummary;
     std::vector<OptimizationProfile> profiles;
+    OptimizationProfile activeProfile;
+    SafetySettings safetySettings;
+    std::wstring planWarningText;
     bool hasAnalysis = false;
     bool hasPlacement = false;
     bool hasPlan = false;
@@ -86,6 +97,7 @@ private:
     SimpleCallback analyzeCallback;
     SimpleCallback cancelCallback;
     SimpleCallback settingsCallback;
+    SimpleCallback safetySettingsCallback;
     SimpleCallback buildPlacementCallback;
     SimpleCallback buildPlanCallback;
     SimpleCallback quickDefragCallback;

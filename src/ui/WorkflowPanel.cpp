@@ -91,6 +91,7 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
     refreshButton = AddButton(this, stepRow, "Refresh");
     analyzeButton = AddButton(this, stepRow, "Analyze");
     settingsButton = AddButton(this, stepRow, "Settings");
+    safetySettingsButton = AddButton(this, stepRow, "Safety");
     buildPlacementButton = AddButton(this, stepRow, "Build Intent");
     buildPlanButton = AddButton(this, stepRow, "Build Plan");
     reviewPlanButton = AddButton(this, stepRow, "Review Plan");
@@ -149,6 +150,11 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
             settingsCallback();
         }
     });
+    safetySettingsButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+        if (safetySettingsCallback) {
+            safetySettingsCallback();
+        }
+    });
     buildPlacementButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         if (buildPlacementCallback) {
             buildPlacementCallback();
@@ -197,6 +203,7 @@ void WorkflowPanel::SetDrive(const std::optional<DriveInfo>& drive)
         placementText->SetLabel("Placement intent: not built");
         planText->SetLabel("Move plan: not built");
         warningsText->SetValue("");
+        planWarningText.clear();
         executionText->SetValue("");
         progressGauge->SetValue(0);
         progressText->SetLabel("Progress: idle");
@@ -211,6 +218,7 @@ void WorkflowPanel::SetDrive(const std::optional<DriveInfo>& drive)
     } else {
         driveText->SetLabel("Drive: none");
     }
+    UpdateWarningText();
     UpdateControls();
 }
 
@@ -225,10 +233,12 @@ void WorkflowPanel::SetAnalysis(const AnalysisResult& result)
     placementText->SetLabel("Placement intent: not built");
     planText->SetLabel("Move plan: not built");
     warningsText->SetValue("");
+    planWarningText.clear();
     executionText->SetValue("");
     progressGauge->SetValue(100);
     progressText->SetLabel("Progress: analysis complete");
     driveText->SetLabel(wxString::Format("Drive: %s | %s", wxString(result.drive.displayName), wxString(ui::CapabilityBadge(result.drive))));
+    UpdateWarningText();
     UpdateControls();
 }
 
@@ -243,6 +253,7 @@ void WorkflowPanel::SetPlacementPlan(const PlacementPlan& plan)
                                              wxString(ui::FormatBytes(plan.bytesConsidered))));
     planText->SetLabel("Move plan: not built");
     executionText->SetValue("");
+    UpdateWarningText();
     UpdateControls();
 }
 
@@ -295,8 +306,23 @@ void WorkflowPanel::SetProgress(const JobProgress& progress)
 void WorkflowPanel::SetProfiles(const std::vector<OptimizationProfile>& nextProfiles, const OptimizationProfile& activeProfile)
 {
     profiles = nextProfiles;
+    this->activeProfile = activeProfile;
     UpdateProfileChoice(activeProfile);
+    UpdateWarningText();
     UpdateControls();
+}
+
+void WorkflowPanel::SetSafetySettings(const SafetySettings& settings)
+{
+    safetySettings = settings;
+    UpdateWarningText();
+    UpdateControls();
+}
+
+void WorkflowPanel::SetRecentAnalysisSummary(const std::optional<RecentAnalysisSummary>& summary)
+{
+    recentAnalysisSummary = summary;
+    UpdateWarningText();
 }
 
 void WorkflowPanel::SetBusy(bool running)
@@ -324,6 +350,7 @@ void WorkflowPanel::UpdateControls()
     SetActionVisible(profileLabel, showProfile);
     SetActionVisible(profileChoice, showProfile);
     SetActionVisible(settingsButton, showPlanning);
+    SetActionVisible(safetySettingsButton, !busy && hasDrive);
     SetActionVisible(buildPlacementButton, showPlanning);
     SetActionVisible(buildPlanButton, showPlanning);
     SetActionVisible(quickDefragButton, showPlanning);
@@ -391,7 +418,85 @@ void WorkflowPanel::AppendIssueText(const MovePlan& plan)
     if (plan.skippedCandidates.size() > skippedToShow) {
         text << L"- ... " << (plan.skippedCandidates.size() - skippedToShow) << L" more skipped candidates\n";
     }
+    planWarningText = text.str();
+    UpdateWarningText();
+}
+
+void WorkflowPanel::UpdateWarningText()
+{
+    std::wstringstream text;
+    bool wrote = false;
+    const std::wstring safety = BuildSafetyWarningText();
+    if (!safety.empty()) {
+        text << safety;
+        wrote = true;
+    }
+    const std::wstring recent = BuildRecentSummaryText();
+    if (!recent.empty()) {
+        if (wrote) {
+            text << L"\n";
+        }
+        text << recent;
+        wrote = true;
+    }
+    if (!planWarningText.empty()) {
+        if (wrote) {
+            text << L"\n";
+        }
+        text << planWarningText;
+    }
     warningsText->SetValue(text.str());
+}
+
+std::wstring WorkflowPanel::BuildSafetyWarningText() const
+{
+    if (!selectedDrive.has_value()) {
+        return {};
+    }
+
+    std::wstringstream text;
+    const DriveInfo& drive = *selectedDrive;
+    text << L"Safety:\n";
+    if (!drive.capabilities.disabledReason.empty()) {
+        text << L"- Drive blocked: " << drive.capabilities.disabledReason << L"\n";
+    } else if (!drive.capabilities.statusReason.empty()) {
+        text << L"- Drive warning: " << drive.capabilities.statusReason << L"\n";
+    }
+    if (drive.kind == DriveKind::SolidState || drive.kind == DriveKind::Removable || drive.kind == DriveKind::Network) {
+        text << L"- Drive type requires caution: " << ui::DriveKindName(drive.kind) << L"\n";
+    }
+    if (activeProfile.settings.dryRunOnly || safetySettings.defaultDryRunOnly) {
+        text << L"- Dry-run protection is enabled; execution remains blocked until disabled and the plan is rebuilt.\n";
+    }
+    if (activeProfile.settings.maximumBytesToMove.getValue() > 0) {
+        text << L"- Profile moved-data cap: " << ui::FormatBytes(activeProfile.settings.maximumBytesToMove) << L".\n";
+    }
+    if (safetySettings.globalMaximumBytesToMove.getValue() > 0) {
+        text << L"- Global moved-data cap: " << ui::FormatBytes(safetySettings.globalMaximumBytesToMove) << L".\n";
+    }
+    if (hasAnalysis) {
+        text << L"- Exclusions in current analysis: directories/extensions/size rules and protected files are omitted from plans.\n";
+    }
+    text << L"- Keep reliable power available and avoid interrupting movement once execution starts.\n";
+    return text.str();
+}
+
+std::wstring WorkflowPanel::BuildRecentSummaryText() const
+{
+    if (hasAnalysis || !recentAnalysisSummary.has_value()) {
+        return {};
+    }
+
+    const RecentAnalysisSummary& summary = *recentAnalysisSummary;
+    std::wstringstream text;
+    text << L"Recent analysis summary (informational only; re-analyse before planning or execution):\n";
+    text << L"- " << summary.displayName << L" analysed " << summary.analyzedAt << L".\n";
+    text << L"- " << summary.scannedFiles.getValue() << L" files scanned, "
+         << summary.fragmentedFiles.getValue() << L" fragmented, " << summary.freeSpaceBlocks.getValue()
+         << L" free-space blocks.\n";
+    text << L"- " << ui::FormatBytes(summary.freeBytes) << L" free of " << ui::FormatBytes(summary.totalBytes)
+         << L" on " << summary.fileSystem << L".\n";
+    return text.str();
 }
 
 void WorkflowPanel::OnProfileChanged(wxCommandEvent&)

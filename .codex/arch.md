@@ -2,7 +2,7 @@
 
 ## Application Shape
 
-IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based workflow with read-only drive discovery and analysis, dry-run move planning, visible Phase 7 drive-to-plan-to-execute controls, and a bounded Phase 6 move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, execution services, Windows platform-boundary code, and domain model types. TRIM actions are not implemented yet.
+IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based workflow with read-only drive discovery and analysis, dry-run move planning, visible Phase 7 drive-to-plan-to-execute controls, persisted Phase 8 profile/safety settings, recent non-executable analysis summaries, and a bounded Phase 6 move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, persistence services, execution services, Windows platform-boundary code, and domain model types. TRIM actions are not implemented yet.
 
 The app is built as a Windows subsystem executable with CMake and MSVC-oriented wxWidgets libraries vendored under `3rdparty/wxWidgets`.
 
@@ -15,7 +15,7 @@ Startup currently follows this path:
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
 4. `icd::MainFrame` creates the top menu, status bar, all-disks panel, tabbed analysis document area, and bottom workflow panel. The Analysis menu and visible controls refresh visible drives, start read-only analysis for enabled drives, and can request cancellation.
 
-There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service, dry-run optimization profile/placement-intent layer, dry-run move planning, conservative move-plan execution path, visible staged workflow controls, and planned-move map overlays. There is still no TRIM action or advanced resumable pause support.
+There is now a controller, background worker, drive enumerator, read-only drive analysis service, deterministic data-drive classification service with safety exclusions, persisted optimization/safety settings, dry-run optimization profile/placement-intent layer, dry-run move planning, conservative move-plan execution path, visible staged workflow controls, and planned-move map overlays. There is still no TRIM action or advanced resumable pause support.
 
 ## Layers
 
@@ -37,7 +37,9 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/DriveMapPanel.*` renders the cluster visualization for an analysed drive. It consumes in-memory `AnalysisResult`, optional `PlacementPlan`, and optional `MovePlan` data, can switch between actual layout, intended-placement coloring, and planned-move overlays, supports file-class filters, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
 
-`src/ui/ProfileSettingsDialog.*` provides the modal Phase 4 profile editor for core optimization settings. It edits profiles in memory only and does not persist files.
+`src/ui/ProfileSettingsDialog.*` provides the modal profile editor for core optimization settings. Profile changes are persisted through the controller.
+
+`src/ui/SafetySettingsDialog.*` provides the modal Phase 8 editor for global safety guardrails, directory/extension/size exclusions, default dry-run behavior, and global moved-data caps.
 
 `src/ui/MovePlanDialog.*` displays inspectable dry-run move plans, including operations, skipped candidates, issues, cancellation boundaries, and rollback notes. Execution is exposed separately through the main Optimization menu and workflow panel.
 
@@ -47,7 +49,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 ## Application Controller Layer
 
-`src/app/ApplicationController.*` owns orchestration for drive enumeration, selected-drive read-only analysis, stored in-memory analysis snapshots, move-plan execution, and progress/completion/error callbacks for the UI.
+`src/app/ApplicationController.*` owns orchestration for drive enumeration, selected-drive read-only analysis, stored in-memory analysis snapshots, persisted profile/safety settings, recent analysis summaries, move-plan execution, and progress/completion/error callbacks for the UI.
 
 `src/app/BackgroundJob.*` provides a small `std::thread` worker wrapper with cooperative cancellation and destructor-time joining. It is infrastructure for later real analysis and movement jobs.
 
@@ -59,7 +61,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 ## Classification Layer
 
-`src/classification/FileClassifier.*` classifies analysed files by size, broad type, recency, directory hints, fragmentation benefit, move-safety status, and expected placement zone. Classification is deterministic, in-memory, and independent from wxWidgets and Win32 APIs.
+`src/classification/FileClassifier.*` classifies analysed files by size, broad type, recency, directory hints, fragmentation benefit, global safety exclusions, move-safety status, and expected placement zone. Classification is deterministic, in-memory, and independent from wxWidgets and Win32 APIs.
 
 ## Optimization Layer
 
@@ -70,6 +72,12 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 `src/optimization/PlacementPlanner.*` produces dry-run placement intent from completed analysis/classification snapshots and the active profile. It does not create move plans or execute disk operations.
 
 `src/optimization/MovePlanner.*` converts placement intent into conservative dry-run move plans using only in-memory analysis, free-space, and profile data. It simulates destination reservations and does not write to disk.
+
+## Persistence Layer
+
+`src/persistence/AppSettingsSerializer.*` serializes persisted application settings as deterministic versioned text: active profile mode, profile collection, global safety settings, and recent analysis summaries.
+
+`src/persistence/AppSettingsStore.*` loads and atomically saves settings under `%LOCALAPPDATA%\IroncladDefrag\settings.txt`. It never persists executable analysis snapshots.
 
 ## Execution Layer
 
@@ -90,7 +98,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 `src/model` contains domain data structures and unit types:
 
 - `Units.h` provides type-safe quantity wrappers for counts, indexes, byte counts, sector counts, and throughput.
-- `DomainTypes.h` defines domain value types for drives, volumes, disk zones, file classes, classification results/summaries, optimization profiles/settings, analysis results, placement plans, move plans, execution results, job progress, drive capabilities, and analysis statistics.
+- `DomainTypes.h` defines domain value types for drives, volumes, disk zones, file classes, classification results/summaries, optimization profiles/settings, safety settings, recent analysis summaries, analysis results, placement plans, move plans, execution results, job progress, drive capabilities, and analysis statistics.
 - `FileMetadata.*` models file path, size, timestamps, type, parent directory, and cluster fragment locations.
 - `FragmentMap.*` models file fragmentation using sector ranges and aggregate fragment state.
 - `FreeSpaceMap.*` models free-space blocks and free-space fragmentation metrics.
