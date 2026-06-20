@@ -235,7 +235,7 @@ void MainFrame::CreateDocumentArea()
                       0,
                       wxALL,
                       12);
-    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Analysed drives open as workflow tabs with map, plan, and execution views."),
+    welcomeSizer->Add(new wxStaticText(welcome, wxID_ANY, "Analysed drives open as map tabs with workflow details below."),
                       0,
                       wxLEFT | wxRIGHT | wxBOTTOM,
                       12);
@@ -785,13 +785,6 @@ void MainFrame::OnAnalysisComplete(const AnalysisResult& result)
 void MainFrame::OnMoveExecutionComplete(const MoveExecutionResult& result)
 {
     SetStatusTextImmediate(wxString(result.summary));
-    const std::optional<std::wstring> driveRoot = GetSelectedDriveRoot();
-    if (driveRoot.has_value()) {
-        const auto page = analysisPages.find(*driveRoot);
-        if (page != analysisPages.end()) {
-            page->second->UpdateExecutionResult(result);
-        }
-    }
     if (workflowPanel != nullptr) {
         workflowPanel->SetExecutionResult(result);
     }

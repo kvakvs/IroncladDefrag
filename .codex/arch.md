@@ -31,9 +31,9 @@ There is now a controller, background worker, drive enumerator, read-only drive 
 
 `src/ui/DriveListPanel.*` displays discovered drives with capacity, file-system, capability, move, and TRIM badges. It forwards refresh, selection, and analyse requests to `MainFrame`.
 
-`src/ui/WorkflowPanel.*` displays the selected-drive stage, profile selector, analysis summary, plan preview, warnings/skipped candidates, execution summary, progress gauge, step-by-step commands, and fast-lane quick/full optimize commands.
+`src/ui/WorkflowPanel.*` displays the selected-drive stage, profile selector, analysis summary, plan preview, warnings/skipped candidates, execution summary, step-by-step commands, and fast-lane quick/full optimize commands.
 
-`src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a split document page: a drive map in the top pane and tabbed summary, plan, warning/skipped-file, and execution labels in the bottom pane.
+`src/ui/DriveAnalysisPage.*` displays a completed `AnalysisResult` as a map-focused document page with render-mode, class-filter, planned-move outline controls, and map legend. Summary, plan, warning/skipped-file, and execution text live in the bottom workflow panel.
 
 `src/ui/DriveMapPanel.*` renders the cluster visualization for an analysed drive. It consumes in-memory `AnalysisResult`, optional `PlacementPlan`, and optional `MovePlan` data, can switch between actual layout, intended-placement coloring, and planned-move overlays, supports file-class filters, derives a clusters-per-box scale from the current viewport, and repaints on resize without starting disk I/O, planning, or movement.
 

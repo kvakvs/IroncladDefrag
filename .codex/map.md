@@ -109,7 +109,7 @@ Defines the top all-disks panel with drive status, capacity/free space, file-sys
 - `src/ui/DriveAnalysisPage.h`
 - `src/ui/DriveAnalysisPage.cpp`
 
-Defines an analysis-result document page shown in the main notebook, with a vertical splitter containing the drive map above tabbed summary, plan, warning/skipped-file, and execution views.
+Defines an analysis-result document page shown in the main notebook, with the drive map, render-mode controls, class filter, planned-move outline toggle, and map legend. Text summary, plan, warning/skipped-file, and execution views are owned by the bottom workflow panel.
 
 - `src/ui/DriveMapPanel.h`
 - `src/ui/DriveMapPanel.cpp`
