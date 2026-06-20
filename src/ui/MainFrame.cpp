@@ -125,6 +125,8 @@ void MainFrame::RefreshDriveMenu()
         wxString label(drive.displayName);
         if (!drive.capabilities.disabledReason.empty()) {
             label += wxString::Format(" - %s", wxString(drive.capabilities.disabledReason));
+        } else if (!drive.capabilities.statusReason.empty()) {
+            label += wxString::Format(" - %s", wxString(drive.capabilities.statusReason));
         }
 
         wxMenuItem* item = analysisMenu->Append(driveId, label, "Run read-only analysis for this drive");

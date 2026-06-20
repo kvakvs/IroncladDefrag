@@ -203,6 +203,9 @@ void DriveAnalysisPage::UpdateResult(const AnalysisResult& result) {
     if (!result.drive.capabilities.disabledReason.empty()) {
         warningsText << L"; " << result.drive.capabilities.disabledReason;
     }
+    if (!result.drive.capabilities.statusReason.empty()) {
+        warningsText << L"; " << result.drive.capabilities.statusReason;
+    }
     if (result.stats.cancelled) {
         warningsText << L"; analysis was cancelled.";
     }

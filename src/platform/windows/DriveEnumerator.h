@@ -14,6 +14,7 @@ public:
 };
 
 std::wstring ToVolumePath(const std::wstring& rootPath);
+UniqueHandle OpenVolumeForMetadata(const std::wstring& rootPath);
 UniqueHandle OpenVolumeReadOnly(const std::wstring& rootPath);
 
 } // namespace icd::win

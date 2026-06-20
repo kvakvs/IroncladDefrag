@@ -29,10 +29,12 @@ struct VolumeInfo {
 // Describes which read-only drive-analysis operations are available for a drive.
 struct DriveCapabilityStatus {
     bool mediaKnown = false;
+    bool canOpenVolumeMetadata = false;
     bool canOpenVolume = false;
     bool canQueryBitmap = false;
     bool canQueryExtents = false;
     bool canAnalyze = false;
+    std::wstring statusReason;
     std::wstring disabledReason;
 };
 

@@ -10,8 +10,8 @@ namespace icd {
 
 // Stores the currently fixed visual geometry for the read-only drive map.
 struct DriveMapRenderSettings {
-    int cellWidth = 2;
-    int cellHeight = 2;
+    int cellWidth = 4;
+    int cellHeight = 3;
     int cellGap = 1;
 };
 

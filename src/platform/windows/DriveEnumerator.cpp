@@ -116,6 +116,23 @@ bool CanQueryVolumeBitmap(HANDLE handle)
     return GetLastError() == ERROR_MORE_DATA;
 }
 
+// Opens a volume handle with the requested access while preserving broad sharing for read-only probes.
+UniqueHandle OpenVolume(const std::wstring& rootPath, DWORD desiredAccess)
+{
+    const std::wstring volumePath = ToVolumePath(rootPath);
+    if (volumePath.empty()) {
+        return UniqueHandle();
+    }
+
+    return UniqueHandle(CreateFileW(volumePath.c_str(),
+                                    desiredAccess,
+                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
+                                    nullptr,
+                                    OPEN_EXISTING,
+                                    FILE_ATTRIBUTE_NORMAL,
+                                    nullptr));
+}
+
 std::wstring BuildDisplayName(const std::wstring& rootPath,
                               const std::wstring& label,
                               const std::wstring& fileSystem,
@@ -146,20 +163,14 @@ std::wstring ToVolumePath(const std::wstring& rootPath)
     return volumePath;
 }
 
+UniqueHandle OpenVolumeForMetadata(const std::wstring& rootPath)
+{
+    return OpenVolume(rootPath, 0);
+}
+
 UniqueHandle OpenVolumeReadOnly(const std::wstring& rootPath)
 {
-    const std::wstring volumePath = ToVolumePath(rootPath);
-    if (volumePath.empty()) {
-        return UniqueHandle();
-    }
-
-    return UniqueHandle(CreateFileW(volumePath.c_str(),
-                                    GENERIC_READ,
-                                    FILE_SHARE_READ | FILE_SHARE_WRITE | FILE_SHARE_DELETE,
-                                    nullptr,
-                                    OPEN_EXISTING,
-                                    FILE_ATTRIBUTE_NORMAL,
-                                    nullptr));
+    return OpenVolume(rootPath, GENERIC_READ);
 }
 
 // Builds the drive menu model with read-only capability checks for each visible drive.
@@ -223,37 +234,45 @@ std::vector<DriveInfo> DriveEnumerator::Enumerate() const
             drive.volume.freeBytes = byte_count64_t(freeBytes.QuadPart);
         }
 
-        UniqueHandle volume = OpenVolumeReadOnly(rootPath);
-        drive.capabilities.canOpenVolume = volume.IsValid();
-        drive.capabilities.canQueryExtents = drive.capabilities.canOpenVolume && IsNtfs(drive.volume.fileSystem);
+        UniqueHandle metadataVolume = OpenVolumeForMetadata(rootPath);
+        drive.capabilities.canOpenVolumeMetadata = metadataVolume.IsValid();
 
-        if (volume.IsValid()) {
+        UniqueHandle bitmapVolume = OpenVolumeReadOnly(rootPath);
+        drive.capabilities.canOpenVolume = bitmapVolume.IsValid();
+        drive.capabilities.canQueryExtents = drive.isFixed && IsNtfs(drive.volume.fileSystem);
+
+        HANDLE mediaProbe = metadataVolume.IsValid() ? metadataVolume.Get() : bitmapVolume.Get();
+        if (mediaProbe != INVALID_HANDLE_VALUE && mediaProbe != nullptr) {
             bool incursSeekPenalty = false;
-            if (QuerySeekPenalty(volume.Get(), incursSeekPenalty)) {
+            if (QuerySeekPenalty(mediaProbe, incursSeekPenalty)) {
                 drive.kind = incursSeekPenalty ? DriveKind::Mechanical : DriveKind::SolidState;
                 drive.capabilities.mediaKnown = true;
             }
 
             bool trimEnabled = false;
-            if (QueryTrim(volume.Get(), trimEnabled)) {
+            if (QueryTrim(mediaProbe, trimEnabled)) {
                 drive.supportsTrim = trimEnabled;
             }
+        }
 
-            drive.capabilities.canQueryBitmap = CanQueryVolumeBitmap(volume.Get());
+        if (bitmapVolume.IsValid()) {
+            drive.capabilities.canQueryBitmap = CanQueryVolumeBitmap(bitmapVolume.Get());
         }
 
         drive.supportsFileMove = drive.isFixed && drive.kind != DriveKind::SolidState && drive.capabilities.canOpenVolume;
-        drive.capabilities.canAnalyze = drive.isFixed && drive.capabilities.canOpenVolume &&
+        drive.capabilities.canAnalyze = drive.isFixed &&
                                         (drive.kind == DriveKind::Mechanical || drive.kind == DriveKind::Unknown);
 
         if (!drive.isFixed) {
             drive.capabilities.disabledReason = L"not a fixed local drive";
-        } else if (!drive.capabilities.canOpenVolume) {
-            drive.capabilities.disabledReason = L"volume cannot be opened read-only";
         } else if (drive.kind == DriveKind::SolidState) {
             drive.capabilities.disabledReason = L"SSD analysis is disabled; TRIM belongs to a later phase";
-        } else if (!IsNtfs(drive.volume.fileSystem)) {
-            drive.capabilities.disabledReason = L"partial metadata analysis only; extent support may be unavailable";
+        } else if (!drive.capabilities.canQueryBitmap && !drive.capabilities.canQueryExtents) {
+            drive.capabilities.statusReason = L"metadata analysis only; free-space bitmap and extents unavailable";
+        } else if (!drive.capabilities.canQueryBitmap) {
+            drive.capabilities.statusReason = L"free-space bitmap unavailable; metadata analysis only";
+        } else if (!drive.capabilities.canQueryExtents) {
+            drive.capabilities.statusReason = L"partial metadata analysis only; extent support may be unavailable";
         }
 
         drive.displayName = BuildDisplayName(drive.rootPath, drive.volume.label, drive.volume.fileSystem, drive.kind);

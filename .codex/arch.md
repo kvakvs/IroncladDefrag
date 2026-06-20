@@ -53,7 +53,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 ## Windows Platform Boundary
 
-`src/platform/windows/DriveEnumerator.*` enumerates visible drives, volume metadata, media/capability status, and disabled reasons using read-only Win32 calls.
+`src/platform/windows/DriveEnumerator.*` enumerates visible drives, volume metadata, media/capability status, and disabled reasons using read-only Win32 calls. Raw volume bitmap access is optional; eligible fixed drives can still run metadata-only analysis when bitmap access is unavailable.
 
 `src/platform/windows/VolumeQueries.*` contains read-only retrieval-pointer and volume-bitmap FSCTL calls.
 

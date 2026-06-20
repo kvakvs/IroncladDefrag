@@ -109,7 +109,7 @@ RAII wrapper for Win32 handles.
 - `src/platform/windows/DriveEnumerator.h`
 - `src/platform/windows/DriveEnumerator.cpp`
 
-Enumerates visible drives and read-only volume/media/capability status.
+Enumerates visible drives and read-only volume/media/capability status. It keeps raw volume bitmap access optional so fixed mechanical/unknown drives can still run metadata-only analysis.
 
 - `src/platform/windows/VolumeQueries.h`
 - `src/platform/windows/VolumeQueries.cpp`
