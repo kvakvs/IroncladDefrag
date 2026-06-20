@@ -16,6 +16,25 @@
 - `src/precompiled.h` - precompiled header with Windows, wxWidgets, and common standard-library includes.
 - `src/precompiled.cpp` - precompiled-header translation unit.
 
+## Application Controller Layer
+
+- `src/app/ApplicationController.h`
+- `src/app/ApplicationController.cpp`
+
+Owns Phase 1 fake-analysis orchestration, progress/completion/error callbacks, and cancellation.
+
+- `src/app/BackgroundJob.h`
+- `src/app/BackgroundJob.cpp`
+
+Small `std::thread` worker wrapper with cooperative cancellation and destructor-time joining.
+
+## Analysis Layer
+
+- `src/analysis/FakeAnalysisService.h`
+- `src/analysis/FakeAnalysisService.cpp`
+
+Simulates long-running analysis and returns a synthetic `AnalysisResult`. It performs no real drive I/O.
+
 ## UI Layer
 
 - `src/ui/App.h`
@@ -33,6 +52,10 @@ Defines `icd::MainFrame`, the top-level `wxFrame`. Currently owns menu bar creat
 - `src/model/Units.h`
 
 Defines `icd::Quantity` and project-specific type aliases for counts, indexes, byte counts, sector counts, and MB/s throughput.
+
+- `src/model/DomainTypes.h`
+
+Defines Phase 1 value types for drive/volume metadata, disk zones, file classes, optimization settings/profiles, analysis results, placement/move plans, and job progress.
 
 - `src/model/FileMetadata.h`
 - `src/model/FileMetadata.cpp`
@@ -53,6 +76,13 @@ Defines `icd::FreeSpaceMap`, free-space sector blocks, total free space, fragmen
 - `src/model/DiskGeometry.cpp`
 
 Defines `icd::DiskGeometry`, basic disk geometry, zone layout, and performance zones.
+
+## Support Layer
+
+- `src/support/Logger.h`
+- `src/support/Logger.cpp`
+
+Minimal diagnostic logging to Windows debug output and standard wide error output.
 
 ## Vendored Dependencies
 

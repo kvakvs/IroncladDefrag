@@ -13,9 +13,9 @@ Startup currently follows this path:
 1. `src/main.cpp` defines `wWinMain`, disables wx debug support, and calls `wxEntry()`.
 2. `wxIMPLEMENT_APP(icd::App)` registers the application class.
 3. `icd::App::OnInit()` creates and shows `icd::MainFrame`.
-4. `icd::MainFrame` creates the top menu and status bar.
+4. `icd::MainFrame` creates the top menu and status bar. The Analysis menu can start or cancel a synthetic background analysis job used to validate the controller/job boundary without touching real disks.
 
-There is no current background worker, disk scanner, controller, application state object, or defragmentation executor.
+There is now a controller and background worker skeleton for fake analysis. There is still no real disk scanner, drive enumerator, defragmentation executor, or file movement implementation.
 
 ## Layers
 
@@ -31,17 +31,28 @@ There is no current background worker, disk scanner, controller, application sta
 
 The UI layer may use wxWidgets types directly. Long-running drive analysis, file layout scanning, and file movement must not run on the UI thread; those operations should be delegated to worker/service code and reported back through wx-safe event dispatch.
 
+## Application Controller Layer
+
+`src/app/ApplicationController.*` owns Phase 1 orchestration for the synthetic analysis workflow. It exposes start/cancel operations plus progress, completion, and error callbacks for the UI.
+
+`src/app/BackgroundJob.*` provides a small `std::thread` worker wrapper with cooperative cancellation and destructor-time joining. It is infrastructure for later real analysis and movement jobs.
+
+## Analysis Layer
+
+`src/analysis/FakeAnalysisService.*` simulates a long-running analysis job and returns a synthetic `AnalysisResult`. It deliberately performs no drive enumeration, cluster scanning, or disk writes.
+
 ## Model Layer
 
 `src/model` contains domain data structures and unit types:
 
 - `Units.h` provides type-safe quantity wrappers for counts, indexes, byte counts, sector counts, and throughput.
+- `DomainTypes.h` defines Phase 1 domain value types for drives, volumes, disk zones, file classes, optimization profiles/settings, analysis results, placement plans, move plans, and job progress.
 - `FileMetadata.*` models file path, size, timestamps, type, parent directory, and cluster fragment locations.
 - `FragmentMap.*` models file fragmentation using sector ranges and aggregate fragment state.
 - `FreeSpaceMap.*` models free-space blocks and free-space fragmentation metrics.
 - `DiskGeometry.*` models disk geometry, zones, performance zones, and performance characteristics.
 
-The current model classes are mostly private storage with no public behavior. They are suitable foundations for later analyzer and strategy services, but callers cannot yet construct, query, or transform most of the model state.
+The model classes now expose constructors and read-only accessors so services can construct and query analysis data without wxWidgets dependencies.
 
 Model code should remain independent from wxWidgets UI concerns. Prefer standard C++ types and narrow Windows-specific abstractions at system-boundary modules.
 
@@ -55,18 +66,21 @@ wxWidgets 3.3.1 headers, libraries, DLLs, and archives are vendored in `3rdparty
 
 `src/precompiled.h` centralizes Windows, wxWidgets, and common standard-library includes. `src/precompiled.cpp` exists solely to build the precompiled header. Keep high-churn project headers out of the precompiled header.
 
+## Support Layer
+
+`src/support/Logger.*` provides minimal diagnostic logging through `OutputDebugStringW` and standard wide error output.
+
 ## Current Gaps
 
 The following architecture pieces are implied by the product goals but are not present yet:
 
-- Drive enumeration and disk capability detection.
+- Real drive enumeration and disk capability detection.
 - File-system scanner and cluster-map reader.
 - Free-space scanner.
 - Fragmentation analysis service.
 - Move strategy interfaces and implementations.
 - Move planner that minimizes moved data.
 - Defragmentation/move executor with cancellation, progress reporting, and error handling.
-- Threading/job model for keeping the GUI responsive.
 - Tests or validation harnesses.
 
 ## Expected Direction

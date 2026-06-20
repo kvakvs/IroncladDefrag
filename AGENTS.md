@@ -42,3 +42,7 @@ The supported functions are:
 - Follow `.clang-format` for C++ formatting and avoid unrelated reformatting.
 - Keep precompiled-header additions stable and low churn. Do not add frequently edited project headers to `src/precompiled.h`.
 - When adding new source files, update `CMakeLists.txt` explicitly so the `IroncladDefrag` target remains complete.
+
+## When Editing or Creating Code
+
+- Add oneline intent comments to non-trivial functions explaining why the function exists.

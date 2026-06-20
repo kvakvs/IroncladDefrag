@@ -21,6 +21,13 @@ add_executable(IroncladDefrag WIN32
         src/precompiled.h
         src/precompiled.cpp
         src/main.cpp
+        src/analysis/FakeAnalysisService.cpp
+        src/analysis/FakeAnalysisService.h
+        src/app/ApplicationController.cpp
+        src/app/ApplicationController.h
+        src/app/BackgroundJob.cpp
+        src/app/BackgroundJob.h
+        src/model/DomainTypes.h
         src/model/FileMetadata.cpp
         src/model/FileMetadata.h
         src/model/FragmentMap.cpp
@@ -30,6 +37,8 @@ add_executable(IroncladDefrag WIN32
         src/model/DiskGeometry.cpp
         src/model/DiskGeometry.h
         src/model/Units.h
+        src/support/Logger.cpp
+        src/support/Logger.h
         src/ui/App.cpp
         src/ui/App.h
         src/ui/MainFrame.cpp
