@@ -190,19 +190,52 @@ void DriveMapPanel::OnPaint(wxPaintEvent&) {
     const int pitchY = (std::max)(1, settings.cellHeight + settings.cellGap);
 
     for (int row = 0; row < rows; ++row) {
+        int runStartColumn = -1;
+        int runEndColumn = -1;
+        DriveMapRangeState runState = DriveMapRangeState::Unknown;
+
+        const auto flushRun = [&]() {
+            if (runStartColumn < 0) {
+                return;
+            }
+
+            const int runWidth = ((runEndColumn - runStartColumn) * pitchX) + settings.cellWidth;
+            dc.SetBrush(wxBrush(ColourForState(runState)));
+            dc.DrawRectangle(runStartColumn * pitchX, row * pitchY, runWidth, settings.cellHeight);
+            runStartColumn = -1;
+        };
+
         for (int column = 0; column < columns; ++column) {
             const auto boxIndex = static_cast<std::uint64_t>(row) * static_cast<std::uint64_t>(columns) +
                 static_cast<std::uint64_t>(column);
             const auto startCluster = boxIndex * clustersPerBox;
             if (startCluster >= totalClusters) {
+                flushRun();
                 return;
             }
 
             const auto endCluster = (std::min)(totalClusters, SaturatingRangeEnd(startCluster, clustersPerBox));
             const DriveMapRangeState state = StateForBox(startCluster, endCluster, rangeCursor);
-            dc.SetBrush(wxBrush(ColourForState(state)));
-            dc.DrawRectangle(column * pitchX, row * pitchY, settings.cellWidth, settings.cellHeight);
+
+            if (runStartColumn < 0) {
+                runStartColumn = column;
+                runEndColumn = column;
+                runState = state;
+                continue;
+            }
+
+            if (state == runState) {
+                runEndColumn = column;
+                continue;
+            }
+
+            flushRun();
+            runStartColumn = column;
+            runEndColumn = column;
+            runState = state;
         }
+
+        flushRun();
     }
 }
 
