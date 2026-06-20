@@ -415,7 +415,7 @@ struct MoveExecutionMetrics {
     byte_count64_t movedBytes = byte_count64_t();
 };
 
-// Stores the outcome of a bounded real move-plan execution run.
+// Stores the outcome of a safety-gated real move-plan execution run.
 struct MoveExecutionResult {
     MoveExecutionPrivilegeStatus privileges;
     std::vector<MoveExecutionOperationResult> operationResults;

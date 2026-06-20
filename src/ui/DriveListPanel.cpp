@@ -20,7 +20,7 @@ DriveListPanel::DriveListPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
     header->Add(title, 0, wxALIGN_CENTER_VERTICAL | wxALL, 6);
     header->AddStretchSpacer(1);
 
-    refreshButton = new wxButton(this, wxID_ANY, "Refresh");
+    refreshButton = new wxButton(this, wxID_ANY, "Refresh Drive List");
     analyzeButton = new wxButton(this, wxID_ANY, "Analyze");
     header->Add(refreshButton, 0, wxALL, 4);
     header->Add(analyzeButton, 0, wxALL, 4);

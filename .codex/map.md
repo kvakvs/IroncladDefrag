@@ -87,7 +87,7 @@ Loads and atomically saves settings at `%LOCALAPPDATA%\IroncladDefrag\settings.t
 - `src/execution/MoveExecutor.h`
 - `src/execution/MoveExecutor.cpp`
 
-Runs the bounded Phase 6 execution pass for existing move plans. It rejects dry-run-only/impossible/empty plans, revalidates files before movement, calls the Windows move boundary, verifies extents afterward, reports progress, and records per-file execution results.
+Runs the safety-gated execution pass for existing move plans. It rejects dry-run-only/impossible/empty plans, respects configured moved-data caps, revalidates files before movement, calls the Windows move boundary, verifies extents afterward, reports progress, and records per-file execution results.
 
 ## UI Layer
 

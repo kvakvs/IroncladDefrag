@@ -12,9 +12,6 @@
 namespace icd {
 
 namespace {
-constexpr std::uint64_t MaxPhase6Operations = 10;
-constexpr std::uint64_t MaxPhase6Bytes = 1024ull * 1024ull * 1024ull;
-
 std::wstring LowerAsciiPath(std::wstring value)
 {
     std::transform(value.begin(), value.end(), value.begin(), [](wchar_t ch) {
@@ -213,7 +210,7 @@ std::wstring BuildSummary(const MoveExecutionResult& result)
 }
 } // namespace
 
-// Runs a conservative, bounded execution pass with validation before every operation.
+// Runs a safety-gated execution pass with validation before every operation.
 MoveExecutionResult MoveExecutor::Execute(const AnalysisResult& analysis,
                                           const MovePlan& plan,
                                           const std::atomic_bool& cancellationRequested,
@@ -238,19 +235,17 @@ MoveExecutionResult MoveExecutor::Execute(const AnalysisResult& analysis,
 
     if (plan.impossible || plan.operations.empty()) {
         result.blocked = true;
-        result.summary = plan.impossible ? L"Move execution blocked: the move plan is impossible."
+        result.summary = plan.impossible ? L"Move execution blocked: the move plan is impossible. Possibly need to run with elevated permissions."
                                          : L"Move execution blocked: the move plan has no operations.";
         AddLog(result, result.summary);
         return result;
     }
 
-    const std::uint64_t planLimit =
-        plan.profile.settings.maximumBytesToMove.getValue() == 0
-            ? MaxPhase6Bytes
-            : (std::min)(MaxPhase6Bytes, plan.profile.settings.maximumBytesToMove.getValue());
+    const std::uint64_t planLimit = plan.profile.settings.maximumBytesToMove.getValue();
+    const bool hasPlanLimit = planLimit > 0;
     std::uint64_t bytesConsidered = 0;
     std::uint64_t processed = 0;
-    const std::uint64_t total = (std::min)(MaxPhase6Operations, static_cast<std::uint64_t>(plan.operations.size()));
+    const std::uint64_t total = static_cast<std::uint64_t>(plan.operations.size());
 
     ReportProgress(progressCallback,
                    0.0,
@@ -259,11 +254,11 @@ MoveExecutionResult MoveExecutor::Execute(const AnalysisResult& analysis,
                    count64_t(0),
                    count64_t(total),
                    cancellationRequested);
-    AddLog(result, L"Starting bounded move execution for " + analysis.drive.rootPath);
+    AddLog(result, L"Starting move execution for " + analysis.drive.rootPath);
 
     for (const MoveOperation& operation : plan.operations) {
-        if (processed >= MaxPhase6Operations || bytesConsidered + operation.estimatedBytes.getValue() > planLimit) {
-            AddSkipped(result, operation, MoveExecutionSkipReason::ExecutionLimitReached, L"Phase 6 execution limit reached");
+        if (hasPlanLimit && bytesConsidered + operation.estimatedBytes.getValue() > planLimit) {
+            AddSkipped(result, operation, MoveExecutionSkipReason::ExecutionLimitReached, L"moved-data limit reached");
             continue;
         }
 

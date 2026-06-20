@@ -2,7 +2,7 @@
 
 ## Application Shape
 
-IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based workflow with read-only drive discovery and analysis, dry-run move planning, visible Phase 7 drive-to-plan-to-execute controls, persisted Phase 8 profile/safety settings, recent non-executable analysis summaries, and a bounded Phase 6 move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, persistence services, execution services, Windows platform-boundary code, and domain model types. TRIM actions are not implemented yet.
+IroncladDefrag is a Windows x64 desktop GUI application written in C++20. The current implementation is a wxWidgets-based workflow with read-only drive discovery and analysis, dry-run move planning, visible Phase 7 drive-to-plan-to-execute controls, persisted Phase 8 profile/safety settings, recent non-executable analysis summaries, and a safety-gated move executor. The repository separates GUI bootstrap/window code, controller orchestration, analysis services, persistence services, execution services, Windows platform-boundary code, and domain model types. TRIM actions are not implemented yet.
 
 The app is built as a Windows subsystem executable with CMake and MSVC-oriented wxWidgets libraries vendored under `3rdparty/wxWidgets`.
 
@@ -81,7 +81,7 @@ The UI layer may use wxWidgets types directly. Long-running drive analysis, file
 
 ## Execution Layer
 
-`src/execution/MoveExecutor.*` performs the bounded Phase 6 execution pass. It rejects dry-run-only, impossible, or empty plans; revalidates file size, attributes, extents, and drive ownership before each move; calls the Windows move boundary; verifies extents after each attempted move; and records per-file outcomes for audit and troubleshooting.
+`src/execution/MoveExecutor.*` performs the safety-gated execution pass. It rejects dry-run-only, impossible, or empty plans; respects configured moved-data caps; revalidates file size, attributes, extents, and drive ownership before each move; calls the Windows move boundary; verifies extents after each attempted move; and records per-file outcomes for audit and troubleshooting.
 
 ## Windows Platform Boundary
 

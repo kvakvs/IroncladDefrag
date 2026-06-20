@@ -32,7 +32,6 @@ public:
     void SetBusy(bool running);
     void SetExecuteAllowed(bool allowed);
 
-    void SetRefreshCallback(SimpleCallback callback) { refreshCallback = std::move(callback); }
     void SetAnalyzeCallback(SimpleCallback callback) { analyzeCallback = std::move(callback); }
     void SetCancelCallback(SimpleCallback callback) { cancelCallback = std::move(callback); }
     void SetSettingsCallback(SimpleCallback callback) { settingsCallback = std::move(callback); }
@@ -62,7 +61,6 @@ private:
     wxChoice* profileChoice = nullptr;
     wxTextCtrl* warningsText = nullptr;
     wxTextCtrl* executionText = nullptr;
-    wxButton* refreshButton = nullptr;
     wxButton* analyzeButton = nullptr;
     wxButton* cancelButton = nullptr;
     wxButton* settingsButton = nullptr;
@@ -87,7 +85,6 @@ private:
     bool executeAllowed = false;
     bool updatingProfiles = false;
 
-    SimpleCallback refreshCallback;
     SimpleCallback analyzeCallback;
     SimpleCallback cancelCallback;
     SimpleCallback settingsCallback;

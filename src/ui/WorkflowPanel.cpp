@@ -88,7 +88,6 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
 
     auto* buttonRows = new wxBoxSizer(wxVERTICAL);
     auto* stepRow = new wxBoxSizer(wxHORIZONTAL);
-    refreshButton = AddButton(this, stepRow, "Refresh");
     analyzeButton = AddButton(this, stepRow, "Analyze");
     settingsButton = AddButton(this, stepRow, "Settings");
     safetySettingsButton = AddButton(this, stepRow, "Safety");
@@ -124,11 +123,6 @@ WorkflowPanel::WorkflowPanel(wxWindow* parent) : wxPanel(parent, wxID_ANY)
 
     SetSizer(root);
 
-    refreshButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
-        if (refreshCallback) {
-            refreshCallback();
-        }
-    });
     analyzeButton->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
         if (analyzeCallback) {
             analyzeCallback();
@@ -318,7 +312,6 @@ void WorkflowPanel::UpdateControls()
     const bool showPlanning = !busy && hasAnalysis;
     const bool showProfile = showPlanning && !profiles.empty();
 
-    SetActionVisible(refreshButton, !busy);
     SetActionVisible(analyzeButton, !busy && canAnalyze);
     SetActionVisible(cancelButton, busy);
     SetActionVisible(profileLabel, showProfile);

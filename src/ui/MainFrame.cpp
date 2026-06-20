@@ -200,6 +200,10 @@ void MainFrame::ShowPlanBuildProgress()
                                               100,
                                               this,
                                               wxPD_APP_MODAL | wxPD_CAN_ABORT | wxPD_ELAPSED_TIME | wxPD_REMAINING_TIME);
+    const wxSize defaultSize = planProgressDialog->GetSize();
+    planProgressDialog->SetSize(defaultSize.GetWidth() + defaultSize.GetWidth() / 2,
+                                defaultSize.GetHeight() + defaultSize.GetHeight() / 2);
+    planProgressDialog->CentreOnParent();
 }
 
 void MainFrame::ClosePlanBuildProgress()
@@ -215,12 +219,12 @@ void MainFrame::ClosePlanBuildProgress()
 // Mirrors worker progress into the planning popup and requests cancellation if the user aborts.
 void MainFrame::UpdatePlanBuildProgress(const JobProgress& progress)
 {
-    if (planProgressDialog == nullptr) {
-        return;
-    }
-
+    if (!planProgressDialog) { return; }
     const int percent = (std::max)(0, (std::min)(100, static_cast<int>(progress.percentComplete)));
+
+    if (!planProgressDialog) { return; }
     const bool keepGoing = planProgressDialog->Update(percent, FormatRunningProgressStatus(progress));
+    
     if (!keepGoing && !planProgressCancelRequested) {
         planProgressCancelRequested = true;
         controller.RequestCancelActiveJob();
@@ -297,10 +301,6 @@ void MainFrame::CreateDocumentArea()
         SelectDrive(drive);
     });
 
-    workflowPanel->SetRefreshCallback([this]() {
-        wxCommandEvent event;
-        OnRefreshDrives(event);
-    });
     workflowPanel->SetAnalyzeCallback([this]() {
         const auto drive = std::find_if(visibleDrives.begin(), visibleDrives.end(), [this](const DriveInfo& item) {
             return item.rootPath == activeDriveRoot;
@@ -591,7 +591,7 @@ bool MainFrame::ExecuteSelectedMovePlan()
 
     const wxString driveLabel(*driveRoot);
     const wxString bytesLabel(FormatBytes(plan->estimatedBytesToMove));
-    const wxString confirmation = wxString::Format("Execute a bounded Phase 6 move plan for %s?\n\n"
+    const wxString confirmation = wxString::Format("Execute the selected move plan for %s?\n\n"
                                                    "Operations: %llu\n"
                                                    "Estimated bytes: %s\n\n"
                                                    "Use only on controlled test data or a disposable NTFS volume.",
