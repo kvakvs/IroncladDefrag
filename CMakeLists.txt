@@ -52,6 +52,8 @@ add_library(icd_core STATIC
     src/core/log/Logger.cpp
     src/core/map/BinSummary.cpp
     src/core/map/BinSummary.h
+    src/core/map/MapData.cpp
+    src/core/map/MapData.h
     src/core/map/Palette.cpp
     src/core/map/Palette.h
     src/core/map/Pyramid.cpp
@@ -81,6 +83,7 @@ add_library(icd_core STATIC
     src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
     src/core/synth/SynthRandom.h
+    src/core/util/LruCache.h
     src/core/synth/SyntheticVolume.cpp
     src/core/synth/SyntheticVolume.h
 )
@@ -118,6 +121,8 @@ add_library(icd_services STATIC
     src/services/job/JobRunner.h
     src/services/workflow/FakeResults.cpp
     src/services/workflow/FakeResults.h
+    src/services/workflow/SyntheticAnalysis.cpp
+    src/services/workflow/SyntheticAnalysis.h
     src/services/workflow/Workflow.cpp
     src/services/workflow/Workflow.h
 )
@@ -144,12 +149,16 @@ add_executable(IroncladDefrag WIN32
     src/ui/bridge/JobEvents.h
     src/ui/dialogs/AboutDialog.cpp
     src/ui/dialogs/AboutDialog.h
+    src/ui/map/D2DRenderer.cpp
+    src/ui/map/D2DRenderer.h
+    src/ui/map/MapCanvas.cpp
+    src/ui/map/MapCanvas.h
     src/ui/panels/DrivesPanel.cpp
     src/ui/panels/DrivesPanel.h
     src/ui/panels/BottomPanel.cpp
     src/ui/panels/BottomPanel.h
-    src/ui/panels/MapPlaceholder.cpp
-    src/ui/panels/MapPlaceholder.h
+    src/ui/panels/MapPanel.cpp
+    src/ui/panels/MapPanel.h
     src/ui/panels/PlanPage.cpp
     src/ui/panels/PlanPage.h
     src/ui/panels/StrategyPage.cpp
@@ -159,7 +168,7 @@ add_executable(IroncladDefrag WIN32
     res/IroncladDefrag.manifest
     res/IroncladDefrag.rc
 )
-target_link_libraries(IroncladDefrag PRIVATE icd_services wx::wx)
+target_link_libraries(IroncladDefrag PRIVATE icd_services wx::wx d2d1)
 # The manifest file carries requestedExecutionLevel; stop the linker adding its own asInvoker entry.
 target_link_options(IroncladDefrag PRIVATE /MANIFESTUAC:NO)
 target_precompile_headers(IroncladDefrag PRIVATE src/precompiled.h)

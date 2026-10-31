@@ -208,6 +208,27 @@ this file records what is actually built and the decisions made along the way.
   present (vsync) rather than from `PRESENT_OPTIONS_IMMEDIATELY` used in the spike to measure
   throughput. A DXGI swap chain is only needed if the HWND target cannot pace frames well.
 
+## Map control
+
+- `core::MapData` bundles the snapshot, its fixed world, the pyramid and the extent flags. It is
+  immutable and shared: the canvas and every worker rendering a tile hold a `shared_ptr`, so a tile
+  still rendering keeps its data alive after the user moved to another drive.
+- `ui::MapCanvas` paints with `ui::D2DRenderer` (Direct2D on its HWND, the T026 choice). The paint
+  path only draws cached GPU tiles and asks for missing ones; it never touches analysis data. Missing
+  tiles render on the shared pool (`Executor::submit`) and come back through a `TileMailbox` (the
+  canvas detaches it in its destructor; `CallAfter` only queues an event the window drops if
+  destroyed). A generation number drops results for an earlier map, palette or lost device.
+- Uploaded tiles live in a `core::LruCache` capped at 256 MB of GPU memory. Lost devices
+  (`D2DERR_RECREATE_TARGET`) drop every tile and recreate the target on the next paint.
+- The view is a scale (cells per pixel) and a world center. A new map is fitted once the window has
+  a real size; afterwards resizing keeps scale and center, so the world never re-flows (plan.md 7.1).
+- Until real scanning (Phase 3), Analyze runs `services::makeSyntheticAnalysis()`: a synthetic volume
+  shaped like the fake drive (size, fill, fragmentation) plus its `MapData`. Measured: the 4 TB fake
+  drive in 2.1 s, the 30 TB one (20.5 M files, 48.9 M extents, 384 MB map data) in 16.6 s; the fitted
+  view's tiles arrive within 40 ms.
+- `PrintWindow` does not capture Direct2D output of a child window; scripted screenshots of the map
+  need a real screen capture.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

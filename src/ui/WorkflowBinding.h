@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/job/StageClock.h"
+#include "core/map/World.h"
 #include "core/model/DriveInfo.h"
 #include "services/job/JobRunner.h"
 #include "services/workflow/FakeResults.h"
@@ -20,14 +21,15 @@ namespace icd::core {
 
 namespace icd::services {
     class AppServices;
-}
+    struct AnalysisOutput;
+} // namespace icd::services
 
 namespace icd::ui {
 
     class BottomPanel;
     class DrivesPanel;
     class JobEventBridge;
-    class MapPlaceholder;
+    class MapPanel;
 
     // Connects the workflow state machine to the window: routes menu and button commands to it, starts the
     // job each step needs, shows progress on the status line and results on the tabs, and enables every
@@ -38,7 +40,7 @@ namespace icd::ui {
         // The widgets it drives; children of the frame, so they outlive the binding.
         struct Widgets {
             DrivesPanel& drives; // All-disks panel.
-            MapPlaceholder& map; // Map area.
+            MapPanel& map; // Map area.
             BottomPanel& bottom; // Tabs, buttons and status line.
         };
 
@@ -130,6 +132,9 @@ namespace icd::ui {
         // Whether a command can run now.
         [[nodiscard]] bool commandEnabled(int id) const;
 
+        // Aspect of the screen the window is on, for laying out a new map (plan.md 7.1).
+        [[nodiscard]] core::ScreenAspect screenAspect() const;
+
         // "D: Data", or empty without a drive.
         [[nodiscard]] std::string driveLabel() const;
 
@@ -145,6 +150,7 @@ namespace icd::ui {
         std::optional<core::DriveInfo> drive_; // Selected drive, copied so a refresh cannot change it mid-job.
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
+        std::shared_ptr<services::AnalysisOutput> analysisOutput_; // Where the running analysis leaves its map.
     };
 
 } // namespace icd::ui

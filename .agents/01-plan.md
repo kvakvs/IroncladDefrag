@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T027 - Map control: tile cache and drawing
-- Depends: T026
-- Owns: `src/ui/map/MapCanvas.*`, `src/ui/map/TileCache.*`, `src/ui/map/Renderer*.*`
-- Touches: `MainFrame` (replace map placeholder)
-- Do: LRU tile cache with memory cap, async tile requests on the pool, composition with the chosen
-  backend, no background erase, fit-to-view of a synthetic volume.
-- Done when: the map shows a 30 TB synthetic volume; resizing never re-flows the world.
-
 ### T028 - Map navigation
 - Depends: T027
 - Owns: `src/ui/map/MapNavigator.*`

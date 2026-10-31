@@ -83,3 +83,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T026 Rendering spike - `tools/spike/map-render-spike` (4K canvas, 30 TB tiles, scripted zoom/pan): raw
   Direct2D on the HWND 0.29 ms/frame (3,390 fps), wx Direct2D renderer 55 ms (bitmaps re-created per
   context), GDI 1.9 ms (visible part only). Chosen: Direct2D on the HWND; recorded in arch.md.
+- T027 Map control: tile cache and drawing - `ui/map/MapCanvas.*` (async tiles on the pool via a detachable
+  mailbox, 256 MB LRU GPU cache, fit-to-view, no re-flow on resize), `ui/map/D2DRenderer.*`, `ui/panels/MapPanel.*`
+  (replaces the placeholder), `core/map/MapData.*`, `core/util/LruCache.h`, `services/workflow/SyntheticAnalysis.*`
+  (Analyze builds a synthetic map), 30 TB fake drive H: (analysed in 16.6 s).

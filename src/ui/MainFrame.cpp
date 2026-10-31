@@ -9,7 +9,7 @@
 #include "ui/dialogs/AboutDialog.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
-#include "ui/panels/MapPlaceholder.h"
+#include "ui/panels/MapPanel.h"
 
 #include <wx/menu.h>
 #include <wx/sizer.h>
@@ -51,7 +51,7 @@ namespace icd {
         auto* root = new wxPanel(this);
         splitter_ =
             new wxSplitterWindow(root, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3DSASH);
-        map_ = new ui::MapPlaceholder(splitter_);
+        map_ = new ui::MapPanel(splitter_, services_.pool());
         const wxString resources = wxString::FromUTF8(core::describeCaps(services_.resources(), services_.caps()));
         bottom_ = new ui::BottomPanel(splitter_, resources);
         splitter_->SetSashGravity(1.0); // Window growth goes to the map.

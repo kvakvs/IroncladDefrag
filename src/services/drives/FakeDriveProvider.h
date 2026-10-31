@@ -7,8 +7,9 @@
 namespace icd::services {
 
     // Made-up drives for the UI shell (plan.md Phase 1): an SSD system drive, three NTFS HDDs in different
-    // states (never analysed, analysed with a snapshot, nearly full) and one exFAT drive the app cannot
-    // optimize, so every row style can be seen and reviewed.
+    // states (never analysed, analysed with a snapshot, nearly full), one exFAT drive the app cannot
+    // optimize and a 30 TB drive at the design target, so every row style and the map at full scale can be
+    // seen and reviewed.
     class FakeDriveProvider : public IDriveProvider {
     public:
         // Ages ("3 h ago") are relative to now, so tests can pin it.

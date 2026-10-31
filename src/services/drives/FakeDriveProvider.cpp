@@ -61,7 +61,13 @@ namespace icd::services {
         core::DriveInfo transfer =
             makeDrive("G:\\", "Transfer", {.total = 238 * GB, .free = 120 * GB}, "exFAT", MediaType::Hdd);
 
-        return {std::move(system), std::move(data), std::move(media), std::move(backup), std::move(transfer)};
+        // The design target (plan.md 6.1): 30 TB with 18 TB in use, about 20 M files.
+        core::DriveInfo vault = makeDrive("H:\\", "Vault", {.total = 30 * TB, .free = 12 * TB}, "NTFS", MediaType::Hdd);
+        vault.fragmentationPercent = 25.0;
+        vault.lastAnalysed = now_ - 24h * 9;
+
+        return {std::move(system), std::move(data),     std::move(media),
+                std::move(backup), std::move(transfer), std::move(vault)};
     }
 
 } // namespace icd::services

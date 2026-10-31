@@ -13,7 +13,7 @@ namespace icd::services {
 namespace icd::ui {
     class BottomPanel;
     class DrivesPanel;
-    class MapPlaceholder;
+    class MapPanel;
     class WorkflowBinding;
 } // namespace icd::ui
 
@@ -46,7 +46,7 @@ namespace icd {
         services::AppServices& services_; // Caps for the resources line; passed to the binding.
         wxSplitterWindow* splitter_ = nullptr; // Map above, bottom panel below; child owned by wx.
         ui::DrivesPanel* drives_ = nullptr; // All-disks panel; child owned by wx.
-        ui::MapPlaceholder* map_ = nullptr; // Map area; child owned by wx.
+        ui::MapPanel* map_ = nullptr; // Map area; child owned by wx.
         ui::BottomPanel* bottom_ = nullptr; // Tabs, buttons and status line; child owned by wx.
         std::unique_ptr<ui::WorkflowBinding> binding_; // Commands, jobs and widget state.
     };

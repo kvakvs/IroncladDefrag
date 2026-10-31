@@ -8,16 +8,18 @@
 #include "core/log/Log.h"
 #include "services/AppServices.h"
 #include "services/job/FakeJob.h"
+#include "services/workflow/SyntheticAnalysis.h"
 #include "ui/Commands.h"
 #include "ui/MainMenu.h"
 #include "ui/bridge/JobEvents.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
-#include "ui/panels/MapPlaceholder.h"
+#include "ui/panels/MapPanel.h"
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
 #include "ui/panels/SummaryPage.h"
 
+#include <wx/display.h>
 #include <wx/frame.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
@@ -85,27 +87,21 @@ namespace icd::ui {
         // Texts of a step.
         const StepText& textOf(WorkflowJob job) { return stepTexts.at(static_cast<std::size_t>(job)); }
 
-        // How the map placeholder looks in a state: caption after the drive name and pattern variant.
-        struct MapLook {
-            const char* caption = ""; // Text after "D: Data: ".
-            std::uint32_t variant = 0; // 0 = empty map; others pick a pattern.
+        // Map caption per WorkflowState, after the drive name.
+        constexpr std::array<const char*, 12> mapCaptions{
+            "",
+            "not supported (only NTFS volumes are optimized)",
+            "SSD, TRIM only (no map)",
+            "TRIM running",
+            "not analysed yet",
+            "analysing (synthetic volume)...",
+            "analysed (synthetic volume)",
+            "building plan...",
+            "plan ready (the plan overlay arrives with the planner)",
+            "executing plan...",
+            "execution paused",
+            "plan executed; analyze again to refresh",
         };
-
-        // Looks indexed by WorkflowState.
-        constexpr std::array<MapLook, 12> mapLooks{{
-            {"", 0},
-            {"not supported (only NTFS volumes are optimized)", 0},
-            {"SSD, TRIM only (no map)", 0},
-            {"TRIM running", 0},
-            {"not analysed yet", 0},
-            {"analysing...", 0},
-            {"analysed (placeholder map)", 1},
-            {"building plan...", 1},
-            {"plan preview (placeholder)", 2},
-            {"executing plan...", 2},
-            {"execution paused", 2},
-            {"plan executed; analyze again to refresh", 3},
-        }};
 
         // Hint for the Summary tab when a drive of this kind is selected but not analysed.
         const char* summaryHint(services::DriveKind kind) {
@@ -173,7 +169,7 @@ namespace icd::ui {
             widgets_.map.setColorMode(id - ID_COLOR_CLASS);
             frame_.GetMenuBar()->Check(id, true);
         }
-        widgets_.bottom.setStatus("View: " + label + " (placeholder until the map engine exists)");
+        widgets_.bottom.setStatus("View: " + label + " (arrives with map navigation and color modes)");
     }
 
     void WorkflowBinding::onCommand(wxCommandEvent& event) {
@@ -288,6 +284,10 @@ namespace icd::ui {
     }
 
     services::JobFunction WorkflowBinding::makeJob(WorkflowJob job, const core::DriveInfo& drive) {
+        if (job == WorkflowJob::Analyze) {
+            analysisOutput_ = std::make_shared<services::AnalysisOutput>();
+            return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
+        }
         const StepText& text = textOf(job);
         services::FakeJobOptions options;
         options.chunks = text.chunksPerWorker * services_.caps().workerThreads;
@@ -382,6 +382,9 @@ namespace icd::ui {
     }
 
     void WorkflowBinding::showAnalysis(core::DriveInfo& drive) {
+        if (analysisOutput_) {
+            widgets_.map.setMap(analysisOutput_->take());
+        }
         const services::AnalysisSummary analysis = services::fakeAnalysis(drive);
         drive.fragmentationPercent = analysis.fragmentationPercent;
         drive.lastAnalysed = std::chrono::system_clock::now();
@@ -455,6 +458,7 @@ namespace icd::ui {
             return; // Busy; the panel is disabled, so this does not normally happen.
         }
         drive_ = selected != nullptr ? std::optional(*selected) : std::nullopt;
+        widgets_.map.setMap(nullptr);
         core::logging::info("drive selected", {{"root", root}});
         analysis_.reset();
         plan_.reset();
@@ -509,23 +513,25 @@ namespace icd::ui {
 
     bool WorkflowBinding::commandEnabled(int id) const {
         if (id >= ID_COLOR_CLASS && id <= ID_ZOOM_CLUSTER) {
-            return drive_.has_value() && mapLooks.at(static_cast<std::size_t>(workflow_.state())).variant != 0;
+            return widgets_.map.hasMap();
         }
         const auto action = actionFor(id, workflow_.state());
         return action.has_value() && workflow_.can(*action);
     }
 
     void WorkflowBinding::refreshMap() {
-        MapPlaceholder& map = widgets_.map;
         if (!drive_) {
-            map.setCaption("No drive selected");
-            map.setPattern(0);
+            widgets_.map.setCaption("No drive selected");
             return;
         }
-        const MapLook& look = mapLooks.at(static_cast<std::size_t>(workflow_.state()));
-        map.setCaption(wxString::FromUTF8(driveLabel() + ": " + look.caption));
-        const auto letter = static_cast<std::uint32_t>(static_cast<unsigned char>(drive_->root.front()));
-        map.setPattern(look.variant == 0 ? 0 : letter * 4 + look.variant);
+        const char* caption = mapCaptions.at(static_cast<std::size_t>(workflow_.state()));
+        widgets_.map.setCaption(wxString::FromUTF8(driveLabel() + ": " + caption));
+    }
+
+    core::ScreenAspect WorkflowBinding::screenAspect() const {
+        const int index = wxDisplay::GetFromWindow(&frame_);
+        const wxRect screen = wxDisplay(index == wxNOT_FOUND ? 0U : static_cast<unsigned>(index)).GetGeometry();
+        return {.width = static_cast<double>(screen.width), .height = static_cast<double>(screen.height)};
     }
 
     std::string WorkflowBinding::driveLabel() const { return drive_ ? core::driveName(*drive_) : std::string(); }
