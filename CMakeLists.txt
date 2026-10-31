@@ -54,10 +54,14 @@ add_library(icd_core STATIC
     src/core/map/BinSummary.h
     src/core/map/MapData.cpp
     src/core/map/MapData.h
+    src/core/map/Overview.cpp
+    src/core/map/Overview.h
     src/core/map/Palette.cpp
     src/core/map/Palette.h
     src/core/map/Pyramid.cpp
     src/core/map/Pyramid.h
+    src/core/map/Ruler.cpp
+    src/core/map/Ruler.h
     src/core/map/TileRasterizer.cpp
     src/core/map/TileRasterizer.h
     src/core/map/Viewport.cpp
@@ -157,6 +161,10 @@ add_executable(IroncladDefrag WIN32
     src/ui/map/MapCanvas.h
     src/ui/map/MapNavigator.cpp
     src/ui/map/MapNavigator.h
+    src/ui/map/Minimap.cpp
+    src/ui/map/Minimap.h
+    src/ui/map/Ruler.cpp
+    src/ui/map/Ruler.h
     src/ui/panels/DrivesPanel.cpp
     src/ui/panels/DrivesPanel.h
     src/ui/panels/BottomPanel.cpp

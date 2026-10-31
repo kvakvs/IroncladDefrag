@@ -17,9 +17,9 @@ namespace icd::ui {
     class MapCanvas;
 
     // Turns input into view changes for the map (plan.md 7.3-7.4): drag to pan with inertia, wheel and
-    // pinch to zoom at the pointer, double-click to zoom in (Shift: out), map keys, and the View menu's zoom
-    // commands. Zooms animate by elapsed time from a fast timer that only computes the view and asks for a
-    // repaint; the Direct2D present paces frames to the display.
+    // pinch to zoom at the pointer, double-click to zoom in (Shift: out), dragging the minimap, map keys, and
+    // the View menu's zoom commands. Zooms animate by elapsed time from a fast timer that only computes the view and
+    // asks for a repaint; the Direct2D present paces frames to the display.
     class MapNavigator {
     public:
         // Binds input events on canvas, which owns the navigator.
@@ -69,6 +69,12 @@ namespace icd::ui {
         // Double-click zooms in four times at the pointer, Shift+double-click zooms out.
         void onDoubleClick(wxMouseEvent& event);
 
+        // Moves the view to follow a minimap drag.
+        void dragMinimap(core::PixelPoint pointer);
+
+        // Shows a hand over the minimap, the normal pointer elsewhere.
+        void updateCursor(core::PixelPoint pointer);
+
         // Touchpad pinch.
         void onGestureZoom(wxZoomGestureEvent& event);
 
@@ -84,6 +90,7 @@ namespace icd::ui {
         core::PixelPoint velocity_; // Smoothed drag velocity in pixels per second.
         core::AnimationClock::time_point lastMove_; // Time of the last drag event.
         double gestureStartScale_ = 1.0; // Scale when the current pinch started.
+        bool handCursor_ = false; // Whether the hand cursor is set (the pointer is over the minimap).
     };
 
 } // namespace icd::ui

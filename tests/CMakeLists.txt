@@ -17,8 +17,10 @@ add_executable(icd_tests
     core/JobTypesTest.cpp
     core/LogTest.cpp
     core/LruCacheTest.cpp
+    core/OverviewTest.cpp
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
+    core/RulerTest.cpp
     core/SmokeTest.cpp
     core/SnapshotTest.cpp
     core/StripesTest.cpp

@@ -5,11 +5,13 @@
 #include "core/map/Viewport.h"
 #include "core/util/LruCache.h"
 #include "ui/map/D2DRenderer.h"
+#include "ui/map/Minimap.h"
 
 #include <wx/window.h>
 
 #include <cstdint>
 #include <deque>
+#include <functional>
 #include <memory>
 #include <optional>
 #include <unordered_set>
@@ -51,6 +53,18 @@ namespace icd::ui {
 
         // Whether a map is shown.
         [[nodiscard]] bool hasMap() const { return map_ != nullptr; }
+
+        // The map shown, or null; for widgets that describe the view (rulers).
+        [[nodiscard]] const core::MapData* map() const { return map_.get(); }
+
+        // Calls observer after every change of the view or the map, so rulers can follow; empty to stop.
+        void setViewObserver(std::function<void()> observer) { viewObserver_ = std::move(observer); }
+
+        // Shows or hides the minimap.
+        void showMinimap(bool shown);
+
+        // The minimap overlay, for input handling.
+        [[nodiscard]] Minimap& minimap() { return minimap_; }
 
         // The current view.
         [[nodiscard]] const core::Viewport& viewport() const { return view_; }
@@ -98,6 +112,15 @@ namespace icd::ui {
         // Forgets all tiles (new map, new palette, lost device); late results are dropped by generation.
         void resetTiles();
 
+        // Draws the minimap, asking for its image (the coarsest tile) until it has one.
+        void drawMinimap();
+
+        // Places the minimap for the current map and window size.
+        void layoutMinimap();
+
+        // Tells the observer that the view or the map changed.
+        void notifyView() const;
+
         // Uploads up to a per-frame budget of arrived tiles; repaints again when more are waiting.
         void uploadArrived();
 
@@ -117,6 +140,8 @@ namespace icd::ui {
         std::shared_ptr<const core::MapData> map_; // What is shown; null for no map.
         std::shared_ptr<const core::Palette> palette_; // Color mode.
         core::Viewport view_; // Current view.
+        Minimap minimap_; // Overview in the corner.
+        std::function<void()> viewObserver_; // Called when the view or map changes.
         std::uint64_t generation_ = 0; // Bumped whenever cached tiles become invalid.
         bool fitted_ = false; // Whether the current map was fitted to a real window size yet.
         std::vector<double> frameIntervals_; // Milliseconds between frames while animating.

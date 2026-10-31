@@ -2,6 +2,7 @@
 
 #include "ui/map/MapCanvas.h"
 
+#include <wx/cursor.h>
 #include <wx/event.h>
 
 #include <algorithm>
@@ -43,7 +44,10 @@ namespace icd::ui {
         canvas_.Bind(wxEVT_MOTION, &MapNavigator::onMotion, this);
         canvas_.Bind(wxEVT_LEFT_UP, &MapNavigator::onLeftUp, this);
         canvas_.Bind(wxEVT_LEFT_DCLICK, &MapNavigator::onDoubleClick, this);
-        canvas_.Bind(wxEVT_MOUSE_CAPTURE_LOST, [this](wxMouseCaptureLostEvent&) { dragging_ = false; });
+        canvas_.Bind(wxEVT_MOUSE_CAPTURE_LOST, [this](wxMouseCaptureLostEvent&) {
+            dragging_ = false;
+            canvas_.minimap().endDrag();
+        });
         canvas_.EnableTouchEvents(wxTOUCH_ZOOM_GESTURE | wxTOUCH_PAN_GESTURES);
         canvas_.Bind(wxEVT_GESTURE_ZOOM, &MapNavigator::onGestureZoom, this);
         canvas_.Bind(wxEVT_GESTURE_PAN, &MapNavigator::onGesturePan, this);
@@ -176,8 +180,13 @@ namespace icd::ui {
             canvas_.setViewport(core::panned(canvas_.viewport(), {-notches * 40.0, 0}, canvas_.limits()));
             return;
         }
-        // Precision touchpads send fractional notches, which gives smooth zoom.
-        zoomBy(std::pow(wheelStep, notches), pointerOf(event));
+        // Precision touchpads send fractional notches, which gives smooth zoom. Over the minimap the pointer is
+        // not a place on the map, so the zoom keeps the window center.
+        const core::Viewport& view = canvas_.viewport();
+        const core::PixelPoint pointer = pointerOf(event);
+        const bool overMinimap = canvas_.minimap().contains(pointer);
+        zoomBy(std::pow(wheelStep, notches),
+               overMinimap ? core::PixelPoint{view.size.x / 2.0, view.size.y / 2.0} : pointer);
     }
 
     void MapNavigator::onLeftDown(wxMouseEvent& event) {
@@ -186,6 +195,11 @@ namespace icd::ui {
             return;
         }
         stop();
+        if (canvas_.minimap().beginDrag(pointerOf(event), canvas_.viewport())) {
+            canvas_.CaptureMouse();
+            dragMinimap(pointerOf(event)); // A click beside the marker jumps there at once.
+            return;
+        }
         dragging_ = true;
         lastPointer_ = pointerOf(event);
         velocity_ = {};
@@ -194,7 +208,12 @@ namespace icd::ui {
     }
 
     void MapNavigator::onMotion(wxMouseEvent& event) {
+        if (canvas_.minimap().dragging()) {
+            dragMinimap(pointerOf(event));
+            return;
+        }
         if (!dragging_) {
+            updateCursor(pointerOf(event));
             event.Skip();
             return;
         }
@@ -211,13 +230,14 @@ namespace icd::ui {
 
     void MapNavigator::onLeftUp(wxMouseEvent& event) {
         event.Skip();
+        if (canvas_.HasCapture()) {
+            canvas_.ReleaseMouse();
+        }
+        canvas_.minimap().endDrag(); // Minimap drags stop dead: no inertia.
         if (!dragging_) {
             return;
         }
         dragging_ = false;
-        if (canvas_.HasCapture()) {
-            canvas_.ReleaseMouse();
-        }
         const auto now = core::AnimationClock::now();
         core::PanInertia inertia{.from = canvas_.viewport(), .velocity = velocity_, .start = now};
         if (seconds(lastMove_, now) < releaseWindowSeconds && !inertia.finished(now)) {
@@ -226,7 +246,28 @@ namespace icd::ui {
         }
     }
 
-    void MapNavigator::onDoubleClick(wxMouseEvent& event) { zoomBy(event.ShiftDown() ? 0.25 : 4.0, pointerOf(event)); }
+    void MapNavigator::onDoubleClick(wxMouseEvent& event) {
+        if (canvas_.minimap().contains(pointerOf(event))) {
+            onLeftDown(event); // The second click of a double-click on the minimap is just another press.
+            return;
+        }
+        zoomBy(event.ShiftDown() ? 0.25 : 4.0, pointerOf(event));
+    }
+
+    void MapNavigator::dragMinimap(core::PixelPoint pointer) {
+        const core::MapData* map = canvas_.map();
+        if (map != nullptr) {
+            canvas_.setViewport(canvas_.minimap().dragTo(pointer, canvas_.viewport(), map->world(), canvas_.limits()));
+        }
+    }
+
+    void MapNavigator::updateCursor(core::PixelPoint pointer) {
+        const bool overMinimap = canvas_.minimap().contains(pointer);
+        if (overMinimap != handCursor_) {
+            handCursor_ = overMinimap;
+            canvas_.SetCursor(overMinimap ? wxCursor(wxCURSOR_HAND) : wxNullCursor);
+        }
+    }
 
     void MapNavigator::onGestureZoom(wxZoomGestureEvent& event) {
         if (!canvas_.hasMap()) {

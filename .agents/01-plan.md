@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T029 - Minimap and ruler
-- Depends: T028
-- Owns: `src/ui/map/Minimap.*`, `src/ui/map/Ruler.*`
-- Do: overview with draggable viewport rectangle; ruler with byte offset and % of volume (§7.1).
-- Done when: dragging the minimap pans the map; ruler values match world math tests.
-
 ### T030 - Hover tooltip
 - Depends: T028
 - Owns: `src/ui/map/MapHover.*`, `src/core/map/HitTest.*`

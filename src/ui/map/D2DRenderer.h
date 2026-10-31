@@ -24,6 +24,12 @@ namespace icd::ui {
         double height = 0; // Height.
     };
 
+    // How an outline is drawn.
+    struct LineStyle {
+        core::Rgba color = 0xFF000000U; // Line color.
+        float width = 1.0F; // Line width in pixels.
+    };
+
     // Direct2D drawing on one window, the map backend chosen by the T026 spike: one HWND render target, tiles
     // as GPU bitmaps, nearest-neighbour scaling. Units are physical pixels. Used on the UI thread only.
     class D2DRenderer {
@@ -46,8 +52,16 @@ namespace icd::ui {
         // Uploads a 256 x 256 tile; null when no target exists.
         [[nodiscard]] GpuTileHandle upload(const std::vector<core::Rgba>& pixels);
 
-        // Draws source (in tile pixels) of a tile into destination (in window pixels).
-        void draw(const GpuTileHandle& tile, const PixelRect& destination, const PixelRect& source);
+        // Draws source (in tile pixels) of a tile into destination (in window pixels). Nearest-neighbour keeps
+        // cells crisp on the map; smooth (linear) suits small overviews such as the minimap.
+        void draw(const GpuTileHandle& tile, const PixelRect& destination, const PixelRect& source,
+                  bool smooth = false);
+
+        // Fills a rectangle with a color; overlays on the map.
+        void fillRect(const PixelRect& rect, core::Rgba color);
+
+        // Outlines a rectangle with a line centered on its edges.
+        void strokeRect(const PixelRect& rect, const LineStyle& line);
 
         // Ends and presents the frame. False when the device was lost: every uploaded tile is then invalid and
         // must be dropped; the next begin() creates a new target.

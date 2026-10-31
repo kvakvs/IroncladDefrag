@@ -113,6 +113,7 @@ namespace icd::ui {
         bar->Append(viewMenu, "&View");
         bar->Append(makeMenu(settingsItems), "&Settings");
         bar->Append(makeMenu(helpItems), "&Help");
+        bar->Check(ID_SHOW_MINIMAP, true); // The map starts with its minimap.
         return bar;
     }
 

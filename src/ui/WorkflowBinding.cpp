@@ -164,7 +164,9 @@ namespace icd::ui {
             return; // Map keys arrive even when the menu item is disabled.
         }
         if (widgets_.map.handleViewCommand(id)) {
-            return; // Zoom commands and map keys.
+            // The panel owns the minimap state; the check mark follows it however the command arrived.
+            frame_.GetMenuBar()->Check(ID_SHOW_MINIMAP, widgets_.map.minimapShown());
+            return; // Minimap, zoom commands and map keys.
         }
         const wxMenuItem* item = frame_.GetMenuBar()->FindItem(id);
         const wxString label = item != nullptr ? item->GetItemLabelText() : wxString();
@@ -172,7 +174,7 @@ namespace icd::ui {
             widgets_.map.setColorMode(id - ID_COLOR_CLASS);
             frame_.GetMenuBar()->Check(id, true);
         }
-        widgets_.bottom.setStatus("View: " + label + " (arrives with color modes, minimap and legend)");
+        widgets_.bottom.setStatus("View: " + label + " (arrives with color modes and legend)");
     }
 
     void WorkflowBinding::onCommand(wxCommandEvent& event) {

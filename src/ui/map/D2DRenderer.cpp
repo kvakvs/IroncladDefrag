@@ -19,6 +19,7 @@ namespace icd::ui {
         HWND window = nullptr; // Target window.
         ComPtr<ID2D1Factory> factory; // Creates the target.
         ComPtr<ID2D1HwndRenderTarget> target; // Created on first use, recreated after a device loss.
+        ComPtr<ID2D1SolidColorBrush> brush; // Overlay color; recolored per use, belongs to target.
     };
 
     namespace {
@@ -64,6 +65,7 @@ namespace icd::ui {
                                                               impl_->target.GetAddressOf()))) {
                 return false;
             }
+            impl_->target->CreateSolidColorBrush(D2D1::ColorF(0.0F, 0.0F, 0.0F), impl_->brush.GetAddressOf());
         }
         else if (impl_->target->GetPixelSize().width != pixels.width ||
                  impl_->target->GetPixelSize().height != pixels.height) {
@@ -88,18 +90,37 @@ namespace icd::ui {
         return tile;
     }
 
-    void D2DRenderer::draw(const GpuTileHandle& tile, const PixelRect& destination, const PixelRect& source) {
+    void D2DRenderer::draw(const GpuTileHandle& tile, const PixelRect& destination, const PixelRect& source,
+                           bool smooth) {
         if (tile == nullptr || tile->bitmap == nullptr) {
             return;
         }
         const D2D1_RECT_F from = rectOf(source);
-        impl_->target->DrawBitmap(tile->bitmap.Get(), rectOf(destination), 1.0F,
-                                  D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &from);
+        impl_->target->DrawBitmap(
+            tile->bitmap.Get(), rectOf(destination), 1.0F,
+            smooth ? D2D1_BITMAP_INTERPOLATION_MODE_LINEAR : D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &from);
+    }
+
+    void D2DRenderer::fillRect(const PixelRect& rect, core::Rgba color) {
+        if (impl_->brush == nullptr) {
+            return;
+        }
+        impl_->brush->SetColor(colorOf(color));
+        impl_->target->FillRectangle(rectOf(rect), impl_->brush.Get());
+    }
+
+    void D2DRenderer::strokeRect(const PixelRect& rect, const LineStyle& line) {
+        if (impl_->brush == nullptr) {
+            return;
+        }
+        impl_->brush->SetColor(colorOf(line.color));
+        impl_->target->DrawRectangle(rectOf(rect), impl_->brush.Get(), line.width);
     }
 
     bool D2DRenderer::end() {
         const HRESULT result = impl_->target->EndDraw();
         if (result == D2DERR_RECREATE_TARGET) {
+            impl_->brush.Reset();
             impl_->target.Reset(); // Device lost: tiles uploaded to the old target are gone too.
             return false;
         }

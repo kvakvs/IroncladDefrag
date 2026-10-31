@@ -78,6 +78,8 @@ changes (see `AGENTS.md`).
 | `src/core/map/Palette.*` | `Rgba` (BGRA in memory), `Palette` interface over `PixelSummary`, `OccupancyPalette`. |
 | `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), grid lines at deep zoom, `clustersInRect()`. |
 | `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid and extent flags (`source()` for the rasterizer); `TileIdHash`. |
+| `src/core/map/Overview.*` | Minimap math: `placeOverview()` (world shape in the bottom-right corner, hidden in small windows), minimap pixel <-> world, view marker box (clipped, minimum size), `dragTo()`. |
+| `src/core/map/Ruler.*` | Ruler ticks: `rowTicks()` (row starts: byte offset, % of volume, % of disk when the partition is known), `columnTicks()` (offset within a row), power-of-two steps, `formatOffset()` / `formatPercent()` label precision. |
 | `src/core/map/Pyramid.*` | Map LOD pyramid: quadtree of 8-byte `MapBin`s over the world grid (level k bin = one tile pixel at zoom k), parallel build per base-bin row band, 2x2 merges, dirty-range `update()`. |
 | `src/core/map/Viewport.*` | View math: `Viewport` (scale, center, size), limits (32 px per cluster to beyond fit), fit, anchored zoom, pan, eased `ZoomMotion` and `PanInertia` by elapsed time. |
 | `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), tile cell rects, row segments of a run. |
@@ -111,10 +113,12 @@ changes (see `AGENTS.md`).
 | `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
-| `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays and search still disabled, caption) above the `MapCanvas`. |
+| `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays and search still disabled, caption) above the `MapCanvas` with rulers left and above; forwards the canvas's view changes to the rulers; View > Minimap. |
 | `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), frame-time log per animation. |
-| `src/ui/map/MapNavigator.*` | Map input: drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
-| `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour drawing, device-loss detection. |
+| `src/ui/map/Minimap.*` | Minimap overlay drawn in the canvas's Direct2D frame: holds the coarsest tile as its image, frame and view marker, drag state (grab offset). |
+| `src/ui/map/Ruler.*` | Ruler windows (GDI, buffered) beside the map: vertical rows with offset and %, horizontal offsets within a row; sized for their widest label, refreshed on view changes. |
+| `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
+| `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour (or smooth) drawing, overlay rectangles, device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
@@ -127,6 +131,8 @@ changes (see `AGENTS.md`).
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
+| `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
+| `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |

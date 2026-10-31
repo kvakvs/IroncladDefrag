@@ -107,7 +107,9 @@ namespace icd::ui {
             view_ = *fitted;
             fitted_ = true;
         }
+        layoutMinimap();
         Refresh(false);
+        notifyView();
     }
 
     void MapCanvas::setPalette(std::shared_ptr<const core::Palette> palette) {
@@ -119,6 +121,23 @@ namespace icd::ui {
     void MapCanvas::setViewport(const core::Viewport& view) {
         view_ = map_ != nullptr ? core::clampView(view, limits()) : view;
         Refresh(false);
+        notifyView();
+    }
+
+    void MapCanvas::notifyView() const {
+        if (viewObserver_) {
+            viewObserver_();
+        }
+    }
+
+    void MapCanvas::showMinimap(bool shown) {
+        minimap_.setShown(shown);
+        layoutMinimap();
+        Refresh(false);
+    }
+
+    void MapCanvas::layoutMinimap() {
+        minimap_.layout(map_ != nullptr ? &map_->world() : nullptr, view_.size, GetDPIScaleFactor());
     }
 
     core::ViewLimits MapCanvas::limits() const {
@@ -146,7 +165,9 @@ namespace icd::ui {
                 fitted_ = true;
             }
         }
+        layoutMinimap();
         Refresh(false);
+        notifyView();
         event.Skip();
     }
 
@@ -170,6 +191,7 @@ namespace icd::ui {
         cache_.clear();
         pending_.clear();
         arrived_.clear();
+        minimap_.resetImage();
     }
 
     void MapCanvas::uploadArrived() {
@@ -225,6 +247,7 @@ namespace icd::ui {
         renderer_->clear(background);
         if (map_ != nullptr) {
             drawTiles();
+            drawMinimap();
         }
         if (!renderer_->end()) {
             resetTiles(); // Device lost: tiles must be uploaded again.
@@ -264,6 +287,20 @@ namespace icd::ui {
                 drawFallback(tile, destination);
             }
         }
+    }
+
+    void MapCanvas::drawMinimap() {
+        const core::World& world = map_->world();
+        if (minimap_.needsImage()) {
+            const core::TileId top{world.maxLevel(), 0, 0}; // The whole world in one tile.
+            if (GpuTileHandle* cached = cache_.find(top); cached != nullptr) {
+                minimap_.setImage(*cached);
+            }
+            else {
+                request(top);
+            }
+        }
+        minimap_.draw(*renderer_, view_, world);
     }
 
     bool MapCanvas::drawFallback(core::TileId tile, const PixelRect& destination) {

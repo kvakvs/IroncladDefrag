@@ -17,11 +17,17 @@ namespace icd::ui {
     class MapCanvas;
 
     // The drive map area (plan.md section 11): a toolbar with the color mode, overlays, search and a caption
-    // saying which drive is shown and in what state, above the map canvas.
+    // saying which drive is shown and in what state, above the map canvas with its rulers (plan.md 7.1).
     class MapPanel : public wxPanel {
     public:
         // Creates the toolbar and an empty map; tiles render on executor.
         MapPanel(wxWindow* parent, core::Executor& executor);
+
+        // Disconnects the rulers from the canvas.
+        ~MapPanel() override;
+
+        MapPanel(const MapPanel&) = delete;
+        MapPanel& operator=(const MapPanel&) = delete;
 
         // Text in the toolbar, e.g. which drive is shown and what state it is in.
         void setCaption(const wxString& caption);
@@ -35,8 +41,12 @@ namespace icd::ui {
         // Whether a map is shown.
         [[nodiscard]] bool hasMap() const;
 
-        // Carries out a View zoom command (zoom in/out, fit, one cluster per pixel); false for other ids.
+        // Carries out a View map command (minimap toggle, zoom in/out, fit, one cluster per pixel); false for
+        // other ids.
         bool handleViewCommand(int id);
+
+        // Whether the minimap is switched on (for the View > Minimap check mark).
+        [[nodiscard]] bool minimapShown() const;
 
     private:
         // Creates the color mode, overlay and search controls (disabled until their features exist).

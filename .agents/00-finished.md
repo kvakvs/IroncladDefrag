@@ -91,3 +91,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   time; 7 tests), `ui/map/MapNavigator.*` (drag + inertia, wheel/pinch zoom at the pointer, gestures,
   double-click, map keys, View zoom commands), scaled fallback tiles, upload budget; 30 TB zoom from whole
   volume to one cluster at 71.8 fps (p95 16 ms).
+- T029 Minimap and ruler - `core/map/Overview.*` (minimap placement, marker, drag math), `core/map/Ruler.*`
+  (row ticks with byte offset / % of volume / % of disk, in-row column ticks, exact-step labels),
+  `ui/map/Minimap.*` (overlay in the D2D frame, coarsest tile as image, drag), `ui/map/Ruler.*` (GDI rulers
+  left of and above the map), View > Minimap toggle; 15 tests; 30 TB zoom still 73 fps.

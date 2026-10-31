@@ -249,6 +249,24 @@ this file records what is actually built and the decisions made along the way.
   to one cluster per pixel at 71.8 fps (p95 16.1 ms, worst 24 ms); other zooms 72-82 fps (target 60).
   Drag, inertia, wheel and pinch were not exercised by script (they need a real pointer).
 
+## Minimap and rulers
+
+- The minimap is drawn inside the map canvas's own Direct2D frame, not as a child window over the GPU
+  surface. Its image is the coarsest tile (the whole world fits in one), kept by `ui::Minimap` outside the
+  LRU cache so deep zooms cannot evict it. It hides when the window is less than three minimaps wide or
+  high, and with View > Minimap (Ctrl+M; the panel owns the state and the menu check follows it).
+- Pressing on the view marker drags it with the grab offset kept; pressing elsewhere on the minimap jumps
+  the view there and keeps dragging. Wheel zoom over the minimap anchors at the window center.
+  Placement, marker and drag math are `core::Overview` (tested).
+- Rulers are plain GDI windows beside the canvas (left: row starts with byte offset and % of volume;
+  top: offset within a row), in a 2 x 2 grid so their pixel axes match the canvas. The canvas calls a
+  view observer on every view or map change; the panel turns it into ruler refreshes. Tick math is
+  `core::rowTicks()` / `columnTicks()`: power-of-two steps (labels stay round in binary units) at least
+  one label apart, labels in a unit that writes the step exactly with at most three decimals ("704 GB",
+  not "0.688 TB"). "% of disk" appears once the scanner supplies the partition placement (Phase 3).
+- The 30 TB zoom from the whole volume to one cluster still runs at 73 fps with the rulers repainting
+  every frame.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

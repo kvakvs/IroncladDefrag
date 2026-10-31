@@ -4,6 +4,7 @@
 #include "ui/Commands.h"
 #include "ui/map/MapCanvas.h"
 #include "ui/map/MapNavigator.h"
+#include "ui/map/Ruler.h"
 
 #include <wx/checkbox.h>
 #include <wx/choice.h>
@@ -26,10 +27,30 @@ namespace icd::ui {
 
     MapPanel::MapPanel(wxWindow* parent, core::Executor& executor) : wxPanel(parent) {
         canvas_ = new MapCanvas(this, executor);
+        auto* rows = new Ruler(this, *canvas_, Ruler::Orientation::Vertical);
+        auto* columns = new Ruler(this, *canvas_, Ruler::Orientation::Horizontal);
+        canvas_->setViewObserver([rows, columns] {
+            rows->Refresh(false);
+            columns->Refresh(false);
+        });
+
+        // Rulers above and left of the map; the corner stays empty.
+        auto* map = new wxFlexGridSizer(2, 2, 0, 0);
+        map->AddGrowableCol(1);
+        map->AddGrowableRow(1);
+        map->AddSpacer(0);
+        map->Add(columns, wxSizerFlags().Expand());
+        map->Add(rows, wxSizerFlags().Expand());
+        map->Add(canvas_, wxSizerFlags().Expand());
+
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(createToolbar(), wxSizerFlags().Expand().Border(wxALL, FromDIP(4)));
-        sizer->Add(canvas_, wxSizerFlags(1).Expand());
+        sizer->Add(map, wxSizerFlags(1).Expand());
         SetSizer(sizer);
+    }
+
+    MapPanel::~MapPanel() {
+        canvas_->setViewObserver({}); // The rulers may be destroyed before the canvas.
     }
 
     wxSizer* MapPanel::createToolbar() {
@@ -67,11 +88,16 @@ namespace icd::ui {
 
     bool MapPanel::hasMap() const { return canvas_->hasMap(); }
 
+    bool MapPanel::minimapShown() const { return canvas_->minimap().shown(); }
+
     bool MapPanel::handleViewCommand(int id) {
         MapNavigator& navigator = canvas_->navigator();
         const core::Viewport& view = canvas_->viewport();
         const core::PixelPoint center{view.size.x / 2.0, view.size.y / 2.0};
         switch (id) {
+        case ID_SHOW_MINIMAP:
+            canvas_->showMinimap(!canvas_->minimap().shown());
+            return true;
         case ID_ZOOM_IN:
             navigator.zoomBy(2.0, center);
             return true;
