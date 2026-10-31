@@ -36,3 +36,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   one `JobResult`), `services/AppServices.*` (caps + pool + runner), `services/job/FakeJob.*`,
   `ui/bridge/JobEvents.*` (`wxQueueEvent` bridge, detach on close); Debug menu run/cancel with status-bar
   progress. Phase 0 exit checked: window stays responsive (no ping timeouts), cancel is immediate.
+- Phase 0 exit - clean clone + `test.bat` fetches wx, builds Debug and Release with clang-cl, 60 tests
+  pass in both; GUI opens, the fake parallel job reports progress and cancels without blocking the UI.
+  Also fixed: wx fetch under a PowerShell 7 parent (`PSModulePath`), progress going backwards.

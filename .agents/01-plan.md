@@ -20,10 +20,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ---
 
-## Phase 0 - Foundation (§13 Phase 0)
-
----
-
 ## Phase 1 - UI shell with fake data (§11, §13 Phase 1)
 
 ### T010 - Main window layout
