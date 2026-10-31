@@ -92,7 +92,7 @@ warn, no moves); a globally optimal layout; unattended scheduled runs.
 
 ```
 src/
-  core/          wx-free, Win32-free C++20: model, classification, strategy, planner,
+  core/          wx-free, Win32-free C++23: model, classification, strategy, planner,
                  plan validator, map LOD pyramid and tile rasterizer
   platform/win/  narrow Win32 wrappers: volumes, storage properties, MFT reader,
                  USN journal, bitmap, retrieval pointers, move, privileges

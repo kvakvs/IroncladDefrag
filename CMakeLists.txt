@@ -1,0 +1,75 @@
+cmake_minimum_required(VERSION 3.28)
+project(IroncladDefrag VERSION 0.1.0 LANGUAGES CXX)
+
+if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
+    message(FATAL_ERROR "IroncladDefrag builds only with MSVC for Windows x64.")
+endif()
+
+# Only Debug and Release exist; wx ships DLLs for exactly these two.
+set(CMAKE_CONFIGURATION_TYPES "Debug;Release" CACHE STRING "" FORCE)
+set(CMAKE_CXX_STANDARD 23)
+set(CMAKE_CXX_STANDARD_REQUIRED ON)
+set(CMAKE_CXX_EXTENSIONS OFF)
+set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
+set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
+add_compile_options(/MP)
+
+# Pinned wxWidgets version; tools/fetch-wx.ps1 pins the same version and its archive hashes.
+set(ICD_WX_VERSION "3.3.4")
+
+list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
+include(IcdCompilerOptions)
+include(IcdWxWidgets)
+
+# --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
+add_library(icd_core STATIC
+    src/core/format/ByteSize.cpp
+    src/core/format/ByteSize.h
+)
+target_include_directories(icd_core PUBLIC src)
+icd_target_defaults(icd_core)
+
+# --- icd_platform: narrow Win32 wrappers ---------------------------------------------------------
+add_library(icd_platform STATIC
+    src/platform/win/WinError.cpp
+    src/platform/win/WinError.h
+)
+target_link_libraries(icd_platform PUBLIC icd_core)
+icd_target_defaults(icd_platform)
+
+# --- icd_services: jobs, thread pool, orchestration ----------------------------------------------
+add_library(icd_services STATIC
+    src/services/AppInfo.cpp
+    src/services/AppInfo.h
+)
+target_link_libraries(icd_services PUBLIC icd_core icd_platform)
+target_compile_definitions(icd_services PRIVATE ICD_VERSION_STRING="${PROJECT_VERSION}")
+icd_target_defaults(icd_services)
+
+# --- IroncladDefrag: wxWidgets GUI ---------------------------------------------------------------
+add_executable(IroncladDefrag WIN32
+    src/main.cpp
+    src/precompiled.h
+    src/ui/App.cpp
+    src/ui/App.h
+    src/ui/MainFrame.cpp
+    src/ui/MainFrame.h
+)
+target_link_libraries(IroncladDefrag PRIVATE icd_services wx::wx)
+target_precompile_headers(IroncladDefrag PRIVATE src/precompiled.h)
+icd_target_defaults(IroncladDefrag)
+set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT IroncladDefrag)
+
+# Copy the wx DLLs of the active configuration (debug or release set) next to the exe.
+add_custom_command(TARGET IroncladDefrag POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_if_different
+        $<TARGET_RUNTIME_DLLS:IroncladDefrag> $<TARGET_FILE_DIR:IroncladDefrag>
+    COMMAND_EXPAND_LISTS
+    COMMENT "Copying wxWidgets DLLs for $<CONFIG>")
+
+# --- icd-cli: console front end ------------------------------------------------------------------
+add_executable(icd-cli
+    src/cli/main.cpp
+)
+target_link_libraries(icd-cli PRIVATE icd_services)
+icd_target_defaults(icd-cli)

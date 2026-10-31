@@ -12,6 +12,34 @@ changes (see `AGENTS.md`).
 | `.codex/arch.md`, `.codex/map.md` | Architecture notes and this map. |
 | `story/` | Notes from earlier attempts (read-only history). |
 | `tools/` | Developer scripts. |
+| `CMakeLists.txt` | All targets and their explicit source lists; pins `ICD_WX_VERSION`. |
+| `cmake/IcdCompilerOptions.cmake` | `icd_target_defaults()`: C++23, `/W4 /WX /permissive-`, Unicode and Windows defines. |
+| `cmake/IcdWxWidgets.cmake` | Imported targets `wx::base`, `wx::core`, `wx::wx` from `3rdparty/wxWidgets`; checks the fetch stamp. |
+| `build.bat` | `build.bat [Debug|Release|All]`: fetches wx, configures `build/` (VS 2026, x64) once, builds. |
+| `.gitattributes` | CRLF for `.bat`, `.cmd`, `.ps1`. |
+
+## Targets
+
+| Target | Kind | Sources | Links |
+| --- | --- | --- | --- |
+| `icd_core` | static lib | `src/core/**` | - |
+| `icd_platform` | static lib | `src/platform/win/**` | `icd_core` |
+| `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
+| `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx` |
+| `icd-cli` | console exe | `src/cli/**` | `icd_services` |
+
+## Source files
+
+| File | Purpose |
+| --- | --- |
+| `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
+| `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
+| `src/services/AppInfo.*` | Product name and version (from `ICD_VERSION_STRING`) for GUI and CLI. |
+| `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
+| `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
+| `src/ui/App.*` | `icd::App`: creates the main frame. |
+| `src/ui/MainFrame.*` | Empty main window. |
+| `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 
 ## Tools
 
@@ -29,5 +57,6 @@ changes (see `AGENTS.md`).
 
 | Path | Contents |
 | --- | --- |
+| `build/` | VS solution; `build/bin/<Config>/` holds both exes and the wx DLLs of that config. |
 | `3rdparty/downloads/` | Cached wx archives. |
 | `3rdparty/wxWidgets/` | `include/`, `include/msvc/`, `lib/vc14x_x64_dll/` (import libs, debug and release DLLs), `icd-wx-stamp.txt`. |

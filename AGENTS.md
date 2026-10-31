@@ -48,7 +48,7 @@ The supported functions are:
 - Treat defragmentation and file movement as high-risk operations: prefer explicit planning, dry-run-friendly data structures, cancellation support, careful error reporting, and minimal moved data.
 - Keep model and strategy code testable without wxWidgets where practical. Use standard C++ types in the model layer and isolate Windows API calls behind narrow system-boundary modules.
 - Use RAII for handles and resources. Avoid raw owning pointers in new code; prefer values, smart pointers, and wx ownership conventions where wxWidgets takes ownership.
-- Preserve Unicode/Windows x64 assumptions already present in the build. Be careful with paths, privileges, volume access, and large disk sizes.
+- Use C++23 (`CMAKE_CXX_STANDARD 23`). Preserve Unicode/Windows x64 assumptions already present in the build. Be careful with paths, privileges, volume access, and large disk sizes.
 - Follow `.clang-format` for C++ formatting and avoid unrelated reformatting.
 - Keep precompiled-header additions stable and low churn. Do not add frequently edited project headers to `src/precompiled.h`.
 - When adding new source files, update `CMakeLists.txt` explicitly so the `IroncladDefrag` target remains complete.

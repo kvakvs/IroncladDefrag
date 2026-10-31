@@ -22,17 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T002 - CMake skeleton and build scripts
-- Depends: T001
-- Owns: `CMakeLists.txt`, `cmake/`, `build.bat`, `src/core`, `src/platform/win`, `src/services`
-  (one placeholder source each), `src/main.cpp`, `src/ui/App.*`, `src/ui/MainFrame.*` (empty frame),
-  `src/cli/main.cpp`
-- Do: targets `icd_core`, `icd_platform`, `icd_services` (static), `IroncladDefrag` (GUI),
-  `icd-cli` (console). C++20, Unicode, `/W4 /permissive- /MP`, precompiled header for wx only.
-  Post-build copies the right wx DLLs for Debug **and** Release.
-- Done when: `build.bat Debug` and `build.bat Release` succeed; both exes start; the GUI shows an
-  empty frame; `icd-cli --version` prints a version.
-
 ### T003 - Application manifest and version resource
 - Depends: T002
 - Owns: `res/IroncladDefrag.manifest`, `res/IroncladDefrag.rc`, `src/core/Version.h`
