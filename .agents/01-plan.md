@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T024 - LOD pyramid
-- Depends: T021, T023
-- Owns: `src/core/map/Pyramid.*`
-- Do: 8-byte bin summaries, base-level selection (≤ ~32 M bins), parallel build per stripe, upward
-  merge, dirty-range update (§7.2).
-- Done when: tests compare against brute force on random small volumes; parallel = serial; 30 TB
-  synthetic builds in ≤ 5 s on 8 cores.
-
 ### T025 - Tile rasterizer
 - Depends: T024
 - Owns: `src/core/map/TileRasterizer.*`, `src/core/map/Palette.*`

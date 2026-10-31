@@ -1,21 +1,26 @@
-// synth-bench: builds a synthetic snapshot and prints how long it took and how much memory it uses, to check
-// the plan.md 6.5 targets (30 TB / 20 M files within the 8 GB snapshot budget) on a real machine.
+// synth-bench: builds a synthetic snapshot and its map pyramid and prints how long they took and how much
+// memory they use, to check the plan.md 6.5 and 7.5 targets (30 TB / 20 M files within the 8 GB snapshot
+// budget, pyramid in 5 s or less on 8 cores) on a real machine.
 //
 // Usage: synth-bench [--tb N] [--files N] [--seed N] [--fill PERCENT] [--fragmented SHARE] [--max-fragments N]
 
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
+#include "core/map/Pyramid.h"
 #include "core/synth/SyntheticVolume.h"
+#include "services/exec/ThreadPool.h"
 
 #include <windows.h>
 
 #include <psapi.h>
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
 #include <string>
+#include <thread>
 
 namespace {
 
@@ -98,5 +103,18 @@ int main(int argc, char** argv) {
     std::printf("distinct names  %s\n", formatCount(snapshot.names.size()).c_str());
     std::printf("snapshot data   %s\n", formatBytes(snapshotMemoryBytes(snapshot)).c_str());
     std::printf("peak memory     %s (budget 8 GB)\n", formatBytes(peakWorkingSet()).c_str());
+
+    const World world(snapshot.geometry.totalClusters, {.width = 16, .height = 9});
+    // The caller joins parallelFor, so a pool of N - 1 workers uses N threads.
+    const unsigned all = std::max(2U, std::thread::hardware_concurrency());
+    for (const unsigned threads : {8U, all}) {
+        icd::services::ThreadPool pool(threads - 1);
+        const auto pyramidStart = std::chrono::steady_clock::now();
+        const Pyramid pyramid = Pyramid::build({.snapshot = snapshot, .world = world}, pool);
+        const double pyramidSeconds =
+            std::chrono::duration<double>(std::chrono::steady_clock::now() - pyramidStart).count();
+        std::printf("pyramid         %.2f s on %u threads (target 5 s on 8), base level %d, %s\n", pyramidSeconds,
+                    threads, pyramid.baseLevel(), formatBytes(pyramid.memoryBytes()).c_str());
+    }
     return 0;
 }

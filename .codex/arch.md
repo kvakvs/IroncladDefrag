@@ -152,6 +152,24 @@ this file records what is actually built and the decisions made along the way.
   zoom), `maxLevel()` fits the world in one 256 px tile. `levelFor()` picks the nearest finer level
   for a continuous scale, so cached tiles are shrunk, never blown up.
 
+## Map pyramid
+
+- The pyramid is a quadtree over the world grid, not a 1-D list of LCN bins: a level-k bin covers
+  2^k x 2^k cells, exactly one pixel of a zoom-level-k tile, so coarse tiles are copied straight from
+  bins. (A 1-D bin of 2^k clusters cannot summarise a square pixel spanning many rows; at the
+  whole-volume zoom of a 30 TB drive a pixel is about 32 x 32 cells.) The plan's "256 clusters per
+  bin, ~32 M bins" at 30 TB is the 16 x 16 base level of this quadtree.
+- `MapBin` is 8 bytes: used clusters (scaled by `usedShift()` once a full bin no longer fits 31
+  bits), dominant class (largest contributor at the base; the child with most used clusters above),
+  fragmented share and heat as 0-255 averages weighted by used clusters, and flags (unmovable,
+  directory index, plan source/destination).
+- The base is filled in parallel per band of base-bin rows; each band is one contiguous LCN range,
+  so it needs a single range query and one sweep. Levels above merge 2 x 2 bins. Results do not
+  depend on the thread count; `update(dirty)` recomputes only the bands over a changed LCN range
+  and their parents, and equals a full rebuild.
+- Measured on the synthetic 30 TB / 20 M-file volume: 0.86 s on 8 threads, 0.55 s on 32
+  (target 5 s on 8), 320 MB for all levels.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

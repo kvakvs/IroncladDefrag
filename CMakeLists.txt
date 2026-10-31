@@ -50,6 +50,8 @@ add_library(icd_core STATIC
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
+    src/core/map/Pyramid.cpp
+    src/core/map/Pyramid.h
     src/core/map/World.cpp
     src/core/map/World.h
     src/core/model/DriveInfo.cpp
@@ -174,7 +176,7 @@ icd_target_defaults(icd-cli)
 
 # --- synth-bench: synthetic snapshot build time and memory (plan.md 6.5) ------------------------
 add_executable(synth-bench tools/bench/synth-bench.cpp)
-target_link_libraries(synth-bench PRIVATE icd_core psapi)
+target_link_libraries(synth-bench PRIVATE icd_services psapi)
 icd_target_defaults(synth-bench)
 
 # --- Tests ---------------------------------------------------------------------------------------

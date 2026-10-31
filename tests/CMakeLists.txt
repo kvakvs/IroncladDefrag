@@ -16,6 +16,7 @@ add_executable(icd_tests
     core/DriveInfoTest.cpp
     core/JobTypesTest.cpp
     core/LogTest.cpp
+    core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
     core/SmokeTest.cpp
     core/SnapshotTest.cpp

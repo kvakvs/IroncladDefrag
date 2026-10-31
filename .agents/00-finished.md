@@ -72,3 +72,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   5.6 GB (budget 8 GB).
 - T023 Map world layout - `core/map/World.*`: `roundToNice()`, world from cluster count and screen aspect,
   LCN <-> cell, zoom levels and tile math, row segments; tests for round trips, edges, aspects, tiles.
+- T024 LOD pyramid - `core/map/Pyramid.*`: quadtree of 8-byte bins over the world grid (bin = tile pixel;
+  the plan's 1-D wording reinterpreted, see arch.md), base <= 32 M bins (16 x 16 cells at 30 TB), parallel
+  fill per row band, 2x2 merge, dirty-range update; brute-force, parallel and update tests; 30 TB in 0.86 s
+  on 8 threads, 320 MB.
