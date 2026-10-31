@@ -35,7 +35,8 @@ namespace icd::core {
 
     // Rate-limits progress to a target (about 10 per second) so workers can report freely without flooding
     // the UI. The first report, stage changes and finished stages always pass; a report dropped in between
-    // is kept and delivered by flush() or by the next report that passes the time check.
+    // is kept and delivered by flush() or by the next report that passes the time check. Within a stage
+    // progress only moves forward: a lower count arriving late from another worker is dropped.
     class ThrottledProgress : public ProgressSink {
     public:
         // Time source; tests pass a fake one.
@@ -56,12 +57,15 @@ namespace icd::core {
         // Whether progress must pass regardless of time (first report, new stage, finished stage).
         [[nodiscard]] bool mustForward(const Progress& progress) const;
 
+        // Sends progress to the target and records it as the last one sent; called with mutex_ held.
+        void forward(const Progress& progress, std::chrono::steady_clock::time_point now);
+
         std::shared_ptr<ProgressSink> target_; // Receiver of the throttled stream.
         std::chrono::milliseconds interval_; // Minimum time between forwarded reports.
         Clock clock_; // Time source.
         std::mutex mutex_; // Guards the fields below; reports come from workers.
-        std::optional<std::chrono::steady_clock::time_point> lastSent_; // When the last report went out.
-        std::optional<std::string> lastStage_; // Stage of the last forwarded report.
+        std::chrono::steady_clock::time_point lastSent_; // When last_ went out.
+        std::optional<Progress> last_; // Last forwarded report; empty before the first.
         std::optional<Progress> pending_; // Newest report not yet forwarded.
     };
 

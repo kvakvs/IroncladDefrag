@@ -47,6 +47,8 @@ this file records what is actually built and the decisions made along the way.
 - Progress is a value (`stage`, `done`, `total`, `message`) pushed to a `ProgressSink`.
   `ThrottledProgress` sits in front of the UI: about 10 reports per second, but the first report,
   stage changes and finished stages always pass, and `flush()` delivers the newest held-back one.
+  Within a stage (same name and total) progress only moves forward: workers compute and report counts
+  concurrently, so a lower count arriving late is dropped.
 
 ## Jobs and the UI
 

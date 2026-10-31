@@ -151,6 +151,37 @@ namespace icd::core { namespace {
         EXPECT_EQ(f.sink->received[2].stage, "mft");
     }
 
+    // A lower count arriving after a higher one (workers race) is dropped, so flush() never moves progress back.
+    TEST(Throttle, DropsStaleReports) {
+        ThrottleFixture f;
+        f.throttle.report({"scan", 1, 64, ""});
+        f.throttle.report({"scan", 64, 64, ""}); // Finished: forwarded.
+        f.throttle.report({"scan", 63, 64, ""}); // Late report from another worker.
+        f.throttle.flush();
+        ASSERT_EQ(f.sink->received.size(), 2u);
+        EXPECT_EQ(f.sink->received.back().done, 64u);
+    }
+
+    // A held-back report is not replaced by an older one.
+    TEST(Throttle, PendingKeepsHighestCount) {
+        ThrottleFixture f;
+        f.throttle.report({"scan", 1, 100, ""});
+        f.throttle.report({"scan", 9, 100, ""}); // Held.
+        f.throttle.report({"scan", 7, 100, ""}); // Older: dropped.
+        f.throttle.flush();
+        ASSERT_EQ(f.sink->received.size(), 2u);
+        EXPECT_EQ(f.sink->received.back().done, 9u);
+    }
+
+    // The same stage name with a new total is a new stage: it passes even with a lower count.
+    TEST(Throttle, NewTotalStartsNewStage) {
+        ThrottleFixture f;
+        f.throttle.report({"pass", 50, 50, ""});
+        f.throttle.report({"pass", 0, 80, ""});
+        ASSERT_EQ(f.sink->received.size(), 2u);
+        EXPECT_EQ(f.sink->received.back().total, 80u);
+    }
+
     // Many threads reporting at once: forwarding is serialized and the rate stays bounded.
     TEST(Throttle, ConcurrentReportsAreSafe) {
         auto sink = std::make_shared<RecordingSink>();
