@@ -229,6 +229,26 @@ this file records what is actually built and the decisions made along the way.
 - `PrintWindow` does not capture Direct2D output of a child window; scripted screenshots of the map
   need a real screen capture.
 
+## Map navigation
+
+- View math is pure core code (`core/map/Viewport`): a continuous scale (cells per pixel) and a world
+  center; zoom keeps the world point under the anchor pixel fixed; limits run from 32 px per cluster
+  to 1.5 times the fitted view; the center stays inside the world.
+- Motion is computed from elapsed time (`ZoomMotion` eases in log-scale space, 150 ms per wheel step up
+  to 1.2 s for big jumps; `PanInertia` decays exponentially), so timer jitter never shows. An 8 ms
+  `wxTimer` only computes the next view and asks for a repaint; Direct2D's present waits for vsync and
+  paces the frames.
+- `ui::MapNavigator` maps input: drag pans (with inertia on release), the wheel zooms at the pointer
+  (fractional notches from precision touchpads zoom smoothly; the horizontal wheel pans), pinch and
+  two-finger pan gestures, double-click zooms 4x in (Shift: out), arrows/PgUp/PgDn/Home/End pan, and
+  the View commands animate zoom in/out, fit and one cluster per pixel. A new zoom continues from the
+  current animated view towards the combined target.
+- While exact tiles render, the nearest cached tile up to four levels coarser is drawn scaled. At most
+  96 tiles render at once and at most 16 are uploaded per frame, so bursts never stall a frame.
+- Measured on the 30 TB synthetic volume at 2400 x 1400 on a 75 Hz display: zoom from the whole volume
+  to one cluster per pixel at 71.8 fps (p95 16.1 ms, worst 24 ms); other zooms 72-82 fps (target 60).
+  Drag, inertia, wheel and pinch were not exercised by script (they need a real pointer).
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

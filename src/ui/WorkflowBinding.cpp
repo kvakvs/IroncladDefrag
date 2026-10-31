@@ -163,13 +163,16 @@ namespace icd::ui {
         if (!commandEnabled(id)) {
             return; // Map keys arrive even when the menu item is disabled.
         }
+        if (widgets_.map.handleViewCommand(id)) {
+            return; // Zoom commands and map keys.
+        }
         const wxMenuItem* item = frame_.GetMenuBar()->FindItem(id);
         const wxString label = item != nullptr ? item->GetItemLabelText() : wxString();
         if (id >= ID_COLOR_CLASS && id <= ID_COLOR_PLAN) {
             widgets_.map.setColorMode(id - ID_COLOR_CLASS);
             frame_.GetMenuBar()->Check(id, true);
         }
-        widgets_.bottom.setStatus("View: " + label + " (arrives with map navigation and color modes)");
+        widgets_.bottom.setStatus("View: " + label + " (arrives with color modes, minimap and legend)");
     }
 
     void WorkflowBinding::onCommand(wxCommandEvent& event) {

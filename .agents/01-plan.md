@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T028 - Map navigation
-- Depends: T027
-- Owns: `src/ui/map/MapNavigator.*`
-- Do: drag pan with inertia, wheel zoom anchored at the cursor, time-based animation, keyboard keys
-  (§7.4), touchpad gestures, scaled lower-level tiles while exact tiles render.
-- Done when: smooth zoom from whole volume to one cluster on the synthetic volume; 60 fps measured.
-
 ### T029 - Minimap and ruler
 - Depends: T028
 - Owns: `src/ui/map/Minimap.*`, `src/ui/map/Ruler.*`

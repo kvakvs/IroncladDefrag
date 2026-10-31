@@ -87,3 +87,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   mailbox, 256 MB LRU GPU cache, fit-to-view, no re-flow on resize), `ui/map/D2DRenderer.*`, `ui/panels/MapPanel.*`
   (replaces the placeholder), `core/map/MapData.*`, `core/util/LruCache.h`, `services/workflow/SyntheticAnalysis.*`
   (Analyze builds a synthetic map), 30 TB fake drive H: (analysed in 16.6 s).
+- T028 Map navigation - `core/map/Viewport.*` (anchored zoom, pan, limits, eased zoom and inertia by elapsed
+  time; 7 tests), `ui/map/MapNavigator.*` (drag + inertia, wheel/pinch zoom at the pointer, gestures,
+  double-click, map keys, View zoom commands), scaled fallback tiles, upload budget; 30 TB zoom from whole
+  volume to one cluster at 71.8 fps (p95 16 ms).

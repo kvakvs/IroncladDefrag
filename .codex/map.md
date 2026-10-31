@@ -79,6 +79,7 @@ changes (see `AGENTS.md`).
 | `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), grid lines at deep zoom, `clustersInRect()`. |
 | `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid and extent flags (`source()` for the rasterizer); `TileIdHash`. |
 | `src/core/map/Pyramid.*` | Map LOD pyramid: quadtree of 8-byte `MapBin`s over the world grid (level k bin = one tile pixel at zoom k), parallel build per base-bin row band, 2x2 merges, dirty-range `update()`. |
+| `src/core/map/Viewport.*` | View math: `Viewport` (scale, center, size), limits (32 px per cluster to beyond fit), fit, anchored zoom, pan, eased `ZoomMotion` and `PanInertia` by elapsed time. |
 | `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), tile cell rects, row segments of a run. |
 | `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles). |
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
@@ -111,13 +112,15 @@ changes (see `AGENTS.md`).
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
 | `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays and search still disabled, caption) above the `MapCanvas`. |
-| `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, async tile rendering on the pool via a detachable mailbox, LRU GPU cache (256 MB), fit-to-view, no re-flow on resize, map keys. |
+| `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), frame-time log per animation. |
+| `src/ui/map/MapNavigator.*` | Map input: drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
 | `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour drawing, device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
 | `tests/core/StripesTest.cpp` | Stripe layout coverage, view coverage on random volumes, parallel = serial on 2-16 threads. |
 | `tests/core/SyntheticVolumeTest.cpp` | Seed reproducibility, fill level, fragmented share, free patterns, structure. |
+| `tests/core/ViewportTest.cpp` | Pixel/world round trip, fit and limits, anchored zoom, pan clamping, eased zoom motion, durations, inertia. |
 | `tests/core/WorldTest.cpp` | Nice widths, landscape/portrait aspect, round trips and edge cells, levels, tile clipping, row segments. |
 | `tests/core/PyramidTest.cpp` | Base-level choice, every bin vs brute force, dominant class, parallel = serial, dirty-range update = rebuild. |
 | `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells and grid on a hand volume, pyramid = extents at the base level, golden checksums. |

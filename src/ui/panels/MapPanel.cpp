@@ -1,7 +1,9 @@
 #include "ui/panels/MapPanel.h"
 
 #include "core/map/MapData.h"
+#include "ui/Commands.h"
 #include "ui/map/MapCanvas.h"
+#include "ui/map/MapNavigator.h"
 
 #include <wx/checkbox.h>
 #include <wx/choice.h>
@@ -64,5 +66,27 @@ namespace icd::ui {
     void MapPanel::setMap(std::shared_ptr<const core::MapData> map) { canvas_->setMap(std::move(map)); }
 
     bool MapPanel::hasMap() const { return canvas_->hasMap(); }
+
+    bool MapPanel::handleViewCommand(int id) {
+        MapNavigator& navigator = canvas_->navigator();
+        const core::Viewport& view = canvas_->viewport();
+        const core::PixelPoint center{view.size.x / 2.0, view.size.y / 2.0};
+        switch (id) {
+        case ID_ZOOM_IN:
+            navigator.zoomBy(2.0, center);
+            return true;
+        case ID_ZOOM_OUT:
+            navigator.zoomBy(0.5, center);
+            return true;
+        case ID_ZOOM_FIT:
+            navigator.fit();
+            return true;
+        case ID_ZOOM_CLUSTER:
+            navigator.zoomToScale(1.0);
+            return true;
+        default:
+            return false;
+        }
+    }
 
 } // namespace icd::ui

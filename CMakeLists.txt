@@ -60,6 +60,8 @@ add_library(icd_core STATIC
     src/core/map/Pyramid.h
     src/core/map/TileRasterizer.cpp
     src/core/map/TileRasterizer.h
+    src/core/map/Viewport.cpp
+    src/core/map/Viewport.h
     src/core/map/World.cpp
     src/core/map/World.h
     src/core/model/DriveInfo.cpp
@@ -153,6 +155,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/map/D2DRenderer.h
     src/ui/map/MapCanvas.cpp
     src/ui/map/MapCanvas.h
+    src/ui/map/MapNavigator.cpp
+    src/ui/map/MapNavigator.h
     src/ui/panels/DrivesPanel.cpp
     src/ui/panels/DrivesPanel.h
     src/ui/panels/BottomPanel.cpp

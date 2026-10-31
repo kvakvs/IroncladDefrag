@@ -35,6 +35,9 @@ namespace icd::ui {
         // Whether a map is shown.
         [[nodiscard]] bool hasMap() const;
 
+        // Carries out a View zoom command (zoom in/out, fit, one cluster per pixel); false for other ids.
+        bool handleViewCommand(int id);
+
     private:
         // Creates the color mode, overlay and search controls (disabled until their features exist).
         wxSizer* createToolbar();
