@@ -5,3 +5,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 
 - T000 Task plan - split `plan.md` into small isolated tasks in `.agents/01-plan.md`, added commit and
   progress rules to `AGENTS.md`.
+- T001 wxWidgets fetch script - `tools/fetch-wx.ps1` downloads wx 3.3.4 vc14x x64 Dev/ReleaseDLL/headers,
+  checks pinned SHA-256, extracts via 7-Zip or System32 `tar` into `3rdparty/wxWidgets` through a staging
+  dir; stamp file makes re-runs a no-op. Started `.codex/arch.md` and `.codex/map.md`.

@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T001 - wxWidgets fetch script
-- Depends: -
-- Owns: `tools/fetch-wx.ps1`, `.gitignore`
-- Do: download pinned wxMSW 3.3.x MSVC x64 Dev, ReleaseDLL and headers archives into `3rdparty/`,
-  check SHA-256, extract into `3rdparty/wxWidgets`. Re-running is a no-op when already present.
-- Done when: running on a clean checkout produces the include/lib/dll tree; wrong hash fails clearly.
-
 ### T002 - CMake skeleton and build scripts
 - Depends: T001
 - Owns: `CMakeLists.txt`, `cmake/`, `build.bat`, `src/core`, `src/platform/win`, `src/services`
