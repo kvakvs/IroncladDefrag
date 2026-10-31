@@ -1,0 +1,39 @@
+// Resources of IroncladDefrag.exe: wxWidgets' standard resources and the version information.
+// The manifest is embedded by the linker from res/IroncladDefrag.manifest, so wx.rc's default one is off.
+#include <winver.h>
+
+#include "core/Version.h"
+
+#define wxUSE_NO_MANIFEST 1
+#include "wx/msw/wx.rc"
+
+VS_VERSION_INFO VERSIONINFO
+    FILEVERSION ICD_VERSION_MAJOR, ICD_VERSION_MINOR, ICD_VERSION_PATCH, 0
+    PRODUCTVERSION ICD_VERSION_MAJOR, ICD_VERSION_MINOR, ICD_VERSION_PATCH, 0
+    FILEFLAGSMASK VS_FFI_FILEFLAGSMASK
+#ifdef _DEBUG
+    FILEFLAGS VS_FF_DEBUG
+#else
+    FILEFLAGS 0
+#endif
+    FILEOS VOS_NT_WINDOWS32
+    FILETYPE VFT_APP
+    FILESUBTYPE VFT2_UNKNOWN
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904b0"
+        BEGIN
+            VALUE "FileDescription", "Ironclad Defrag - disk analyser and defragmenter"
+            VALUE "FileVersion", ICD_VERSION_STRING
+            VALUE "InternalName", "IroncladDefrag"
+            VALUE "OriginalFilename", "IroncladDefrag.exe"
+            VALUE "ProductName", "Ironclad Defrag"
+            VALUE "ProductVersion", ICD_VERSION_STRING
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x409, 1200
+    END
+END

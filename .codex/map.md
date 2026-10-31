@@ -16,6 +16,9 @@ changes (see `AGENTS.md`).
 | `cmake/IcdCompilerOptions.cmake` | `icd_target_defaults()`: C++23, `/W4 /WX /permissive-`, Unicode and Windows defines. |
 | `cmake/IcdWxWidgets.cmake` | Imported targets `wx::base`, `wx::core`, `wx::wx` from `3rdparty/wxWidgets`; checks the fetch stamp. |
 | `build.bat` | `build.bat [Debug|Release|All]`: fetches wx, configures `build/` (VS 2026, x64) once, builds. |
+| `run-elevated.bat` | `run-elevated.bat [Debug|Release]`: starts the GUI through the shell (UAC prompt). |
+| `res/IroncladDefrag.manifest` | Embedded manifest: `requireAdministrator`, Common Controls v6, PerMonitorV2 DPI, long paths, Win10+. |
+| `res/IroncladDefrag.rc` | wx standard resources (`wx/msw/wx.rc`, its manifest off) and `VERSIONINFO`. |
 | `.gitattributes` | CRLF for `.bat`, `.cmd`, `.ps1`. |
 | `quality.bat` | `quality.bat [changed|all]`: creates `.venv-quality`, enters vcvars64, configures `build/quality` (Ninja + cl, compile database, no PCH), builds `check-quality[-all]`. |
 | `.clang-tidy` | clang-tidy checks and the cognitive complexity threshold (10). |
@@ -40,9 +43,10 @@ changes (see `AGENTS.md`).
 
 | File | Purpose |
 | --- | --- |
+| `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
-| `src/services/AppInfo.*` | Product name and version (from `ICD_VERSION_STRING`) for GUI and CLI. |
+| `src/services/AppInfo.*` | Product name and version (from `core/Version.h`) for GUI and CLI. |
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: creates the main frame. |

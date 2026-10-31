@@ -1,0 +1,10 @@
+#pragma once
+
+// Product version from project(VERSION) in CMakeLists.txt. CMake writes the real header to
+// <build>/generated/core/Version.h; edit this template, not the generated copy.
+// Plain macros, so the resource compiler can read them too.
+
+#define ICD_VERSION_MAJOR @PROJECT_VERSION_MAJOR@
+#define ICD_VERSION_MINOR @PROJECT_VERSION_MINOR@
+#define ICD_VERSION_PATCH @PROJECT_VERSION_PATCH@
+#define ICD_VERSION_STRING "@PROJECT_VERSION@"

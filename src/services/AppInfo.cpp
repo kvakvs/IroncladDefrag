@@ -1,8 +1,6 @@
 #include "services/AppInfo.h"
 
-#ifndef ICD_VERSION_STRING
-#error "ICD_VERSION_STRING must be defined by the build"
-#endif
+#include "core/Version.h"
 
 namespace icd::services {
 

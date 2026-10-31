@@ -19,8 +19,12 @@ this file records what is actually built and the decisions made along the way.
 - wx is linked through imported targets, not wx's `#pragma comment(lib)` auto-linking (only
   `include/`, not `include/msvc/`, is on the include path). This lets the post-build step copy exactly
   the runtime DLLs of the active configuration with `$<TARGET_RUNTIME_DLLS>`.
-- The version comes from `project(VERSION)` and reaches code through `ICD_VERSION_STRING` in
-  `icd_services`.
+- The version comes from `project(VERSION)`: CMake generates `core/Version.h` (plain macros) that
+  both C++ code and `res/IroncladDefrag.rc` include.
+- The GUI always runs elevated (`requireAdministrator` in `res/IroncladDefrag.manifest`); the linker's
+  own UAC entry is off (`/MANIFESTUAC:NO`) so there is exactly one. `icd-cli` stays `asInvoker` so it
+  works in scripts; commands that need administrator rights will check and report it.
+- Automated smoke runs start the GUI with `__COMPAT_LAYER=RunAsInvoker` to skip the UAC prompt.
 
 ## Quality gate
 

@@ -14,3 +14,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T002a Quality gate: clang-tidy and Lizard - `quality.bat [changed|all]` with pinned clang-tidy 22.1.8 and
   Lizard 1.24.0 in `.venv-quality`; Ninja + cl compile database in `build/quality`; CCN and cognitive
   complexity <= 10, warnings as errors (`.clang-tidy`, `cmake/Check*.cmake`, `cmake/quality_scope.py`).
+- T003 Application manifest and version resource - `res/IroncladDefrag.manifest` (requireAdministrator,
+  Common Controls v6, PerMonitorV2, long paths), `res/IroncladDefrag.rc` (wx.rc + VERSIONINFO),
+  generated `core/Version.h` from `src/core/Version.h.in`; `run-elevated.bat`.

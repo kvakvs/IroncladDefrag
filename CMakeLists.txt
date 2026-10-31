@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(IroncladDefrag VERSION 0.1.0 LANGUAGES CXX)
+project(IroncladDefrag VERSION 0.1.0 LANGUAGES CXX RC)
 
 if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "IroncladDefrag builds only with MSVC for Windows x64.")
@@ -23,12 +23,16 @@ list(APPEND CMAKE_MODULE_PATH "${CMAKE_SOURCE_DIR}/cmake")
 include(IcdCompilerOptions)
 include(IcdWxWidgets)
 
+# Version header generated from project(VERSION), shared by code and resource scripts.
+configure_file(src/core/Version.h.in "${CMAKE_BINARY_DIR}/generated/core/Version.h" @ONLY)
+
 # --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
 add_library(icd_core STATIC
+    src/core/Version.h.in
     src/core/format/ByteSize.cpp
     src/core/format/ByteSize.h
 )
-target_include_directories(icd_core PUBLIC src)
+target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)
 
 # --- icd_platform: narrow Win32 wrappers ---------------------------------------------------------
@@ -45,7 +49,6 @@ add_library(icd_services STATIC
     src/services/AppInfo.h
 )
 target_link_libraries(icd_services PUBLIC icd_core icd_platform)
-target_compile_definitions(icd_services PRIVATE ICD_VERSION_STRING="${PROJECT_VERSION}")
 icd_target_defaults(icd_services)
 
 # --- IroncladDefrag: wxWidgets GUI ---------------------------------------------------------------
@@ -56,8 +59,12 @@ add_executable(IroncladDefrag WIN32
     src/ui/App.h
     src/ui/MainFrame.cpp
     src/ui/MainFrame.h
+    res/IroncladDefrag.manifest
+    res/IroncladDefrag.rc
 )
 target_link_libraries(IroncladDefrag PRIVATE icd_services wx::wx)
+# The manifest file carries requestedExecutionLevel; stop the linker adding its own asInvoker entry.
+target_link_options(IroncladDefrag PRIVATE /MANIFESTUAC:NO)
 target_precompile_headers(IroncladDefrag PRIVATE src/precompiled.h)
 icd_target_defaults(IroncladDefrag)
 set_property(DIRECTORY PROPERTY VS_STARTUP_PROJECT IroncladDefrag)

@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T003 - Application manifest and version resource
-- Depends: T002
-- Owns: `res/IroncladDefrag.manifest`, `res/IroncladDefrag.rc`, `src/core/Version.h`
-- Do: `requireAdministrator`, per-monitor DPI v2, common controls v6, version info from CMake.
-- Done when: the exe asks for elevation on start; it renders sharply when moved between screens with
-  different DPI; file properties show the version.
-
 ### T004 - Test framework
 - Depends: T002
 - Owns: `tests/CMakeLists.txt`, `tests/core/SmokeTest.cpp`, `test.bat`
