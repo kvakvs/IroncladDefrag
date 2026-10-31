@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T031 - Selection and file navigation
-- Depends: T030
-- Owns: `src/ui/map/MapSelection.*`, `src/core/snapshot/FileSearch.*`
-- Do: click selects a file and highlights all fragments; next/previous fragment; "go to file" with
-  path search over the name pool.
-- Done when: search tests; selection overlay updates through dirty tiles only.
-
 ### T032 - Color modes and legend
 - Depends: T025, T027
 - Owns: `src/core/map/ColorModes.*`, `src/ui/map/Legend.*`

@@ -13,10 +13,6 @@ namespace icd::core {
         // Tile edge in pixels.
         constexpr std::uint64_t edge = World::tileSize;
 
-        // Cells at least this many pixels wide get grid lines (plan.md 7.1 says 6 px; cell sizes are powers
-        // of two, so that is 8 px and up).
-        constexpr std::uint64_t gridCellPixels = 8;
-
         // A tile's summaries at the resolution they are computed: one unit per pixel, or per cell when a cell
         // spans several pixels.
         struct Units {

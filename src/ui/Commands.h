@@ -38,7 +38,18 @@ namespace icd::ui {
         ID_ZOOM_CLUSTER, // View > One cluster per pixel.
 
         ID_RESOURCES, // Settings > Resources (thread and memory caps).
+
+        // Map commands added after the first set; appended so the ids above keep their values.
+        ID_GOTO_FILE, // View > Go to file: search the drive and jump to a file.
+        ID_NEXT_FRAGMENT, // View > Next fragment of the selected file.
+        ID_PREVIOUS_FRAGMENT, // View > Previous fragment of the selected file.
     };
+
+    // Whether a command acts on the drive map (View menu: color modes, overlays, zoom, selection), and so needs a map
+    // to be enabled.
+    [[nodiscard]] constexpr bool isMapCommand(int id) {
+        return (id >= ID_COLOR_CLASS && id <= ID_ZOOM_CLUSTER) || (id >= ID_GOTO_FILE && id <= ID_PREVIOUS_FRAGMENT);
+    }
 
     // Enables or disables a command everywhere it appears in frame: its menu item and any button with the same
     // id. Called explicitly on state changes: wxMSW refreshes wxEVT_UPDATE_UI for menus only when a menu opens,

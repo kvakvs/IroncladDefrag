@@ -13,6 +13,10 @@ namespace icd::core {
     // Pixels in one tile.
     inline constexpr std::size_t tilePixels = std::size_t{World::tileSize} * World::tileSize;
 
+    // Cells at least this many pixels wide get grid lines (plan.md 7.1 says 6 px; cell sizes are powers of two, so
+    // that is 8 px and up). Shared with the selection highlight, which leaves the grid lines alone.
+    inline constexpr std::uint64_t gridCellPixels = 8;
+
     // Everything a tile is drawn from. Read-only while tiles render, so tiles render on many workers at once.
     struct MapSource {
         const World& world; // Cell layout.

@@ -2,10 +2,12 @@
 
 #include "core/exec/Executor.h"
 #include "core/log/Log.h"
+#include "core/map/Selection.h"
 #include "core/map/TileRasterizer.h"
 #include "ui/Accelerators.h"
 #include "ui/map/MapHover.h"
 #include "ui/map/MapNavigator.h"
+#include "ui/map/MapSelection.h"
 
 #include <wx/dcclient.h>
 
@@ -44,15 +46,15 @@ namespace icd::ui {
         constexpr int fallbackLevels = 4;
 
         // Hands a rendered tile to the canvas, if it still exists.
-        void post(const std::shared_ptr<TileMailbox>& mailbox, std::uint64_t generation, core::TileId tile,
+        void post(const std::shared_ptr<TileMailbox>& mailbox, RenderStamp stamp, core::TileId tile,
                   std::vector<core::Rgba> pixels) {
             const std::scoped_lock lock(mailbox->mutex);
             if (mailbox->target == nullptr) {
                 return;
             }
             MapCanvas* canvas = mailbox->target;
-            canvas->CallAfter([canvas, generation, tile, pixels = std::move(pixels)]() mutable {
-                canvas->deliver(generation, tile, std::move(pixels));
+            canvas->CallAfter([canvas, stamp, tile, pixels = std::move(pixels)]() mutable {
+                canvas->deliver(stamp, tile, std::move(pixels));
             });
         }
 
@@ -91,6 +93,7 @@ namespace icd::ui {
             event.Skip();
         });
         navigator_ = std::make_unique<MapNavigator>(*this);
+        selection_ = std::make_unique<MapSelection>(*this);
         hover_ = std::make_unique<MapHover>(*this);
     }
 
@@ -103,6 +106,8 @@ namespace icd::ui {
     void MapCanvas::setMap(std::shared_ptr<const core::MapData> map) {
         navigator_->stop();
         hover_->hide();
+        selection_->reset();
+        overlay_.reset();
         map_ = std::move(map);
         resetTiles();
         fitted_ = false;
@@ -118,6 +123,27 @@ namespace icd::ui {
     void MapCanvas::setPalette(std::shared_ptr<const core::Palette> palette) {
         palette_ = std::move(palette);
         resetTiles();
+        Refresh(false);
+    }
+
+    void MapCanvas::setSelection(std::shared_ptr<const core::SelectionOverlay> overlay) {
+        const std::shared_ptr<const core::SelectionOverlay> previous = std::exchange(overlay_, std::move(overlay));
+        ++selectionVersion_;
+        if (map_ == nullptr) {
+            return;
+        }
+        const core::World& world = map_->world();
+        const auto touched = [&world](const core::SelectionOverlay* selection, core::TileId tile) {
+            return selection != nullptr && core::runsTouch(world, selection->runs, world.tileCells(tile));
+        };
+        // Tiles rendering now were drawn with the previous selection too, so they are checked like cached ones.
+        std::vector<core::TileId> candidates = cache_.keys();
+        candidates.insert(candidates.end(), pending_.begin(), pending_.end());
+        for (const core::TileId tile : candidates) {
+            if (touched(previous.get(), tile) || touched(overlay_.get(), tile)) {
+                dirty_[tile] = selectionVersion_;
+            }
+        }
         Refresh(false);
     }
 
@@ -194,6 +220,7 @@ namespace icd::ui {
         cache_.clear();
         pending_.clear();
         arrived_.clear();
+        dirty_.clear();
         minimap_.resetImage();
     }
 
@@ -201,13 +228,23 @@ namespace icd::ui {
         for (std::size_t count = 0; count < uploadsPerFrame && !arrived_.empty(); ++count) {
             ArrivedTile& next = arrived_.front();
             if (GpuTileHandle uploaded = renderer_->upload(next.pixels); uploaded != nullptr) {
-                cache_.insert(next.tile, std::move(uploaded), tileBytes);
+                storeTile(next.tile, next.selection, std::move(uploaded));
             }
             pending_.erase(next.tile);
             arrived_.pop_front();
         }
         if (!arrived_.empty()) {
             Refresh(false); // The rest go up in the next frames.
+        }
+    }
+
+    void MapCanvas::storeTile(core::TileId tile, std::uint64_t selection, GpuTileHandle uploaded) {
+        if (map_ != nullptr && tile == core::TileId{map_->world().maxLevel(), 0, 0}) {
+            minimap_.setImage(uploaded); // The minimap shows the top tile, also after a selection change.
+        }
+        cache_.insert(tile, std::move(uploaded), tileBytes);
+        if (const auto mark = dirty_.find(tile); mark != dirty_.end() && mark->second <= selection) {
+            dirty_.erase(mark);
         }
     }
 
@@ -275,7 +312,6 @@ namespace icd::ui {
                                     static_cast<std::int64_t>(std::ceil(bottomRight.x / span)));
         const auto lastY = std::min(static_cast<std::int64_t>(world.tilesDown(level)),
                                     static_cast<std::int64_t>(std::ceil(bottomRight.y / span)));
-        const PixelRect whole{0, 0, core::World::tileSize, core::World::tileSize};
         for (std::int64_t y = firstY; y < lastY; ++y) {
             for (std::int64_t x = firstX; x < lastX; ++x) {
                 const core::TileId tile{level, static_cast<std::uint64_t>(x), static_cast<std::uint64_t>(y)};
@@ -283,7 +319,7 @@ namespace icd::ui {
                     view_.pixelAt({static_cast<double>(x) * span, static_cast<double>(y) * span});
                 const PixelRect destination{corner.x, corner.y, tilePixels, tilePixels};
                 if (GpuTileHandle* cached = cache_.find(tile); cached != nullptr) {
-                    renderer_->draw(*cached, destination, whole);
+                    drawCached(tile, *cached, destination);
                     continue;
                 }
                 request(tile);
@@ -292,16 +328,27 @@ namespace icd::ui {
         }
     }
 
+    void MapCanvas::drawCached(core::TileId tile, const GpuTileHandle& cached, const PixelRect& destination) {
+        const PixelRect whole{0, 0, core::World::tileSize, core::World::tileSize};
+        renderer_->draw(cached, destination, whole);
+        if (dirty_.contains(tile)) {
+            request(tile); // Shown as it is until the tile with the current selection arrives.
+        }
+    }
+
     void MapCanvas::drawMinimap() {
         const core::World& world = map_->world();
+        const core::TileId top{world.maxLevel(), 0, 0}; // The whole world in one tile.
         if (minimap_.needsImage()) {
-            const core::TileId top{world.maxLevel(), 0, 0}; // The whole world in one tile.
             if (GpuTileHandle* cached = cache_.find(top); cached != nullptr) {
                 minimap_.setImage(*cached);
             }
             else {
                 request(top);
             }
+        }
+        else if (dirty_.contains(top)) {
+            request(top);
         }
         minimap_.draw(*renderer_, view_, world);
     }
@@ -329,9 +376,14 @@ namespace icd::ui {
             return;
         }
         pending_.insert(tile);
-        executor_.submit([map = map_, palette = palette_, mailbox = mailbox_, generation = generation_, tile] {
+        const RenderStamp stamp{.generation = generation_, .selection = selectionVersion_};
+        executor_.submit([map = map_, palette = palette_, overlay = overlay_, mailbox = mailbox_, stamp, tile] {
             try {
-                post(mailbox, generation, tile, core::renderTile(map->source(), tile, *palette));
+                std::vector<core::Rgba> pixels = core::renderTile(map->source(), tile, *palette);
+                if (overlay != nullptr) {
+                    core::highlightRuns(map->world(), tile, overlay->runs, palette->selection(), pixels);
+                }
+                post(mailbox, stamp, tile, std::move(pixels));
             }
             catch (const std::exception& error) {
                 core::logging::error("tile render failed", {{"level", tile.level}, {"what", error.what()}});
@@ -339,11 +391,12 @@ namespace icd::ui {
         });
     }
 
-    void MapCanvas::deliver(std::uint64_t generation, core::TileId tile, std::vector<core::Rgba>&& pixels) {
-        if (generation != generation_) {
+    void MapCanvas::deliver(RenderStamp stamp, core::TileId tile, std::vector<core::Rgba>&& pixels) {
+        if (stamp.generation != generation_) {
             return; // Rendered for an earlier map, palette or device.
         }
-        arrived_.push_back({tile, std::move(pixels)}); // Still pending until uploaded, so it is not requested again.
+        arrived_.push_back(
+            {tile, stamp.selection, std::move(pixels)}); // Still pending until uploaded, so it is not requested again.
         Refresh(false);
     }
 

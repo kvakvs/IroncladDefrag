@@ -5,6 +5,7 @@
 #include <list>
 #include <unordered_map>
 #include <utility>
+#include <vector>
 
 namespace icd::core {
 
@@ -62,6 +63,17 @@ namespace icd::core {
 
         // Entries held.
         [[nodiscard]] std::size_t size() const { return index_.size(); }
+
+        // Keys of all entries, most recently used first, without changing the order (to find entries that went
+        // stale, such as map tiles under a changed selection).
+        [[nodiscard]] std::vector<Key> keys() const {
+            std::vector<Key> keys;
+            keys.reserve(order_.size());
+            for (const Entry& entry : order_) {
+                keys.push_back(entry.key);
+            }
+            return keys;
+        }
 
         // Total cost held.
         [[nodiscard]] std::size_t cost() const { return cost_; }

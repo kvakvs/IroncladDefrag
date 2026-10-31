@@ -34,6 +34,9 @@ namespace icd::ui {
         // Animates to the view that shows the whole volume.
         void fit();
 
+        // Animates to a view (a fragment to show); without a scale change it jumps there.
+        void show(const core::Viewport& target) { animateTo(target); }
+
         // Moves by a map key (arrows: an eighth of the window, PgUp/PgDn: a window, Home/End: the volume's ends).
         void panKey(MapKey key);
 

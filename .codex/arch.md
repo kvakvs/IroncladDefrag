@@ -282,6 +282,28 @@ this file records what is actually built and the decisions made along the way.
   events first, and always passes them on. Posted mouse messages cannot drive it from a script: wx
   sends a leave event when the real cursor is not over the window.
 
+## Selection and go to file
+
+- A click (press and release within 4 DIP, not on the minimap) selects the file owning the cluster under
+  the pointer and makes the clicked fragment current; a click on free space clears the selection.
+  `ui::MapSelection` keeps the fragments in file (VCN) order, numbered like the tooltip's i/n, and moves
+  the view with `core::focusView()`: centered, the fragment filling half the window (whole rows across
+  90% when it wraps), never closer than 8 px per cluster. F3 / Shift+F3 step through the fragments.
+- The highlight is part of the tile: workers paint `core::highlightRuns()` over the rendered tile, so
+  every pixel holding a selected cluster shows it, even a one-cluster fragment at the widest zoom.
+  Rendered tiles do not depend on the selection otherwise. On a change, the canvas tests each cached and
+  rendering tile with `core::runsTouch()` against the old and the new runs and marks only those dirty
+  (with a selection version); a dirty tile is still drawn and re-requested, and the mark clears when a
+  tile drawn with that version or newer arrives. Nothing flickers and untouched tiles stay cached. Tests
+  check that the refreshed tiles are exactly the tiles whose pixels change.
+- "Go to file" (Ctrl+F, or Enter in the toolbar's "Find file") is a dialog: `core::searchFiles()` runs on
+  the pool as the user types, ranks exact names, then prefixes, then other matches, and lists up to 500.
+  Without a backslash the query matches names; with one it matches path pieces (the last part starts the
+  name, the rest ends the parent's path, compared name by name up the parent chain without building
+  strings). Each distinct name is tested once, then the 4-byte name column is scanned.
+- Measured on the 30 TB synthetic volume (20.5 M files, 399 K distinct names, 32 threads): name searches
+  3-4 ms, a path search 19 ms; a selection change's dirty test over a full 1,024-tile cache 0.05 ms.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

@@ -59,6 +59,10 @@ namespace icd::ui {
             ItemSpec{ID_ZOOM_OUT, "Zoom &out"},
             ItemSpec{ID_ZOOM_FIT, "&Fit volume"},
             ItemSpec{ID_ZOOM_CLUSTER, "One cl&uster per pixel"},
+            separator,
+            ItemSpec{ID_GOTO_FILE, "&Go to file..."},
+            ItemSpec{ID_NEXT_FRAGMENT, "&Next fragment"},
+            ItemSpec{ID_PREVIOUS_FRAGMENT, "P&revious fragment"},
         };
 
         constexpr std::array settingsItems{
@@ -71,12 +75,15 @@ namespace icd::ui {
         };
 
         constexpr std::array stateCommands{
-            int{ID_ANALYZE},         int{ID_REFRESH_DRIVES}, int{ID_TRIM},           int{ID_QUICK},
-            int{ID_CHOOSE_STRATEGY}, int{ID_BUILD_PLAN},     int{ID_REVIEW_PLAN},    int{ID_EXECUTE},
-            int{ID_PAUSE},           int{ID_CANCEL},         int{ID_COLOR_CLASS},    int{ID_COLOR_FRAGMENTATION},
-            int{ID_COLOR_AGE},       int{ID_COLOR_SIZE},     int{ID_COLOR_ZONE_FIT}, int{ID_COLOR_PLAN},
-            int{ID_SHOW_MINIMAP},    int{ID_SHOW_LEGEND},    int{ID_ZOOM_IN},        int{ID_ZOOM_OUT},
-            int{ID_ZOOM_FIT},        int{ID_ZOOM_CLUSTER},   int{ID_RESOURCES},      int{wxID_PREFERENCES},
+            int{ID_ANALYZE},      int{ID_REFRESH_DRIVES},  int{ID_TRIM},
+            int{ID_QUICK},        int{ID_CHOOSE_STRATEGY}, int{ID_BUILD_PLAN},
+            int{ID_REVIEW_PLAN},  int{ID_EXECUTE},         int{ID_PAUSE},
+            int{ID_CANCEL},       int{ID_COLOR_CLASS},     int{ID_COLOR_FRAGMENTATION},
+            int{ID_COLOR_AGE},    int{ID_COLOR_SIZE},      int{ID_COLOR_ZONE_FIT},
+            int{ID_COLOR_PLAN},   int{ID_SHOW_MINIMAP},    int{ID_SHOW_LEGEND},
+            int{ID_ZOOM_IN},      int{ID_ZOOM_OUT},        int{ID_ZOOM_FIT},
+            int{ID_ZOOM_CLUSTER}, int{ID_RESOURCES},       int{wxID_PREFERENCES},
+            int{ID_GOTO_FILE},    int{ID_NEXT_FRAGMENT},   int{ID_PREVIOUS_FRAGMENT},
         };
 
         // Appends items to menu in order.

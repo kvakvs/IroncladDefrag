@@ -36,6 +36,9 @@ namespace icd::ui {
             Shortcut{ID_ZOOM_OUT, wxACCEL_CTRL, '-'},
             Shortcut{ID_ZOOM_FIT, wxACCEL_CTRL, '0'},
             Shortcut{ID_ZOOM_CLUSTER, wxACCEL_CTRL, '1'},
+            Shortcut{ID_GOTO_FILE, wxACCEL_CTRL, 'F'},
+            Shortcut{ID_NEXT_FRAGMENT, wxACCEL_NORMAL, WXK_F3},
+            Shortcut{ID_PREVIOUS_FRAGMENT, wxACCEL_SHIFT, WXK_F3},
             Shortcut{wxID_PREFERENCES, wxACCEL_CTRL, ','},
         };
 

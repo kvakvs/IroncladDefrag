@@ -41,6 +41,10 @@ namespace icd::core {
 
         // Area past the end of the volume.
         [[nodiscard]] virtual Rgba outside() const { return rgb(200, 200, 200); }
+
+        // Clusters of the selected file (plan.md 7.4); a color no data or free space takes, so a selected
+        // fragment stands out in every mode.
+        [[nodiscard]] virtual Rgba selection() const { return rgb(255, 196, 0); }
     };
 
     // Used versus free space, with fragmented and unmovable data highlighted: the map's look until the color

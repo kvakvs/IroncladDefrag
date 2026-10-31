@@ -66,6 +66,7 @@ changes (see `AGENTS.md`).
 | `src/core/snapshot/Types.h` | `Lcn`, `ClusterCount`, `FileIndex` (32-bit, `noFile`), `ClusterRun`, `VolumeGeometry`, `SnapshotError`. |
 | `src/core/snapshot/NamePool.*` | Interned UTF-8 names in one buffer (`intern()`, `name()`, `freezeLookup()`). |
 | `src/core/snapshot/FileTable.h` | Per-file columns (name, parent, size, clusters, flags, times, file reference); `FileFlag`. |
+| `src/core/snapshot/FileSearch.*` | `searchFiles()`: "go to file" over names (exact, prefix, contains) and path fragments (`photos\a`), ASCII case-insensitive, one pass over distinct names then the file column, parallel and deterministic, with a limit and a total. |
 | `src/core/snapshot/DirectoryTree.*` | Child lists from parent indexes, roots, `path()` with a cycle guard. |
 | `src/core/snapshot/ExtentIndex.*` | 16-byte `ExtentRecord` (40-bit LCN, 24-bit length), index by LCN (`find`, `overlapping`) and by file in VCN order (`extentsOf`, `fragmentCount`). |
 | `src/core/snapshot/FreeRunList.*` | Sorted, merged free runs (`find`, `overlapping`, `largest`). |
@@ -78,13 +79,14 @@ changes (see `AGENTS.md`).
 | `src/core/map/Palette.*` | `Rgba` (BGRA in memory), `Palette` interface over `PixelSummary`, `OccupancyPalette`. |
 | `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), grid lines at deep zoom, `clustersInRect()`. |
 | `src/core/map/HitTest.*` | Hover lookups: `hitTest()` (pointer -> cell -> LCN -> extent or free run, fragment i/n via `fragmentOf()`, the pixel's cells and used clusters), `formatFileTime()`, `describeHit()` tooltip lines. |
+| `src/core/map/Selection.*` | Selection math: `fileFragments()` (VCN order, continuing runs joined), `SelectionOverlay` / `selectionOf()` (LCN-sorted merged runs), `shapeOf()` (a run as at most three cell rectangles), `runsTouch()` (dirty-tile test), `highlightRuns()` (paints the selection into a tile, grid kept), `focusView()`. |
 | `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid and extent flags (`source()` for the rasterizer); `TileIdHash`. |
 | `src/core/map/Overview.*` | Minimap math: `placeOverview()` (world shape in the bottom-right corner, hidden in small windows), minimap pixel <-> world, view marker box (clipped, minimum size), `dragTo()`. |
 | `src/core/map/Ruler.*` | Ruler ticks: `rowTicks()` (row starts: byte offset, % of volume, % of disk when the partition is known), `columnTicks()` (offset within a row), power-of-two steps, `formatOffset()` / `formatPercent()` label precision. |
 | `src/core/map/Pyramid.*` | Map LOD pyramid: quadtree of 8-byte `MapBin`s over the world grid (level k bin = one tile pixel at zoom k), parallel build per base-bin row band, 2x2 merges, dirty-range `update()`. |
 | `src/core/map/Viewport.*` | View math: `Viewport` (scale, center, size), limits (32 px per cluster to beyond fit), fit, anchored zoom, pan, eased `ZoomMotion` and `PanInertia` by elapsed time. |
 | `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), tile cell rects, row segments of a run. |
-| `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles). |
+| `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles); `keys()` for finding stale entries. |
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
@@ -106,16 +108,18 @@ changes (see `AGENTS.md`).
 | `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
 | `src/ui/WorkflowBinding.*` | Commands to workflow actions, fake jobs per step, progress and results to the panels, command enable state. |
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
-| `src/ui/Accelerators.*` | One table of menu shortcuts (`applyMenuShortcuts()`), and the map keys of plan.md 7.4 (`mapKeyFor()`, `commandForMapKey()`). |
+| `src/ui/Accelerators.*` | One table of menu shortcuts (`applyMenuShortcuts()`; Ctrl+F go to file, F3 / Shift+F3 fragments), and the map keys of plan.md 7.4 (`mapKeyFor()`, `commandForMapKey()`). |
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
-| `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators), `enableCommand()` for menu item + button. |
+| `src/ui/dialogs/GoToFileDialog.*` | View > Go to file: search field and match list (path, size, fragments); searches on the pool as the user types (200 ms pause, cancelled when replaced), results through a detachable mailbox. |
+| `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators; later ids appended so values stay stable), `isMapCommand()`, `enableCommand()` for menu item + button. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons, the single status line and gauge. |
 | `src/ui/panels/SummaryPage.*` | Summary tab: volume figures and per-class table. |
 | `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
-| `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays and search still disabled, caption) above the `MapCanvas` with rulers left and above; forwards the canvas's view changes to the rulers; View > Minimap. |
-| `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), frame-time log per animation. |
+| `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode and overlays still disabled, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above; forwards the canvas's view changes to the rulers; View > Minimap, Go to file, next/previous fragment. |
+| `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), selection highlight painted into tiles with dirty-tile refresh, frame-time log per animation. |
+| `src/ui/map/MapSelection.*` | Selected file: click (press and release within 4 DIP, not on the minimap) selects the owner of the cluster or clears on free space; fragments in file order, current fragment, next/previous and go to with an animated focus view; observer for the toolbar label. |
 | `src/ui/map/MapHover.*` | Hover tooltip: `wxPopupWindow` after a 350 ms rest, follows the pointer, hides on press/drag/wheel/key/leave; local time zone for file times. |
 | `src/ui/map/Minimap.*` | Minimap overlay drawn in the canvas's Direct2D frame: holds the coarsest tile as its image, frame and view marker, drag state (grab offset). |
 | `src/ui/map/Ruler.*` | Ruler windows (GDI, buffered) beside the map: vertical rows with offset and %, horizontal offsets within a row; sized for their widest label, refreshed on view changes. |
@@ -136,6 +140,8 @@ changes (see `AGENTS.md`).
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
 | `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
+| `tests/core/FileSearchTest.cpp` | Ranks, case, path queries (slashes, trailing backslash, mid-name start), empty queries, limit and total, brute force over built paths on a synthetic volume, pool = serial. |
+| `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
@@ -150,7 +156,7 @@ changes (see `AGENTS.md`).
 
 | Path | What it does |
 | --- | --- |
-| `tools/bench/synth-bench.cpp` | `synth-bench` target: builds a synthetic snapshot (default 30 TB / 20 M files), its pyramid on 8 and all threads, and times tiles per level; `--dump DIR` writes sample tiles as BMP. |
+| `tools/bench/synth-bench.cpp` | `synth-bench` target: builds a synthetic snapshot (default 30 TB / 20 M files), its pyramid on 8 and all threads, and times tiles per level, file searches and a selection change's dirty-tile check; `--dump DIR` writes sample tiles as BMP. |
 | `tools/spike/map-render-spike/main.cpp` | `map-render-spike` target (T026): times 4K tile composition with wx Direct2D, raw Direct2D and GDI during scripted zoom and pan. |
 | `tools/fetch-wx.ps1` | Downloads the pinned wxWidgets prebuilt MSVC x64 archives (Dev, ReleaseDLL, headers), checks SHA-256, extracts to `3rdparty/wxWidgets`. No-op when the stamp matches; `-Force` redoes it. |
 

@@ -14,24 +14,35 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <unordered_map>
 #include <unordered_set>
 #include <vector>
 
 namespace icd::core {
     class Executor;
-}
+    struct SelectionOverlay;
+} // namespace icd::core
 
 namespace icd::ui {
 
     class MapHover;
     class MapNavigator;
+    class MapSelection;
     struct TileMailbox;
+
+    // What a rendered tile was drawn with, so late results for an older map or selection are recognised.
+    struct RenderStamp {
+        std::uint64_t generation = 0; // MapCanvas generation: map, palette and device.
+        std::uint64_t selection = 0; // Selection version.
+    };
 
     // The drive map widget (plan.md 7.3): composes 256 x 256 tiles with Direct2D, renders missing tiles on the
     // shared pool and keeps the uploaded ones in an LRU cache with a memory cap. While exact tiles render, the
     // nearest cached coarser tile is drawn scaled. The paint path never touches analysis data. The world is
     // fixed per map, so resizing changes how much is visible, never the layout (plan.md 7.1). Input and
-    // animation live in MapNavigator, the hover tooltip in MapHover.
+    // animation live in MapNavigator, the hover tooltip in MapHover, the selected file in MapSelection. The
+    // selection highlight is painted into tiles; changing it re-renders only the tiles it touches, showing the
+    // old ones until the new ones arrive.
     class MapCanvas : public wxWindow {
     public:
         // GPU memory for cached tiles (1,024 tiles of 256 KB).
@@ -51,6 +62,13 @@ namespace icd::ui {
 
         // Changes the color mode; every tile renders again.
         void setPalette(std::shared_ptr<const core::Palette> palette);
+
+        // Highlights a selection (null: none). Only cached or rendering tiles that the old or the new selection
+        // touches are marked dirty and render again.
+        void setSelection(std::shared_ptr<const core::SelectionOverlay> overlay);
+
+        // The selected file and fragment navigation.
+        [[nodiscard]] MapSelection& selection() { return *selection_; }
 
         // Whether a map is shown.
         [[nodiscard]] bool hasMap() const { return map_ != nullptr; }
@@ -89,7 +107,7 @@ namespace icd::ui {
         void endFrameStats();
 
         // Takes a rendered tile on the UI thread (called through the mailbox).
-        void deliver(std::uint64_t generation, core::TileId tile, std::vector<core::Rgba>&& pixels);
+        void deliver(RenderStamp stamp, core::TileId tile, std::vector<core::Rgba>&& pixels);
 
     private:
         // Draws the frame.
@@ -103,6 +121,9 @@ namespace icd::ui {
 
         // Draws the visible tiles of the current level and asks for the missing ones.
         void drawTiles();
+
+        // Draws a cached tile, and asks for a fresh one when the selection changed under it.
+        void drawCached(core::TileId tile, const GpuTileHandle& cached, const PixelRect& destination);
 
         // Draws the nearest cached coarser tile scaled into a missing tile's place; false when none is cached.
         bool drawFallback(core::TileId tile, const PixelRect& destination);
@@ -125,15 +146,21 @@ namespace icd::ui {
         // Uploads up to a per-frame budget of arrived tiles; repaints again when more are waiting.
         void uploadArrived();
 
+        // Puts an uploaded tile in the cache (and the minimap for the top tile); clears its dirty mark when it
+        // was drawn with a selection at least as new as the mark.
+        void storeTile(core::TileId tile, std::uint64_t selection, GpuTileHandle uploaded);
+
         // A rendered tile waiting for upload.
         struct ArrivedTile {
             core::TileId tile; // Which tile.
+            std::uint64_t selection = 0; // Selection version it was drawn with.
             std::vector<core::Rgba> pixels; // Its pixels.
         };
 
         core::Executor& executor_; // Renders tiles.
         std::unique_ptr<D2DRenderer> renderer_; // Created on first paint.
         std::unique_ptr<MapNavigator> navigator_; // Input and animation.
+        std::unique_ptr<MapSelection> selection_; // Selected file; sees clicks after the hover, before the navigator.
         std::unique_ptr<MapHover> hover_; // Tooltip; created after the navigator so it sees events first.
         core::LruCache<core::TileId, GpuTileHandle, core::TileIdHash> cache_{tileCacheBytes}; // Uploaded tiles.
         std::unordered_set<core::TileId, core::TileIdHash> pending_; // Tiles rendering now.
@@ -141,6 +168,10 @@ namespace icd::ui {
         std::shared_ptr<TileMailbox> mailbox_; // Route from workers back to this window.
         std::shared_ptr<const core::MapData> map_; // What is shown; null for no map.
         std::shared_ptr<const core::Palette> palette_; // Color mode.
+        std::shared_ptr<const core::SelectionOverlay> overlay_; // Highlighted file, or null.
+        // Tiles whose cached (or rendering) pixels show an older selection, with the version that made them stale.
+        std::unordered_map<core::TileId, std::uint64_t, core::TileIdHash> dirty_;
+        std::uint64_t selectionVersion_ = 0; // Bumped on every selection change.
         core::Viewport view_; // Current view.
         Minimap minimap_; // Overview in the corner.
         std::function<void()> viewObserver_; // Called when the view or map changes.

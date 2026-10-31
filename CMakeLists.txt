@@ -64,6 +64,8 @@ add_library(icd_core STATIC
     src/core/map/Pyramid.h
     src/core/map/Ruler.cpp
     src/core/map/Ruler.h
+    src/core/map/Selection.cpp
+    src/core/map/Selection.h
     src/core/map/TileRasterizer.cpp
     src/core/map/TileRasterizer.h
     src/core/map/Viewport.cpp
@@ -79,6 +81,8 @@ add_library(icd_core STATIC
     src/core/snapshot/ExtentIndex.cpp
     src/core/snapshot/ExtentIndex.h
     src/core/snapshot/FileTable.h
+    src/core/snapshot/FileSearch.cpp
+    src/core/snapshot/FileSearch.h
     src/core/snapshot/FreeRunList.cpp
     src/core/snapshot/FreeRunList.h
     src/core/snapshot/NamePool.cpp
@@ -157,6 +161,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/bridge/JobEvents.h
     src/ui/dialogs/AboutDialog.cpp
     src/ui/dialogs/AboutDialog.h
+    src/ui/dialogs/GoToFileDialog.cpp
+    src/ui/dialogs/GoToFileDialog.h
     src/ui/map/D2DRenderer.cpp
     src/ui/map/D2DRenderer.h
     src/ui/map/MapCanvas.cpp
@@ -165,6 +171,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/map/MapHover.h
     src/ui/map/MapNavigator.cpp
     src/ui/map/MapNavigator.h
+    src/ui/map/MapSelection.cpp
+    src/ui/map/MapSelection.h
     src/ui/map/Minimap.cpp
     src/ui/map/Minimap.h
     src/ui/map/Ruler.cpp

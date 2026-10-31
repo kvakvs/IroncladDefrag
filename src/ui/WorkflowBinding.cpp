@@ -154,6 +154,7 @@ namespace icd::ui {
             frame_.Bind(wxEVT_BUTTON, &WorkflowBinding::onCommand, this, entry.id);
         }
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_COLOR_CLASS, ID_ZOOM_CLUSTER);
+        frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_GOTO_FILE, ID_PREVIOUS_FRAGMENT);
         frame_.Bind(jobProgressEvent(), &WorkflowBinding::onJobProgress, this);
         frame_.Bind(jobFinishedEvent(), &WorkflowBinding::onJobFinished, this);
     }
@@ -166,7 +167,7 @@ namespace icd::ui {
         if (widgets_.map.handleViewCommand(id)) {
             // The panel owns the minimap state; the check mark follows it however the command arrived.
             frame_.GetMenuBar()->Check(ID_SHOW_MINIMAP, widgets_.map.minimapShown());
-            return; // Minimap, zoom commands and map keys.
+            return; // Minimap, zoom, selection commands and map keys.
         }
         const wxMenuItem* item = frame_.GetMenuBar()->FindItem(id);
         const wxString label = item != nullptr ? item->GetItemLabelText() : wxString();
@@ -517,7 +518,7 @@ namespace icd::ui {
     }
 
     bool WorkflowBinding::commandEnabled(int id) const {
-        if (id >= ID_COLOR_CLASS && id <= ID_ZOOM_CLUSTER) {
+        if (isMapCommand(id)) {
             return widgets_.map.hasMap();
         }
         const auto action = actionFor(id, workflow_.state());

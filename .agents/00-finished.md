@@ -99,3 +99,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `describeHit()` lines, `formatFileTime()`), `ui/map/MapHover.*` (popup after a 350 ms rest, follows the
   pointer); 8 tests incl. brute force at every level on a synthetic volume. Type line from file flags until
   classes exist (Phase 5).
+- T031 Selection and file navigation - `core/snapshot/FileSearch.*` (`searchFiles()`: names and path pieces,
+  ranked, parallel; 3-19 ms on 20.5 M files), `core/map/Selection.*` (fragments, overlay, run shapes,
+  `runsTouch()`, `highlightRuns()`, `focusView()`), `ui/map/MapSelection.*` (click select, F3 / Shift+F3),
+  `ui/dialogs/GoToFileDialog.*` (Ctrl+F, toolbar search), canvas dirty tiles by selection version; 10 tests
+  incl. refreshed tiles = changed tiles at every level.

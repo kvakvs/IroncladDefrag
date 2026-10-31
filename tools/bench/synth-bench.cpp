@@ -1,6 +1,7 @@
 // synth-bench: builds a synthetic snapshot and its map pyramid and prints how long they took and how much
 // memory they use, to check the plan.md 6.5 and 7.5 targets (30 TB / 20 M files within the 8 GB snapshot
-// budget, pyramid in 5 s or less on 8 cores) on a real machine.
+// budget, pyramid in 5 s or less on 8 cores) on a real machine. Also times file searches ("go to file") and the
+// dirty-tile check of a selection change.
 //
 // Usage: synth-bench [--tb N] [--files N] [--seed N] [--fill PERCENT] [--fragmented SHARE] [--max-fragments N]
 //                    [--dump DIR]   (DIR gets a few rendered tiles as .bmp files)
@@ -8,7 +9,9 @@
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
 #include "core/map/Pyramid.h"
+#include "core/map/Selection.h"
 #include "core/map/TileRasterizer.h"
+#include "core/snapshot/FileSearch.h"
 #include "core/synth/SyntheticVolume.h"
 #include "services/exec/ThreadPool.h"
 
@@ -138,6 +141,45 @@ namespace {
 
 } // namespace
 
+namespace {
+
+    // Times "go to file" searches of different breadth (synthetic names are "dir<n>" and "f<n><extension>").
+    void timeSearches(const icd::core::Snapshot& snapshot, icd::core::Executor& executor) {
+        using namespace icd::core;
+        for (const char* query : {"f12345.jpg", "f1234", "dir12\\f", "f", "nothing-matches"}) {
+            const auto start = std::chrono::steady_clock::now();
+            const SearchResult result = searchFiles(snapshot, query, 500, executor);
+            std::printf("search %-16s %.1f ms, %s matches\n", query, since(start) * 1000.0,
+                        formatCount(result.total).c_str());
+        }
+    }
+
+    // Times what a selection change costs the canvas: the overlay of the most fragmented file and the touch test
+    // over a full tile cache (1,024 tiles) at the base level.
+    void timeSelection(const icd::core::Snapshot& snapshot, const icd::core::World& world, int level) {
+        using namespace icd::core;
+        FileIndex most = 0;
+        std::size_t fragments = 0;
+        for (FileIndex file = 0; file < snapshot.files.size(); ++file) {
+            if (const std::size_t count = snapshot.extents.fragmentCount(file); count > fragments) {
+                most = file;
+                fragments = count;
+            }
+        }
+        const auto start = std::chrono::steady_clock::now();
+        const SelectionOverlay overlay = selectionOf(snapshot.extents, most);
+        std::size_t touched = 0;
+        for (std::uint64_t index = 0; index < 1024; ++index) {
+            const TileId tile{level, index % world.tilesAcross(level),
+                              (index / world.tilesAcross(level)) % world.tilesDown(level)};
+            touched += runsTouch(world, overlay.runs, world.tileCells(tile)) ? 1 : 0;
+        }
+        std::printf("selection       %.2f ms for %s fragments over 1,024 tiles (%zu touched)\n", since(start) * 1000.0,
+                    formatCount(fragments).c_str(), touched);
+    }
+
+} // namespace
+
 int main(int argc, char** argv) {
     using namespace icd::core;
     const Args args = parse(argc, argv);
@@ -192,6 +234,8 @@ int main(int argc, char** argv) {
                             0, -3, World::minLevel}) {
         timeTiles(source, level, 64);
     }
+    timeSearches(snapshot, pool);
+    timeSelection(snapshot, world, pyramid->baseLevel());
     if (!args.dumpDirectory.empty()) {
         dumpTiles(source, args.dumpDirectory);
     }

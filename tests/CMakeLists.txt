@@ -14,6 +14,7 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
     core/DriveInfoTest.cpp
+    core/FileSearchTest.cpp
     core/HitTestTest.cpp
     core/JobTypesTest.cpp
     core/LogTest.cpp
@@ -22,6 +23,7 @@ add_executable(icd_tests
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
     core/RulerTest.cpp
+    core/SelectionTest.cpp
     core/SmokeTest.cpp
     core/SnapshotTest.cpp
     core/StripesTest.cpp
