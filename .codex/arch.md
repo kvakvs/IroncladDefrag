@@ -75,6 +75,11 @@ this file records what is actually built and the decisions made along the way.
 - One `CommandId` per command, shared by menu items, bottom-panel buttons and (later) accelerators.
   Buttons carry the command id as their window id, so `wxEVT_MENU` and `wxEVT_BUTTON` go to the same
   handler and `enableCommand()` enables both.
+- Drives come from `services::IDriveProvider` (owned by `AppServices`; fake in Phase 1). The model is
+  `core::DriveInfo`; the column texts are core functions (`core/format/DriveText`), so the wording is
+  tested and the CLI can reuse it. `ui::DrivesPanel` shows them in a `wxDataViewCtrl` (selection,
+  keyboard and column resizing come free); two custom renderers draw the space bar and the SSD-only
+  TRIM button. A TRIM click selects its row and queues `ID_TRIM` up to the frame.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
 ## Parallel execution

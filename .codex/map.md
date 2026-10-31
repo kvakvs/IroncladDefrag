@@ -49,6 +49,9 @@ changes (see `AGENTS.md`).
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
 | `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
+| `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
+| `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`. |
+| `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges`, `MediaType`; `canOptimize()` (NTFS, not SSD), `isSsd()`. |
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce`. |
 | `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
@@ -61,7 +64,9 @@ changes (see `AGENTS.md`).
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`) for GUI and CLI. |
-| `src/services/AppServices.*` | Service composition root: resources, caps, `ThreadPool`, `JobRunner` (destroyed in the right order). |
+| `src/services/AppServices.*` | Service composition root: resources, caps, `ThreadPool`, `JobRunner`, drive provider (destroyed in the right order). |
+| `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
+| `src/services/drives/FakeDriveProvider.*` | Phase 1 fake drives: SSD, three NTFS HDDs in different states, one exFAT drive. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages for the Debug menu and runner tests. |
 | `src/ui/bridge/JobEvents.*` | `JobEventBridge` (job callbacks to `wxQueueEvent`), `jobProgressEvent()`, `jobFinishedEvent()`, payloads. |
@@ -73,6 +78,7 @@ changes (see `AGENTS.md`).
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
 | `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators), `enableCommand()` for menu item + button. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons, the single status line and gauge. |
+| `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
 | `src/ui/panels/MapPlaceholder.*` | Map toolbar (disabled) and a canvas with a made-up cluster pattern until Phase 2. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
@@ -82,6 +88,8 @@ changes (see `AGENTS.md`).
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
+| `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |
+| `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |
 

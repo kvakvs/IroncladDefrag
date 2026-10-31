@@ -1,6 +1,7 @@
 #include "ui/MainFrame.h"
 
 #include "core/format/Count.h"
+#include "core/format/DriveText.h"
 #include "core/resources/ResourceCaps.h"
 #include "services/AppInfo.h"
 #include "services/AppServices.h"
@@ -9,13 +10,12 @@
 #include "ui/MainMenu.h"
 #include "ui/bridge/JobEvents.h"
 #include "ui/panels/BottomPanel.h"
+#include "ui/panels/DrivesPanel.h"
 #include "ui/panels/MapPlaceholder.h"
 
 #include <wx/menu.h>
 #include <wx/sizer.h>
 #include <wx/splitter.h>
-#include <wx/statbox.h>
-#include <wx/stattext.h>
 
 #include <string>
 
@@ -49,15 +49,30 @@ namespace icd {
             return wxString::FromUTF8(text);
         }
 
-        // Stand-in for the all-disks panel until the drive list exists (T011).
-        wxWindow* createDrivesPlaceholder(wxWindow* parent) {
-            auto* panel = new wxPanel(parent);
-            auto* box = new wxStaticBoxSizer(wxVERTICAL, panel, "Drives");
-            box->Add(new wxStaticText(box->GetStaticBox(), wxID_ANY, "The list of all drives goes here."),
-                     wxSizerFlags().Border(wxALL, panel->FromDIP(8)));
-            box->SetMinSize(panel->FromDIP(wxSize(-1, 120)));
-            panel->SetSizer(box);
-            return panel;
+        // What the map placeholder says about the selected drive.
+        wxString mapCaption(const core::DriveInfo* drive) {
+            if (drive == nullptr) {
+                return "No drive selected";
+            }
+            std::string text = core::driveName(*drive);
+            if (core::isSsd(*drive)) {
+                text += ": SSD, TRIM only (no map)";
+            }
+            else if (!core::canOptimize(*drive)) {
+                text += ": " + drive->fileSystem + " is not supported";
+            }
+            else {
+                text += ": placeholder map";
+            }
+            return wxString::FromUTF8(text);
+        }
+
+        // Pattern seed for the map placeholder: one per drive letter, none for drives without a map.
+        std::uint32_t mapPattern(const core::DriveInfo* drive) {
+            if (drive == nullptr || !core::canOptimize(*drive) || drive->root.empty()) {
+                return 0;
+            }
+            return static_cast<unsigned char>(drive->root.front());
         }
 
     } // namespace
@@ -89,10 +104,13 @@ namespace icd {
         splitter_->SetSashGravity(1.0); // Window growth goes to the map.
         splitter_->SetMinimumPaneSize(FromDIP(140));
         splitter_->SplitHorizontally(map_, bottom_);
-        map_->setCaption("No drive selected");
+        map_->setCaption(mapCaption(nullptr));
+        drives_ = new ui::DrivesPanel(root);
+        drives_->setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
+        drives_->setDrives(services_.drives().listDrives());
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
-        sizer->Add(createDrivesPlaceholder(root), wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxTOP, FromDIP(4)));
+        sizer->Add(drives_, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxTOP, FromDIP(4)));
         sizer->Add(splitter_, wxSizerFlags(1).Expand().Border(wxALL, FromDIP(4)));
         root->SetSizer(sizer);
     }
@@ -106,7 +124,9 @@ namespace icd {
         for (const auto& eventType : {wxEVT_MENU, wxEVT_BUTTON}) {
             Bind(eventType, &MainFrame::onRunFakeJob, this, ui::ID_RUN_FAKE_JOB);
             Bind(eventType, &MainFrame::onCancel, this, ui::ID_CANCEL);
+            Bind(eventType, &MainFrame::onTrim, this, ui::ID_TRIM);
         }
+        Bind(wxEVT_MENU, &MainFrame::onRefreshDrives, this, ui::ID_REFRESH_DRIVES);
         Bind(ui::jobProgressEvent(), &MainFrame::onJobProgress, this);
         Bind(ui::jobFinishedEvent(), &MainFrame::onJobFinished, this);
         Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onClose, this);
@@ -118,6 +138,10 @@ namespace icd {
             return !activeJob_;
         case ui::ID_CANCEL:
             return activeJob_.has_value();
+        case ui::ID_REFRESH_DRIVES:
+            return !activeJob_;
+        case ui::ID_TRIM:
+            return !activeJob_ && drives_->selected() != nullptr && core::isSsd(*drives_->selected());
         default:
             return false; // Stub: the workflow (T012) and later phases enable the rest.
         }
@@ -126,6 +150,25 @@ namespace icd {
     void MainFrame::updateCommands() {
         for (const int id : ui::stateDependentCommands()) {
             ui::enableCommand(*this, id, commandEnabled(id));
+        }
+    }
+
+    void MainFrame::onDriveSelected() {
+        const core::DriveInfo* drive = drives_->selected();
+        map_->setCaption(mapCaption(drive));
+        map_->setPattern(mapPattern(drive));
+        updateCommands();
+    }
+
+    void MainFrame::onRefreshDrives(wxCommandEvent& /*event*/) {
+        drives_->setDrives(services_.drives().listDrives());
+        bottom_->setStatus(wxString::Format("Drive list refreshed: %zu drives", drives_->drives().size()));
+    }
+
+    void MainFrame::onTrim(wxCommandEvent& /*event*/) {
+        const core::DriveInfo* drive = drives_->selected();
+        if (drive != nullptr && core::isSsd(*drive)) {
+            bottom_->setStatus(wxString::FromUTF8("TRIM " + core::driveName(*drive) + ": not available yet (stub)"));
         }
     }
 

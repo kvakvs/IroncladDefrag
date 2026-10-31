@@ -13,12 +13,14 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
+    core/DriveInfoTest.cpp
     core/JobTypesTest.cpp
     core/LogTest.cpp
     core/ResourceCapsTest.cpp
     core/SmokeTest.cpp
     platform/LogSinksTest.cpp
     platform/SystemResourcesTest.cpp
+    services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp
     services/ThreadPoolTest.cpp
 )

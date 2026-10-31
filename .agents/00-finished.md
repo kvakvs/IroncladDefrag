@@ -43,3 +43,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `ui/Commands.*` ids with `enableCommand()`; drives area, map/bottom splitter; `ui/panels/BottomPanel.*`
   (Summary/Strategy/Plan/Progress/Log tabs, workflow buttons, the single status line + gauge, no status
   bar); `ui/panels/MapPlaceholder.*`; `core/format/Count.*` (`formatCount()`).
+- T011 Drive list panel with fake drives - `core/model/DriveInfo.*` (drive model, badges, `canOptimize()`),
+  `core/format/DriveText.*` and `Duration.*` (column texts, ages), `services/drives/IDriveProvider.h`,
+  `FakeDriveProvider.*` (SSD, three NTFS HDDs, one exFAT) owned by `AppServices`; `ui/panels/DrivesPanel.*`
+  (`wxDataViewCtrl`, space bar and TRIM renderers); selection drives the map caption, Refresh keeps it.

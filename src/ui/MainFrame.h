@@ -15,6 +15,7 @@ namespace icd::services {
 
 namespace icd::ui {
     class BottomPanel;
+    class DrivesPanel;
     class JobEventBridge;
     class MapPlaceholder;
 } // namespace icd::ui
@@ -50,6 +51,15 @@ namespace icd {
         // Whether a command can run now.
         [[nodiscard]] bool commandEnabled(int id) const;
 
+        // Shows the selected drive on the map and refreshes the commands that depend on it.
+        void onDriveSelected();
+
+        // Reloads the drive list from the provider (Drive > Refresh drive list).
+        void onRefreshDrives(wxCommandEvent& event);
+
+        // TRIM for the selected SSD (stub until Phase 3).
+        void onTrim(wxCommandEvent& event);
+
         // Starts the fake parallel job (Debug menu).
         void onRunFakeJob(wxCommandEvent& event);
 
@@ -69,6 +79,7 @@ namespace icd {
         std::shared_ptr<ui::JobEventBridge> bridge_; // Delivers job events to this window.
         std::optional<services::JobId> activeJob_; // The running job started from this window, if any.
         wxSplitterWindow* splitter_ = nullptr; // Map above, bottom panel below; child owned by wx.
+        ui::DrivesPanel* drives_ = nullptr; // All-disks panel; child owned by wx.
         ui::MapPlaceholder* map_ = nullptr; // Map area; child owned by wx.
         ui::BottomPanel* bottom_ = nullptr; // Tabs, buttons and status line; child owned by wx.
     };

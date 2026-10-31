@@ -35,6 +35,10 @@ add_library(icd_core STATIC
     src/core/format/ByteSize.h
     src/core/format/Count.cpp
     src/core/format/Count.h
+    src/core/format/DriveText.cpp
+    src/core/format/DriveText.h
+    src/core/format/Duration.cpp
+    src/core/format/Duration.h
     src/core/job/CancelToken.cpp
     src/core/job/CancelToken.h
     src/core/job/Progress.cpp
@@ -42,6 +46,8 @@ add_library(icd_core STATIC
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
+    src/core/model/DriveInfo.cpp
+    src/core/model/DriveInfo.h
     src/core/resources/ResourceCaps.cpp
     src/core/resources/ResourceCaps.h
 )
@@ -68,6 +74,9 @@ add_library(icd_services STATIC
     src/services/AppLogging.h
     src/services/AppServices.cpp
     src/services/AppServices.h
+    src/services/drives/FakeDriveProvider.cpp
+    src/services/drives/FakeDriveProvider.h
+    src/services/drives/IDriveProvider.h
     src/services/exec/ThreadPool.cpp
     src/services/exec/ThreadPool.h
     src/services/job/FakeJob.cpp
@@ -92,6 +101,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/MainMenu.h
     src/ui/bridge/JobEvents.cpp
     src/ui/bridge/JobEvents.h
+    src/ui/panels/DrivesPanel.cpp
+    src/ui/panels/DrivesPanel.h
     src/ui/panels/BottomPanel.cpp
     src/ui/panels/BottomPanel.h
     src/ui/panels/MapPlaceholder.cpp

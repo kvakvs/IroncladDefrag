@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 1 - UI shell with fake data (§11, §13 Phase 1)
 
-### T011 - Drive list panel with fake drives
-- Depends: T010
-- Owns: `src/core/model/DriveInfo.h`, `src/services/drives/IDriveProvider.h`,
-  `src/services/drives/FakeDriveProvider.*`, `src/ui/panels/DrivesPanel.*`
-- Do: drive model (letter, label, size, used, FS, media, badges); provider interface; fake provider
-  with HDDs and one SSD; rows with size bar and badges; SSD row shows only a (stub) TRIM button.
-- Done when: the panel lists fake drives; selecting one updates the selected-drive state.
-
 ### T012 - Workflow state machine
 - Depends: T011
 - Owns: `src/services/workflow/Workflow.*`, `src/ui/WorkflowBinding.*`
