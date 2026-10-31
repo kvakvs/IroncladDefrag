@@ -62,11 +62,20 @@ function Get-Extractor {
     throw 'No extractor found: install 7-Zip or use Windows 10 1803+ (System32\tar.exe).'
 }
 
+# SHA-256 of a file as lowercase hex. Uses .NET directly: Get-FileHash is missing when Windows PowerShell
+# runs with PowerShell 7's PSModulePath (for example from a cmd started by pwsh).
+function Get-Sha256([string]$file) {
+    $sha = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($file)
+    try { return ([System.BitConverter]::ToString($sha.ComputeHash($stream)) -replace '-', '').ToLowerInvariant() }
+    finally { $stream.Dispose(); $sha.Dispose() }
+}
+
 # Downloads one archive unless a copy with the right hash is already cached.
 function Get-Archive([hashtable]$archive) {
     $path = Join-Path $Downloads $archive.Name
     if (Test-Path $path) {
-        if ((Get-FileHash -Algorithm SHA256 $path).Hash -eq $archive.Sha256) { return $path }
+        if ((Get-Sha256 $path) -eq $archive.Sha256) { return $path }
         Write-Host "Cached $($archive.Name) has a wrong hash; downloading again"
         Remove-Item -Force $path
     }
@@ -74,11 +83,11 @@ function Get-Archive([hashtable]$archive) {
     Write-Host "Downloading $url"
     $partial = "$path.part"
     Invoke-WebRequest -Uri $url -OutFile $partial -UseBasicParsing
-    $actual = (Get-FileHash -Algorithm SHA256 $partial).Hash
+    $actual = Get-Sha256 $partial
     if ($actual -ne $archive.Sha256) {
         Remove-Item -Force $partial
         throw ("SHA-256 mismatch for $($archive.Name)`n  expected $($archive.Sha256)`n  actual   " +
-               $actual.ToLowerInvariant() + "`nThe download was deleted. Check the pin in tools/fetch-wx.ps1.")
+               $actual + "`nThe download was deleted. Check the pin in tools/fetch-wx.ps1.")
     }
     Move-Item -Force $partial $path
     return $path

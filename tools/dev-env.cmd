@@ -7,6 +7,10 @@ set "ICD_BUILD_DIR=%ICD_ROOT%\build"
 if /i "%ICD_TOOLCHAIN%"=="msvc" set "ICD_BUILD_DIR=%ICD_ROOT%\build-msvc"
 if defined ICD_DEV_ENV exit /b 0
 
+rem When started from PowerShell 7, PSModulePath lists its modules first and Windows PowerShell (used for
+rem tools\fetch-wx.ps1) then fails to load cmdlets such as Get-FileHash. Empty, it rebuilds its defaults.
+set "PSModulePath="
+
 set "ICD_VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
 set "ICD_VSDIR="
 for /f "usebackq delims=" %%i in (`"%ICD_VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "ICD_VSDIR=%%i"

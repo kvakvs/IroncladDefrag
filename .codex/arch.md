@@ -94,5 +94,7 @@ this file records what is actually built and the decisions made along the way.
 
 ## Third-party
 
+- `tools/dev-env.cmd` clears `PSModulePath`: a cmd started from PowerShell 7 passes its module path
+  on, and Windows PowerShell then fails to load cmdlets (`fetch-wx.ps1` also hashes with .NET).
 - wxWidgets is used as prebuilt DLLs only (no source build). `tools/fetch-wx.ps1` is the only way the
   tree under `3rdparty/wxWidgets` is produced, so every machine builds against the same pinned files.
