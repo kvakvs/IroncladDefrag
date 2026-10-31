@@ -65,6 +65,9 @@ The supported functions are:
 - Before each commit run `quality.bat` (changed files plus translation units that include a changed
   header). Run `quality.bat all` once per finished phase or every 20 commits, whichever comes first.
   Both Lizard and clang-tidy must pass; do not raise thresholds or add suppressions just to pass.
+- Findings located in the standard library, the Windows SDK or third-party headers (wxWidgets,
+  GoogleTest) cannot be fixed here and may be ignored: disable the check in `.clang-tidy` with a
+  comment naming the header and the reason. Findings in our own code are always fixed.
 - Keep code clang-formatted (`"C:\Program Files\LLVM\bin\clang-format.exe" -i --style=file <files>`).
 
 ## When Editing or Creating Code
