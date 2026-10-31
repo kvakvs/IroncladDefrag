@@ -55,8 +55,9 @@ The supported functions are:
 
 ## Code Quality
 
-- Keep functions simple: Lizard cyclomatic complexity (CCN) <= 10 and clang-tidy cognitive complexity
-  <= 10 (`.clang-tidy`: `clang-analyzer-*`, `bugprone-*`, `performance-*`, warnings as errors).
+- Cyclomatic complexity limit is 10 for every function: Lizard CCN <= 10 and clang-tidy cognitive
+  complexity <= 10 (`.clang-tidy`: `clang-analyzer-*`, `bugprone-*`, `performance-*`, warnings as
+  errors). Split a function instead of raising the limit.
 - Before each commit run `quality.bat` (changed files plus translation units that include a changed
   header). Run `quality.bat all` once per finished phase or every 20 commits, whichever comes first.
   Both Lizard and clang-tidy must pass; do not raise thresholds or add suppressions just to pass.
@@ -64,4 +65,6 @@ The supported functions are:
 
 ## When Editing or Creating Code
 
-- Add oneline intent comments to non-trivial functions, and all data structures, explaining why the function or structure exists.
+- Every new function, class, struct, field, enum (and enum value whose meaning is not obvious) gets a
+  one-line comment stating its intent: why it was created, not what the code literally does.
+  Put it on the declaration (the header for public items).

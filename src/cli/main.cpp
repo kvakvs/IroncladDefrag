@@ -10,6 +10,7 @@ namespace {
 
 } // namespace
 
+// Console entry point: dispatches on the first argument; wide argv keeps non-ASCII paths intact.
 int wmain(int argc, wchar_t** argv) {
     if (argc < 2) {
         printUsage();

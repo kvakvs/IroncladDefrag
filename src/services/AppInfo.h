@@ -4,8 +4,10 @@
 
 namespace icd::services {
 
-    // Product name and version shared by the GUI and the CLI, so both report the same identity.
+    // Product name shown in titles and reports, defined once so the GUI and the CLI agree.
     std::string_view appName();
+
+    // Product version ("major.minor.patch") from project(VERSION), for titles, --version and logs.
     std::string_view appVersion();
 
 } // namespace icd::services
