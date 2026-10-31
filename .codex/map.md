@@ -39,6 +39,7 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
+| `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
 
 ## Source files
@@ -54,6 +55,8 @@ changes (see `AGENTS.md`).
 | `src/ui/App.*` | `icd::App`: creates the main frame. |
 | `src/ui/MainFrame.*` | Empty main window. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
+| `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
+| `tests/core/SmokeTest.cpp` | `formatBytes()` tests. |
 
 ## Tools
 
@@ -66,6 +69,7 @@ changes (see `AGENTS.md`).
 | Dependency | Version | How it is obtained |
 | --- | --- | --- |
 | wxWidgets (MSW, vc14x x64 DLL) | 3.3.4 | `tools/fetch-wx.ps1`; version and hashes pinned in the script. |
+| GoogleTest | 1.18.0 | CMake `FetchContent` in `tests/CMakeLists.txt`, archive SHA-256 pinned. |
 
 ## Generated output (git-ignored)
 

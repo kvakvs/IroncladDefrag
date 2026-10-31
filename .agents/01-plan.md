@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T004 - Test framework
-- Depends: T002
-- Owns: `tests/CMakeLists.txt`, `tests/core/SmokeTest.cpp`, `test.bat`
-- Do: GoogleTest through `FetchContent` (pinned), `icd_tests` target linked to `icd_core`, CTest.
-- Done when: `test.bat` builds and runs the tests in Debug and Release.
-
 ### T005 - Logging
 - Depends: T004
 - Owns: `src/core/log/*`, `src/platform/win/LogSinks.*`

@@ -83,6 +83,10 @@ add_executable(icd-cli
 target_link_libraries(icd-cli PRIVATE icd_services)
 icd_target_defaults(icd-cli)
 
+# --- Tests ---------------------------------------------------------------------------------------
+enable_testing()
+add_subdirectory(tests)
+
 # --- Quality gate (quality.bat): Lizard everywhere, clang-tidy only with a compile database -------
 # check-* targets look at changed files and includers of changed headers; check-*-all at all of src/.
 foreach(scope IN ITEMS changed all)

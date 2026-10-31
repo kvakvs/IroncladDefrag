@@ -17,3 +17,5 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T003 Application manifest and version resource - `res/IroncladDefrag.manifest` (requireAdministrator,
   Common Controls v6, PerMonitorV2, long paths), `res/IroncladDefrag.rc` (wx.rc + VERSIONINFO),
   generated `core/Version.h` from `src/core/Version.h.in`; `run-elevated.bat`.
+- T004 Test framework - GoogleTest 1.18.0 via pinned `FetchContent`, `icd_tests` + CTest
+  (`tests/CMakeLists.txt`, `tests/core/SmokeTest.cpp` with `formatBytes()` tests), `test.bat [Debug|Release|All]`.
