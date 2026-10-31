@@ -47,3 +47,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `core/format/DriveText.*` and `Duration.*` (column texts, ages), `services/drives/IDriveProvider.h`,
   `FakeDriveProvider.*` (SSD, three NTFS HDDs, one exFAT) owned by `AppServices`; `ui/panels/DrivesPanel.*`
   (`wxDataViewCtrl`, space bar and TRIM renderers); selection drives the map caption, Refresh keeps it.
+- T012 Workflow state machine - `services/workflow/Workflow.*` (table-driven states/actions/jobs, Quick
+  stops at review; 12 tests), `ui/WorkflowBinding.*` (commands, fake jobs, results, enable state),
+  `services/workflow/FakeResults.*`, Summary/Strategy/Plan pages, `core/job/PauseGate.*`,
+  `core/job/StageClock.*` (elapsed, time left); fake job gained stage names, item labels, pause. Debug
+  menu removed (Analyze runs the same fake parallel job). Clicked through on fake data.

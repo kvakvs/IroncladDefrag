@@ -1,8 +1,12 @@
 #include "ui/panels/BottomPanel.h"
 
 #include "ui/Commands.h"
+#include "ui/panels/PlanPage.h"
+#include "ui/panels/StrategyPage.h"
+#include "ui/panels/SummaryPage.h"
 
 #include <wx/button.h>
+#include <wx/datetime.h>
 #include <wx/gauge.h>
 #include <wx/listctrl.h>
 #include <wx/notebook.h>
@@ -37,17 +41,6 @@ namespace icd::ui {
             "Stage:", "Done:", "Elapsed:", "Throughput:", "Time left:", "Current file:",
         };
 
-        // A page holding a single explanatory line until its real content exists.
-        wxWindow* createPlaceholderPage(wxWindow* parent, const wxString& hint) {
-            auto* page = new wxPanel(parent);
-            auto* text = new wxStaticText(page, wxID_ANY, hint);
-            text->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
-            auto* sizer = new wxBoxSizer(wxVERTICAL);
-            sizer->Add(text, wxSizerFlags().Border(wxALL, page->FromDIP(12)));
-            page->SetSizer(sizer);
-            return page;
-        }
-
         // ProgressDetails fields in the order of detailLabels.
         std::array<const wxString*, 6> detailValues(const ProgressDetails& details) {
             return {&details.stage,      &details.done, &details.elapsed,
@@ -58,18 +51,12 @@ namespace icd::ui {
 
     BottomPanel::BottomPanel(wxWindow* parent, const wxString& resourcesText) : wxPanel(parent) {
         notebook_ = new wxNotebook(this, wxID_ANY);
-        notebook_->AddPage(createPlaceholderPage(notebook_,
-                                                 "Analyze a drive to see fragmentation, free-space runs "
-                                                 "and per-class counts and bytes."),
-                           "Summary");
-        notebook_->AddPage(createPlaceholderPage(notebook_,
-                                                 "Strategy presets, effort level and the zone list "
-                                                 "appear here after an analysis."),
-                           "Strategy");
-        notebook_->AddPage(createPlaceholderPage(notebook_,
-                                                 "Build a plan to compare the Fast, Moderate and "
-                                                 "Maximum levels and review what will move."),
-                           "Plan");
+        summary_ = new SummaryPage(notebook_);
+        strategy_ = new StrategyPage(notebook_);
+        plan_ = new PlanPage(notebook_);
+        notebook_->AddPage(summary_, "Summary");
+        notebook_->AddPage(strategy_, "Strategy");
+        notebook_->AddPage(plan_, "Plan");
         notebook_->AddPage(createProgressPage(resourcesText), "Progress");
         notebook_->AddPage(createLogPage(), "Log");
 
@@ -99,12 +86,11 @@ namespace icd::ui {
     }
 
     wxWindow* BottomPanel::createLogPage() {
-        auto* list =
-            new wxListView(notebook_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
-        list->AppendColumn("Time", wxLIST_FORMAT_LEFT, FromDIP(140));
-        list->AppendColumn("File", wxLIST_FORMAT_LEFT, FromDIP(480));
-        list->AppendColumn("Reason", wxLIST_FORMAT_LEFT, FromDIP(320));
-        return list;
+        log_ = new wxListView(notebook_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
+        log_->AppendColumn("Time", wxLIST_FORMAT_LEFT, FromDIP(140));
+        log_->AppendColumn("File", wxLIST_FORMAT_LEFT, FromDIP(480));
+        log_->AppendColumn("Reason", wxLIST_FORMAT_LEFT, FromDIP(320));
+        return log_;
     }
 
     wxSizer* BottomPanel::createStatusStrip() {
@@ -147,6 +133,18 @@ namespace icd::ui {
         }
     }
 
-    wxWindow* BottomPanel::page(BottomTab tab) const { return notebook_->GetPage(static_cast<std::size_t>(tab)); }
+    void BottomPanel::addLogEntry(const wxString& file, const wxString& reason) {
+        const long row = log_->InsertItem(log_->GetItemCount(), wxDateTime::Now().FormatISOCombined(' '));
+        log_->SetItem(row, 1, file);
+        log_->SetItem(row, 2, reason);
+    }
+
+    void BottomPanel::clearLog() { log_->DeleteAllItems(); }
+
+    void BottomPanel::setPauseLabel(bool paused) {
+        if (wxWindow* button = FindWindow(ID_PAUSE); button != nullptr) {
+            button->SetLabel(paused ? "&Resume" : "&Pause");
+        }
+    }
 
 } // namespace icd::ui

@@ -41,8 +41,12 @@ add_library(icd_core STATIC
     src/core/format/Duration.h
     src/core/job/CancelToken.cpp
     src/core/job/CancelToken.h
+    src/core/job/PauseGate.cpp
+    src/core/job/PauseGate.h
     src/core/job/Progress.cpp
     src/core/job/Progress.h
+    src/core/job/StageClock.cpp
+    src/core/job/StageClock.h
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
@@ -83,6 +87,10 @@ add_library(icd_services STATIC
     src/services/job/FakeJob.h
     src/services/job/JobRunner.cpp
     src/services/job/JobRunner.h
+    src/services/workflow/FakeResults.cpp
+    src/services/workflow/FakeResults.h
+    src/services/workflow/Workflow.cpp
+    src/services/workflow/Workflow.h
 )
 target_link_libraries(icd_services PUBLIC icd_core icd_platform)
 icd_target_defaults(icd_services)
@@ -99,6 +107,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/MainFrame.h
     src/ui/MainMenu.cpp
     src/ui/MainMenu.h
+    src/ui/WorkflowBinding.cpp
+    src/ui/WorkflowBinding.h
     src/ui/bridge/JobEvents.cpp
     src/ui/bridge/JobEvents.h
     src/ui/panels/DrivesPanel.cpp
@@ -107,6 +117,12 @@ add_executable(IroncladDefrag WIN32
     src/ui/panels/BottomPanel.h
     src/ui/panels/MapPlaceholder.cpp
     src/ui/panels/MapPlaceholder.h
+    src/ui/panels/PlanPage.cpp
+    src/ui/panels/PlanPage.h
+    src/ui/panels/StrategyPage.cpp
+    src/ui/panels/StrategyPage.h
+    src/ui/panels/SummaryPage.cpp
+    src/ui/panels/SummaryPage.h
     res/IroncladDefrag.manifest
     res/IroncladDefrag.rc
 )

@@ -282,6 +282,15 @@ namespace icd::ui {
                    : std::optional<std::size_t>(static_cast<std::size_t>(match - drives_.begin())));
     }
 
+    void DrivesPanel::updateDrive(const core::DriveInfo& drive) {
+        const auto match = std::ranges::find(drives_, drive.root, &core::DriveInfo::root);
+        if (match == drives_.end()) {
+            return;
+        }
+        *match = drive;
+        model_->RowChanged(static_cast<unsigned>(match - drives_.begin()));
+    }
+
     const core::DriveInfo* DrivesPanel::selected() const {
         const auto row = selectedRow();
         return row ? &drives_[*row] : nullptr;

@@ -33,6 +33,9 @@ namespace icd::ui {
         // The drives shown, in row order.
         [[nodiscard]] const std::vector<core::DriveInfo>& drives() const { return drives_; }
 
+        // Replaces the row with the same root (e.g. new analysis results); unknown roots are ignored.
+        void updateDrive(const core::DriveInfo& drive);
+
         // The selected drive, or null.
         [[nodiscard]] const core::DriveInfo* selected() const;
 

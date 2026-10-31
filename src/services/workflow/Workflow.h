@@ -1,0 +1,90 @@
+#pragma once
+
+#include "core/model/DriveInfo.h"
+#include "services/job/JobRunner.h"
+
+#include <cstdint>
+
+namespace icd::services {
+
+    // Where the selected drive is in the workflow of plan.md section 11:
+    // Analyze -> Choose strategy -> Build plan -> Review on map -> Execute.
+    enum class WorkflowState : std::uint8_t {
+        NoDrive, // Nothing selected.
+        Unsupported, // Selected volume cannot be optimized (not NTFS).
+        SsdReady, // SSD selected: TRIM is the only action.
+        Trimming, // TRIM running.
+        NotAnalyzed, // HDD selected, no analysis yet.
+        Analyzing, // Analysis running.
+        Analyzed, // Analysis done: choose a strategy and build a plan.
+        Planning, // Plan being built.
+        Reviewing, // Plan built and shown on the map; Execute is possible.
+        Executing, // Plan being executed.
+        Paused, // Execution paused between moves.
+        Executed, // Execution ended; the layout changed, so the next step is a new analysis.
+    };
+
+    // Things the user can ask for; each maps to menu items and buttons.
+    enum class WorkflowAction : std::uint8_t {
+        SelectDrive, // Pick another row in the all-disks panel.
+        RefreshDrives, // Reload the drive list.
+        Analyze, // Start an analysis.
+        Quick, // Analyze, then build a Fast plan, then stop at review.
+        Trim, // TRIM an SSD.
+        ChooseStrategy, // Change strategy or effort (drops a built plan).
+        BuildPlan, // Build a plan.
+        Review, // Show the plan on the map.
+        Execute, // Run the reviewed plan (after confirmation).
+        Pause, // Pause execution.
+        Resume, // Continue a paused execution.
+        Cancel, // Stop the running job.
+    };
+
+    // Background job the caller must start after an action or a finished step.
+    enum class WorkflowJob : std::uint8_t { None, Analyze, Plan, Execute, Trim };
+
+    // What a selected drive allows, from its media and file system.
+    enum class DriveKind : std::uint8_t { None, Unsupported, Ssd, Hdd };
+
+    // The kind of drive (None for null).
+    [[nodiscard]] DriveKind driveKind(const core::DriveInfo* drive);
+
+    // The workflow state machine. It decides which actions are allowed and which job to start, but runs
+    // nothing itself, so every transition is unit-tested and the UI only maps it to widgets. Used on one
+    // thread (the UI thread).
+    class Workflow {
+    public:
+        // Current state.
+        [[nodiscard]] WorkflowState state() const { return state_; }
+
+        // Whether a job is running (or paused), which locks drive selection.
+        [[nodiscard]] bool busy() const;
+
+        // Whether the current run is a Quick run (analysis followed by a Fast plan).
+        [[nodiscard]] bool quick() const { return quick_; }
+
+        // Whether Cancel was requested for the running job.
+        [[nodiscard]] bool cancelRequested() const { return cancelRequested_; }
+
+        // Whether an action is allowed now.
+        [[nodiscard]] bool can(WorkflowAction action) const;
+
+        // A new drive was selected; ignored while busy. Returns whether it was taken.
+        bool selectDrive(DriveKind kind);
+
+        // Performs an allowed action and returns the job to start; disallowed actions change nothing.
+        WorkflowJob apply(WorkflowAction action);
+
+        // The running job ended; returns a follow-up job (the plan of a Quick run) or None.
+        WorkflowJob finish(JobOutcome outcome);
+
+    private:
+        // Ends an analysis; starts the plan of a Quick run.
+        WorkflowJob finishAnalysis(bool succeeded);
+
+        WorkflowState state_ = WorkflowState::NoDrive; // Current state.
+        bool quick_ = false; // Quick run in progress.
+        bool cancelRequested_ = false; // Cancel asked for the running job.
+    };
+
+} // namespace icd::services

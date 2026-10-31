@@ -23,6 +23,7 @@ add_executable(icd_tests
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp
     services/ThreadPoolTest.cpp
+    services/WorkflowTest.cpp
 )
 target_link_libraries(icd_tests PRIVATE icd_core icd_platform icd_services GTest::gtest_main)
 icd_target_defaults(icd_tests)

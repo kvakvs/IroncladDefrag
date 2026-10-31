@@ -55,6 +55,8 @@ changes (see `AGENTS.md`).
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce`. |
 | `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
+| `src/core/job/PauseGate.*` | `PauseGate`: workers wait between items while paused; cancellation releases them. |
+| `src/core/job/StageClock.*` | Job elapsed time and a linear per-stage time-left estimate for the Progress tab. |
 | `src/core/job/Progress.*` | `Progress` snapshot, `ProgressSink`, `ThrottledProgress` (~10 Hz, injectable clock). |
 | `src/core/log/Log.h` | `logging::Level`, `Field`, `Record`, `Sink`, thread-safe `Logger`, `globalLogger()`, `info()`/`error()`/... helpers. |
 | `src/core/log/LogFormat.cpp` | `formatRecord()`: one-line `key=value` records, UTC time, escaping. |
@@ -68,22 +70,29 @@ changes (see `AGENTS.md`).
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
 | `src/services/drives/FakeDriveProvider.*` | Phase 1 fake drives: SSD, three NTFS HDDs in different states, one exFAT drive. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
-| `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages for the Debug menu and runner tests. |
+| `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
+| `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
+| `src/services/workflow/FakeResults.*` | Phase 1 fake analysis, strategy presets, three-level plan and skipped files. |
 | `src/ui/bridge/JobEvents.*` | `JobEventBridge` (job callbacks to `wxQueueEvent`), `jobProgressEvent()`, `jobFinishedEvent()`, payloads. |
 | `src/services/AppLogging.*` | `initAppLogging()`/`shutdownAppLogging()`: installs the sinks, writes startup/shutdown lines. |
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: starts logging and `AppServices`, creates the main frame, stops services on exit. |
-| `src/ui/MainFrame.*` | Main window: menu, drives area, map/bottom splitter (bottom keeps its height); fake job run/cancel. |
+| `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
+| `src/ui/WorkflowBinding.*` | Commands to workflow actions, fake jobs per step, progress and results to the panels, command enable state. |
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
 | `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators), `enableCommand()` for menu item + button. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons, the single status line and gauge. |
+| `src/ui/panels/SummaryPage.*` | Summary tab: volume figures and per-class table. |
+| `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list. |
+| `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
 | `src/ui/panels/MapPlaceholder.*` | Map toolbar (disabled) and a canvas with a made-up cluster pattern until Phase 2. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
-| `tests/core/JobTypesTest.cpp` | Cancellation propagation and progress throttling. |
+| `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
+| `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |

@@ -7,10 +7,15 @@
 #include <optional>
 
 class wxGauge;
+class wxListView;
 class wxNotebook;
 class wxStaticText;
 
 namespace icd::ui {
+
+    class PlanPage;
+    class StrategyPage;
+    class SummaryPage;
 
     // Tabs of the bottom notebook in display order (plan.md section 11); the same tabs stay for the whole
     // workflow, only their content changes.
@@ -45,8 +50,23 @@ namespace icd::ui {
         // Fills the Progress tab; default-constructed details clear it.
         void setProgressDetails(const ProgressDetails& details);
 
-        // The page window of a tab, for later tasks that replace placeholder content.
-        [[nodiscard]] wxWindow* page(BottomTab tab) const;
+        // The Summary tab.
+        [[nodiscard]] SummaryPage& summary() const { return *summary_; }
+
+        // The Strategy tab.
+        [[nodiscard]] StrategyPage& strategy() const { return *strategy_; }
+
+        // The Plan tab.
+        [[nodiscard]] PlanPage& plan() const { return *plan_; }
+
+        // Adds a skipped or failed file to the Log tab, stamped with the current time.
+        void addLogEntry(const wxString& file, const wxString& reason);
+
+        // Empties the Log tab (a new run starts).
+        void clearLog();
+
+        // Shows Pause or Resume on the pause button.
+        void setPauseLabel(bool paused);
 
     private:
         // Number of detail rows on the Progress tab (ProgressDetails fields).
@@ -62,6 +82,10 @@ namespace icd::ui {
         wxSizer* createStatusStrip();
 
         wxNotebook* notebook_ = nullptr; // The tabs; child window owned by wx.
+        SummaryPage* summary_ = nullptr; // Summary tab; owned by the notebook.
+        StrategyPage* strategy_ = nullptr; // Strategy tab; owned by the notebook.
+        PlanPage* plan_ = nullptr; // Plan tab; owned by the notebook.
+        wxListView* log_ = nullptr; // Log tab; owned by the notebook.
         wxStaticText* status_ = nullptr; // The single status line.
         wxGauge* gauge_ = nullptr; // Job progress next to the status line.
         wxStaticText* percent_ = nullptr; // Progress as a number, beside the gauge.

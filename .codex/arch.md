@@ -82,6 +82,21 @@ this file records what is actually built and the decisions made along the way.
   TRIM button. A TRIM click selects its row and queues `ID_TRIM` up to the frame.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
+## Workflow
+
+- `services::Workflow` is the state machine of plan.md section 11 (NoDrive, Unsupported, SsdReady,
+  Trimming, NotAnalyzed, Analyzing, Analyzed, Planning, Reviewing, Executing, Paused, Executed). Each
+  action has one rule: the states where it is allowed, the next state and the job to start. It runs
+  nothing itself, so all transitions are unit-tested; `finish(outcome)` returns a follow-up job (the
+  plan of a Quick run, which always stops at Reviewing).
+- `ui::WorkflowBinding` maps commands to actions, starts the job a step needs, feeds job ends back
+  and enables every command from `Workflow::can()`. The drive list is locked while a job runs, and
+  the selected drive is copied so a refresh cannot change it mid-job. Execute asks for confirmation
+  first. In Phase 1 every step is the fake parallel job with step-specific stage names; results come
+  from `services/workflow/FakeResults`.
+- Pause is a `core::PauseGate` that the execution job checks between items; Cancel still works
+  while paused because the gate's wait returns on cancellation.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

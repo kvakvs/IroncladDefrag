@@ -12,10 +12,8 @@ namespace icd::ui {
     // serve every way of triggering a command. Values are stable: scripted checks post them as WM_COMMAND
     // (wxID_HIGHEST is 6000). Standard commands (Exit, About, Preferences) use wx's own ids.
     enum CommandId : std::uint16_t {
-        ID_RUN_FAKE_JOB = wxID_HIGHEST + 1, // Debug > Run fake parallel job (6001).
-        ID_CANCEL, // Optimize > Cancel: stops the running job, whatever started it (6002).
-
-        ID_ANALYZE, // Drive > Analyze.
+        ID_CANCEL = wxID_HIGHEST + 1, // Optimize > Cancel: stops the running job (6001).
+        ID_ANALYZE, // Drive > Analyze (6002).
         ID_REFRESH_DRIVES, // Drive > Refresh drive list.
         ID_TRIM, // Drive > TRIM (SSDs only).
 

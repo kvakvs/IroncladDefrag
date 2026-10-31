@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 1 - UI shell with fake data (§11, §13 Phase 1)
 
-### T012 - Workflow state machine
-- Depends: T011
-- Owns: `src/services/workflow/Workflow.*`, `src/ui/WorkflowBinding.*`
-- Do: states Analyze → Strategy → Plan → Review → Execute (§11), with fake transitions; menus and
-  buttons enabled from the state; "Quick" runs the chain on fake data and stops at Review.
-- Done when: unit tests for all transitions; the whole workflow can be clicked through on fake data.
-
 ### T013 - Shortcuts and About box
 - Depends: T012
 - Owns: `src/ui/Accelerators.*`, `src/ui/dialogs/AboutDialog.*`

@@ -1,5 +1,7 @@
 #include "core/job/CancelToken.h"
+#include "core/job/PauseGate.h"
 #include "core/job/Progress.h"
+#include "core/job/StageClock.h"
 
 #include <gtest/gtest.h>
 
@@ -197,6 +199,67 @@ namespace icd::core { namespace {
         workers.clear();
         throttle.flush();
         EXPECT_EQ(sink->received.size(), 2u); // The first one and the flushed newest one.
+    }
+
+    // A paused gate holds workers until resume(); an open gate does not block.
+    TEST(PauseGate, HoldsUntilResumed) {
+        PauseGate gate;
+        const CancelToken never;
+        gate.wait(never); // Open: returns at once.
+        gate.pause();
+        EXPECT_TRUE(gate.paused());
+        std::atomic<bool> passed{false};
+        std::jthread worker([&] {
+            gate.wait(never);
+            passed = true;
+        });
+        std::this_thread::sleep_for(30ms);
+        EXPECT_FALSE(passed);
+        gate.resume();
+        worker.join();
+        EXPECT_TRUE(passed);
+        EXPECT_FALSE(gate.paused());
+    }
+
+    // Cancelling releases a worker waiting at a paused gate, so Cancel works while paused.
+    TEST(PauseGate, CancelReleasesWaiters) {
+        PauseGate gate;
+        gate.pause();
+        CancelSource source;
+        std::jthread worker([&gate, token = source.token()] { gate.wait(token); });
+        std::this_thread::sleep_for(10ms);
+        source.cancel();
+        worker.join(); // Would hang if cancellation did not wake the wait.
+        EXPECT_TRUE(gate.paused());
+    }
+
+    // Elapsed time runs from the job start; the estimate is linear within a stage.
+    TEST(StageClock, ElapsedAndLinearEstimate) {
+        const StageClock::TimePoint start{};
+        StageClock clock(start);
+        clock.update({"scan", 0, 100, ""}, start);
+        EXPECT_EQ(clock.remaining(start), std::nullopt); // Nothing done yet.
+        clock.update({"scan", 25, 100, ""}, start + 10s);
+        EXPECT_EQ(clock.elapsed(start + 10s), 10s);
+        EXPECT_EQ(clock.remaining(start + 10s), 30s); // 25% in 10 s: 30 s to go.
+        EXPECT_EQ(clock.remaining(start + 25s), 15s); // Time passes between reports.
+        EXPECT_EQ(clock.remaining(start + 99s), 0s); // Never negative.
+    }
+
+    // A new stage restarts the estimate; unknown totals and very early reports give none.
+    TEST(StageClock, NewStageRestartsEstimate) {
+        const StageClock::TimePoint start{};
+        StageClock clock(start);
+        clock.update({"bitmap", 50, 100, ""}, start + 4s);
+        EXPECT_EQ(clock.remaining(start + 4s), std::nullopt); // First report starts the stage.
+        clock.update({"mft", 1, 1000, ""}, start + 5s);
+        clock.update({"mft", 10, 1000, ""}, start + 9s);
+        EXPECT_EQ(clock.remaining(start + 9s), std::nullopt); // Only 1% done.
+        clock.update({"mft", 500, 1000, ""}, start + 25s);
+        EXPECT_EQ(clock.remaining(start + 25s), 20s);
+        EXPECT_EQ(clock.elapsed(start + 25s), 25s);
+        clock.update({"names", 10, 0, ""}, start + 30s);
+        EXPECT_EQ(clock.remaining(start + 40s), std::nullopt); // Unknown total.
     }
 
 }} // namespace icd::core

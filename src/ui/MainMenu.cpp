@@ -66,10 +66,6 @@ namespace icd::ui {
             ItemSpec{wxID_PREFERENCES, "&Preferences..."},
         };
 
-        constexpr std::array debugItems{
-            ItemSpec{ID_RUN_FAKE_JOB, "&Run fake parallel job\tCtrl+Shift+J"},
-        };
-
         constexpr std::array helpItems{
             ItemSpec{wxID_ABOUT, "&About IroncladDefrag"},
         };
@@ -81,7 +77,7 @@ namespace icd::ui {
             int{ID_COLOR_AGE},       int{ID_COLOR_SIZE},     int{ID_COLOR_ZONE_FIT}, int{ID_COLOR_PLAN},
             int{ID_SHOW_MINIMAP},    int{ID_SHOW_LEGEND},    int{ID_ZOOM_IN},        int{ID_ZOOM_OUT},
             int{ID_ZOOM_FIT},        int{ID_ZOOM_CLUSTER},   int{ID_RESOURCES},      int{wxID_PREFERENCES},
-            int{ID_RUN_FAKE_JOB},    int{wxID_ABOUT},
+            int{wxID_ABOUT},
         };
 
         // Appends items to menu in order.
@@ -117,7 +113,6 @@ namespace icd::ui {
         bar->Append(makeMenu(optimizeItems), "&Optimize");
         bar->Append(viewMenu, "&View");
         bar->Append(makeMenu(settingsItems), "&Settings");
-        bar->Append(makeMenu(debugItems), "De&bug");
         bar->Append(makeMenu(helpItems), "&Help");
         return bar;
     }
