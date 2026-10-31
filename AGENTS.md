@@ -26,10 +26,17 @@ The supported functions are:
 
 ## Repository Orientation
 
-- The project is restarting from scratch. `story/attempt-1/` holds the plan, architecture and file map of the
-  first attempt, plus a summary (`README.md`). Its source is only in git history (commit `aacdcfb`).
-- The new plan is to be written as `plan.md` in the repository root, based on the previous attempt.
-- Once new code exists, keep `.codex/arch.md` (architecture, layering, responsibility placement) and
+- `plan.md` in the repository root is the development plan. Work through its phases in order and check each
+  phase's exit criteria before moving on.
+- `.agents/01-plan.md` splits the plan into small isolated tasks. Take the first task whose dependencies are
+  finished. When a task is finished, remove it from `.agents/01-plan.md` and add a compact bullet for it to
+  `.agents/00-finished.md`.
+
+## Commits
+
+- Commit after each finished task: one commit per task, message `Txxx: <task title>`.
+- Do not add `Co-Authored-By` lines to commit messages.
+- Keep `.codex/arch.md` (architecture, layering, responsibility placement) and
   `.codex/map.md` (modules, source files, build files, dependencies, generated output) up to date in the same
   change as material structure changes.
 
