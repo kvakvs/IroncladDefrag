@@ -31,6 +31,9 @@ add_library(icd_core STATIC
     src/core/Version.h.in
     src/core/format/ByteSize.cpp
     src/core/format/ByteSize.h
+    src/core/log/Log.h
+    src/core/log/LogFormat.cpp
+    src/core/log/Logger.cpp
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)
@@ -38,15 +41,20 @@ icd_target_defaults(icd_core)
 # --- icd_platform: narrow Win32 wrappers ---------------------------------------------------------
 add_library(icd_platform STATIC
     src/platform/win/WinError.cpp
+    src/platform/win/LogSinks.cpp
+    src/platform/win/LogSinks.h
+    src/platform/win/WinError.cpp
     src/platform/win/WinError.h
 )
-target_link_libraries(icd_platform PUBLIC icd_core)
+target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32)
 icd_target_defaults(icd_platform)
 
 # --- icd_services: jobs, thread pool, orchestration ----------------------------------------------
 add_library(icd_services STATIC
     src/services/AppInfo.cpp
     src/services/AppInfo.h
+    src/services/AppLogging.cpp
+    src/services/AppLogging.h
 )
 target_link_libraries(icd_services PUBLIC icd_core icd_platform)
 icd_target_defaults(icd_services)

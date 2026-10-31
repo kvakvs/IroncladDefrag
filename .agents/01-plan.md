@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T005 - Logging
-- Depends: T004
-- Owns: `src/core/log/*`, `src/platform/win/LogSinks.*`
-- Do: thread-safe logger interface in core (levels, structured fields); sinks for file
-  (`%LOCALAPPDATA%\IroncladDefrag\logs`, rotated) and `OutputDebugStringW`.
-- Done when: unit tests for formatting and concurrent writes; GUI and CLI write a startup line.
-
 ### T006 - Cancellation and progress types
 - Depends: T004
 - Owns: `src/core/job/CancelToken.h`, `src/core/job/Progress.h`

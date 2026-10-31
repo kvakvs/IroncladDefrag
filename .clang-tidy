@@ -1,12 +1,15 @@
 Checks: >-
   -*,
   clang-analyzer-*,
+  -clang-analyzer-optin.core.EnumCastOutOfRange,
   bugprone-*,
   performance-*,
   readability-function-cognitive-complexity
+# EnumCastOutOfRange is an opt-in check that does not understand bit-flag enums: it reports OR-ed flags
+# inside the MSVC STL (<filesystem>, __std_fs_stats_flags) wherever std::filesystem is used.
 WarningsAsErrors: '*'
 # Only project headers under src/ report; wxWidgets, the STL and the Windows SDK are not ours.
-HeaderFilterRegex: '(^|[/\])src[/\]'
+HeaderFilterRegex: '(^|[/\\])src[/\\]'
 CheckOptions:
   readability-function-cognitive-complexity.Threshold: 10
   readability-function-cognitive-complexity.DescribeBasicIncrements: true

@@ -9,6 +9,9 @@ namespace icd {
     public:
         // Builds and shows the main window; returning false aborts start-up.
         bool OnInit() override;
+
+        // Writes the shutdown log line after the last window has closed.
+        int OnExit() override;
     };
 
 } // namespace icd

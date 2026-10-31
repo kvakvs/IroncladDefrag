@@ -13,9 +13,11 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
+    core/LogTest.cpp
     core/SmokeTest.cpp
+    platform/LogSinksTest.cpp
 )
-target_link_libraries(icd_tests PRIVATE icd_core GTest::gtest_main)
+target_link_libraries(icd_tests PRIVATE icd_core icd_platform GTest::gtest_main)
 icd_target_defaults(icd_tests)
 # Runs the exe at test time to list tests, so building never depends on running it.
 gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST)

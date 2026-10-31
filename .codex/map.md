@@ -39,7 +39,7 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
-| `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `GTest::gtest_main` |
+| `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
 
 ## Source files
@@ -48,8 +48,13 @@ changes (see `AGENTS.md`).
 | --- | --- |
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
+| `src/core/log/Log.h` | `logging::Level`, `Field`, `Record`, `Sink`, thread-safe `Logger`, `globalLogger()`, `info()`/`error()`/... helpers. |
+| `src/core/log/LogFormat.cpp` | `formatRecord()`: one-line `key=value` records, UTC time, escaping. |
+| `src/core/log/Logger.cpp` | `Logger` and the global helpers. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
+| `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`) for GUI and CLI. |
+| `src/services/AppLogging.*` | `initAppLogging()`/`shutdownAppLogging()`: installs the sinks, writes startup/shutdown lines. |
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: creates the main frame. |
@@ -57,6 +62,8 @@ changes (see `AGENTS.md`).
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` tests. |
+| `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
+| `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 
 ## Tools
 

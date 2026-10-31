@@ -29,6 +29,16 @@ this file records what is actually built and the decisions made along the way.
   works in scripts; commands that need administrator rights will check and report it.
 - Automated smoke runs start the GUI with `__COMPAT_LAYER=RunAsInvoker` to skip the UAC prompt.
 
+## Logging
+
+- `core::logging` holds the record model, formatting and a thread-safe `Logger` (one mutex; lines are
+  formatted outside it, sinks are called under it so lines never interleave). A process-wide
+  `globalLogger()` keeps call sites short: `logging::info("scan done", {{"files", n}})`.
+- Sinks live in `platform`: a rotating file in `%LOCALAPPDATA%\IroncladDefrag\logs\<exe>.log`
+  (8 MB, 5 old files, flushed per line so a crash keeps the tail) and `OutputDebugStringW`.
+- `services::initAppLogging()` wires both for each executable; a file that cannot be opened only
+  produces a warning, never a failure.
+
 ## Quality gate
 
 - Lizard and clang-tidy, pinned in a Python venv, so results do not depend on the installed LLVM.
