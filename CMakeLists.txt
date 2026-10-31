@@ -31,6 +31,10 @@ add_library(icd_core STATIC
     src/core/Version.h.in
     src/core/format/ByteSize.cpp
     src/core/format/ByteSize.h
+    src/core/job/CancelToken.cpp
+    src/core/job/CancelToken.h
+    src/core/job/Progress.cpp
+    src/core/job/Progress.h
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp

@@ -13,6 +13,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
+    core/JobTypesTest.cpp
     core/LogTest.cpp
     core/SmokeTest.cpp
     platform/LogSinksTest.cpp

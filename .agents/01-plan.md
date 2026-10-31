@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T006 - Cancellation and progress types
-- Depends: T004
-- Owns: `src/core/job/CancelToken.h`, `src/core/job/Progress.h`
-- Do: cancellation token/source, progress reporter interface (stage, done/total, message), throttling
-  helper (max ~10 Hz).
-- Done when: unit tests for cancel propagation and throttling.
-
 ### T007 - Resource detection and caps
 - Depends: T004
 - Owns: `src/platform/win/SystemResources.*`, `src/core/resources/ResourceCaps.*`

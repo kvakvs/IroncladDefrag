@@ -39,6 +39,15 @@ this file records what is actually built and the decisions made along the way.
 - `services::initAppLogging()` wires both for each executable; a file that cannot be opened only
   produces a warning, never a failure.
 
+## Jobs: cancellation and progress
+
+- Cancellation is cooperative: work polls a `CancelToken` (a `std::stop_token`) between work items or
+  calls `throwIfCancelled()`. A `CancelSource` built from a parent token is cancelled with it, so one
+  Cancel button stops a job and all of its sub-jobs.
+- Progress is a value (`stage`, `done`, `total`, `message`) pushed to a `ProgressSink`.
+  `ThrottledProgress` sits in front of the UI: about 10 reports per second, but the first report,
+  stage changes and finished stages always pass, and `flush()` delivers the newest held-back one.
+
 ## Quality gate
 
 - Lizard and clang-tidy, pinned in a Python venv, so results do not depend on the installed LLVM.
