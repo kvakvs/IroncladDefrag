@@ -70,3 +70,5 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   fill, fragmentation with interleaving, free patterns, $MFT, directory indexes), `snapshotMemoryBytes()`,
   32-byte `ExtentEntry`, `tools/bench/synth-bench.cpp`: 30 TB / 20 M files in 29 s, 55.7 M extents, peak
   5.6 GB (budget 8 GB).
+- T023 Map world layout - `core/map/World.*`: `roundToNice()`, world from cluster count and screen aspect,
+  LCN <-> cell, zoom levels and tile math, row segments; tests for round trips, edges, aspects, tiles.

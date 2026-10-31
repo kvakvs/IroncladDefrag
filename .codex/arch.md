@@ -142,6 +142,16 @@ this file records what is actually built and the decisions made along the way.
   2.6 GB, peak working set 5.6 GB, within the 8 GB budget. Building is serial; the sort of the pending
   extents dominates.
 
+## Map world
+
+- `core::World` lays clusters out row by row with row width `roundToNice(sqrt(N * aspect))`, fixed
+  once from the screen aspect (plan.md 7.1). Nice widths keep at most four significant binary
+  digits, so the row width is a multiple of a large power of two (8192 for 30 TB at 16:9) and
+  pyramid bins up to that size never wrap a row; the width is within 1/16 of the ideal.
+- Zoom level `L` means one pixel is `2^L` cells across: `-5` is 32 px per cluster (the deepest
+  zoom), `maxLevel()` fits the world in one 256 px tile. `levelFor()` picks the nearest finer level
+  for a continuous scale, so cached tiles are shrunk, never blown up.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

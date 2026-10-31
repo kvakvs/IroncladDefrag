@@ -21,6 +21,7 @@ add_executable(icd_tests
     core/SnapshotTest.cpp
     core/StripesTest.cpp
     core/SyntheticVolumeTest.cpp
+    core/WorldTest.cpp
     platform/LogSinksTest.cpp
     platform/SystemResourcesTest.cpp
     services/FakeDriveProviderTest.cpp

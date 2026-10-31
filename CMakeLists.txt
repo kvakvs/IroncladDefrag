@@ -50,6 +50,8 @@ add_library(icd_core STATIC
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
+    src/core/map/World.cpp
+    src/core/map/World.h
     src/core/model/DriveInfo.cpp
     src/core/model/DriveInfo.h
     src/core/resources/ResourceCaps.cpp

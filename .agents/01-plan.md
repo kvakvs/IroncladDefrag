@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T023 - Map world layout
-- Depends: T020
-- Owns: `src/core/map/World.*`
-- Do: world from cluster count and screen aspect (§7.1): row width, height, LCN ↔ world coordinates,
-  zoom-level math, `round_to_nice`.
-- Done when: unit tests for round trips, edge clusters, portrait/landscape aspects.
-
 ### T024 - LOD pyramid
 - Depends: T021, T023
 - Owns: `src/core/map/Pyramid.*`
