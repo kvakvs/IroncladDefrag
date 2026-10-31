@@ -48,6 +48,15 @@ this file records what is actually built and the decisions made along the way.
   `ThrottledProgress` sits in front of the UI: about 10 reports per second, but the first report,
   stage changes and finished stages always pass, and `flush()` delivers the newest held-back one.
 
+## Resources
+
+- `platform::detectSystemResources()` reads what this process may use (processors over all groups,
+  narrowed by a single-group affinity mask and a hard job-object CPU rate; RAM narrowed by job memory
+  limits). `core::computeCaps()` turns that plus the user's settings into the worker count and memory
+  budget, each with a `CapReason` for the UI. Caps change speed only, never results (plan.md 6.2.8).
+- Auto: workers = min(32, processors - 1, >= 1); memory = min(8 GB, 60% of available RAM). Manual
+  values are capped to what was detected. The startup log records both.
+
 ## Quality gate
 
 - Lizard and clang-tidy, pinned in a Python venv, so results do not depend on the installed LLVM.

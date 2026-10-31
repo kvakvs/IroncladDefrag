@@ -38,6 +38,8 @@ add_library(icd_core STATIC
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
+    src/core/resources/ResourceCaps.cpp
+    src/core/resources/ResourceCaps.h
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)
@@ -47,6 +49,8 @@ add_library(icd_platform STATIC
     src/platform/win/WinError.cpp
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
+    src/platform/win/SystemResources.cpp
+    src/platform/win/SystemResources.h
     src/platform/win/WinError.cpp
     src/platform/win/WinError.h
 )

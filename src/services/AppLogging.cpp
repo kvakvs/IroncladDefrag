@@ -1,7 +1,9 @@
 #include "services/AppLogging.h"
 
 #include "core/log/Log.h"
+#include "core/resources/ResourceCaps.h"
 #include "platform/win/LogSinks.h"
+#include "platform/win/SystemResources.h"
 #include "services/AppInfo.h"
 
 #include <exception>
@@ -41,6 +43,15 @@ namespace icd::services {
         if (!fileError.empty()) {
             core::logging::warning("log file unavailable", {{"reason", fileError}});
         }
+        // What this run can use, so reports from other machines show their limits.
+        const core::DetectedResources detected = platform::detectSystemResources();
+        const core::ResourceCaps caps = core::computeCaps(detected, {});
+        core::logging::info("resources",
+                            {{"processors", detected.logicalProcessors},
+                             {"cores", detected.physicalCores},
+                             {"ram_total", detected.totalMemoryBytes},
+                             {"ram_available", detected.availableMemoryBytes},
+                             {"caps", core::describeCaps(detected, caps)}});
         return logFile;
     }
 

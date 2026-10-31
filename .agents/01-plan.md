@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T007 - Resource detection and caps
-- Depends: T004
-- Owns: `src/platform/win/SystemResources.*`, `src/core/resources/ResourceCaps.*`
-- Do: detect logical/physical processors over all groups, affinity, job-object limits, total and
-  available RAM (§6.6). Pure `computeCaps(detected, settings)` in core: workers = min(target,
-  available − 1, ≥ 1); memory = min(8 GB, 60% available); manual values capped to detected.
-- Done when: unit tests for `computeCaps` edge cases (1 CPU, 2 GB RAM, 128 threads, manual overrides).
-
 ### T008 - Thread pool
 - Depends: T006, T007
 - Owns: `src/core/exec/Executor.h` (interface), `src/services/exec/ThreadPool.*`

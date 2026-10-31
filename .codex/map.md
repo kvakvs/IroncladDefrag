@@ -53,6 +53,8 @@ changes (see `AGENTS.md`).
 | `src/core/log/Log.h` | `logging::Level`, `Field`, `Record`, `Sink`, thread-safe `Logger`, `globalLogger()`, `info()`/`error()`/... helpers. |
 | `src/core/log/LogFormat.cpp` | `formatRecord()`: one-line `key=value` records, UTC time, escaping. |
 | `src/core/log/Logger.cpp` | `Logger` and the global helpers. |
+| `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
+| `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`) for GUI and CLI. |
@@ -67,6 +69,8 @@ changes (see `AGENTS.md`).
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation and progress throttling. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
+| `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
+| `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |
 
 ## Tools
 

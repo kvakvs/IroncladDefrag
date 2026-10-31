@@ -15,8 +15,10 @@ FetchContent_MakeAvailable(googletest)
 add_executable(icd_tests
     core/JobTypesTest.cpp
     core/LogTest.cpp
+    core/ResourceCapsTest.cpp
     core/SmokeTest.cpp
     platform/LogSinksTest.cpp
+    platform/SystemResourcesTest.cpp
 )
 target_link_libraries(icd_tests PRIVATE icd_core icd_platform GTest::gtest_main)
 icd_target_defaults(icd_tests)
