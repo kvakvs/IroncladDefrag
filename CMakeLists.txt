@@ -12,7 +12,9 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 set(CMAKE_CXX_SCAN_FOR_MODULES OFF)
 set(CMAKE_RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin")
-add_compile_options(/MP)
+if(CMAKE_GENERATOR MATCHES "Visual Studio")
+    add_compile_options(/MP) # Ninja already compiles files in parallel.
+endif()
 
 # Pinned wxWidgets version; tools/fetch-wx.ps1 pins the same version and its archive hashes.
 set(ICD_WX_VERSION "3.3.4")
@@ -73,3 +75,27 @@ add_executable(icd-cli
 )
 target_link_libraries(icd-cli PRIVATE icd_services)
 icd_target_defaults(icd-cli)
+
+# --- Quality gate (quality.bat): Lizard everywhere, clang-tidy only with a compile database -------
+# check-* targets look at changed files and includers of changed headers; check-*-all at all of src/.
+foreach(scope IN ITEMS changed all)
+    set(suffix "")
+    if(scope STREQUAL "all")
+        set(suffix "-all")
+    endif()
+    add_custom_target(check-complexity${suffix}
+        COMMAND "${CMAKE_COMMAND}" "-DQUALITY_SCOPE=${scope}" "-DQUALITY_BUILD_DIR=${PROJECT_BINARY_DIR}"
+            -P "${PROJECT_SOURCE_DIR}/cmake/CheckComplexity.cmake"
+        COMMENT "Checking cyclomatic complexity with Lizard (${scope} files)"
+        USES_TERMINAL VERBATIM)
+    add_custom_target(check-quality${suffix})
+    add_dependencies(check-quality${suffix} check-complexity${suffix})
+    if(CMAKE_EXPORT_COMPILE_COMMANDS AND CMAKE_GENERATOR MATCHES "Ninja")
+        add_custom_target(check-clang-tidy${suffix}
+            COMMAND "${CMAKE_COMMAND}" "-DQUALITY_SCOPE=${scope}" "-DQUALITY_BUILD_DIR=${PROJECT_BINARY_DIR}"
+                -P "${PROJECT_SOURCE_DIR}/cmake/CheckClangTidy.cmake"
+            COMMENT "Checking diagnostics and cognitive complexity with clang-tidy (${scope} files)"
+            USES_TERMINAL VERBATIM)
+        add_dependencies(check-quality${suffix} check-clang-tidy${suffix})
+    endif()
+endforeach()

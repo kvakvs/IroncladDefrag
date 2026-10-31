@@ -8,7 +8,7 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   one owns the modules listed under *Owns*, and touches other code only at the integration points
   listed under *Touches*.
 - A task is finished only when everything under *Done when* is true, the tests pass in Debug and
-  Release, and `.codex/arch.md` / `.codex/map.md` are updated if the structure changed.
+  Release, `quality.bat` passes, and `.codex/arch.md` / `.codex/map.md` are updated if the structure changed.
 - **Commit after each task.** One commit per task, message `Txxx: <task title>` plus a short body.
   Do not add `Co-Authored-By` lines to commit messages.
 - **When a task is finished, remove it from this file** and append it to `.agents/00-finished.md` as

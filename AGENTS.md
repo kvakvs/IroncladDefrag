@@ -53,6 +53,15 @@ The supported functions are:
 - Keep precompiled-header additions stable and low churn. Do not add frequently edited project headers to `src/precompiled.h`.
 - When adding new source files, update `CMakeLists.txt` explicitly so the `IroncladDefrag` target remains complete.
 
+## Code Quality
+
+- Keep functions simple: Lizard cyclomatic complexity (CCN) <= 10 and clang-tidy cognitive complexity
+  <= 10 (`.clang-tidy`: `clang-analyzer-*`, `bugprone-*`, `performance-*`, warnings as errors).
+- Before each commit run `quality.bat` (changed files plus translation units that include a changed
+  header). Run `quality.bat all` once per finished phase or every 20 commits, whichever comes first.
+  Both Lizard and clang-tidy must pass; do not raise thresholds or add suppressions just to pass.
+- Keep code clang-formatted (`"C:\Program Files\LLVM\bin\clang-format.exe" -i --style=file <files>`).
+
 ## When Editing or Creating Code
 
 - Add oneline intent comments to non-trivial functions, and all data structures, explaining why the function or structure exists.

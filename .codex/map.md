@@ -17,6 +17,13 @@ changes (see `AGENTS.md`).
 | `cmake/IcdWxWidgets.cmake` | Imported targets `wx::base`, `wx::core`, `wx::wx` from `3rdparty/wxWidgets`; checks the fetch stamp. |
 | `build.bat` | `build.bat [Debug|Release|All]`: fetches wx, configures `build/` (VS 2026, x64) once, builds. |
 | `.gitattributes` | CRLF for `.bat`, `.cmd`, `.ps1`. |
+| `quality.bat` | `quality.bat [changed|all]`: creates `.venv-quality`, enters vcvars64, configures `build/quality` (Ninja + cl, compile database, no PCH), builds `check-quality[-all]`. |
+| `.clang-tidy` | clang-tidy checks and the cognitive complexity threshold (10). |
+| `cmake/QualityCommon.cmake` | Scope, paths and the changed-file helper shared by the check scripts. |
+| `cmake/CheckComplexity.cmake` | Lizard gate (CCN <= 10) over `src/`. |
+| `cmake/CheckClangTidy.cmake` | clang-tidy gate: selects `src/` entries from the compile database, runs `run-clang-tidy`. |
+| `cmake/quality_scope.py` | Changed-file selection: changed files, plus `.cpp` files that include a changed header. |
+| `tools/requirements-quality.txt` | Pinned clang-tidy 22.1.8 and Lizard 1.24.0 for `.venv-quality`. |
 
 ## Targets
 
@@ -27,6 +34,7 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
+| `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
 
 ## Source files
 
@@ -58,5 +66,7 @@ changes (see `AGENTS.md`).
 | Path | Contents |
 | --- | --- |
 | `build/` | VS solution; `build/bin/<Config>/` holds both exes and the wx DLLs of that config. |
+| `build/quality/` | Ninja + cl configure for the quality gate; `quality/` holds scope lists and the selected database. |
+| `.venv-quality/` | Python venv with the pinned analyzers. |
 | `3rdparty/downloads/` | Cached wx archives. |
 | `3rdparty/wxWidgets/` | `include/`, `include/msvc/`, `lib/vc14x_x64_dll/` (import libs, debug and release DLLs), `icd-wx-stamp.txt`. |

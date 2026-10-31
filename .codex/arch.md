@@ -22,6 +22,15 @@ this file records what is actually built and the decisions made along the way.
 - The version comes from `project(VERSION)` and reaches code through `ICD_VERSION_STRING` in
   `icd_services`.
 
+## Quality gate
+
+- Lizard and clang-tidy, pinned in a Python venv, so results do not depend on the installed LLVM.
+- The VS generator has no compile database, so clang-tidy uses a separate Ninja + `cl` configure in
+  `build/quality` with precompiled headers off (clang cannot read MSVC `.pch`). clang-tidy runs in cl
+  driver mode inside the vcvars64 environment, which supplies the STL and SDK include paths.
+- `/MP` is added only for the VS generator; clang ignores `/Zc:preprocessor`, so the gate passes
+  `-Wno-unused-command-line-argument`.
+
 ## Third-party
 
 - wxWidgets is used as prebuilt DLLs only (no source build). `tools/fetch-wx.ps1` is the only way the

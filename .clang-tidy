@@ -1,0 +1,15 @@
+Checks: >-
+  -*,
+  clang-analyzer-*,
+  bugprone-*,
+  performance-*,
+  readability-function-cognitive-complexity
+WarningsAsErrors: '*'
+# Only project headers under src/ report; wxWidgets, the STL and the Windows SDK are not ours.
+HeaderFilterRegex: '(^|[/\])src[/\]'
+CheckOptions:
+  readability-function-cognitive-complexity.Threshold: 10
+  readability-function-cognitive-complexity.DescribeBasicIncrements: true
+  # Allocation failures are fatal; the check already ignores bad_alloc. MSVC's map/set move constructors allocate a
+  # sentinel node and can throw bad_array_new_length, so implicit moves of structs holding them would be reported.
+  bugprone-exception-escape.IgnoredExceptions: 'bad_array_new_length'
