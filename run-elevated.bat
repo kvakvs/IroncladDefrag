@@ -4,9 +4,11 @@ rem The exe's manifest requires administrator rights, so Windows shows the UAC p
 setlocal
 set "CONFIG=%~1"
 if "%CONFIG%"=="" set "CONFIG=Debug"
-set "EXE=%~dp0build\bin\%CONFIG%\IroncladDefrag.exe"
-if not exist "%EXE%" (
-    echo %EXE% not found. Run build.bat %CONFIG% first.
-    exit /b 1
-)
+call "%~dp0tools\dev-env.cmd"
+if errorlevel 1 exit /b 1
+set "EXE=%ICD_BUILD_DIR%\bin\%CONFIG%\IroncladDefrag.exe"
+if exist "%EXE%" goto start
+echo %EXE% not found. Run build.bat %CONFIG% first.
+exit /b 1
+:start
 start "" "%EXE%"

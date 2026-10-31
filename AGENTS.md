@@ -10,7 +10,11 @@ current drive map panel and controls and info panel in the bottom.
 
 ## Tools
 - "C:\Program Files\" contains system-installed CMAKE.
-- The host has Visual Studio community 2026 installed.
+- The host has Visual Studio community 2026 installed (MSVC STL, Windows SDK, rc, ninja via vcvars64).
+- The main compiler is clang-cl from LLVM (`C:\Program Files\LLVM\bin`) with Ninja Multi-Config in
+  `build/`. MSVC stays supported as a fallback: `set ICD_TOOLCHAIN=msvc` builds in `build-msvc/`.
+- Use `build.bat`, `test.bat`, `quality.bat` (they set up the environment through `tools\dev-env.cmd`).
+  In these scripts never `exit /b` inside a `( )` block: cmd loses the exit code there; use `goto`.
 
 # Design
 

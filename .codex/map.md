@@ -13,14 +13,16 @@ changes (see `AGENTS.md`).
 | `story/` | Notes from earlier attempts (read-only history). |
 | `tools/` | Developer scripts. |
 | `CMakeLists.txt` | All targets and their explicit source lists; pins `ICD_WX_VERSION`. |
-| `cmake/IcdCompilerOptions.cmake` | `icd_target_defaults()`: C++23, `/W4 /WX /permissive-`, Unicode and Windows defines. |
+| `cmake/IcdCompilerOptions.cmake` | `icd_target_defaults()`: C++23, `/W4 /WX /utf-8`, MSVC-only conformance flags, Unicode and Windows defines. |
 | `cmake/IcdWxWidgets.cmake` | Imported targets `wx::base`, `wx::core`, `wx::wx` from `3rdparty/wxWidgets`; checks the fetch stamp. |
-| `build.bat` | `build.bat [Debug|Release|All]`: fetches wx, configures `build/` (VS 2026, x64) once, builds. |
+| `build.bat` | `build.bat [Debug|Release|All]`: fetches wx, configures `build/` (Ninja Multi-Config, clang-cl, lld-link) once, builds. `ICD_TOOLCHAIN=msvc`: VS 2026 in `build-msvc/`. |
+| `test.bat` | `test.bat [Debug|Release|All]` (default All): `build.bat`, then `ctest`. |
 | `run-elevated.bat` | `run-elevated.bat [Debug|Release]`: starts the GUI through the shell (UAC prompt). |
+| `tools/dev-env.cmd` | Shared by the scripts: `ICD_BUILD_DIR`, vcvars64 once, LLVM first on `PATH`. |
 | `res/IroncladDefrag.manifest` | Embedded manifest: `requireAdministrator`, Common Controls v6, PerMonitorV2 DPI, long paths, Win10+. |
 | `res/IroncladDefrag.rc` | wx standard resources (`wx/msw/wx.rc`, its manifest off) and `VERSIONINFO`. |
 | `.gitattributes` | CRLF for `.bat`, `.cmd`, `.ps1`. |
-| `quality.bat` | `quality.bat [changed|all]`: creates `.venv-quality`, enters vcvars64, configures `build/quality` (Ninja + cl, compile database, no PCH), builds `check-quality[-all]`. |
+| `quality.bat` | `quality.bat [changed|all]`: creates `.venv-quality`, enters vcvars64, configures `build/quality` (Ninja + clang-cl, compile database, no PCH), builds `check-quality[-all]`. |
 | `.clang-tidy` | clang-tidy checks and the cognitive complexity threshold (10). |
 | `cmake/QualityCommon.cmake` | Scope, paths and the changed-file helper shared by the check scripts. |
 | `cmake/CheckComplexity.cmake` | Lizard gate (CCN <= 10) over `src/`. |
@@ -69,8 +71,9 @@ changes (see `AGENTS.md`).
 
 | Path | Contents |
 | --- | --- |
-| `build/` | VS solution; `build/bin/<Config>/` holds both exes and the wx DLLs of that config. |
-| `build/quality/` | Ninja + cl configure for the quality gate; `quality/` holds scope lists and the selected database. |
+| `build/` | clang-cl Ninja Multi-Config build with `compile_commands.json`; `build/bin/<Config>/` holds the exes and the wx DLLs of that config. |
+| `build-msvc/` | Optional MSVC (VS 2026) build, same layout. |
+| `build/quality/` | Ninja + clang-cl configure for the quality gate; `quality/` holds scope lists and the selected database. |
 | `.venv-quality/` | Python venv with the pinned analyzers. |
 | `3rdparty/downloads/` | Cached wx archives. |
 | `3rdparty/wxWidgets/` | `include/`, `include/msvc/`, `lib/vc14x_x64_dll/` (import libs, debug and release DLLs), `icd-wx-stamp.txt`. |

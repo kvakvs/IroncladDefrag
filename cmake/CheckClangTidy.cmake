@@ -1,6 +1,6 @@
 # clang-tidy gate over the translation units in src/ (cmake -P, see QualityCommon.cmake).
-# Needs QUALITY_BUILD_DIR/compile_commands.json from a Ninja + MSVC configure (quality.bat makes one) and the
-# MSVC environment (INCLUDE) of vcvars64, which clang-tidy's cl driver mode reads for the STL and SDK headers.
+# Needs QUALITY_BUILD_DIR/compile_commands.json from a Ninja + clang-cl configure (quality.bat makes one) and the
+# vcvars64 environment (INCLUDE), which clang-tidy's cl driver mode reads for the MSVC STL and SDK headers.
 include("${CMAKE_CURRENT_LIST_DIR}/QualityCommon.cmake")
 set(database "${QUALITY_BUILD_DIR}/compile_commands.json")
 if(NOT EXISTS "${database}")
@@ -65,8 +65,6 @@ message(STATUS "clang-tidy: ${units} translation units, scope ${QUALITY_SCOPE}, 
 execute_process(
     COMMAND "${RUN_CLANG_TIDY}" "-p=${selected_dir}" "-j=${QUALITY_JOBS}" -quiet
         "-clang-tidy-binary=${CLANG_TIDY}" "-config-file=${project_root}/.clang-tidy"
-        # MSVC-only flags such as /Zc:preprocessor are accepted but unused by clang.
-        -extra-arg=-Wno-unused-command-line-argument
     WORKING_DIRECTORY "${project_root}"
     RESULT_VARIABLE tidy_result)
 if(NOT tidy_result STREQUAL "0")

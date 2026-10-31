@@ -5,7 +5,7 @@ this file records what is actually built and the decisions made along the way.
 
 ## Layers (target, from `plan.md` section 5)
 
-- `src/core` - wx-free, Win32-free C++20 model and algorithms.
+- `src/core` - wx-free, Win32-free C++23 model and algorithms.
 - `src/platform/win` - narrow Win32 wrappers.
 - `src/services` - jobs, thread pool, orchestration.
 - `src/ui` - wxWidgets windows and widgets.
@@ -13,7 +13,10 @@ this file records what is actually built and the decisions made along the way.
 
 ## Build
 
-- C++23 (`/std:c++latest` on MSVC), warnings as errors, only Debug and Release configurations.
+- Compiler: clang-cl (LLVM) with lld-link and Ninja Multi-Config is the main build; it uses the MSVC
+  STL and Windows SDK from vcvars64 and links the prebuilt MSVC wx DLLs (same ABI). MSVC still builds
+  (`ICD_TOOLCHAIN=msvc`), so MSVC-only flags (`/permissive-`, `/Zc:*`, `/MP`) are applied only there.
+- C++23, warnings as errors, only Debug and Release configurations.
 - Dependency direction: `ui`/`cli` -> `services` -> `platform` -> `core`. `core` has no wx or Win32
   includes; `platform` is the only place that includes `<windows.h>` for system calls.
 - wx is linked through imported targets, not wx's `#pragma comment(lib)` auto-linking (only
@@ -29,11 +32,9 @@ this file records what is actually built and the decisions made along the way.
 ## Quality gate
 
 - Lizard and clang-tidy, pinned in a Python venv, so results do not depend on the installed LLVM.
-- The VS generator has no compile database, so clang-tidy uses a separate Ninja + `cl` configure in
-  `build/quality` with precompiled headers off (clang cannot read MSVC `.pch`). clang-tidy runs in cl
+- clang-tidy uses its own Ninja + clang-cl configure in `build/quality` with precompiled headers off:
+  the pinned clang-tidy (22) cannot read `.pch` files from the installed clang-cl (23). It runs in cl
   driver mode inside the vcvars64 environment, which supplies the STL and SDK include paths.
-- `/MP` is added only for the VS generator; clang ignores `/Zc:preprocessor`, so the gate passes
-  `-Wno-unused-command-line-argument`.
 
 ## Third-party
 
