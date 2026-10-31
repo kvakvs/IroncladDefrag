@@ -95,6 +95,7 @@ namespace icd::core { namespace {
     // Records forwarded progress for assertions.
     class RecordingSink : public ProgressSink {
     public:
+        // Keeps every forwarded snapshot.
         void report(const Progress& progress) override {
             const std::scoped_lock lock(mutex);
             received.push_back(progress);

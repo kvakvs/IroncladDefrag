@@ -15,6 +15,7 @@ namespace icd::platform { namespace {
     // A fresh, empty directory under %TEMP% per test, removed again afterwards.
     class LogSinksTest : public ::testing::Test {
     protected:
+        // Creates a unique directory for this test.
         void SetUp() override {
             const auto* info = ::testing::UnitTest::GetInstance()->current_test_info();
             dir = fs::temp_directory_path() / "icd_tests" /
@@ -23,6 +24,7 @@ namespace icd::platform { namespace {
             fs::create_directories(dir);
         }
 
+        // Removes the directory and everything the test wrote.
         void TearDown() override {
             std::error_code ec;
             fs::remove_all(dir, ec);

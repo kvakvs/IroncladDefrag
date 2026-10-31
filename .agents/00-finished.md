@@ -32,3 +32,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T008 Thread pool - `core/exec/Executor.*` (`ChunkedRange`, `Executor`, `InlineExecutor`, deterministic
   `parallelReduce`), `services/exec/ThreadPool.*` (per-worker deques with stealing, caller joins
   `parallelFor`, cancel/exception aware); tests prove bit-identical reductions for 1..31 threads and fast cancel.
+- T009 Job runner and UI bridge - `services/job/JobRunner.*` (jobs on the pool, cancel, ~10 Hz progress,
+  one `JobResult`), `services/AppServices.*` (caps + pool + runner), `services/job/FakeJob.*`,
+  `ui/bridge/JobEvents.*` (`wxQueueEvent` bridge, detach on close); Debug menu run/cancel with status-bar
+  progress. Phase 0 exit checked: window stays responsive (no ping timeouts), cancel is immediate.

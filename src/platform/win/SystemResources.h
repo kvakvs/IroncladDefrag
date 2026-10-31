@@ -15,6 +15,8 @@ namespace icd::platform {
     public:
         // Opens the system notification; when that fails, signalled() is always false.
         LowMemorySignal();
+
+        // Closes the notification handle.
         ~LowMemorySignal();
         LowMemorySignal(const LowMemorySignal&) = delete;
         LowMemorySignal& operator=(const LowMemorySignal&) = delete;

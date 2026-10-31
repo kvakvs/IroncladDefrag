@@ -15,6 +15,7 @@ namespace icd::core::logging { namespace {
     // Collects lines in memory so tests can inspect exactly what a logger wrote.
     class MemorySink : public Sink {
     public:
+        // Keeps the line.
         void write(const Record& /*record*/, std::string_view line) override {
             const std::scoped_lock lock(mutex);
             lines.emplace_back(line);

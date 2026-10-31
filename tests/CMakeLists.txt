@@ -19,6 +19,7 @@ add_executable(icd_tests
     core/SmokeTest.cpp
     platform/LogSinksTest.cpp
     platform/SystemResourcesTest.cpp
+    services/JobRunnerTest.cpp
     services/ThreadPoolTest.cpp
 )
 target_link_libraries(icd_tests PRIVATE icd_core icd_platform icd_services GTest::gtest_main)

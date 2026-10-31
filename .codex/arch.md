@@ -48,6 +48,21 @@ this file records what is actually built and the decisions made along the way.
   `ThrottledProgress` sits in front of the UI: about 10 reports per second, but the first report,
   stage changes and finished stages always pass, and `flush()` delivers the newest held-back one.
 
+## Jobs and the UI
+
+- `services::AppServices` is the composition root (created by `App` after logging, destroyed in
+  `OnExit` before the shutdown line): caps, then the `ThreadPool`, then the `JobRunner`. The runner is
+  destroyed first, cancelling and waiting for jobs while the pool still exists.
+- A job is a function of `JobContext` (token, throttled progress sink, executor). The runner runs it
+  as a pool task, logs start and end, and reports exactly one `JobResult` (Succeeded, Cancelled when
+  the token was cancelled, Failed with the exception text).
+- `ui::JobEventBridge` implements `JobObserver` and turns callbacks into `wxThreadEvent`s with
+  payloads, queued with `wxQueueEvent`. A window detaches its bridge before it is destroyed, so
+  events from still-running jobs are dropped. Event types are function-local statics (created on
+  first use), not `wxDEFINE_EVENT` globals.
+- Menu enable state is set explicitly when job state changes: wxMSW refreshes `wxEVT_UPDATE_UI` for
+  menus only when a menu opens, and it ignores accelerators of disabled items.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

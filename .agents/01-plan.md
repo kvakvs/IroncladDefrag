@@ -22,15 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T009 - Job runner and UI bridge
-- Depends: T005, T008
-- Owns: `src/services/job/JobRunner.*`, `src/ui/bridge/JobEvents.*`
-- Touches: `MainFrame` (debug menu entry)
-- Do: run jobs on the pool, report progress/completion/error to the UI via `wxQueueEvent`, throttled.
-  Debug menu "Run fake parallel job".
-- Done when: the fake job shows progress and can be cancelled while the window stays responsive.
-  **Phase 0 exit check** (§13 Phase 0).
-
 ---
 
 ## Phase 1 - UI shell with fake data (§11, §13 Phase 1)

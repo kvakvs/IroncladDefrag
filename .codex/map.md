@@ -60,17 +60,22 @@ changes (see `AGENTS.md`).
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`) for GUI and CLI. |
+| `src/services/AppServices.*` | Service composition root: resources, caps, `ThreadPool`, `JobRunner` (destroyed in the right order). |
+| `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
+| `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages for the Debug menu and runner tests. |
+| `src/ui/bridge/JobEvents.*` | `JobEventBridge` (job callbacks to `wxQueueEvent`), `jobProgressEvent()`, `jobFinishedEvent()`, payloads. |
 | `src/services/AppLogging.*` | `initAppLogging()`/`shutdownAppLogging()`: installs the sinks, writes startup/shutdown lines. |
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
-| `src/ui/App.*` | `icd::App`: creates the main frame. |
-| `src/ui/MainFrame.*` | Empty main window. |
+| `src/ui/App.*` | `icd::App`: starts logging and `AppServices`, creates the main frame, stops services on exit. |
+| `src/ui/MainFrame.*` | Main window: File and Debug menus (fake job run/cancel), two-field status bar with job progress. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation and progress throttling. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
+| `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |

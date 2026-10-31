@@ -65,8 +65,14 @@ add_library(icd_services STATIC
     src/services/AppInfo.h
     src/services/AppLogging.cpp
     src/services/AppLogging.h
+    src/services/AppServices.cpp
+    src/services/AppServices.h
     src/services/exec/ThreadPool.cpp
     src/services/exec/ThreadPool.h
+    src/services/job/FakeJob.cpp
+    src/services/job/FakeJob.h
+    src/services/job/JobRunner.cpp
+    src/services/job/JobRunner.h
 )
 target_link_libraries(icd_services PUBLIC icd_core icd_platform)
 icd_target_defaults(icd_services)
@@ -79,6 +85,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/App.h
     src/ui/MainFrame.cpp
     src/ui/MainFrame.h
+    src/ui/bridge/JobEvents.cpp
+    src/ui/bridge/JobEvents.h
     res/IroncladDefrag.manifest
     res/IroncladDefrag.rc
 )
