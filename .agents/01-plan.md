@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T030 - Hover tooltip
-- Depends: T028
-- Owns: `src/ui/map/MapHover.*`, `src/core/map/HitTest.*`
-- Do: screen point → LCN → extent lookup → file, stream, fragment i/n, size, class, times.
-- Done when: hit-test unit tests; tooltip correct at every zoom on synthetic data.
-
 ### T031 - Selection and file navigation
 - Depends: T030
 - Owns: `src/ui/map/MapSelection.*`, `src/core/snapshot/FileSearch.*`

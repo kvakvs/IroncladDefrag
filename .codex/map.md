@@ -77,6 +77,7 @@ changes (see `AGENTS.md`).
 | `src/core/map/BinSummary.*` | `MapBin`, `BinAccumulator`, per-record `extentMapFlags()`, `ownerOf()`: the summary rules the pyramid and the rasterizer share. |
 | `src/core/map/Palette.*` | `Rgba` (BGRA in memory), `Palette` interface over `PixelSummary`, `OccupancyPalette`. |
 | `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), grid lines at deep zoom, `clustersInRect()`. |
+| `src/core/map/HitTest.*` | Hover lookups: `hitTest()` (pointer -> cell -> LCN -> extent or free run, fragment i/n via `fragmentOf()`, the pixel's cells and used clusters), `formatFileTime()`, `describeHit()` tooltip lines. |
 | `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid and extent flags (`source()` for the rasterizer); `TileIdHash`. |
 | `src/core/map/Overview.*` | Minimap math: `placeOverview()` (world shape in the bottom-right corner, hidden in small windows), minimap pixel <-> world, view marker box (clipped, minimum size), `dragTo()`. |
 | `src/core/map/Ruler.*` | Ruler ticks: `rowTicks()` (row starts: byte offset, % of volume, % of disk when the partition is known), `columnTicks()` (offset within a row), power-of-two steps, `formatOffset()` / `formatPercent()` label precision. |
@@ -115,6 +116,7 @@ changes (see `AGENTS.md`).
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
 | `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays and search still disabled, caption) above the `MapCanvas` with rulers left and above; forwards the canvas's view changes to the rulers; View > Minimap. |
 | `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), frame-time log per animation. |
+| `src/ui/map/MapHover.*` | Hover tooltip: `wxPopupWindow` after a 350 ms rest, follows the pointer, hides on press/drag/wheel/key/leave; local time zone for file times. |
 | `src/ui/map/Minimap.*` | Minimap overlay drawn in the canvas's Direct2D frame: holds the coarsest tile as its image, frame and view marker, drag state (grab offset). |
 | `src/ui/map/Ruler.*` | Ruler windows (GDI, buffered) beside the map: vertical rows with offset and %, horizontal offsets within a row; sized for their widest label, refreshed on view changes. |
 | `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
@@ -133,6 +135,7 @@ changes (see `AGENTS.md`).
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
+| `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |

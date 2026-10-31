@@ -267,6 +267,21 @@ this file records what is actually built and the decisions made along the way.
 - The 30 TB zoom from the whole volume to one cluster still runs at 73 fps with the rulers repainting
   every frame.
 
+## Hover tooltip
+
+- `core::hitTest()` turns a window point into the cell, its LCN and the extent holding it (one binary
+  search), the fragment i/n of the owner (split runs that continue on disk count once, as in
+  `fragmentCount()`) or the free run, and the pixel's coverage: at coarse zoom a pixel stands for many
+  clusters, so the tooltip also says how many and how much of them is used (one range query per covered
+  row). `describeHit()` makes the lines, so the wording is tested; file times use the local zone from
+  `std::chrono::current_zone()` (UTC if the zone database is unavailable).
+- Until classification (Phase 5) the tooltip's type line comes from file flags (file, directory, NTFS
+  metadata, plus compressed, sparse, unmovable, ...).
+- `ui::MapHover` shows a `wxPopupWindow` (never takes focus) after the pointer rests 350 ms, then follows
+  it; a press, drag, wheel, key or leaving the map hides it. It is bound after the navigator so it sees
+  events first, and always passes them on. Posted mouse messages cannot drive it from a script: wx
+  sends a leave event when the real cursor is not over the window.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

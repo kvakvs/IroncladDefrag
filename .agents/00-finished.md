@@ -95,3 +95,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   (row ticks with byte offset / % of volume / % of disk, in-row column ticks, exact-step labels),
   `ui/map/Minimap.*` (overlay in the D2D frame, coarsest tile as image, drag), `ui/map/Ruler.*` (GDI rulers
   left of and above the map), View > Minimap toggle; 15 tests; 30 TB zoom still 73 fps.
+- T030 Hover tooltip - `core/map/HitTest.*` (`hitTest()`: LCN, extent, fragment i/n, free run, pixel coverage;
+  `describeHit()` lines, `formatFileTime()`), `ui/map/MapHover.*` (popup after a 350 ms rest, follows the
+  pointer); 8 tests incl. brute force at every level on a synthetic volume. Type line from file flags until
+  classes exist (Phase 5).

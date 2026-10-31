@@ -4,6 +4,7 @@
 #include "core/log/Log.h"
 #include "core/map/TileRasterizer.h"
 #include "ui/Accelerators.h"
+#include "ui/map/MapHover.h"
 #include "ui/map/MapNavigator.h"
 
 #include <wx/dcclient.h>
@@ -90,6 +91,7 @@ namespace icd::ui {
             event.Skip();
         });
         navigator_ = std::make_unique<MapNavigator>(*this);
+        hover_ = std::make_unique<MapHover>(*this);
     }
 
     MapCanvas::~MapCanvas() {
@@ -100,6 +102,7 @@ namespace icd::ui {
 
     void MapCanvas::setMap(std::shared_ptr<const core::MapData> map) {
         navigator_->stop();
+        hover_->hide();
         map_ = std::move(map);
         resetTiles();
         fitted_ = false;

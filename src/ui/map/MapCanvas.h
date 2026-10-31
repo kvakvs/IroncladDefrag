@@ -23,6 +23,7 @@ namespace icd::core {
 
 namespace icd::ui {
 
+    class MapHover;
     class MapNavigator;
     struct TileMailbox;
 
@@ -30,7 +31,7 @@ namespace icd::ui {
     // shared pool and keeps the uploaded ones in an LRU cache with a memory cap. While exact tiles render, the
     // nearest cached coarser tile is drawn scaled. The paint path never touches analysis data. The world is
     // fixed per map, so resizing changes how much is visible, never the layout (plan.md 7.1). Input and
-    // animation live in MapNavigator.
+    // animation live in MapNavigator, the hover tooltip in MapHover.
     class MapCanvas : public wxWindow {
     public:
         // GPU memory for cached tiles (1,024 tiles of 256 KB).
@@ -133,6 +134,7 @@ namespace icd::ui {
         core::Executor& executor_; // Renders tiles.
         std::unique_ptr<D2DRenderer> renderer_; // Created on first paint.
         std::unique_ptr<MapNavigator> navigator_; // Input and animation.
+        std::unique_ptr<MapHover> hover_; // Tooltip; created after the navigator so it sees events first.
         core::LruCache<core::TileId, GpuTileHandle, core::TileIdHash> cache_{tileCacheBytes}; // Uploaded tiles.
         std::unordered_set<core::TileId, core::TileIdHash> pending_; // Tiles rendering now.
         std::deque<ArrivedTile> arrived_; // Rendered, not yet uploaded (uploads are spread over frames).
