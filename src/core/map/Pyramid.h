@@ -2,6 +2,7 @@
 
 #include "core/exec/Executor.h"
 #include "core/job/CancelToken.h"
+#include "core/map/BinSummary.h"
 #include "core/map/World.h"
 #include "core/snapshot/Snapshot.h"
 
@@ -11,29 +12,6 @@
 #include <vector>
 
 namespace icd::core {
-
-    // Facts a bin carries besides its counts.
-    enum MapBinFlag : std::uint8_t {
-        BinUnmovable = 1U << 0U, // Holds clusters that must not move (metadata, locked files).
-        BinDirectoryIndex = 1U << 1U, // Holds directory index allocations.
-        BinPlanSource = 1U << 2U, // A planned move reads from here (plan overlay, set by the planner).
-        BinPlanDestination = 1U << 3U, // A planned move writes here (plan overlay, set by the planner).
-    };
-
-    // Summary of a square block of map cells for drawing without touching every extent (plan.md 7.2), in 8
-    // bytes so the base level of a 30 TB volume (~28 M bins) takes about 230 MB.
-    struct MapBin {
-        std::uint32_t used = 0; // Used clusters, in units of 2^Pyramid::usedShift(level).
-        std::uint8_t kind = 0; // Dominant file class (the largest contributor at the base level).
-        std::uint8_t fragmented = 0; // Share of used clusters owned by fragmented files, 0-255.
-        std::uint8_t heat = 0; // Used-weighted average heat (age or activity) bucket of the owners, 0-255.
-        std::uint8_t flags = 0; // MapBinFlag bits.
-
-        // Bins compare as values (tests, change detection).
-        friend constexpr bool operator==(const MapBin&, const MapBin&) = default;
-    };
-
-    static_assert(sizeof(MapBin) == 8, "map bins must stay 8 bytes (plan.md 7.2)");
 
     // One bin of the pyramid: level and grid position (at level k, bin (x, y) covers cells
     // [x * 2^k, (x + 1) * 2^k) x [y * 2^k, (y + 1) * 2^k), which is pixel (x, y) of the level-k tiles).
@@ -63,8 +41,8 @@ namespace icd::core {
         // The first level with at most maxBins bins for a world.
         [[nodiscard]] static int baseLevelFor(const World& world, std::uint64_t maxBins);
 
-        // Units of MapBin::used at a level: 2^usedShift(level) clusters (0 while a full bin fits 31 bits).
-        [[nodiscard]] static unsigned usedShift(int level);
+        // Units of MapBin::used at a level (see binUsedShift()).
+        [[nodiscard]] static unsigned usedShift(int level) { return binUsedShift(level); }
 
         // Builds every level.
         [[nodiscard]] static Pyramid build(const PyramidInputs& inputs, Executor& executor,
@@ -113,7 +91,7 @@ namespace icd::core {
         };
 
         // Recomputes the base bins of some base-bin rows.
-        void fillBaseRows(const PyramidInputs& inputs, std::span<const std::uint8_t> fragmentedFiles, RowRange rows);
+        void fillBaseRows(const PyramidInputs& inputs, std::span<const std::uint8_t> extentFlags, RowRange rows);
 
         // Recomputes some bin rows of a stored level (levels_ index) from the level below.
         void mergeRows(std::size_t index, RowRange rows);

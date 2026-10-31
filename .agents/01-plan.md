@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T025 - Tile rasterizer
-- Depends: T024
-- Owns: `src/core/map/TileRasterizer.*`, `src/core/map/Palette.*`
-- Do: 256×256 RGBA tile for (level, x, y) from the pyramid (coarse) or the extent index (fine);
-  palette interface for color modes; cell grid lines at deep zoom.
-- Done when: golden-image tests on small volumes; coarse tile ≤ 5 ms, fine tile ≤ 2 ms (bench).
-
 ### T026 - Rendering spike
 - Depends: T025, T010
 - Owns: `tools/spike/map-render-spike/*`

@@ -50,8 +50,14 @@ add_library(icd_core STATIC
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
+    src/core/map/BinSummary.cpp
+    src/core/map/BinSummary.h
+    src/core/map/Palette.cpp
+    src/core/map/Palette.h
     src/core/map/Pyramid.cpp
     src/core/map/Pyramid.h
+    src/core/map/TileRasterizer.cpp
+    src/core/map/TileRasterizer.h
     src/core/map/World.cpp
     src/core/map/World.h
     src/core/model/DriveInfo.cpp

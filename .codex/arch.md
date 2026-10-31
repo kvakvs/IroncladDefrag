@@ -170,6 +170,23 @@ this file records what is actually built and the decisions made along the way.
 - Measured on the synthetic 30 TB / 20 M-file volume: 0.86 s on 8 threads, 0.55 s on 32
   (target 5 s on 8), 320 MB for all levels.
 
+## Tile rasterizer
+
+- `renderTile()` draws 256 x 256 BGRA tiles. Levels the pyramid stores copy one bin per pixel; finer
+  levels summarise each pixel (or each cell, past one cell per pixel) from the extent index with the
+  same `BinAccumulator`, so both paths give identical pixels at the base level (tested). Cells of 8 px
+  or more get 1 px grid lines.
+- Color modes are `Palette` implementations over a `PixelSummary` (bin, level, capacity);
+  `OccupancyPalette` is the default until T032.
+- Speed: per-record owner flags (`extentMapFlags()`, one byte per extent, ~55 MB at 30 TB) are read in
+  record order instead of two random lookups into the 20 M-entry file tables; rows gallop forward from
+  the previous row's position; neighbouring identical summaries reuse one palette call; scratch
+  buffers are per thread (fresh multi-MB blocks cost a page fault per 4 KB).
+- Measured on the 30 TB synthetic volume (one thread per tile): coarse levels 4-9 at 0.8-1.1 ms;
+  fine levels 0 and below at 0.3-1.1 ms (targets 5 ms and 2 ms). Level 3 (64 clusters per pixel, one
+  below the base) takes 3.4 ms: within the coarse target but over the fine one. Tiles render on the
+  pool in parallel, so throughput is not at risk; T033 rechecks it.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

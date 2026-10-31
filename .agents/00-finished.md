@@ -76,3 +76,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   the plan's 1-D wording reinterpreted, see arch.md), base <= 32 M bins (16 x 16 cells at 30 TB), parallel
   fill per row band, 2x2 merge, dirty-range update; brute-force, parallel and update tests; 30 TB in 0.86 s
   on 8 threads, 320 MB.
+- T025 Tile rasterizer - `core/map/TileRasterizer.*` (pyramid or extent tiles, grid lines), `Palette.*`
+  (`OccupancyPalette`), shared `BinSummary.*` with per-extent map flags; golden, hand-volume and
+  pyramid = extents tests; 30 TB: coarse <= 1.1 ms, fine (<= 1 cluster/px) <= 1.1 ms, level 3 3.4 ms
+  (over the 2 ms fine target; recheck in T033).

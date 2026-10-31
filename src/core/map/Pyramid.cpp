@@ -13,88 +13,15 @@ namespace icd::core {
         // Base-bin rows per parallel chunk (one row is one LCN range of 2^base world rows).
         constexpr std::size_t rowsPerChunk = 4;
 
-        // Running totals of one base bin while its extents are swept.
-        struct BinTotals {
-            ClusterCount used = 0; // Used clusters.
-            ClusterCount fragmented = 0; // Of those, owned by fragmented files.
-            std::uint64_t heatSum = 0; // Sum of heat times clusters.
-            ClusterCount largestPiece = 0; // Clusters of the largest contributing piece.
-            std::uint8_t kind = 0; // Its owner's class.
-            std::uint8_t flags = 0; // MapBinFlag bits.
-        };
-
-        // What one extent piece contributes, looked up once per record.
-        struct PieceOwner {
-            bool fragmented = false; // Owner has more than one fragment.
-            std::uint8_t kind = 0; // Owner's class.
-            std::uint8_t heat = 0; // Owner's heat bucket.
-            std::uint8_t flags = 0; // MapBinFlag bits.
-        };
-
         // Size of a bin grid.
         struct Grid {
             std::uint64_t across = 1; // Columns.
             std::uint64_t down = 1; // Rows.
         };
 
-        // Adds clusters of a piece to a bin's totals.
-        void add(BinTotals& totals, ClusterCount clusters, const PieceOwner& owner) {
-            totals.used += clusters;
-            totals.fragmented += owner.fragmented ? clusters : 0;
-            totals.heatSum += clusters * owner.heat;
-            totals.flags |= owner.flags;
-            if (clusters > totals.largestPiece) {
-                totals.largestPiece = clusters;
-                totals.kind = owner.kind;
-            }
-        }
-
         // A 0-255 value: part / whole scaled by scale, rounded.
         std::uint8_t ratio(double part, double whole, double scale) {
             return whole <= 0.0 ? 0 : static_cast<std::uint8_t>(std::lround(scale * part / whole));
-        }
-
-        // The finished base bin of a level.
-        MapBin finish(const BinTotals& totals, int level) {
-            const auto used = static_cast<double>(totals.used);
-            MapBin bin;
-            bin.used = static_cast<std::uint32_t>(totals.used >> Pyramid::usedShift(level));
-            bin.kind = totals.kind;
-            bin.fragmented = ratio(static_cast<double>(totals.fragmented), used, 255.0);
-            bin.heat = ratio(static_cast<double>(totals.heatSum), used, 1.0);
-            bin.flags = totals.flags;
-            return bin;
-        }
-
-        // The owner facts of a record.
-        PieceOwner ownerOf(const ExtentRecord& record, const PyramidInputs& inputs,
-                           std::span<const std::uint8_t> fragmentedFiles) {
-            const FileIndex file = record.file();
-            PieceOwner owner;
-            owner.fragmented = fragmentedFiles[file] != 0;
-            owner.kind = file < inputs.fileKinds.size() ? inputs.fileKinds[file] : 0;
-            owner.heat = file < inputs.fileHeat.size() ? inputs.fileHeat[file] : 0;
-            const bool unmovable =
-                (record.flags() & ExtentUnmovable) != 0 || inputs.snapshot.files.has(file, FileUnmovable);
-            const bool directoryIndex = (record.flags() & ExtentDirectoryIndex) != 0;
-            owner.flags =
-                static_cast<std::uint8_t>((unmovable ? BinUnmovable : 0) | (directoryIndex ? BinDirectoryIndex : 0));
-            return owner;
-        }
-
-        // Per file: 1 when it has more than one fragment, computed in parallel.
-        std::vector<std::uint8_t> fragmentedFiles(const Snapshot& snapshot, Executor& executor,
-                                                  const CancelToken& token) {
-            std::vector<std::uint8_t> out(snapshot.files.size(), 0);
-            executor.parallelFor(
-                {.count = out.size(), .grain = 65536},
-                [&](std::size_t begin, std::size_t end) {
-                    for (std::size_t file = begin; file < end; ++file) {
-                        out[file] = snapshot.extents.fragmentCount(static_cast<FileIndex>(file)) > 1 ? 1 : 0;
-                    }
-                },
-                token);
-            return out;
         }
 
         // The bin grid of a world at a level: ceil(size / 2^level) bins each way, at least one.
@@ -149,8 +76,6 @@ namespace icd::core {
         return level;
     }
 
-    unsigned Pyramid::usedShift(int level) { return 2 * level > 31 ? static_cast<unsigned>(2 * level - 31) : 0U; }
-
     Pyramid Pyramid::build(const PyramidInputs& inputs, Executor& executor, const CancelToken& token) {
         Pyramid pyramid;
         pyramid.base_ = baseLevelFor(inputs.world, inputs.maxBaseBins);
@@ -193,40 +118,44 @@ namespace icd::core {
                 },
                 token);
         };
-        const std::vector<std::uint8_t> fragmented = fragmentedFiles(inputs.snapshot, executor, token);
-        forChunks(rows, [&](RowRange chunk) { fillBaseRows(inputs, fragmented, chunk); });
+        const std::vector<std::uint8_t> extentFlags = extentMapFlags(inputs.snapshot, executor, token);
+        forChunks(rows, [&](RowRange chunk) { fillBaseRows(inputs, extentFlags, chunk); });
         for (std::size_t index = 1; index < levels_.size(); ++index) {
             rows = {.first = rows.first / 2, .last = std::min(levels_[index].down, (rows.last + 1) / 2)};
             forChunks(rows, [&](RowRange chunk) { mergeRows(index, chunk); });
         }
     }
 
-    void Pyramid::fillBaseRows(const PyramidInputs& inputs, std::span<const std::uint8_t> fragmentedFiles,
-                               RowRange rows) {
+    void Pyramid::fillBaseRows(const PyramidInputs& inputs, std::span<const std::uint8_t> extentFlags, RowRange rows) {
         const World& world = inputs.world;
         const auto shift = static_cast<unsigned>(base_);
         Level& base = levels_.front();
-        std::vector<BinTotals> totals(base.across);
+        const MapFileFacts facts{.snapshot = inputs.snapshot,
+                                 .extentFlags = extentFlags,
+                                 .kinds = inputs.fileKinds,
+                                 .heat = inputs.fileHeat};
+        std::vector<BinAccumulator> totals(base.across);
         for (std::uint64_t row = rows.first; row < rows.last; ++row) {
-            std::ranges::fill(totals, BinTotals{});
+            std::ranges::fill(totals, BinAccumulator{});
             // A row of base bins is the LCN range of its world rows.
             const Lcn start = std::min(world.clusters(), (row << shift) * world.rowWidth());
             const Lcn end = std::min(world.clusters(), ((row + 1) << shift) * world.rowWidth());
             const ClusterRun range{start, end - start};
+            const ExtentRecord* const records = inputs.snapshot.extents.records().data();
             for (const ExtentRecord& record : inputs.snapshot.extents.overlapping(range)) {
-                const PieceOwner owner = ownerOf(record, inputs, fragmentedFiles);
+                const PieceOwner owner = ownerOf(static_cast<std::size_t>(&record - records), facts);
                 world.forEachRowSegment(
                     clip(record.run(), range), [&](std::uint64_t /*row*/, std::uint64_t column, std::uint64_t count) {
                         // Spread the segment over the bin columns it crosses.
                         for (std::uint64_t cell = column; cell < column + count;) {
                             const std::uint64_t binEnd = std::min(((cell >> shift) + 1) << shift, column + count);
-                            add(totals[cell >> shift], binEnd - cell, owner);
+                            totals[cell >> shift].add(binEnd - cell, owner);
                             cell = binEnd;
                         }
                     });
             }
             for (std::uint64_t column = 0; column < base.across; ++column) {
-                base.bins[row * base.across + column] = finish(totals[column], base_);
+                base.bins[row * base.across + column] = totals[column].finish(base_);
             }
         }
     }
