@@ -33,6 +33,8 @@ add_library(icd_core STATIC
     src/core/exec/Executor.h
     src/core/format/ByteSize.cpp
     src/core/format/ByteSize.h
+    src/core/format/Count.cpp
+    src/core/format/Count.h
     src/core/job/CancelToken.cpp
     src/core/job/CancelToken.h
     src/core/job/Progress.cpp
@@ -48,7 +50,6 @@ icd_target_defaults(icd_core)
 
 # --- icd_platform: narrow Win32 wrappers ---------------------------------------------------------
 add_library(icd_platform STATIC
-    src/platform/win/WinError.cpp
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
     src/platform/win/SystemResources.cpp
@@ -83,10 +84,18 @@ add_executable(IroncladDefrag WIN32
     src/precompiled.h
     src/ui/App.cpp
     src/ui/App.h
+    src/ui/Commands.cpp
+    src/ui/Commands.h
     src/ui/MainFrame.cpp
     src/ui/MainFrame.h
+    src/ui/MainMenu.cpp
+    src/ui/MainMenu.h
     src/ui/bridge/JobEvents.cpp
     src/ui/bridge/JobEvents.h
+    src/ui/panels/BottomPanel.cpp
+    src/ui/panels/BottomPanel.h
+    src/ui/panels/MapPlaceholder.cpp
+    src/ui/panels/MapPlaceholder.h
     res/IroncladDefrag.manifest
     res/IroncladDefrag.rc
 )

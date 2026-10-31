@@ -62,8 +62,20 @@ this file records what is actually built and the decisions made along the way.
   payloads, queued with `wxQueueEvent`. A window detaches its bridge before it is destroyed, so
   events from still-running jobs are dropped. Event types are function-local statics (created on
   first use), not `wxDEFINE_EVENT` globals.
-- Menu enable state is set explicitly when job state changes: wxMSW refreshes `wxEVT_UPDATE_UI` for
+- Command enable state is set explicitly when job state changes: wxMSW refreshes `wxEVT_UPDATE_UI` for
   menus only when a menu opens, and it ignores accelerators of disabled items.
+
+## Main window
+
+- Top to bottom: menu, all-disks panel, then a splitter with the map above and the bottom panel below.
+  The splitter gives window growth to the map (sash gravity 1); the bottom panel keeps its height.
+- Status appears in one place only: the line under the bottom notebook, next to the workflow buttons
+  and a gauge. There is no status bar; the Progress tab holds details (stage, counts, resources), not
+  a second status text.
+- One `CommandId` per command, shared by menu items, bottom-panel buttons and (later) accelerators.
+  Buttons carry the command id as their window id, so `wxEVT_MENU` and `wxEVT_BUTTON` go to the same
+  handler and `enableCommand()` enables both.
+- UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
 ## Parallel execution
 

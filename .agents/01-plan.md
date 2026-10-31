@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 1 - UI shell with fake data (§11, §13 Phase 1)
 
-### T010 - Main window layout
-- Depends: T009
-- Owns: `src/ui/MainFrame.*`, `src/ui/panels/BottomPanel.*`, `src/ui/panels/MapPlaceholder.*`
-- Do: all menus from §11 (stub, disabled); vertical layout: all-disks panel, map area, bottom
-  notebook with Summary / Strategy / Plan / Progress / Log tabs; single status line in Progress.
-- Done when: layout resizes cleanly; no duplicate status anywhere.
-
 ### T011 - Drive list panel with fake drives
 - Depends: T010
 - Owns: `src/core/model/DriveInfo.h`, `src/services/drives/IDriveProvider.h`,

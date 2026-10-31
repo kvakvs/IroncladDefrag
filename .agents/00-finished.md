@@ -39,3 +39,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - Phase 0 exit - clean clone + `test.bat` fetches wx, builds Debug and Release with clang-cl, 60 tests
   pass in both; GUI opens, the fake parallel job reports progress and cancels without blocking the UI.
   Also fixed: wx fetch under a PowerShell 7 parent (`PSModulePath`), progress going backwards.
+- T010 Main window layout - section 11 menus as tables (`ui/MainMenu.*`, stubs disabled), shared
+  `ui/Commands.*` ids with `enableCommand()`; drives area, map/bottom splitter; `ui/panels/BottomPanel.*`
+  (Summary/Strategy/Plan/Progress/Log tabs, workflow buttons, the single status line + gauge, no status
+  bar); `ui/panels/MapPlaceholder.*`; `core/format/Count.*` (`formatCount()`).

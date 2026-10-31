@@ -4,30 +4,27 @@
 
 #include <wx/frame.h>
 
-#include <cstdint>
 #include <memory>
 #include <optional>
+
+class wxSplitterWindow;
 
 namespace icd::services {
     class AppServices;
 }
 
 namespace icd::ui {
+    class BottomPanel;
     class JobEventBridge;
-}
+    class MapPlaceholder;
+} // namespace icd::ui
 
 namespace icd {
 
-    // Top-level window. For now: menus, a status bar and the Debug menu's fake job; panels, the drive list and
-    // the map arrive in Phase 1 and 2.
+    // Top-level window (plan.md section 11): the menu, then from top to bottom the all-disks panel, the drive
+    // map and the bottom panel with tabs, workflow buttons and the single status line.
     class MainFrame : public wxFrame {
     public:
-        // Menu command ids; public so scripted checks can post them as WM_COMMAND (wxID_HIGHEST is 6000).
-        enum CommandId : std::uint16_t {
-            ID_RUN_FAKE_JOB = wxID_HIGHEST + 1, // Debug > Run fake parallel job.
-            ID_CANCEL_JOB, // Debug > Cancel job.
-        };
-
         // Creates the window; services must outlive it.
         explicit MainFrame(services::AppServices& services);
 
@@ -38,23 +35,31 @@ namespace icd {
         MainFrame& operator=(const MainFrame&) = delete;
 
     private:
-        // Creates the File and Debug menus.
-        void buildMenus();
+        // Creates the panels, the map/bottom splitter and the sizers.
+        void buildLayout();
 
-        // Enables Run/Cancel from activeJob_. Set explicitly on every change: wxMSW refreshes
-        // wxEVT_UPDATE_UI menu state only when a menu opens, and ignores accelerators of disabled items.
-        void updateJobCommands();
+        // Places the splitter sash once the window has its real size (the bottom panel keeps its height).
+        void placeSash();
+
+        // Binds the commands that work in this phase (menus and buttons share ids).
+        void bindCommands();
+
+        // Sets the enabled state of every state-dependent command.
+        void updateCommands();
+
+        // Whether a command can run now.
+        [[nodiscard]] bool commandEnabled(int id) const;
 
         // Starts the fake parallel job (Debug menu).
         void onRunFakeJob(wxCommandEvent& event);
 
         // Requests cancellation of the running job.
-        void onCancelJob(wxCommandEvent& event);
+        void onCancel(wxCommandEvent& event);
 
-        // Shows throttled job progress in the status bar.
+        // Shows throttled job progress on the status line and the Progress tab.
         void onJobProgress(wxThreadEvent& event);
 
-        // Shows how the job ended and re-enables the menu.
+        // Shows how the job ended and re-enables commands.
         void onJobFinished(wxThreadEvent& event);
 
         // Cancels a running job before the window goes away.
@@ -63,6 +68,9 @@ namespace icd {
         services::AppServices& services_; // Pool and job runner.
         std::shared_ptr<ui::JobEventBridge> bridge_; // Delivers job events to this window.
         std::optional<services::JobId> activeJob_; // The running job started from this window, if any.
+        wxSplitterWindow* splitter_ = nullptr; // Map above, bottom panel below; child owned by wx.
+        ui::MapPlaceholder* map_ = nullptr; // Map area; child owned by wx.
+        ui::BottomPanel* bottom_ = nullptr; // Tabs, buttons and status line; child owned by wx.
     };
 
 } // namespace icd

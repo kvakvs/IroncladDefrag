@@ -1,4 +1,5 @@
 #include "core/format/ByteSize.h"
+#include "core/format/Count.h"
 
 #include <gtest/gtest.h>
 
@@ -32,6 +33,17 @@ namespace icd::core { namespace {
     TEST(FormatBytes, LargeVolumes) {
         EXPECT_EQ(formatBytes(30 * TB), "30.0 TB");
         EXPECT_EQ(formatBytes(std::numeric_limits<std::uint64_t>::max()), "16.0 EB");
+    }
+
+    // Groups of three digits, separated by commas, at every length.
+    TEST(FormatCount, ThousandsSeparators) {
+        EXPECT_EQ(formatCount(0), "0");
+        EXPECT_EQ(formatCount(999), "999");
+        EXPECT_EQ(formatCount(1000), "1,000");
+        EXPECT_EQ(formatCount(10000), "10,000");
+        EXPECT_EQ(formatCount(123456), "123,456");
+        EXPECT_EQ(formatCount(1234567), "1,234,567");
+        EXPECT_EQ(formatCount(std::numeric_limits<std::uint64_t>::max()), "18,446,744,073,709,551,615");
     }
 
 }} // namespace icd::core

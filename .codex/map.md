@@ -48,6 +48,7 @@ changes (see `AGENTS.md`).
 | --- | --- |
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
+| `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce`. |
 | `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
@@ -68,10 +69,14 @@ changes (see `AGENTS.md`).
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: starts logging and `AppServices`, creates the main frame, stops services on exit. |
-| `src/ui/MainFrame.*` | Main window: File and Debug menus (fake job run/cancel), two-field status bar with job progress. |
+| `src/ui/MainFrame.*` | Main window: menu, drives area, map/bottom splitter (bottom keeps its height); fake job run/cancel. |
+| `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
+| `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators), `enableCommand()` for menu item + button. |
+| `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons, the single status line and gauge. |
+| `src/ui/panels/MapPlaceholder.*` | Map toolbar (disabled) and a canvas with a made-up cluster pattern until Phase 2. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
-| `tests/core/SmokeTest.cpp` | `formatBytes()` tests. |
+| `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation and progress throttling. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
