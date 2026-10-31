@@ -29,6 +29,8 @@ configure_file(src/core/Version.h.in "${CMAKE_BINARY_DIR}/generated/core/Version
 # --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
 add_library(icd_core STATIC
     src/core/Version.h.in
+    src/core/exec/Executor.cpp
+    src/core/exec/Executor.h
     src/core/format/ByteSize.cpp
     src/core/format/ByteSize.h
     src/core/job/CancelToken.cpp
@@ -63,6 +65,8 @@ add_library(icd_services STATIC
     src/services/AppInfo.h
     src/services/AppLogging.cpp
     src/services/AppLogging.h
+    src/services/exec/ThreadPool.cpp
+    src/services/exec/ThreadPool.h
 )
 target_link_libraries(icd_services PUBLIC icd_core icd_platform)
 icd_target_defaults(icd_services)

@@ -48,6 +48,19 @@ this file records what is actually built and the decisions made along the way.
   `ThrottledProgress` sits in front of the UI: about 10 reports per second, but the first report,
   stage changes and finished stages always pass, and `flush()` delivers the newest held-back one.
 
+## Parallel execution
+
+- Core algorithms take a `core::Executor&` and never create threads. Services owns one
+  `ThreadPool` sized from `ResourceCaps::workerThreads`; tests use `InlineExecutor` as the reference.
+- `parallelFor(ChunkedRange{count, grain}, body)` cuts the range by `grain` only, so the work split
+  never depends on the thread count; `parallelReduce` combines per-chunk results in chunk order. This
+  is how parallel runs give bit-identical results to serial ones (plan.md 6.2.8).
+- The pool: one deque per worker (owner takes the newest, thieves the oldest), a condition variable
+  for idle workers, `std::jthread` stop tokens for shutdown. The thread calling `parallelFor` claims
+  chunks too, so nested loops from pool tasks cannot deadlock. Cancellation stops new chunks; running
+  chunks finish, then `OperationCancelled` is thrown. Pending tasks are dropped when the pool is
+  destroyed, so job owners cancel and wait first.
+
 ## Resources
 
 - `platform::detectSystemResources()` reads what this process may use (processors over all groups,

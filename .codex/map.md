@@ -39,7 +39,7 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
-| `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `GTest::gtest_main` |
+| `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `icd_services`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
 
 ## Source files
@@ -48,6 +48,8 @@ changes (see `AGENTS.md`).
 | --- | --- |
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
+| `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce`. |
+| `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
 | `src/core/job/Progress.*` | `Progress` snapshot, `ProgressSink`, `ThrottledProgress` (~10 Hz, injectable clock). |
 | `src/core/log/Log.h` | `logging::Level`, `Field`, `Record`, `Sink`, thread-safe `Logger`, `globalLogger()`, `info()`/`error()`/... helpers. |
@@ -69,6 +71,7 @@ changes (see `AGENTS.md`).
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation and progress throttling. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
+| `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |
 

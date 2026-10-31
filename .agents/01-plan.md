@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 0 - Foundation (§13 Phase 0)
 
-### T008 - Thread pool
-- Depends: T006, T007
-- Owns: `src/core/exec/Executor.h` (interface), `src/services/exec/ThreadPool.*`
-- Do: work-stealing pool sized from caps; `parallelFor`, `submit`, cancellation-aware; an inline
-  single-thread executor for tests.
-- Done when: tests show identical results for 1 and N threads on a reduction; cancel stops work fast.
-
 ### T009 - Job runner and UI bridge
 - Depends: T005, T008
 - Owns: `src/services/job/JobRunner.*`, `src/ui/bridge/JobEvents.*`

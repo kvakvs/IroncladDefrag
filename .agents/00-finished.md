@@ -29,3 +29,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T007 Resource detection and caps - `core/resources/ResourceCaps.*` (`computeCaps()` with `CapReason`,
   `describeCaps()`), `platform/win/SystemResources.*` (`detectSystemResources()`: groups, affinity, job
   CPU/memory limits, cores, RAM; `LowMemorySignal`); startup log line `resources`; tests for caps edge cases.
+- T008 Thread pool - `core/exec/Executor.*` (`ChunkedRange`, `Executor`, `InlineExecutor`, deterministic
+  `parallelReduce`), `services/exec/ThreadPool.*` (per-worker deques with stealing, caller joins
+  `parallelFor`, cancel/exception aware); tests prove bit-identical reductions for 1..31 threads and fast cancel.
