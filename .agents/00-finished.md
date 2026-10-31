@@ -56,3 +56,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   of 7.4 on the focused map, zoom keys share the View commands), `ui/dialogs/AboutDialog.*` (version,
   build, re-detected processors and memory, active caps), `services::buildDescription()`,
   `AppServices::detectResources()`; View commands enabled as stubs once the map shows a pattern.
+- Phase 1 exit / Gate G1 - workflow clicked through on fake data (Analyze, Quick, strategy change, plan,
+  review, execute with confirm, pause/resume, cancel, TRIM), single status line, no duplicated panels;
+  layout agreed by the user. Follow-up from the review: shortcut help view and tooltips (T034).
