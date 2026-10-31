@@ -157,8 +157,23 @@ namespace icd::ui {
             frame_.Bind(wxEVT_MENU, &WorkflowBinding::onCommand, this, entry.id);
             frame_.Bind(wxEVT_BUTTON, &WorkflowBinding::onCommand, this, entry.id);
         }
+        frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_COLOR_CLASS, ID_ZOOM_CLUSTER);
         frame_.Bind(jobProgressEvent(), &WorkflowBinding::onJobProgress, this);
         frame_.Bind(jobFinishedEvent(), &WorkflowBinding::onJobFinished, this);
+    }
+
+    void WorkflowBinding::onViewCommand(wxCommandEvent& event) {
+        const int id = event.GetId();
+        if (!commandEnabled(id)) {
+            return; // Map keys arrive even when the menu item is disabled.
+        }
+        const wxMenuItem* item = frame_.GetMenuBar()->FindItem(id);
+        const wxString label = item != nullptr ? item->GetItemLabelText() : wxString();
+        if (id >= ID_COLOR_CLASS && id <= ID_COLOR_PLAN) {
+            widgets_.map.setColorMode(id - ID_COLOR_CLASS);
+            frame_.GetMenuBar()->Check(id, true);
+        }
+        widgets_.bottom.setStatus("View: " + label + " (placeholder until the map engine exists)");
     }
 
     void WorkflowBinding::onCommand(wxCommandEvent& event) {
@@ -493,6 +508,9 @@ namespace icd::ui {
     }
 
     bool WorkflowBinding::commandEnabled(int id) const {
+        if (id >= ID_COLOR_CLASS && id <= ID_ZOOM_CLUSTER) {
+            return drive_.has_value() && mapLooks.at(static_cast<std::size_t>(workflow_.state())).variant != 0;
+        }
         const auto action = actionFor(id, workflow_.state());
         return action.has_value() && workflow_.can(*action);
     }

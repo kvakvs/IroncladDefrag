@@ -80,6 +80,14 @@ this file records what is actually built and the decisions made along the way.
   tested and the CLI can reuse it. `ui::DrivesPanel` shows them in a `wxDataViewCtrl` (selection,
   keyboard and column resizing come free); two custom renderers draw the space bar and the SSD-only
   TRIM button. A TRIM click selects its row and queues `ID_TRIM` up to the frame.
+- Shortcuts: one table in `ui/Accelerators` puts them on the menu items; wxMSW builds the frame's
+  accelerator table from the menu and skips disabled items, so keys follow the same enable rules.
+  Workflow keys are F5 (Analyze), Shift+F5 (Quick), F6-F9 (Strategy, Build plan, Review, Execute),
+  Pause and Esc (only enabled while a job runs). The plain map keys of plan.md 7.4 (+, -, 0, 1,
+  arrows, PgUp/PgDn, Home/End) act only while the map has focus, so they never steal typing; zoom
+  keys post the same View commands as the menu, panning is reserved for the map engine.
+- View commands are stubs until Phase 2: enabled once the map shows a pattern, they update the
+  toolbar color mode and the status line.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
 ## Workflow

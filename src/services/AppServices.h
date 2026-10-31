@@ -26,6 +26,9 @@ namespace icd::services {
         // What the machine offered at start-up.
         [[nodiscard]] const core::DetectedResources& resources() const { return resources_; }
 
+        // What the machine offers right now (free memory changes), for the About box and before jobs.
+        [[nodiscard]] core::DetectedResources detectResources() const;
+
         // Worker count and memory budget in force.
         [[nodiscard]] const core::ResourceCaps& caps() const { return caps_; }
 

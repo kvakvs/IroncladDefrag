@@ -1,5 +1,7 @@
 #include "ui/panels/MapPlaceholder.h"
 
+#include "ui/Accelerators.h"
+
 #include <wx/checkbox.h>
 #include <wx/choice.h>
 #include <wx/dcbuffer.h>
@@ -61,12 +63,18 @@ namespace icd::ui {
     } // namespace
 
     MapPlaceholder::MapPlaceholder(wxWindow* parent) : wxPanel(parent) {
-        canvas_ = new wxWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE);
+        canvas_ =
+            new wxWindow(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE | wxWANTS_CHARS);
         canvas_->SetBackgroundStyle(wxBG_STYLE_PAINT);
         canvas_->Bind(wxEVT_PAINT, [this](wxPaintEvent&) {
             wxAutoBufferedPaintDC dc(canvas_);
             paintCanvas(dc, canvas_->GetClientSize());
         });
+        canvas_->Bind(wxEVT_LEFT_DOWN, [this](wxMouseEvent& event) {
+            canvas_->SetFocus(); // Map keys work once the map was clicked.
+            event.Skip();
+        });
+        canvas_->Bind(wxEVT_CHAR, &MapPlaceholder::onChar, this);
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(createToolbar(), wxSizerFlags().Expand().Border(wxALL, FromDIP(4)));
@@ -76,11 +84,12 @@ namespace icd::ui {
 
     wxSizer* MapPlaceholder::createToolbar() {
         auto* bar = new wxBoxSizer(wxHORIZONTAL);
-        auto* colorMode = new wxChoice(this, wxID_ANY);
+        colorMode_ = new wxChoice(this, wxID_ANY);
         for (const char* mode : colorModes) {
-            colorMode->Append(mode);
+            colorMode_->Append(mode);
         }
-        colorMode->SetSelection(0);
+        colorMode_->SetSelection(0);
+        auto* colorMode = colorMode_;
         auto* zones = new wxCheckBox(this, wxID_ANY, "Zones");
         auto* plan = new wxCheckBox(this, wxID_ANY, "Plan overlay");
         auto* search = new wxSearchCtrl(this, wxID_ANY, "", wxDefaultPosition, FromDIP(wxSize(220, -1)));
@@ -107,6 +116,20 @@ namespace icd::ui {
     void MapPlaceholder::setPattern(std::uint32_t seed) {
         seed_ = seed;
         canvas_->Refresh();
+    }
+
+    void MapPlaceholder::setColorMode(int mode) { colorMode_->SetSelection(mode); }
+
+    void MapPlaceholder::onChar(wxKeyEvent& event) {
+        const auto key = mapKeyFor(event);
+        const auto command = key ? commandForMapKey(*key) : std::nullopt;
+        if (!command) {
+            event.Skip(); // Not a map key, or panning (reserved for the map engine).
+            return;
+        }
+        auto* menuEvent = new wxCommandEvent(wxEVT_MENU, *command);
+        menuEvent->SetEventObject(this);
+        wxQueueEvent(this, menuEvent); // Travels up to the frame like the menu command.
     }
 
     void MapPlaceholder::paintCanvas(wxDC& dc, const wxSize& size) const {

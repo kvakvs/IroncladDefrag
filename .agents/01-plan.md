@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 1 - UI shell with fake data (§11, §13 Phase 1)
 
-### T013 - Shortcuts and About box
-- Depends: T012
-- Owns: `src/ui/Accelerators.*`, `src/ui/dialogs/AboutDialog.*`
-- Do: accelerator table for menus and map keys (§7.4, reserved); About shows version, detected
-  resources and active caps (T007).
-- Done when: shortcuts trigger the stub commands; About shows real resource numbers.
-
 > **Gate G1:** show the UI shell to the user and agree the layout before Phase 2.
 
 ---

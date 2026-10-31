@@ -67,7 +67,7 @@ namespace icd::ui {
         };
 
         constexpr std::array helpItems{
-            ItemSpec{wxID_ABOUT, "&About IroncladDefrag"},
+            ItemSpec{wxID_ABOUT, "&About Ironclad Defrag"},
         };
 
         constexpr std::array stateCommands{
@@ -77,7 +77,6 @@ namespace icd::ui {
             int{ID_COLOR_AGE},       int{ID_COLOR_SIZE},     int{ID_COLOR_ZONE_FIT}, int{ID_COLOR_PLAN},
             int{ID_SHOW_MINIMAP},    int{ID_SHOW_LEGEND},    int{ID_ZOOM_IN},        int{ID_ZOOM_OUT},
             int{ID_ZOOM_FIT},        int{ID_ZOOM_CLUSTER},   int{ID_RESOURCES},      int{wxID_PREFERENCES},
-            int{wxID_ABOUT},
         };
 
         // Appends items to menu in order.

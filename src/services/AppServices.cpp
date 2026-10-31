@@ -10,6 +10,8 @@ namespace icd::services {
         pool_(std::make_unique<ThreadPool>(caps_.workerThreads)), jobs_(std::make_unique<JobRunner>(*pool_)),
         drives_(std::make_unique<FakeDriveProvider>()) {}
 
+    core::DetectedResources AppServices::detectResources() const { return platform::detectSystemResources(); }
+
     AppServices::~AppServices() {
         jobs_.reset(); // Waits for jobs while the pool still runs them.
         pool_.reset();

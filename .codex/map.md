@@ -65,8 +65,8 @@ changes (see `AGENTS.md`).
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
-| `src/services/AppInfo.*` | Product name and version (from `core/Version.h`) for GUI and CLI. |
-| `src/services/AppServices.*` | Service composition root: resources, caps, `ThreadPool`, `JobRunner`, drive provider (destroyed in the right order). |
+| `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
+| `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider. |
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
 | `src/services/drives/FakeDriveProvider.*` | Phase 1 fake drives: SSD, three NTFS HDDs in different states, one exFAT drive. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
@@ -81,13 +81,15 @@ changes (see `AGENTS.md`).
 | `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
 | `src/ui/WorkflowBinding.*` | Commands to workflow actions, fake jobs per step, progress and results to the panels, command enable state. |
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
+| `src/ui/Accelerators.*` | One table of menu shortcuts (`applyMenuShortcuts()`), and the map keys of plan.md 7.4 (`mapKeyFor()`, `commandForMapKey()`). |
+| `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
 | `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators), `enableCommand()` for menu item + button. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons, the single status line and gauge. |
 | `src/ui/panels/SummaryPage.*` | Summary tab: volume figures and per-class table. |
 | `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
-| `src/ui/panels/MapPlaceholder.*` | Map toolbar (disabled) and a canvas with a made-up cluster pattern until Phase 2. |
+| `src/ui/panels/MapPlaceholder.*` | Map toolbar (disabled; shows the color mode) and a focusable canvas with a made-up pattern; map keys become View commands. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |

@@ -100,6 +100,8 @@ add_executable(IroncladDefrag WIN32
     src/main.cpp
     src/precompiled.h
     src/ui/App.cpp
+    src/ui/Accelerators.cpp
+    src/ui/Accelerators.h
     src/ui/App.h
     src/ui/Commands.cpp
     src/ui/Commands.h
@@ -111,6 +113,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/WorkflowBinding.h
     src/ui/bridge/JobEvents.cpp
     src/ui/bridge/JobEvents.h
+    src/ui/dialogs/AboutDialog.cpp
+    src/ui/dialogs/AboutDialog.h
     src/ui/panels/DrivesPanel.cpp
     src/ui/panels/DrivesPanel.h
     src/ui/panels/BottomPanel.cpp

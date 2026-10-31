@@ -3,8 +3,10 @@
 #include "core/resources/ResourceCaps.h"
 #include "services/AppInfo.h"
 #include "services/AppServices.h"
+#include "ui/Accelerators.h"
 #include "ui/MainMenu.h"
 #include "ui/WorkflowBinding.h"
+#include "ui/dialogs/AboutDialog.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
 #include "ui/panels/MapPlaceholder.h"
@@ -30,10 +32,12 @@ namespace icd {
                 wxDefaultPosition, wxDefaultSize),
         services_(services) {
         SetMenuBar(ui::createMainMenuBar()); // The frame owns the menu bar and its menus.
+        ui::applyMenuShortcuts(*GetMenuBar());
         buildLayout();
         binding_ = std::make_unique<ui::WorkflowBinding>(*this, services_,
                                                          ui::WorkflowBinding::Widgets{*drives_, *map_, *bottom_});
         Bind(wxEVT_MENU, [this](wxCommandEvent&) { Close(); }, wxID_EXIT);
+        Bind(wxEVT_MENU, [this](wxCommandEvent&) { ui::AboutDialog(this, services_).ShowModal(); }, wxID_ABOUT);
         Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onClose, this);
         SetMinSize(FromDIP(wxSize(800, 600)));
         SetSize(FromDIP(wxSize(1280, 860)));

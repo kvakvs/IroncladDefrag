@@ -58,6 +58,9 @@ namespace icd::ui {
         // Binds menu and button commands and job events on the frame.
         void bindEvents();
 
+        // View menu and map keys: stubs until the map engine (Phase 2) owns them.
+        void onViewCommand(wxCommandEvent& event);
+
         // Handles every workflow command; other ids are passed on.
         void onCommand(wxCommandEvent& event);
 

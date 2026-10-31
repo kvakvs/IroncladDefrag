@@ -11,7 +11,7 @@ namespace icd::ui {
     // result until it hands it to a frame.
     wxMenuBar* createMainMenuBar();
 
-    // Every command in the menu whose enabled state follows the app state (all but Exit), so the frame can
+    // Every command in the menu whose enabled state follows the app state (all but Exit and About), so the frame can
     // refresh them in one loop.
     std::span<const int> stateDependentCommands();
 

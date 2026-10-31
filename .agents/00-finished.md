@@ -52,3 +52,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `services/workflow/FakeResults.*`, Summary/Strategy/Plan pages, `core/job/PauseGate.*`,
   `core/job/StageClock.*` (elapsed, time left); fake job gained stage names, item labels, pause. Debug
   menu removed (Analyze runs the same fake parallel job). Clicked through on fake data.
+- T013 Shortcuts and About box - `ui/Accelerators.*` (menu shortcut table applied to menu items; map keys
+  of 7.4 on the focused map, zoom keys share the View commands), `ui/dialogs/AboutDialog.*` (version,
+  build, re-detected processors and memory, active caps), `services::buildDescription()`,
+  `AppServices::detectResources()`; View commands enabled as stubs once the map shows a pattern.
