@@ -128,6 +128,20 @@ this file records what is actually built and the decisions made along the way.
 - `mapStripes()` returns per-stripe results in stripe order and `reduceStripes()` combines them in
   that order, so results are bit-identical for any executor (checked on 2, 5 and 16 threads).
 
+## Synthetic volumes
+
+- `core::generateSyntheticVolume()` builds seeded snapshots for tests and benchmarks: a directory tree
+  (each directory with a small index allocation), files of a class mix with log-normal sizes scaled to
+  the fill level, the $MFT as an unmovable metadata file, fragmented files whose later pieces land a
+  random number of pieces further on (so files interleave), and free gaps by pattern (scattered,
+  tail, mixed). Names repeat per class, as on real volumes, so the name pool stays small.
+- Its random source is self-contained (`SynthRandom`): std distributions differ between standard
+  libraries, and a seed must give the same volume everywhere.
+- Measured with `synth-bench` (Release, clang-cl, this machine): 30 TB / 20 M files with 30% of files
+  fragmented, up to 40 pieces, builds in 29 s into 55.7 M extents and 16.6 M free runs; snapshot data
+  2.6 GB, peak working set 5.6 GB, within the 8 GB budget. Building is serial; the sort of the pending
+  extents dominates.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

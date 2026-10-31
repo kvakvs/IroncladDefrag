@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T022 - Synthetic volume generator
-- Depends: T021
-- Owns: `src/core/synth/*`, `tools/bench/synth-bench.cpp`
-- Do: seeded generator for snapshots up to 30 TB / 20 M files with configurable class mix,
-  fragmentation and free-space patterns.
-- Done when: same seed gives an identical snapshot; a 30 TB / 20 M-file snapshot builds within the
-  memory budget; benchmark prints time and memory.
-
 ### T023 - Map world layout
 - Depends: T020
 - Owns: `src/core/map/World.*`

@@ -20,14 +20,17 @@ namespace icd::core {
         std::uint64_t fileReference = 0; // NTFS file reference number.
     };
 
-    // One run of one stream as a scanner reports it, before sorting and splitting.
+    // One run of one stream as a scanner reports it, before sorting and splitting. Fields are ordered for a
+    // 32-byte layout: tens of millions of these are pending at once during a full scan.
     struct ExtentEntry {
-        FileIndex file = noFile; // Owning file.
         ClusterRun run; // Clusters on disk.
         std::uint64_t vcn = 0; // Position of the run inside its stream, for the per-file order.
+        FileIndex file = noFile; // Owning file.
         std::uint16_t stream = 0; // Stream ordinal; 0 is the main data stream.
         std::uint16_t flags = 0; // ExtentFlag bits.
     };
+
+    static_assert(sizeof(ExtentEntry) == 32, "pending extents should stay 32 bytes");
 
     // Collects files, extents and free runs in any order and turns them into a Snapshot: sorts extents by
     // LCN, splits runs longer than a record holds, groups each file's extents in VCN order, builds the

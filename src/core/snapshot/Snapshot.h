@@ -7,6 +7,7 @@
 #include "core/snapshot/NamePool.h"
 #include "core/snapshot/Types.h"
 
+#include <cstddef>
 #include <string>
 
 namespace icd::core {
@@ -25,5 +26,9 @@ namespace icd::core {
         // Path of a file from the volume root ("\Photos\a.jpg").
         [[nodiscard]] std::string path(FileIndex file) const { return DirectoryTree::path(file, files, names); }
     };
+
+    // Bytes the snapshot's data takes (element counts times sizes, not counting allocator slack), for the
+    // memory budget checks of plan.md 6.6 and the synthetic benchmark.
+    [[nodiscard]] std::size_t snapshotMemoryBytes(const Snapshot& snapshot);
 
 } // namespace icd::core

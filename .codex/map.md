@@ -39,6 +39,7 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
+| `synth-bench` | console exe | `tools/bench/synth-bench.cpp` | `icd_core`, `psapi` |
 | `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `icd_services`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
 
@@ -67,9 +68,11 @@ changes (see `AGENTS.md`).
 | `src/core/snapshot/DirectoryTree.*` | Child lists from parent indexes, roots, `path()` with a cycle guard. |
 | `src/core/snapshot/ExtentIndex.*` | 16-byte `ExtentRecord` (40-bit LCN, 24-bit length), index by LCN (`find`, `overlapping`) and by file in VCN order (`extentsOf`, `fragmentCount`). |
 | `src/core/snapshot/FreeRunList.*` | Sorted, merged free runs (`find`, `overlapping`, `largest`). |
-| `src/core/snapshot/Snapshot.h` | The aggregate the map, classifier and planner read. |
+| `src/core/snapshot/Snapshot.*` | The aggregate the map, classifier and planner read; `snapshotMemoryBytes()`. |
 | `src/core/snapshot/SnapshotBuilder.*` | Validating, order-independent builder (sorts, splits long runs, groups by file). |
 | `src/core/snapshot/Stripes.*` | `StripeLayout` (fixed LCN stripes, 16 MB aligned, 512 on large volumes), `Stripes` views over extents and free runs, `clip()`, `mapStripes()` / `reduceStripes()` with stripe-order merge. |
+| `src/core/synth/SynthRandom.h` | Self-contained seeded generator (xoshiro256**, own distributions) so seeds reproduce everywhere. |
+| `src/core/synth/SyntheticVolume.*` | `generateSyntheticVolume()`: seeded snapshots up to 30 TB / 20 M files (class mix, fill, fragmentation, free pattern, $MFT, directory indexes). |
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
@@ -103,6 +106,7 @@ changes (see `AGENTS.md`).
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
 | `tests/core/StripesTest.cpp` | Stripe layout coverage, view coverage on random volumes, parallel = serial on 2-16 threads. |
+| `tests/core/SyntheticVolumeTest.cpp` | Seed reproducibility, fill level, fragmented share, free patterns, structure. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
@@ -119,6 +123,7 @@ changes (see `AGENTS.md`).
 
 | Path | What it does |
 | --- | --- |
+| `tools/bench/synth-bench.cpp` | `synth-bench` target: builds a synthetic snapshot (default 30 TB / 20 M files) and prints time, counts and peak memory. |
 | `tools/fetch-wx.ps1` | Downloads the pinned wxWidgets prebuilt MSVC x64 archives (Dev, ReleaseDLL, headers), checks SHA-256, extracts to `3rdparty/wxWidgets`. No-op when the stamp matches; `-Force` redoes it. |
 
 ## Dependencies

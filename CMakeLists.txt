@@ -63,12 +63,16 @@ add_library(icd_core STATIC
     src/core/snapshot/FreeRunList.h
     src/core/snapshot/NamePool.cpp
     src/core/snapshot/NamePool.h
+    src/core/snapshot/Snapshot.cpp
     src/core/snapshot/Snapshot.h
     src/core/snapshot/SnapshotBuilder.cpp
     src/core/snapshot/SnapshotBuilder.h
     src/core/snapshot/Stripes.cpp
     src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
+    src/core/synth/SynthRandom.h
+    src/core/synth/SyntheticVolume.cpp
+    src/core/synth/SyntheticVolume.h
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)
@@ -165,6 +169,11 @@ add_executable(icd-cli
 )
 target_link_libraries(icd-cli PRIVATE icd_services)
 icd_target_defaults(icd-cli)
+
+# --- synth-bench: synthetic snapshot build time and memory (plan.md 6.5) ------------------------
+add_executable(synth-bench tools/bench/synth-bench.cpp)
+target_link_libraries(synth-bench PRIVATE icd_core psapi)
+icd_target_defaults(synth-bench)
 
 # --- Tests ---------------------------------------------------------------------------------------
 enable_testing()

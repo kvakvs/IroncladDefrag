@@ -66,3 +66,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T021 LCN stripes - `core/snapshot/Stripes.*`: `StripeLayout` (aligned fixed stripes covering the volume
   once), `Stripes` views over extents and free runs, `clip()`, deterministic `mapStripes()` /
   `reduceStripes()`; tests for coverage and bit-identical parallel results.
+- T022 Synthetic volume generator - `core/synth/*` (seeded `generateSyntheticVolume()`, own RNG; class mix,
+  fill, fragmentation with interleaving, free patterns, $MFT, directory indexes), `snapshotMemoryBytes()`,
+  32-byte `ExtentEntry`, `tools/bench/synth-bench.cpp`: 30 TB / 20 M files in 29 s, 55.7 M extents, peak
+  5.6 GB (budget 8 GB).
