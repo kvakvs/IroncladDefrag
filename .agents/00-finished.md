@@ -59,3 +59,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - Phase 1 exit / Gate G1 - workflow clicked through on fake data (Analyze, Quick, strategy change, plan,
   review, execute with confirm, pause/resume, cancel, TRIM), single status line, no duplicated panels;
   layout agreed by the user. Follow-up from the review: shortcut help view and tooltips (T034).
+- T020 Snapshot data structures - `core/snapshot/*`: `FileTable` (SoA, 32-bit indexes, <= 64 B/file),
+  `NamePool` (interned), `DirectoryTree` (parent indexes, paths with cycle guard), `ExtentIndex` (16-byte
+  records sorted by LCN, per-file VCN order, fragment count rejoins split runs), `FreeRunList`,
+  order-independent validating `SnapshotBuilder`; 11 tests.

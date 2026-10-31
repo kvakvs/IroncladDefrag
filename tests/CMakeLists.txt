@@ -18,6 +18,7 @@ add_executable(icd_tests
     core/LogTest.cpp
     core/ResourceCapsTest.cpp
     core/SmokeTest.cpp
+    core/SnapshotTest.cpp
     platform/LogSinksTest.cpp
     platform/SystemResourcesTest.cpp
     services/FakeDriveProviderTest.cpp

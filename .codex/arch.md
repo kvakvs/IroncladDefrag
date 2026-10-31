@@ -105,6 +105,19 @@ this file records what is actually built and the decisions made along the way.
 - Pause is a `core::PauseGate` that the execution job checks between items; Cancel still works
   while paused because the gate's wait returns on cancellation.
 
+## Snapshot
+
+- `core::Snapshot` is the in-memory layout of one volume (plan.md 6.2 principle 4): a structure-of-arrays
+  `FileTable` with 32-bit indexes, an interned `NamePool`, a `DirectoryTree` of parent indexes (paths
+  are rebuilt on demand), an `ExtentIndex` of 16-byte records sorted by LCN with a per-file list in
+  VCN order, and a merged `FreeRunList`. About 58 bytes per file and 20 per extent, so the design
+  target (20 M files, 60 M extents) needs roughly 3 GB.
+- Only `SnapshotBuilder` writes it. Input order never changes the result: extents are sorted by a
+  total order key, and children keep file-index order. Bad input (overlaps, runs off the volume,
+  unknown files or parents) throws `SnapshotError`; nothing is planned on such data.
+- Runs longer than 24 bits are split into consecutive records; `fragmentCount()` rejoins runs that
+  continue on disk, so splitting never inflates fragmentation.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

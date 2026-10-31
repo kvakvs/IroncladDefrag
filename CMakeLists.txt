@@ -54,6 +54,19 @@ add_library(icd_core STATIC
     src/core/model/DriveInfo.h
     src/core/resources/ResourceCaps.cpp
     src/core/resources/ResourceCaps.h
+    src/core/snapshot/DirectoryTree.cpp
+    src/core/snapshot/DirectoryTree.h
+    src/core/snapshot/ExtentIndex.cpp
+    src/core/snapshot/ExtentIndex.h
+    src/core/snapshot/FileTable.h
+    src/core/snapshot/FreeRunList.cpp
+    src/core/snapshot/FreeRunList.h
+    src/core/snapshot/NamePool.cpp
+    src/core/snapshot/NamePool.h
+    src/core/snapshot/Snapshot.h
+    src/core/snapshot/SnapshotBuilder.cpp
+    src/core/snapshot/SnapshotBuilder.h
+    src/core/snapshot/Types.h
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)

@@ -20,20 +20,7 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ---
 
-## Phase 1 - UI shell with fake data (§11, §13 Phase 1)
-
-
----
-
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
-
-### T020 - Snapshot data structures
-- Depends: T004
-- Owns: `src/core/snapshot/*`
-- Do: `FileTable` (structure of arrays, 32-bit index), `NamePool`, `DirectoryTree` (parent indexes),
-  `ExtentIndex` (≤16-byte records, sorted by LCN, long runs split), `FreeRunList`, builders (§6.2.4).
-- Done when: unit tests for building, lookup by LCN, by file, path reconstruction; size per record
-  checked by `static_assert`.
 
 ### T021 - LCN stripes
 - Depends: T020, T008
