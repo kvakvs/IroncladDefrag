@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T021 - LCN stripes
-- Depends: T020, T008
-- Owns: `src/core/snapshot/Stripes.*`
-- Do: split a volume into stripes; per-stripe views over extents and free runs; parallel per-stripe
-  helper with deterministic merge (§6.2.2, §6.2.8).
-- Done when: tests: stripe views cover the volume exactly once; parallel = serial results.
-
 ### T022 - Synthetic volume generator
 - Depends: T021
 - Owns: `src/core/synth/*`, `tools/bench/synth-bench.cpp`

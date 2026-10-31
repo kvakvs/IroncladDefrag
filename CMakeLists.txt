@@ -66,6 +66,8 @@ add_library(icd_core STATIC
     src/core/snapshot/Snapshot.h
     src/core/snapshot/SnapshotBuilder.cpp
     src/core/snapshot/SnapshotBuilder.h
+    src/core/snapshot/Stripes.cpp
+    src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")

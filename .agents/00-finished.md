@@ -63,3 +63,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `NamePool` (interned), `DirectoryTree` (parent indexes, paths with cycle guard), `ExtentIndex` (16-byte
   records sorted by LCN, per-file VCN order, fragment count rejoins split runs), `FreeRunList`,
   order-independent validating `SnapshotBuilder`; 11 tests.
+- T021 LCN stripes - `core/snapshot/Stripes.*`: `StripeLayout` (aligned fixed stripes covering the volume
+  once), `Stripes` views over extents and free runs, `clip()`, deterministic `mapStripes()` /
+  `reduceStripes()`; tests for coverage and bit-identical parallel results.

@@ -118,6 +118,16 @@ this file records what is actually built and the decisions made along the way.
 - Runs longer than 24 bits are split into consecutive records; `fragmentCount()` rejoins runs that
   continue on disk, so splitting never inflates fragmentation.
 
+## Stripes
+
+- A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096
+  clusters, 512 stripes on large volumes, fewer on small ones; the cut depends only on the volume
+  size. `Stripes` finds each stripe's record and free-run range once, so a `StripeView` is free.
+- Records and free runs that cross a stripe edge appear in both views; per-stripe work clips them
+  (`clip()`), so every cluster counts once.
+- `mapStripes()` returns per-stripe results in stripe order and `reduceStripes()` combines them in
+  that order, so results are bit-identical for any executor (checked on 2, 5 and 16 threads).
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one
