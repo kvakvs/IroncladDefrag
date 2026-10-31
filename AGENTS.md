@@ -26,9 +26,12 @@ The supported functions are:
 
 ## Repository Orientation
 
-- Refer to `.codex/arch.md` when making architecture, layering, or responsibility-placement decisions.
-- Refer to `.codex/map.md` when looking for important modules, source files, build files, vendored dependencies, or generated-output locations.
-- Keep documentation updates consistent with the current source tree. If code structure changes materially, update `.codex/arch.md` and `.codex/map.md` in the same change.
+- The project is restarting from scratch. `story/attempt-1/` holds the plan, architecture and file map of the
+  first attempt, plus a summary (`README.md`). Its source is only in git history (commit `aacdcfb`).
+- The new plan is to be written as `plan.md` in the repository root, based on the previous attempt.
+- Once new code exists, keep `.codex/arch.md` (architecture, layering, responsibility placement) and
+  `.codex/map.md` (modules, source files, build files, dependencies, generated output) up to date in the same
+  change as material structure changes.
 
 ## C++ GUI Development Practices
 
