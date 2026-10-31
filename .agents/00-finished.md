@@ -80,3 +80,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   (`OccupancyPalette`), shared `BinSummary.*` with per-extent map flags; golden, hand-volume and
   pyramid = extents tests; 30 TB: coarse <= 1.1 ms, fine (<= 1 cluster/px) <= 1.1 ms, level 3 3.4 ms
   (over the 2 ms fine target; recheck in T033).
+- T026 Rendering spike - `tools/spike/map-render-spike` (4K canvas, 30 TB tiles, scripted zoom/pan): raw
+  Direct2D on the HWND 0.29 ms/frame (3,390 fps), wx Direct2D renderer 55 ms (bitmaps re-created per
+  context), GDI 1.9 ms (visible part only). Chosen: Direct2D on the HWND; recorded in arch.md.

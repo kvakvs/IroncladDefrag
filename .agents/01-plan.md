@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T026 - Rendering spike
-- Depends: T025, T010
-- Owns: `tools/spike/map-render-spike/*`
-- Do: compare wx Direct2D renderer vs direct Direct2D on the `HWND` (§7.3) at 4K with 30 TB synthetic
-  tiles; measure frame times during continuous pan/zoom.
-- Done when: results and the chosen backend are recorded in `.codex/arch.md`.
-
 ### T027 - Map control: tile cache and drawing
 - Depends: T026
 - Owns: `src/ui/map/MapCanvas.*`, `src/ui/map/TileCache.*`, `src/ui/map/Renderer*.*`

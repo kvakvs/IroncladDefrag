@@ -185,6 +185,11 @@ add_executable(synth-bench tools/bench/synth-bench.cpp)
 target_link_libraries(synth-bench PRIVATE icd_services psapi)
 icd_target_defaults(synth-bench)
 
+# --- map-render-spike: map composition at 4K with wx Direct2D, raw Direct2D and GDI (T026) --------
+add_executable(map-render-spike tools/spike/map-render-spike/main.cpp)
+target_link_libraries(map-render-spike PRIVATE icd_services wx::wx d2d1)
+icd_target_defaults(map-render-spike)
+
 # --- Tests ---------------------------------------------------------------------------------------
 enable_testing()
 add_subdirectory(tests)

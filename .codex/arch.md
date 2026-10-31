@@ -187,6 +187,27 @@ this file records what is actually built and the decisions made along the way.
   below the base) takes 3.4 ms: within the coarse target but over the fine one. Tiles render on the
   pool in parallel, so throughput is not at risk; T033 rechecks it.
 
+## Map rendering backend (T026 spike)
+
+- Measured with `map-render-spike` on a 3840 x 2160 canvas (a child window, so the 4K target is real
+  even on this machine's 2560 x 1440 screens), RTX 4070, 30 TB synthetic volume, tiles pre-rendered,
+  scripted zoom from the whole volume to 8 px per cluster with panning, ~290 tiles per frame:
+
+  | Backend | avg | p95 | max | sustained |
+  | --- | --- | --- | --- | --- |
+  | Direct2D on the HWND (`ID2D1HwndRenderTarget`, one GPU bitmap per tile) | 0.29 ms | 0.49 ms | 15.8 ms | 3,390 fps |
+  | wx Direct2D renderer (context per frame, `wxGraphicsBitmap` per tile) | 54.7 ms | 66.5 ms | 69.7 ms | 18 fps |
+  | GDI `StretchDIBits` | 1.89 ms | 3.28 ms | 8.9 ms | 528 fps |
+
+- **Chosen: Direct2D directly on the map control's HWND.** wx's renderer re-creates the device
+  bitmaps of every tile for each new graphics context (each paint), which makes it ~190x slower and
+  far from 60 fps. GDI looks fast here only because it draws just the visible part of the oversized
+  canvas and scales on the CPU; it stays the fallback for machines without Direct2D hardware.
+- The map control (T027) keeps one render target and one `ID2D1Bitmap` per cached tile, uploads new
+  tiles as workers finish them, and draws with nearest-neighbour scaling. Frame pacing comes from the
+  present (vsync) rather than from `PRESENT_OPTIONS_IMMEDIATELY` used in the spike to measure
+  throughput. A DXGI swap chain is only needed if the HWND target cannot pace frames well.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one
