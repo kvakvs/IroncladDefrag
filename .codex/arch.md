@@ -191,7 +191,7 @@ this file records what is actually built and the decisions made along the way.
   reference (`OpenFileById`, `FILE_READ_ATTRIBUTES`, backup semantics, reparse points not followed) in MFT
   record order, so no paths are built. One handle gives basic and standard info (times, attributes, size, link
   count), the stream list and the main stream's retrieval pointers; a directory handle yields its index
-  allocation. Named streams are opened by path (`\?\T:\dirile:stream`), the only place a path is built.
+  allocation. Named streams are opened by path (`\\?\T:\dir\file:stream`), the only place a path is built.
 - Flags: attributes give directory, compressed, sparse, encrypted, reparse point; link count > 1 hard link (the
   enumeration lists a file once, so it is counted once); named streams; system records and everything under
   `$Extend` are metadata and unmovable; root `pagefile.sys`, `hiberfil.sys`, `swapfile.sys` unmovable; a file
