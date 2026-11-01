@@ -81,6 +81,8 @@ add_library(icd_core STATIC
     src/core/model/VolumeLayout.h
     src/core/resources/ResourceCaps.cpp
     src/core/resources/ResourceCaps.h
+    src/core/snapshot/BitmapToRuns.cpp
+    src/core/snapshot/BitmapToRuns.h
     src/core/snapshot/DirectoryTree.cpp
     src/core/snapshot/DirectoryTree.h
     src/core/snapshot/ExtentIndex.cpp
@@ -120,6 +122,8 @@ add_library(icd_platform STATIC
     src/platform/win/StorageProperties.h
     src/platform/win/TextConvert.cpp
     src/platform/win/TextConvert.h
+    src/platform/win/VolumeBitmap.cpp
+    src/platform/win/VolumeBitmap.h
     src/platform/win/Volumes.cpp
     src/platform/win/Volumes.h
     src/platform/win/WinError.cpp

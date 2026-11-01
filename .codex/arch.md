@@ -160,6 +160,19 @@ this file records what is actually built and the decisions made along the way.
 - Runs longer than 24 bits are split into consecutive records; `fragmentCount()` rejoins runs that
   continue on disk, so splitting never inflates fragmentation.
 
+## Free space from the volume bitmap
+
+- `platform::readVolumeBitmap()` asks `FSCTL_GET_VOLUME_BITMAP` for pieces of about 32 MB of bitmap (1 TB of 4 KB
+  clusters; a 30 TB volume is about 29 pieces) into one reused buffer; `ERROR_MORE_DATA` means another piece
+  follows. The full 915 MB bitmap of a 30 TB volume is never held.
+- `core::freeRunsOf()` scans 64-bit words: all-free and all-used words cost one compare, mixed words are walked
+  with `countr_zero` over the bit changes; bits past the valid cluster count read as used. `freeRunsParallel()`
+  cuts a piece into 1 MB grains scanned on the pool and stitched in LCN order (`stitchRuns()` joins runs that
+  meet at an edge), so the runs equal one serial pass for any thread count.
+- The bitmap's free count equals NTFS's `FreeClusters`; `GetDiskFreeSpaceExW` (and `fsutil volume diskfree`)
+  report that minus `TotalReserved`. `VolumeBitmapTest` checks both exactly on every mounted ICD-TEST volume
+  (4 KB and 16 KB clusters) and re-reads with 4 KB pieces to exercise the stitching on real data.
+
 ## Stripes
 
 - A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096

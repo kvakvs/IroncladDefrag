@@ -140,3 +140,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   non-ICD-TEST volumes. Two runs per scenario on fresh 4 GB volumes give identical content; fragment counts are
   identical on special/archive/photos/video and within a few files on the small-file scenarios (NTFS timing).
   verify-testvol hashes in batches and handles long paths and empty volumes.
+- T045 Volume bitmap to free runs - `core/snapshot/BitmapToRuns.*` (word-at-a-time scan, edge stitching, parallel
+  grains equal to serial), `platform/win/VolumeBitmap.*` (chunked `FSCTL_GET_VOLUME_BITMAP`, `readFreeRuns()` with
+  32 MB pieces converted on the pool). Free total = NTFS free clusters and = `fsutil volume diskfree` + reserved on
+  4 KB and 16 KB test volumes; 4 KB pieces give the same runs.

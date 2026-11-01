@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T045 - Volume bitmap to free runs
-- Depends: T021, T042
-- Owns: `src/platform/win/VolumeBitmap.*`, `src/core/snapshot/BitmapToRuns.*`
-- Do: chunked `FSCTL_GET_VOLUME_BITMAP`; parallel chunk → runs; stitch chunk edges (§6.2.5).
-- Done when: core tests with synthetic bitmaps; free total equals `fsutil volume diskfree` on test volumes.
-
 ### T046 - USN enumeration
 - Depends: T042
 - Owns: `src/platform/win/UsnJournal.*`

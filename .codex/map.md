@@ -70,6 +70,7 @@ changes (see `AGENTS.md`).
 | `src/core/snapshot/NamePool.*` | Interned UTF-8 names in one buffer (`intern()`, `name()`, `freezeLookup()`). |
 | `src/core/snapshot/FileTable.h` | Per-file columns (name, parent, size, clusters, flags, times, file reference); `FileFlag`. |
 | `src/core/snapshot/FileSearch.*` | `searchFiles()`: "go to file" over names (exact, prefix, contains) and path fragments (`photos\a`), ASCII case-insensitive, one pass over distinct names then the file column, parallel and deterministic, with a limit and a total. |
+| `src/core/snapshot/BitmapToRuns.*` | `BitmapChunk`, `freeRunsOf()` (word-at-a-time bit scan), `stitchRuns()` (joins runs at piece edges), `freeRunsParallel()` (grains on the pool, stitched in order). |
 | `src/core/snapshot/DirectoryTree.*` | Child lists from parent indexes, roots, `path()` with a cycle guard. |
 | `src/core/snapshot/ExtentIndex.*` | 16-byte `ExtentRecord` (40-bit LCN, 24-bit length), index by LCN (`find`, `overlapping`) and by file in VCN order (`extentsOf`, `fragmentCount`). |
 | `src/core/snapshot/FreeRunList.*` | Sorted, merged free runs (`find`, `overlapping`, `largest`). |
@@ -98,6 +99,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
 | `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
+| `src/platform/win/VolumeBitmap.*` | `readVolumeBitmap()` (chunked `FSCTL_GET_VOLUME_BITMAP`), `readFreeRuns()` (32 MB pieces converted in parallel into a `FreeRunList`, progress callback). |
 | `src/platform/win/Volumes.*` | `VolumeRecord`, `listVolumeNames()`, `mountPathsOf()`, `openVolume()`, `queryVolume()` (basics, disk extents and disk size, NTFS volume data; failures noted, never thrown), `enumerateVolumes()`, `isElevated()`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
@@ -146,6 +148,7 @@ changes (see `AGENTS.md`).
 | `tests/core/SyntheticVolumeTest.cpp` | Seed reproducibility, fill level, fragmented share, free patterns, structure. |
 | `tests/core/ViewportTest.cpp` | Pixel/world round trip, fit and limits, anchored zoom, pan clamping, eased zoom motion, durations, inertia. |
 | `tests/core/WorldTest.cpp` | Nice widths, landscape/portrait aspect, round trips and edge cells, levels, tile clipping, row segments. |
+| `tests/core/BitmapToRunsTest.cpp` | Edge cases, random bitmaps vs per-bit brute force, random chunk cuts stitched = whole, parallel = serial for several grains. |
 | `tests/core/ColorModesTest.cpp` | Age and size bucket edges, bucket values, legend counts vs per-cluster brute force (all modes, random rectangles, pool = serial), tile colors = legend colors, visible cells. |
 | `tests/core/PyramidTest.cpp` | Base-level choice, every bin vs brute force, dominant class, parallel = serial, dirty-range update = rebuild. |
 | `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells (no grid) on a hand volume, pyramid = extents at the base level, golden checksums, record block index = search and tiles with it = tiles without. |
@@ -169,6 +172,7 @@ changes (see `AGENTS.md`).
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/StoragePropertiesTest.cpp` | Media and bus of every physical disk vs `Get-PhysicalDisk`; bus names. |
+| `tests/platform/VolumeBitmapTest.cpp` | Free runs = NTFS free clusters and diskfree (minus reserved) on ICD-TEST volumes, small pieces = large pieces; Windows drive within 1%. |
 | `tests/platform/VolumesTest.cpp` | Volume enumeration (Windows drive, disk placement, order), NTFS data vs `fsutil fsinfo ntfsinfo` (elevated only), `toDriveInfo()`. |
 | `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |
 
