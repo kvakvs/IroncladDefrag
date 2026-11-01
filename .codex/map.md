@@ -93,9 +93,10 @@ changes (see `AGENTS.md`).
 | `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles); `keys()` for finding stale entries. |
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
+| `src/platform/win/ChildProcess.*` | `runCaptured()` (console program without a window, output chunks to a callback, cancel terminates, exit code), `systemProgram()` (System32 path). |
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
-| `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model. |
+| `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
 | `src/platform/win/Volumes.*` | `VolumeRecord`, `listVolumeNames()`, `mountPathsOf()`, `openVolume()`, `queryVolume()` (basics, disk extents and disk size, NTFS volume data; failures noted, never thrown), `enumerateVolumes()`, `isElevated()`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
@@ -106,6 +107,7 @@ changes (see `AGENTS.md`).
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
+| `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Phase 2 stand-in for analysis: synthetic snapshot shaped like the drive, then `MapData` on the job's executor; `AnalysisOutput` hands it to the UI. |
 | `src/services/workflow/FakeResults.*` | Phase 1 fake analysis, strategy presets, three-level plan and skipped files. |
@@ -115,7 +117,7 @@ changes (see `AGENTS.md`).
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: starts logging and `AppServices`, creates the main frame, stops services on exit. |
 | `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
-| `src/ui/WorkflowBinding.*` | Commands to workflow actions, fake jobs per step, progress and results to the panels, command enable state. |
+| `src/ui/WorkflowBinding.*` | Commands to workflow actions, the job per step (TRIM real, analysis synthetic, others fake), progress and results to the panels, TRIM output to the Log tab, command enable state. |
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
 | `src/ui/Accelerators.*` | One table of menu shortcuts with a description each (`applyMenuShortcuts()`, `shortcutFor()`, `shortcutText()`, `commandTip()` for tooltips; Ctrl+F go to file, F3 / Shift+F3 fragments, F1 shortcut list), and the map keys of plan.md 7.4 with descriptions (`mapKeyBindings()`, `mapKeyText()`, `mapKeyFor()`, `commandForMapKey()`). |
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
@@ -148,6 +150,7 @@ changes (see `AGENTS.md`).
 | `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells (no grid) on a hand volume, pyramid = extents at the base level, golden checksums, record block index = search and tiles with it = tiles without. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
+| `tests/services/TrimJobTest.cpp` | Line splitting across chunks (CR, CRLF), retrim percentages, output queue. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
@@ -157,6 +160,7 @@ changes (see `AGENTS.md`).
 | `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
+| `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |

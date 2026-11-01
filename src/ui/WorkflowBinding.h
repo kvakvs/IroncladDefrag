@@ -4,6 +4,7 @@
 #include "core/map/World.h"
 #include "core/model/DriveInfo.h"
 #include "services/job/JobRunner.h"
+#include "services/trim/TrimJob.h"
 #include "services/workflow/FakeResults.h"
 #include "services/workflow/Workflow.h"
 
@@ -105,6 +106,9 @@ namespace icd::ui {
         // Fills the Log tab and the drive row after an execution; the old figures are now stale.
         void showExecution(core::DriveInfo& drive);
 
+        // Moves TRIM output collected so far into the Log tab.
+        void takeTrimOutput();
+
         // Status line text after a plan was built.
         [[nodiscard]] std::string planReadyText() const;
 
@@ -151,6 +155,7 @@ namespace icd::ui {
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
         std::shared_ptr<services::AnalysisOutput> analysisOutput_; // Where the running analysis leaves its map.
+        std::shared_ptr<services::TrimOutput> trimOutput_; // Output lines of the running TRIM.
     };
 
 } // namespace icd::ui

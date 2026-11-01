@@ -33,6 +33,7 @@ add_executable(icd_tests
     core/TileRasterizerTest.cpp
     core/ViewportTest.cpp
     core/WorldTest.cpp
+    platform/ChildProcessTest.cpp
     platform/LogSinksTest.cpp
     platform/StoragePropertiesTest.cpp
     platform/SystemResourcesTest.cpp
@@ -40,6 +41,7 @@ add_executable(icd_tests
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp
     services/ThreadPoolTest.cpp
+    services/TrimJobTest.cpp
     services/WorkflowTest.cpp
 )
 target_link_libraries(icd_tests PRIVATE icd_core icd_platform icd_services GTest::gtest_main)

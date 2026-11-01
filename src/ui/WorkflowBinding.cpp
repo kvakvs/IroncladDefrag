@@ -283,12 +283,19 @@ namespace icd::ui {
             bottom.clearLog();
             pause_ = std::make_shared<core::PauseGate>();
         }
+        if (job == WorkflowJob::Trim) {
+            bottom.clearLog();
+        }
     }
 
     services::JobFunction WorkflowBinding::makeJob(WorkflowJob job, const core::DriveInfo& drive) {
         if (job == WorkflowJob::Analyze) {
             analysisOutput_ = std::make_shared<services::AnalysisOutput>();
             return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
+        }
+        if (job == WorkflowJob::Trim) {
+            trimOutput_ = std::make_shared<services::TrimOutput>();
+            return services::makeTrimJob(drive.root, trimOutput_);
         }
         const StepText& text = textOf(job);
         services::FakeJobOptions options;
@@ -330,6 +337,7 @@ namespace icd::ui {
                                    .throughput = {},
                                    .eta = remaining ? wxString::FromUTF8(core::formatDuration(*remaining)) : "",
                                    .currentFile = wxString::FromUTF8(progress.message)});
+        takeTrimOutput();
     }
 
     void WorkflowBinding::onJobFinished(wxThreadEvent& event) {
@@ -338,9 +346,11 @@ namespace icd::ui {
             return;
         }
         const WorkflowJob job = activeKind_;
+        takeTrimOutput();
         activeJob_.reset();
         activeKind_ = WorkflowJob::None;
         pause_.reset();
+        trimOutput_.reset();
         completeJob(job, payload.result);
     }
 
@@ -379,6 +389,9 @@ namespace icd::ui {
         }
         else if (job == WorkflowJob::Execute) {
             showExecution(*drive_);
+        }
+        else if (job == WorkflowJob::Trim) {
+            widgets_.bottom.showTab(BottomTab::Log);
         }
         widgets_.drives.updateDrive(*drive_);
     }
@@ -421,6 +434,16 @@ namespace icd::ui {
         bottom.showTab(BottomTab::Log);
     }
 
+    void WorkflowBinding::takeTrimOutput() {
+        if (!trimOutput_) {
+            return;
+        }
+        const wxString drive = wxString::FromUTF8(driveLabel());
+        for (const std::string& line : trimOutput_->take()) {
+            widgets_.bottom.addLogEntry(drive, wxString::FromUTF8(line));
+        }
+    }
+
     std::string WorkflowBinding::successText(WorkflowJob job, const services::JobResult& result) const {
         const std::string label = driveLabel();
         switch (job) {
@@ -432,7 +455,7 @@ namespace icd::ui {
         case WorkflowJob::Execute:
             return std::format("Plan executed on {} in {}; some files were skipped (see Log)", label, seconds(result));
         case WorkflowJob::Trim:
-            return std::format("TRIM of {} finished in {}", label, seconds(result));
+            return std::format("TRIM of {} finished in {} (Windows output in the Log tab)", label, seconds(result));
         case WorkflowJob::None:
             break;
         }

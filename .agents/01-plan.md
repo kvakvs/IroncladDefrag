@@ -29,13 +29,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   with interleaved writes/deletes/appends (§12).
 - Done when: each scenario generates reproducibly and leaves visible fragmentation.
 
-### T044 - SSD TRIM action
-- Depends: T043, T009
-- Owns: `src/services/trim/TrimJob.*`
-- Touches: `DrivesPanel` (enable TRIM button), Log tab
-- Do: run `defrag <vol> /L` as a job, stream its output to the Log tab (§10.5).
-- Done when: TRIM runs on an SSD from the GUI; HDDs never offer TRIM.
-
 ### T045 - Volume bitmap to free runs
 - Depends: T021, T042
 - Owns: `src/platform/win/VolumeBitmap.*`, `src/core/snapshot/BitmapToRuns.*`

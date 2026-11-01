@@ -120,6 +120,18 @@ this file records what is actually built and the decisions made along the way.
 - `tests/platform/VolumesTest` compares every lettered NTFS volume with `fsutil fsinfo ntfsinfo` (serial, version,
   clusters, sector and cluster size, record size, MFT, mirror, zone, reserved).
 
+## SSD TRIM
+
+- TRIM is Windows' own `defrag <volume> /L /U /V` (plan.md 10.5), started from System32 by full path through
+  `platform::runCaptured()` (no window, stdout and stderr on one pipe, cancel terminates it; stopping a retrim
+  halfway is harmless). `services::makeTrimJob()` splits the output on CR and LF (progress lines are redrawn
+  with a bare CR), converts it from the OEM code page, reports "Retrim: NN%" as progress (a "Performing pass N"
+  line starts a new stage, since the percentage restarts) and hands every other line to a `TrimOutput` queue.
+- The workflow binding moves queued lines into the Log tab on each progress event and at the end. defrag
+  buffers its output when it writes to a pipe, so in practice the lines arrive together when it finishes.
+- Only SSD rows show the TRIM button and only `SsdReady` allows the action, so HDD, virtual and unknown drives
+  never offer it.
+
 ## Workflow
 
 - `services::Workflow` is the state machine of plan.md section 11 (NoDrive, Unsupported, SsdReady,

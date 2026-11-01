@@ -130,3 +130,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   physical disk, no elevation needed), `core::StorageFacts` and `classifyMedia()` (virtual disks first, then seek
   penalty, TRIM as a hint, else Unknown), `MediaType::Virtual` keeps the full workflow for VHDX test volumes, Media
   column "HDD · SATA" (`describeStorage()`). `StoragePropertiesTest` matches `Get-PhysicalDisk` on every disk.
+- T044 SSD TRIM action - `services/trim/TrimJob.*` (Windows `defrag <vol> /L /U /V` from System32 as a cancellable
+  job; CR/LF line splitting, OEM output to UTF-8, retrim percentage as progress, other lines to the Log tab),
+  `platform/win/ChildProcess.*` (`runCaptured()`, `systemProgram()`), `oemToUtf8()`. TRIM of the F: SSD from the GUI
+  finished in 5.9 s with Windows' report in the Log tab; HDD, virtual and unknown rows never offer TRIM.

@@ -109,6 +109,8 @@ icd_target_defaults(icd_core)
 
 # --- icd_platform: narrow Win32 wrappers ---------------------------------------------------------
 add_library(icd_platform STATIC
+    src/platform/win/ChildProcess.cpp
+    src/platform/win/ChildProcess.h
     src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
@@ -145,6 +147,8 @@ add_library(icd_services STATIC
     src/services/job/FakeJob.h
     src/services/job/JobRunner.cpp
     src/services/job/JobRunner.h
+    src/services/trim/TrimJob.cpp
+    src/services/trim/TrimJob.h
     src/services/workflow/FakeResults.cpp
     src/services/workflow/FakeResults.h
     src/services/workflow/SyntheticAnalysis.cpp
