@@ -15,7 +15,7 @@ namespace icd {
             return false;
         }
         services::initAppLogging("IroncladDefrag");
-        services_ = std::make_unique<services::AppServices>();
+        services_ = std::make_unique<services::AppServices>(services::driveSourceFromEnvironment());
         auto* frame = new MainFrame(*services_); // wx owns top-level windows and deletes them on close.
         frame->Show();
         return true;

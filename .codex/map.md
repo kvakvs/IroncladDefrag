@@ -54,7 +54,8 @@ changes (see `AGENTS.md`).
 | `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
 | `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
 | `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`. |
-| `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges`, `MediaType`; `canOptimize()` (NTFS, not SSD), `isSsd()`. |
+| `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType`, `VolumeLayout`; `canOptimize()` (NTFS, not SSD), `isSsd()`. |
+| `src/core/model/VolumeLayout.h` | `VolumeLayout` (volume GUID name, sector/cluster size, cluster counts, disk number, partition offset, disk size, extent count) and `NtfsLayout` (serial, version, record size, MFT/mirror/zone, reserved). |
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce`. |
 | `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
@@ -92,11 +93,15 @@ changes (see `AGENTS.md`).
 | `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles); `keys()` for finding stale entries. |
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
+| `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
+| `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model. |
+| `src/platform/win/Volumes.*` | `VolumeRecord`, `listVolumeNames()`, `mountPathsOf()`, `openVolume()`, `queryVolume()` (basics, disk extents and disk size, NTFS volume data; failures noted, never thrown), `enumerateVolumes()`, `isElevated()`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
-| `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider. |
+| `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`). |
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
+| `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge). |
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
@@ -157,6 +162,7 @@ changes (see `AGENTS.md`).
 | `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
+| `tests/platform/VolumesTest.cpp` | Volume enumeration (Windows drive, disk placement, order), NTFS data vs `fsutil fsinfo ntfsinfo` (elevated only), `toDriveInfo()`. |
 | `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |
 
 ## Tools

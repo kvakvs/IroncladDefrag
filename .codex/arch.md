@@ -75,7 +75,8 @@ this file records what is actually built and the decisions made along the way.
 - One `CommandId` per command, shared by menu items, bottom-panel buttons and (later) accelerators.
   Buttons carry the command id as their window id, so `wxEVT_MENU` and `wxEVT_BUTTON` go to the same
   handler and `enableCommand()` enables both.
-- Drives come from `services::IDriveProvider` (owned by `AppServices`; fake in Phase 1). The model is
+- Drives come from `services::IDriveProvider` (owned by `AppServices`): `SystemDriveProvider` enumerates the real
+  volumes; `ICD_FAKE_DRIVES=1` brings back the Phase 1 fake list (with the 30 TB design-target drive). The model is
   `core::DriveInfo`; the column texts are core functions (`core/format/DriveText`), so the wording is
   tested and the CLI can reuse it. `ui::DrivesPanel` shows them in a `wxDataViewCtrl` (selection,
   keyboard and column resizing come free); two custom renderers draw the space bar and the SSD-only
@@ -95,6 +96,23 @@ this file records what is actually built and the decisions made along the way.
   class, zone fit, plan preview) stay disabled (`MapPanel::commandAvailable()`). The toolbar color
   choice posts the same View command as the menu, so check marks and toolbar always agree.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
+
+## Drive discovery
+
+- `platform::enumerateVolumes()` walks `FindFirstVolumeW`, keeps volumes that are mounted somewhere and have a file
+  system (recovery/EFI partitions and empty card readers drop out) and orders them by first mount path. Per volume:
+  label, file system and sizes from the path APIs; disk number, partition offset and disk size from
+  `IOCTL_VOLUME_GET_VOLUME_DISK_EXTENTS` / `IOCTL_DISK_GET_DRIVE_GEOMETRY_EX` (any access); NTFS data
+  (`FSCTL_GET_NTFS_VOLUME_DATA`: exact cluster counts, MFT, MFT mirror and zone, record size, version) through a
+  read handle, which needs administrator rights. Cluster counts come from NTFS data when present:
+  `GetDiskFreeSpaceW`'s 32-bit counts wrap above 16 TB with 4 KB clusters.
+- Nothing throws: the first failed query is kept in `VolumeRecord::problem` and logged, and the drive is listed with
+  what was answered. Without NTFS data and without elevation the drive gets the "Admin needed" badge.
+- The core model is `core::VolumeLayout` inside `DriveInfo`; `toDriveInfo()` converts (UTF-16 to UTF-8 through
+  `platform/win/TextConvert`). Badges that are not detected yet (last access, scheduled optimization) are
+  `std::optional` and show nothing until known, rather than a guessed "off".
+- `tests/platform/VolumesTest` compares every lettered NTFS volume with `fsutil fsinfo ntfsinfo` (serial, version,
+  clusters, sector and cluster size, record size, MFT, mirror, zone, reserved).
 
 ## Workflow
 

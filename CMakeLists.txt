@@ -78,6 +78,7 @@ add_library(icd_core STATIC
     src/core/map/World.h
     src/core/model/DriveInfo.cpp
     src/core/model/DriveInfo.h
+    src/core/model/VolumeLayout.h
     src/core/resources/ResourceCaps.cpp
     src/core/resources/ResourceCaps.h
     src/core/snapshot/DirectoryTree.cpp
@@ -108,10 +109,15 @@ icd_target_defaults(icd_core)
 
 # --- icd_platform: narrow Win32 wrappers ---------------------------------------------------------
 add_library(icd_platform STATIC
+    src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
     src/platform/win/SystemResources.cpp
     src/platform/win/SystemResources.h
+    src/platform/win/TextConvert.cpp
+    src/platform/win/TextConvert.h
+    src/platform/win/Volumes.cpp
+    src/platform/win/Volumes.h
     src/platform/win/WinError.cpp
     src/platform/win/WinError.h
 )
@@ -129,6 +135,8 @@ add_library(icd_services STATIC
     src/services/drives/FakeDriveProvider.cpp
     src/services/drives/FakeDriveProvider.h
     src/services/drives/IDriveProvider.h
+    src/services/drives/SystemDriveProvider.cpp
+    src/services/drives/SystemDriveProvider.h
     src/services/exec/ThreadPool.cpp
     src/services/exec/ThreadPool.h
     src/services/job/FakeJob.cpp

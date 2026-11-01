@@ -121,3 +121,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   mount read-only or writable with a fixed or free letter, dismount, remove, info), `tools/testvol/verify-testvol.ps1`
   (JSON manifest with SHA-256 of every stream incl. ADS, reparse targets; verify + `chkdsk /scan`). 4 GB round trip:
   hash, verify, read-only remount verify clean; a changed file and stream are reported (exit 1).
+- T042 Volume enumeration - `platform/win/Volumes.*` (volumes with mount paths and a file system; label, sizes, disk number,
+  partition offset, disk size, NTFS volume data; failures noted, not thrown; `isElevated()`), `platform/win/Handle.h`,
+  `platform/win/TextConvert.*`, `core/model/VolumeLayout.h` in `DriveInfo`, `services/drives/SystemDriveProvider.*` as
+  the default drive list (`ICD_FAKE_DRIVES=1` for the fake one). Undetected badges are optional (no guessed "off").
+  `VolumesTest` matches `fsutil fsinfo ntfsinfo` on every lettered NTFS volume.

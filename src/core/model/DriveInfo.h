@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/model/VolumeLayout.h"
+
 #include <chrono>
 #include <cstdint>
 #include <optional>
@@ -20,8 +22,10 @@ namespace icd::core {
     struct DriveBadges {
         bool adminNeeded = false; // Volume access needs elevation the process does not have.
         bool vssPresent = false; // Shadow copies exist; moves can grow them (plan.md 9.4).
-        bool lastAccessTracking = false; // NTFS updates last-access times, so access-based strategies work.
-        bool scheduledOptimization = false; // Windows' own scheduled defrag runs on this volume.
+        // NTFS updates last-access times, so access-based strategies work; empty until detected (T072).
+        std::optional<bool> lastAccessTracking;
+        // Windows' own scheduled defrag runs on this volume; empty until detected (T120).
+        std::optional<bool> scheduledOptimization;
         std::optional<std::chrono::system_clock::time_point> snapshotSaved; // When a saved snapshot was taken.
     };
 
@@ -37,6 +41,7 @@ namespace icd::core {
         std::optional<double> fragmentationPercent; // From the last analysis; empty before one.
         std::optional<std::chrono::system_clock::time_point> lastAnalysed; // When it was last analysed.
         DriveBadges badges; // Extra facts for the badges column.
+        VolumeLayout layout; // Disk placement, clusters and NTFS data (real drives only).
 
         // Space in use.
         [[nodiscard]] std::uint64_t usedBytes() const { return totalBytes > freeBytes ? totalBytes - freeBytes : 0; }

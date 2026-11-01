@@ -79,10 +79,12 @@ namespace icd::core {
         if (badges.vssPresent) {
             labels.emplace_back("VSS");
         }
-        if (canOptimize(drive)) {
-            labels.emplace_back(badges.lastAccessTracking ? "Last access on" : "Last access off");
+        if (canOptimize(drive) && badges.lastAccessTracking) {
+            labels.emplace_back(*badges.lastAccessTracking ? "Last access on" : "Last access off");
         }
-        labels.emplace_back(badges.scheduledOptimization ? "Auto-optimize on" : "Auto-optimize off");
+        if (badges.scheduledOptimization) {
+            labels.emplace_back(*badges.scheduledOptimization ? "Auto-optimize on" : "Auto-optimize off");
+        }
         if (badges.snapshotSaved) {
             labels.push_back("Snapshot " + formatAge(ageOf(*badges.snapshotSaved, now)));
         }

@@ -29,13 +29,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   with interleaved writes/deletes/appends (§12).
 - Done when: each scenario generates reproducibly and leaves visible fragmentation.
 
-### T042 - Volume enumeration
-- Depends: T011
-- Owns: `src/platform/win/Volumes.*`, `src/services/drives/SystemDriveProvider.*`
-- Touches: provider selection in `MainFrame`
-- Do: volumes, disk extents, partition offset, file system, cluster size, NTFS volume data (§10.1).
-- Done when: the drive list shows real volumes; values match `fsutil fsinfo ntfsinfo`.
-
 ### T043 - Media detection
 - Depends: T042
 - Owns: `src/platform/win/StorageProperties.*`

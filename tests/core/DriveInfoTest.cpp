@@ -89,6 +89,10 @@ namespace icd::core { namespace {
         drive.badges.adminNeeded = true;
         drive.badges.vssPresent = true;
         drive.badges.snapshotSaved = now - 30h;
+        // Facts not detected yet show no badge rather than a guess.
+        EXPECT_EQ(badgeLabels(drive, now), (std::vector<std::string>{"Admin needed", "VSS", "Snapshot yesterday"}));
+        drive.badges.lastAccessTracking = false;
+        drive.badges.scheduledOptimization = false;
         EXPECT_EQ(badgeLabels(drive, now),
                   (std::vector<std::string>{"Admin needed", "VSS", "Last access off", "Auto-optimize off",
                                             "Snapshot yesterday"}));
