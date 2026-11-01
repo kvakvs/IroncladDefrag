@@ -5,6 +5,8 @@
 #include "core/snapshot/Types.h"
 
 #include <cstdint>
+#include <memory>
+#include <memory_resource>
 #include <string_view>
 #include <vector>
 
@@ -38,8 +40,10 @@ namespace icd::core {
     // Scanner workers can fill their own ExtentEntry vectors and hand them over with addExtents().
     class SnapshotBuilder {
     public:
-        // Starts an empty snapshot of a volume.
-        explicit SnapshotBuilder(VolumeGeometry geometry);
+        // Starts an empty snapshot of a volume. `storage` (optional) holds its extent index and name pool, such as
+        // memory-mapped files when memory is short (plan.md 6.6); the snapshot's arrays keep it alive.
+        explicit SnapshotBuilder(VolumeGeometry geometry,
+                                 const std::shared_ptr<std::pmr::memory_resource>& storage = nullptr);
 
         // Adds a file and returns its index (files are numbered in the order they are added).
         FileIndex addFile(const FileEntry& entry);

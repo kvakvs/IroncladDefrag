@@ -296,7 +296,8 @@ namespace icd::ui {
                 return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
             }
             analysisOutput_->previous = widgets_.map.currentMap(); // Used only when it shows the same volume.
-            return services::makeAnalysisJob(drive, screenAspect(), analysisOutput_);
+            return services::makeAnalysisJob(drive, screenAspect(), analysisOutput_,
+                                             services_.caps().memoryBudgetBytes);
         }
         if (job == WorkflowJob::Trim) {
             trimOutput_ = std::make_shared<services::TrimOutput>();

@@ -131,7 +131,9 @@ namespace icd::services { namespace {
             const std::scoped_lock lock(mutex);
             partialFiles.push_back(snapshot.files.size());
         };
-        const MftScanOptions small{.bufferBytes = 64 * 1024, .inFlight = 2, .minSkipBytes = 1 << 20};
+        MftScanOptions small;
+        small.bufferBytes = 64 * 1024;
+        small.inFlight = 2;
         const MftScanResult result = scanFilesMft(handle.get(), v->volumeName, geometry, *v->layout.ntfs,
                                                   {free.runs().begin(), free.runs().end()}, pool, {}, nullptr, small,
                                                   sink, std::chrono::milliseconds(0));

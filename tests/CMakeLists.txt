@@ -53,6 +53,7 @@ add_executable(icd_tests
     services/ApiScannerTest.cpp
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp
+    services/MemoryModesTest.cpp
     services/MftMergeTest.cpp
     services/MftScannerTest.cpp
     services/MftSecondPassTest.cpp

@@ -11,6 +11,7 @@
 #include <functional>
 #include <limits>
 #include <memory>
+#include <memory_resource>
 #include <unordered_map>
 #include <vector>
 
@@ -115,9 +116,11 @@ namespace icd::services::mft {
     // resolved in parallel; metadata (system records but the root, and all below them), pinned root files, residency
     // and extent flags by the shared ScanRules; extents and free runs reconciled as on the API path with the
     // `$Unattributed` placeholder last. The same for any executor (plan.md 6.2 principle 8).
+    // `storage` (optional) holds the snapshot's extent index and name pool (mapped files when memory is short).
     [[nodiscard]] MergeOutput finishDrafts(DraftSet drafts, core::VolumeGeometry geometry,
                                            std::vector<core::ClusterRun> freeRuns, core::Executor& executor,
-                                           const core::CancelToken& token = {});
+                                           const core::CancelToken& token = {},
+                                           std::shared_ptr<std::pmr::memory_resource> storage = nullptr);
 
     // Drafts of the files of a snapshot made by the MFT scanner whose record `keep` accepts (the `$Unattributed`
     // placeholder is never kept): the flags finishDrafts() derives (metadata, unmovable, resident) are left out and
@@ -131,7 +134,8 @@ namespace icd::services::mft {
     // draftFiles() then finishDrafts(): the merge of a full MFT scan.
     [[nodiscard]] MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions,
                                         core::VolumeGeometry geometry, std::vector<core::ClusterRun> freeRuns,
-                                        core::Executor& executor, const core::CancelToken& token = {});
+                                        core::Executor& executor, const core::CancelToken& token = {},
+                                        std::shared_ptr<std::pmr::memory_resource> storage = nullptr);
 
     // First stream ordinal of attributes that are neither $DATA nor a directory index ($BITMAP, $ATTRIBUTE_LIST,
     // $REPARSE_POINT, $EA, $LOGGED_UTILITY_STREAM): only the MFT path sees them.

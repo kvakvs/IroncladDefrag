@@ -313,8 +313,9 @@ namespace icd::services::mft {
         class Finisher {
         public:
             Finisher(DraftSet drafts, core::VolumeGeometry geometry, core::Executor& executor,
-                     const core::CancelToken& token) :
-                drafts_(std::move(drafts)), geometry_(geometry), executor_(executor), token_(token) {}
+                     const core::CancelToken& token, std::shared_ptr<std::pmr::memory_resource> storage) :
+                drafts_(std::move(drafts)), geometry_(geometry), executor_(executor), token_(token),
+                storage_(std::move(storage)) {}
 
             // All steps.
             MergeOutput run(std::vector<core::ClusterRun> freeRuns) {
@@ -393,7 +394,7 @@ namespace icd::services::mft {
                 out.stats.scanner = ScannerKind::Mft;
                 out.stats.reconcile =
                     core::reconcileScan(drafts_.extents, freeRuns, geometry_.totalClusters, placeholder);
-                core::SnapshotBuilder builder(geometry_);
+                core::SnapshotBuilder builder(geometry_, storage_);
                 for (const core::FileEntry& e : entries_) {
                     builder.addFile(e);
                     out.stats.directories += (e.flags & core::FileDirectory) != 0 ? 1 : 0;
@@ -416,6 +417,7 @@ namespace icd::services::mft {
             std::vector<FileIndex> fileOfRecord_; // Record number -> file.
             std::vector<core::FileEntry> entries_; // Per file, as the builder takes them.
             FileIndex rootFile_ = noFile; // The root directory.
+            std::shared_ptr<std::pmr::memory_resource> storage_; // For the snapshot's large arrays; may be null.
         };
 
     } // namespace
@@ -559,15 +561,16 @@ namespace icd::services::mft {
     }
 
     MergeOutput finishDrafts(DraftSet drafts, core::VolumeGeometry geometry, std::vector<core::ClusterRun> freeRuns,
-                             core::Executor& executor, const core::CancelToken& token) {
-        return Finisher(std::move(drafts), geometry, executor, token).run(std::move(freeRuns));
+                             core::Executor& executor, const core::CancelToken& token,
+                             std::shared_ptr<std::pmr::memory_resource> storage) {
+        return Finisher(std::move(drafts), geometry, executor, token, std::move(storage)).run(std::move(freeRuns));
     }
 
     MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
                           std::vector<core::ClusterRun> freeRuns, core::Executor& executor,
-                          const core::CancelToken& token) {
+                          const core::CancelToken& token, std::shared_ptr<std::pmr::memory_resource> storage) {
         return finishDrafts(draftFiles(rows, extensions, geometry, executor, token), geometry, std::move(freeRuns),
-                            executor, token);
+                            executor, token, std::move(storage));
     }
 
 } // namespace icd::services::mft

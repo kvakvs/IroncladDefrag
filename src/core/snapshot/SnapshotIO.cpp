@@ -44,15 +44,16 @@ namespace icd::core {
             }
 
             // A vector as count and raw elements.
-            template <typename T>
-            void putVector(const std::vector<T>& values) {
-                static_assert(std::is_trivially_copyable_v<T>);
+            template <typename Vector>
+            void putVector(const Vector& values) {
+                static_assert(std::is_trivially_copyable_v<typename Vector::value_type>);
                 put(std::uint64_t{values.size()});
                 sink_.write(std::as_bytes(std::span(values)));
             }
 
             // A string as length and bytes.
-            void putString(const std::string& text) {
+            template <typename String>
+            void putString(const String& text) {
                 put(std::uint64_t{text.size()});
                 sink_.write(std::as_bytes(std::span(text)));
             }
@@ -77,8 +78,9 @@ namespace icd::core {
             }
 
             // A vector written by putVector.
-            template <typename T>
-            void getVector(std::vector<T>& out) {
+            template <typename Vector>
+            void getVector(Vector& out) {
+                using T = typename Vector::value_type;
                 const std::uint64_t count = get<std::uint64_t>();
                 if (count > remaining_ / sizeof(T)) {
                     throw SnapshotFormatError("snapshot file: an array is longer than the file");
@@ -332,7 +334,8 @@ namespace icd::core {
             const UsnCursor usn{in.get<std::uint64_t>(), in.get<std::int64_t>()};
             s.usn = hasUsn ? std::optional(usn) : std::nullopt;
             in.getVector(s.names.offsets_);
-            s.names.text_ = in.getString();
+            const std::string text = in.getString();
+            s.names.text_.assign(text.begin(), text.end());
             readFiles(s.files, in);
             in.getVector(s.extents.records_);
             in.getVector(s.extents.fileStart_);

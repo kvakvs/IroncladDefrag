@@ -113,6 +113,7 @@ namespace icd::services {
             json.key("scanSeconds").value(result.scanSeconds);
             json.key("caughtUp").value(result.caughtUp);
             json.key("savedSnapshot").value(result.catchUp);
+            json.key("memoryPlan").value(result.memoryPlan);
             json.key("usnJournal");
             if (result.snapshot.usn) {
                 json.beginObject()

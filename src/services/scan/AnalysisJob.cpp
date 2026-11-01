@@ -8,6 +8,7 @@
 #include "platform/win/VolumeBitmap.h"
 #include "platform/win/Volumes.h"
 #include "platform/win/WinError.h"
+#include "services/snapshot/MappedStorage.h"
 #include "services/snapshot/SnapshotStore.h"
 #include "services/snapshot/UsnCatchUp.h"
 
@@ -91,6 +92,7 @@ namespace icd::services {
                 const auto scanStart = std::chrono::steady_clock::now();
                 ScanOutcome scan = fromSaved(volume.get(), layout, geometry, result);
                 if (!result.caughtUp) {
+                    result.memoryPlan = planMemoryFor(layout);
                     std::vector<core::ClusterRun> freeRuns = readBitmap(volume.get(), geometry);
                     if (onSnapshot_) {
                         onSnapshot_(bitmapSnapshot(geometry, freeRuns));
@@ -163,6 +165,24 @@ namespace icd::services {
                 }
             }
 
+            // Picks the memory mode for a full scan from the MFT size and the budget (plan.md 6.6) and gives the MFT
+            // scanner mapped storage on the last rung; returns the mode in words.
+            std::string planMemoryFor(const core::VolumeLayout& layout) {
+                if (!layout.ntfs || layout.ntfs->bytesPerFileRecord == 0) {
+                    return {};
+                }
+                const auto estimate =
+                    core::estimateSnapshot(layout.ntfs->mftValidDataLength / layout.ntfs->bytesPerFileRecord);
+                core::MemoryPlan plan = core::planMemory(estimate, options_.memoryBudgetBytes);
+                while (options_.forceMappedStorage && !plan.mappedStorage()) {
+                    plan = core::giveWay(plan, estimate);
+                }
+                MemoryGovernor governor(estimate, plan);
+                governor.check(); // Already short on memory: start one rung lower.
+                options_.mft.storage = storageFor(governor.plan());
+                return core::describeMemoryPlan(governor.plan());
+            }
+
             // The volume name as stored in snapshot meta.
             [[nodiscard]] std::string utf8VolumeName() const { return platform::toUtf8(volumeName_); }
 
@@ -210,6 +230,7 @@ namespace icd::services {
                                     {{"drive", name_},
                                      {"scanner", scannerName(result.scan.scanner)},
                                      {"saved_snapshot", result.catchUp},
+                                     {"memory", result.memoryPlan},
                                      {"files", result.stats.files},
                                      {"directories", result.stats.directories},
                                      {"extents", result.snapshot.extents.size()},
@@ -298,8 +319,8 @@ namespace icd::services {
     }
 
     JobFunction makeAnalysisJob(const core::DriveInfo& drive, core::ScreenAspect aspect,
-                                std::shared_ptr<AnalysisOutput> output) {
-        return [drive, aspect, output = std::move(output)](JobContext& context) {
+                                std::shared_ptr<AnalysisOutput> output, std::uint64_t memoryBudget) {
+        return [drive, aspect, output = std::move(output), memoryBudget](JobContext& context) {
             // A drive analysed before keeps its world layout (plan.md 7.1).
             const auto saved = savedSnapshotMeta(drive);
             const core::ScreenAspect world = saved ? saved->aspect : aspect;
@@ -308,6 +329,7 @@ namespace icd::services {
             };
             AnalysisOptions options;
             options.aspect = world;
+            options.memoryBudgetBytes = memoryBudget;
             AnalysisResult result = analyzeVolume(drive, context, publish, options);
             context.progress.report({.stage = "Building map", .done = 0, .total = 1, .message = {}});
             output->setSummary(std::move(result.summary));

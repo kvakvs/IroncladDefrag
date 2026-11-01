@@ -218,6 +218,32 @@ this file records what is actually built and the decisions made along the way.
   journal records and 490 records read per round, 0.04 s), the analyses in between catch up and save, an unchanged
   volume is up to date, and a recreated journal forces a rescan.
 
+## Memory modes
+
+- `core::estimateSnapshot()` (T066, plan.md 6.6) predicts from the MFT record count, before a scan: files (one per
+  record), extents (the design ratio of three per file), the snapshot, the part mapped files can take (extent index,
+  name pool) and the scan's peak (rows, drafts, pending extents). At 20 M records the snapshot is about 4.5 GB.
+  `planMemory()` walks the give-way ladder (`MemoryRung`: full, no speed extras, smaller map cache, levels one at a
+  time, mapped storage) and takes the first rung whose predicted use fits the budget (0: no limit), the last one when
+  none does; `giveWay()` steps one rung down. `MemoryPlan` answers what each consumer may do (speed extras, tile
+  cache size, parallel levels, mapped storage); today the scan uses the last one, the planner and the map will read
+  the others.
+- The extent index and name pool are `LargeVector`/`LargeString` (`core/util/LargeArray.h`): an allocator that holds a
+  shared reference to a `std::pmr::memory_resource`, moves with its container (so move-assigning a snapshot keeps its
+  storage, unlike `polymorphic_allocator`), sends copies to the heap and has no move operations (containers keep
+  using moved-from allocators, and MSVC debug containers free a proxy through them). `SnapshotBuilder` takes the
+  storage; the arrays keep it alive for as long as any of them exists.
+- `platform::MappedFileResource` puts every allocation of 1 MB or more into its own temporary file under
+  `%LOCALAPPDATA%\IroncladDefrag\cache` (`FILE_FLAG_DELETE_ON_CLOSE`, so nothing stays behind even after a crash),
+  mapped read-write; smaller ones go to the heap. `services::storageFor()` gives it to the MFT scanner
+  (`MftScanOptions::storage` -> `mergeRows()` -> the builder) on the last rung; `MemoryGovernor` checks Windows'
+  low-memory signal and steps down a rung when it fires.
+- Analysis plans before the full scan (`AnalysisOptions::memoryBudgetBytes`, from the caps in the GUI;
+  `forceMappedStorage` for checks) and reports the mode (`memoryPlan`). `icd-cli analyze --memory-budget B --mapped`
+  and `icd-cli check-caps <vol> [--threads N] [--memory-budget B]` (default 2 workers, 2 GB, mapped): on the special
+  volume and on the 1 M-file scale volume the capped scan equals the uncapped one exactly (1,001,029 files, 1,450,698
+  extents, 0.52 s either way).
+
 ## Free space from the volume bitmap
 
 - `platform::readVolumeBitmap()` asks `FSCTL_GET_VOLUME_BITMAP` for pieces of about 32 MB of bitmap (1 TB of 4 KB

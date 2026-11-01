@@ -76,6 +76,8 @@ changes (see `AGENTS.md`).
 | `src/core/ntfs/NtfsText.*` | `utf16ToUtf8()` with U+FFFD for lone surrogates. |
 | `src/core/snapshot/SnapshotIO.*` | Snapshot files: `writeSnapshotFile()`, `readSnapshotFile()`, `readSnapshotMeta()`, `SnapshotMeta`, `BlockCodec`, byte sinks and sources, `SnapshotFormatError`; checksummed parallel blocks, full validation on load. |
 | `src/core/util/Crc32.h` | `Crc32`: IEEE CRC-32 for snapshot blocks. |
+| `src/core/util/LargeArray.h` | `LargeArrayAllocator` (shared memory resource, moves with its container), `LargeVector`, `LargeString` for the big snapshot arrays. |
+| `src/core/resources/MemoryPlanner.*` | `estimateSnapshot()`, `MemoryRung` ladder, `planMemory()`, `giveWay()`, `MemoryPlan`, `describeMemoryPlan()`. |
 | `src/core/snapshot/Types.h` | `Lcn`, `ClusterCount`, `FileIndex` (32-bit, `noFile`), `ClusterRun`, `VolumeGeometry`, `SnapshotError`. |
 | `src/core/snapshot/NamePool.*` | Interned UTF-8 names in one buffer (`intern()`, `name()`, `freezeLookup()`). |
 | `src/core/snapshot/FileTable.h` | Per-file columns (name, parent, size, clusters, flags, times, file reference); `FileFlag`. |
@@ -129,8 +131,10 @@ changes (see `AGENTS.md`).
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
 | `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
 | `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
+| `src/platform/win/MappedMemory.*` | `MappedFileResource`: large allocations in mapped, delete-on-close temporary files. |
 | `src/platform/win/MftReader.*` | `MftReader` (overlapped unbuffered volume reads: `read()`, `stream()` with N in flight), `BufferPool`/`PooledBuffer` (bounded, page-aligned), `ReadStats` (busy time, device busy % from `IOCTL_DISK_PERFORMANCE`, starvation). |
 | `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, drafts replaced, free space adjusted, dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult`. |
+| `src/services/snapshot/MappedStorage.*` | `storageFor()` (mapped files on the last memory rung), `MemoryGovernor` (low-memory signal steps the plan down), `defaultCacheDirectory()`. |
 | `src/services/snapshot/SnapshotStore.*` | `SnapshotStore`: per-volume snapshot files under `%LOCALAPPDATA%\IroncladDefrag\snapshots`, atomic save, `peek()`, `load()` with a reason when rejected, `remove()`. |
 | `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
 | `src/services/scan/MftRows.*` | Parser output per chunk (`ChunkRows`: record, name, segment rows, provisional extents), `parseChunk()`, `appendRecord()`. |
@@ -172,6 +176,7 @@ changes (see `AGENTS.md`).
 | `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
 | `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles, rectangle sets blended as one layer (`fillRects`, the grid), device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`, dispatch to commands. |
+| `src/cli/commands/CheckCaps.*` | `icd-cli check-caps <volume> [--threads N] [--memory-budget B]`: capped (mapped) and uncapped full scans compared exactly. |
 | `src/cli/commands/CheckCatchUp.*` | `icd-cli check-catchup <volume>`: saved snapshot caught up and compared with a full MFT scan (access times aside). |
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`. |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
@@ -185,6 +190,7 @@ changes (see `AGENTS.md`).
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/UsnCatchUpTest.cpp` | Rescan rules, `combineDrafts()` order and replacement, snapshot drafts and re-read records finish into the scanned snapshot (ICD-TEST volume). |
 | `tests/core/MapUpdateTest.cpp` | `MapData::update()` over dirty ranges equals a full build; other volume sizes refused. |
+| `tests/services/MemoryModesTest.cpp` | Estimate, ladder and give-way, mapped vectors (move keeps, copy leaves, files deleted), snapshots built into mapped files equal heap ones, storage per plan. |
 | `tests/services/MftScannerTest.cpp` | MFT scan of the `special` volume: 1 worker = 4 workers, read figures, every cluster accounted for, `$MFT` at its start LCN; equal to the API scan, 1,324-fragment file resolved. |
 | `tests/services/MftSecondPassTest.cpp` | Extension records joined only when listed with the right sequence, non-resident and unreadable lists, names and runs across records, same result for any executor. |
 | `tests/core/NtfsParserTest.cpp` | Fixups, run lists (holes, deltas, malformed, overflow), names, attribute lists, handcrafted records, captured `special` records (MFT, root, resident, compressed, sparse, hard links, reparse points, streams, Unicode, EFS, big directory, 1,324-fragment file over five extension records), fuzzed and truncated records. |

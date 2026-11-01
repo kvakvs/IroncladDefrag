@@ -1,4 +1,5 @@
 #include "cli/commands/Analyze.h"
+#include "cli/commands/CheckCaps.h"
 #include "cli/commands/CheckCatchUp.h"
 #include "cli/commands/CompareScanners.h"
 #include "services/AppInfo.h"
@@ -12,8 +13,9 @@ namespace {
 
     // Prints the command summary; plan and execute arrive in later phases.
     void printUsage() {
-        std::printf("Usage: icd-cli [--version] [--help]\n       %s\n       %s\n       %s\n", icd::cli::analyzeUsage(),
-                    icd::cli::compareScannersUsage(), icd::cli::checkCatchUpUsage());
+        std::printf("Usage: icd-cli [--version] [--help]\n       %s\n       %s\n       %s\n       %s\n",
+                    icd::cli::analyzeUsage(), icd::cli::compareScannersUsage(), icd::cli::checkCatchUpUsage(),
+                    icd::cli::checkCapsUsage());
     }
 
     // Handles the command line and returns the process exit code.
@@ -41,6 +43,9 @@ namespace {
         }
         if (arg == L"check-catchup") {
             return icd::cli::runCheckCatchUp(rest);
+        }
+        if (arg == L"check-caps") {
+            return icd::cli::runCheckCaps(rest);
         }
         std::fprintf(stderr, "Unknown argument: %ls\n", argv[1]);
         printUsage();

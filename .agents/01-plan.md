@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T066 - Memory modes
-- Depends: T064, T007
-- Owns: `src/core/resources/MemoryPlanner.*`, `src/services/snapshot/MappedStorage.*`
-- Do: predict snapshot size from MFT record count; give-way ladder (§6.6); memory-mapped extent index
-  and name pool; low-memory notification handling.
-- Done when: forced 2 GB / 2-thread caps give identical results to the uncapped run.
-
 ### T067 - Scale volume and benchmarks
 - Depends: T065, T066
 - Owns: `tools/bench/scan-bench.*`

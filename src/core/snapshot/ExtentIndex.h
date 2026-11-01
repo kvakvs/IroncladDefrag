@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/snapshot/Types.h"
+#include "core/util/LargeArray.h"
 
 #include <cstddef>
 #include <cstdint>
@@ -81,6 +82,15 @@ namespace icd::core {
     // LCN order serves the map, hit tests and planning by stripe; the per-file order gives fragment i/n.
     class ExtentIndex {
     public:
+        // An empty index on the heap.
+        ExtentIndex() = default;
+
+        // An empty index whose arrays live in `storage` (mapped files in the low-memory mode).
+        explicit ExtentIndex(const std::shared_ptr<std::pmr::memory_resource>& storage) :
+            records_(LargeArrayAllocator<ExtentRecord>(storage)),
+            fileStart_(LargeArrayAllocator<std::uint32_t>(storage)),
+            byFile_(LargeArrayAllocator<std::uint32_t>(storage)) {}
+
         // All records in LCN order.
         [[nodiscard]] std::span<const ExtentRecord> records() const { return records_; }
 
@@ -104,9 +114,9 @@ namespace icd::core {
         friend class SnapshotBuilder; // The only writer.
         friend struct SnapshotAccess; // Saves and loads the index (SnapshotIO).
 
-        std::vector<ExtentRecord> records_; // Sorted by LCN.
-        std::vector<std::uint32_t> fileStart_; // Per file: start in byFile_; one extra end marker.
-        std::vector<std::uint32_t> byFile_; // Record positions grouped by file, VCN order inside a file.
+        LargeVector<ExtentRecord> records_; // Sorted by LCN.
+        LargeVector<std::uint32_t> fileStart_; // Per file: start in byFile_; one extra end marker.
+        LargeVector<std::uint32_t> byFile_; // Record positions grouped by file, VCN order inside a file.
     };
 
 } // namespace icd::core

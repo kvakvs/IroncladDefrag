@@ -210,3 +210,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   the USN enumeration test limited to scenario volumes, integration scripts defaulting to `special` + `mixed` on 2 GB
   volumes (`-Scenarios all` for every scenario). The quick run found TxF files under unlisted `$Extend` folders, now
   accepted by `compareWithApi()`.
+- T066 Memory modes - `core/resources/MemoryPlanner.*` (estimate from the MFT record count, the plan.md 6.6 ladder,
+  give-way), `core/util/LargeArray.h` (allocator that moves with its container) for the extent index and name pool,
+  `platform/win/MappedMemory.*` (delete-on-close mapped files), `services/snapshot/MappedStorage.*` (storage per plan,
+  `MemoryGovernor` on the low-memory signal), analysis plans and reports its memory mode, `icd-cli check-caps`. 2
+  workers, 2 GB budget and mapped storage give exactly the uncapped result on the special and 1 M-file volumes.

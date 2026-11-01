@@ -13,6 +13,7 @@
 #include <chrono>
 #include <cstdint>
 #include <memory>
+#include <memory_resource>
 #include <string>
 #include <vector>
 
@@ -23,6 +24,8 @@ namespace icd::services {
         std::uint32_t bufferBytes = 16U << 20U; // Bytes per read (8-16 MB).
         std::uint32_t inFlight = 3; // Reads outstanding (2-4).
         std::uint32_t minSkipBytes = 1U << 20U; // Unused $MFT stretches at least this long are not read.
+        // Where the snapshot's extent index and name pool go; null for the heap (plan.md 6.6 memory modes).
+        std::shared_ptr<std::pmr::memory_resource> storage;
     };
 
     // The snapshot and what it took.

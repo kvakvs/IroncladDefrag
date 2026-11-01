@@ -94,6 +94,8 @@ add_library(icd_core STATIC
     src/core/ntfs/NtfsText.h
     src/core/ntfs/RunList.cpp
     src/core/ntfs/RunList.h
+    src/core/resources/MemoryPlanner.cpp
+    src/core/resources/MemoryPlanner.h
     src/core/resources/ResourceCaps.cpp
     src/core/resources/ResourceCaps.h
     src/core/snapshot/BitmapToRuns.cpp
@@ -124,6 +126,7 @@ add_library(icd_core STATIC
     src/core/snapshot/Types.h
     src/core/synth/SynthRandom.h
     src/core/util/Crc32.h
+    src/core/util/LargeArray.h
     src/core/util/LruCache.h
     src/core/synth/SyntheticVolume.cpp
     src/core/synth/SyntheticVolume.h
@@ -142,6 +145,8 @@ add_library(icd_platform STATIC
     src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
+    src/platform/win/MappedMemory.cpp
+    src/platform/win/MappedMemory.h
     src/platform/win/MftReader.cpp
     src/platform/win/MftReader.h
     src/platform/win/SystemResources.cpp
@@ -204,6 +209,8 @@ add_library(icd_services STATIC
     src/services/scan/ScanRules.cpp
     src/services/scan/ScanRules.h
     src/services/scan/ScanStats.h
+    src/services/snapshot/MappedStorage.cpp
+    src/services/snapshot/MappedStorage.h
     src/services/snapshot/SnapshotStore.cpp
     src/services/snapshot/SnapshotStore.h
     src/services/snapshot/UsnCatchUp.cpp
@@ -293,6 +300,8 @@ add_custom_command(TARGET IroncladDefrag POST_BUILD
 add_executable(icd-cli
     src/cli/commands/Analyze.cpp
     src/cli/commands/Analyze.h
+    src/cli/commands/CheckCaps.cpp
+    src/cli/commands/CheckCaps.h
     src/cli/commands/CheckCatchUp.cpp
     src/cli/commands/CheckCatchUp.h
     src/cli/commands/CliCommon.cpp

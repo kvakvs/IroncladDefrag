@@ -26,6 +26,8 @@ namespace icd::cli {
             bool dumpExtents = false; // Every file's runs (implies json).
             std::optional<services::ScannerKind> scanner; // --scanner api|mft; default: MFT with API fallback.
             std::size_t threads = 0; // --threads N: own pool of N workers (1: inline); 0 uses the app's pool.
+            std::uint64_t memoryBudget = 0; // --memory-budget BYTES; 0: no limit.
+            bool mapped = false; // --mapped: snapshot arrays in memory-mapped files whatever the budget.
         };
 
         // Applies the option at args[i] with its value at args[i + 1] (--scanner, --threads); false when the value is
@@ -40,6 +42,10 @@ namespace icd::cli {
                 out.scanner = scannerNamed(value);
                 return out.scanner.has_value();
             }
+            if (option == L"--memory-budget") {
+                out.memoryBudget = std::wcstoull(std::wstring(value).c_str(), nullptr, 10);
+                return out.memoryBudget > 0;
+            }
             if (option == L"--threads") {
                 out.threads = static_cast<std::size_t>(std::wcstoul(std::wstring(value).c_str(), nullptr, 10));
                 return out.threads > 0;
@@ -51,6 +57,9 @@ namespace icd::cli {
         bool parseFlag(std::wstring_view arg, AnalyzeArgs& out) {
             if (arg == L"--json") {
                 out.json = true;
+            }
+            else if (arg == L"--mapped") {
+                out.mapped = true;
             }
             else if (arg == L"--dump-extents") {
                 out.dumpExtents = out.json = true;
@@ -68,7 +77,8 @@ namespace icd::cli {
         std::optional<AnalyzeArgs> parse(std::span<const std::wstring_view> args) {
             AnalyzeArgs out;
             for (std::size_t i = 0; i < args.size(); ++i) {
-                const bool withValue = args[i] == L"--scanner" || args[i] == L"--threads";
+                const bool withValue =
+                    args[i] == L"--scanner" || args[i] == L"--threads" || args[i] == L"--memory-budget";
                 const bool ok = withValue ? parseValue(args, i, out) : parseFlag(args[i], out);
                 if (!ok) {
                     return std::nullopt;
@@ -90,6 +100,8 @@ namespace icd::cli {
                 ~EndLine() { ConsoleProgress::finish(); }
             } endLine;
             services::AnalysisOptions options;
+            options.memoryBudgetBytes = args.memoryBudget;
+            options.forceMappedStorage = args.mapped;
             if (args.scanner) {
                 options.scanner = *args.scanner;
                 options.fallbackToApi = false; // One scanner was asked for by name: failures are reported.
@@ -100,7 +112,8 @@ namespace icd::cli {
     } // namespace
 
     const char* analyzeUsage() {
-        return "icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]";
+        return "icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N] "
+               "[--memory-budget BYTES] [--mapped]";
     }
 
     int runAnalyze(std::span<const std::wstring_view> args) {

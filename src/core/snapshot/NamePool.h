@@ -1,5 +1,7 @@
 #pragma once
 
+#include "core/util/LargeArray.h"
+
 #include <cstddef>
 #include <cstdint>
 #include <string>
@@ -20,6 +22,13 @@ namespace icd::core {
     // memory and cache (plan.md 6.2 principle 4).
     class NamePool {
     public:
+        // An empty pool on the heap.
+        NamePool() = default;
+
+        // An empty pool whose text and offsets live in `storage` (mapped files in the low-memory mode).
+        explicit NamePool(const std::shared_ptr<std::pmr::memory_resource>& storage) :
+            text_(LargeArrayAllocator<char>(storage)), offsets_({0}, LargeArrayAllocator<std::uint32_t>(storage)) {}
+
         // Interns name: returns the id of an equal name already stored, or stores it.
         NameId intern(std::string_view name);
 
@@ -39,8 +48,8 @@ namespace icd::core {
     private:
         friend struct SnapshotAccess; // Saves and loads the private parts (SnapshotIO).
 
-        std::string text_; // All names back to back.
-        std::vector<std::uint32_t> offsets_{0}; // Start of each name in text_, plus one end marker.
+        LargeString text_; // All names back to back.
+        LargeVector<std::uint32_t> offsets_{0}; // Start of each name in text_, plus one end marker.
         // Ids by the hash of their text (several ids may share a hash). Keyed by hash rather than by
         // string_view so nothing points into text_, which moves when it grows.
         std::unordered_multimap<std::size_t, NameId> lookup_;

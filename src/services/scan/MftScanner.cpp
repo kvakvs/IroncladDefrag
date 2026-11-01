@@ -301,8 +301,8 @@ namespace icd::services {
                 mft::SecondPassStats second;
                 const mft::ExtensionMap extensions =
                     mft::joinExtensionRecords(rows, readList, executor_, second, token_);
-                mft::MergeOutput merged =
-                    mft::mergeRows(rows, extensions, geometry_, std::move(freeRuns), executor_, token_);
+                mft::MergeOutput merged = mft::mergeRows(rows, extensions, geometry_, std::move(freeRuns), executor_,
+                                                         token_, options_.storage);
                 merged.stats.mft = figures(rows, second);
                 return {std::move(merged.snapshot), std::move(merged.stats)};
             }

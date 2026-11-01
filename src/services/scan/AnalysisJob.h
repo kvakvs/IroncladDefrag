@@ -75,6 +75,7 @@ namespace icd::services {
         bool caughtUp = false; // The snapshot came from the saved one and the journal, not from a full scan.
         std::string catchUp; // What happened to the saved snapshot ("caught up ...", or why it was rescanned).
         std::vector<core::ClusterRun> dirty; // After a catch-up: the LCN ranges whose map may have changed.
+        std::string memoryPlan; // The memory mode of a full scan, in words; empty after a catch-up.
     };
 
     // How an analysis reads the files.
@@ -86,6 +87,8 @@ namespace icd::services {
         bool saveSnapshot = true; // Save the result for the next run (plan.md 6.2 principle 6).
         std::filesystem::path snapshotDirectory; // Where snapshots live; empty: SnapshotStore::defaultDirectory().
         core::ScreenAspect aspect; // Map aspect stored with a first snapshot of the drive.
+        std::uint64_t memoryBudgetBytes = 0; // Memory the scan plans against (plan.md 6.6); 0: no limit.
+        bool forceMappedStorage = false; // Use the last memory rung whatever the budget (tests, check-caps).
     };
 
     // The saved snapshot's meta for a drive when it still belongs to that volume (same NTFS serial), else nullopt.
@@ -105,7 +108,8 @@ namespace icd::services {
     // space at once), then every file, refreshing the map from partial snapshots every few seconds, then builds
     // the final map and the summary into `output`. Reads only. Fails when the volume cannot be opened for reading
     // (administrator rights) and stops promptly on cancel.
+    // `memoryBudget` is the job's cap (plan.md 6.6); 0 means no limit.
     [[nodiscard]] JobFunction makeAnalysisJob(const core::DriveInfo& drive, core::ScreenAspect aspect,
-                                              std::shared_ptr<AnalysisOutput> output);
+                                              std::shared_ptr<AnalysisOutput> output, std::uint64_t memoryBudget = 0);
 
 } // namespace icd::services

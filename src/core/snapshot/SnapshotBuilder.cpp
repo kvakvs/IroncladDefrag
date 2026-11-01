@@ -33,7 +33,14 @@ namespace icd::core {
 
     } // namespace
 
-    SnapshotBuilder::SnapshotBuilder(VolumeGeometry geometry) { snapshot_.geometry = geometry; }
+    SnapshotBuilder::SnapshotBuilder(VolumeGeometry geometry,
+                                     const std::shared_ptr<std::pmr::memory_resource>& storage) {
+        snapshot_.geometry = geometry;
+        if (storage) {
+            snapshot_.names = NamePool(storage); // The allocators move with the containers and keep the storage.
+            snapshot_.extents = ExtentIndex(storage);
+        }
+    }
 
     FileIndex SnapshotBuilder::addFile(const FileEntry& entry) {
         FileTable& files = snapshot_.files;
