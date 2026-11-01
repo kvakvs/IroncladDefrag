@@ -1,0 +1,408 @@
+#include "services/scan/MftMerge.h"
+
+#include "core/ntfs/NtfsFormat.h"
+#include "core/snapshot/ExtentIndex.h"
+#include "core/snapshot/ScanReconcile.h"
+#include "core/snapshot/SnapshotBuilder.h"
+#include "services/scan/ScanRules.h"
+
+#include <algorithm>
+#include <stdexcept>
+#include <string_view>
+#include <utility>
+
+namespace icd::services::mft {
+
+    namespace {
+
+        using core::FileIndex;
+        using core::noFile;
+        using core::ntfs::AttributeType;
+
+        // Files per chunk of the parallel loops.
+        constexpr std::size_t fileGrain = 4096;
+
+        // Parent walks stop here; deeper chains only occur in damaged data.
+        constexpr int maxDepth = 64;
+
+        // What the merge tracks per file besides its FileEntry.
+        struct FileFacts {
+            std::size_t baseRow = 0; // Position of the base record's row.
+            std::uint64_t parentReference = 0; // From the chosen name.
+            std::uint16_t links = 0; // Names that are not DOS aliases.
+            bool clusters = false; // A data stream or directory index has clusters.
+        };
+
+        // The name a file is listed under: the first that is not a DOS alias (else the first), and its link count.
+        struct NamePick {
+            std::string_view name; // Chosen name.
+            std::uint64_t parentReference = 0; // Its directory.
+            std::uint16_t links = 0; // Names that are not DOS aliases.
+            bool chosen = false; // A non-alias name was taken.
+            bool any = false; // Some name was taken.
+
+            // Considers the next name in record order.
+            void offer(const ChunkRows& chunk, const NameRow& row) {
+                const bool dos = row.nameSpace == core::ntfs::NameSpace::Dos;
+                links += dos ? 0 : 1;
+                if ((dos || chosen) && any) {
+                    return;
+                }
+                name = chunk.textAt(row.textOffset, row.textBytes);
+                parentReference = row.parentReference;
+                chosen = chosen || !dos;
+                any = true;
+            }
+        };
+
+        // How one segment is stored in the snapshot.
+        struct SegmentClass {
+            std::uint16_t ordinal = 0; // Stream ordinal.
+            bool extra = false; // Not $DATA and not a directory index: unmovable, MFT path only.
+        };
+
+        // Stream ordinals of one file, handed out in the order segments appear.
+        class StreamNumbers {
+        public:
+            // The class of a segment of a file (directory or not).
+            SegmentClass classify(AttributeType type, std::string_view name, bool directory) {
+                if (type == AttributeType::Data) {
+                    return {name.empty() ? std::uint16_t{0} : number(named_, name, 1), false};
+                }
+                if (type == AttributeType::IndexAllocation && directory && name == "$I30") {
+                    return {0, false};
+                }
+                const auto key = static_cast<std::uint32_t>(type);
+                const auto it = std::ranges::find(extras_, std::pair(key, name));
+                const auto index = static_cast<std::uint16_t>(it - extras_.begin());
+                if (it == extras_.end()) {
+                    extras_.emplace_back(key, name);
+                }
+                return {static_cast<std::uint16_t>(extraStreamBase + index), true};
+            }
+
+            // Whether a named $DATA stream was seen.
+            [[nodiscard]] bool hasNamed() const { return !named_.empty(); }
+
+        private:
+            // Index of name in list (added when new) plus first.
+            static std::uint16_t number(std::vector<std::string_view>& list, std::string_view name,
+                                        std::uint16_t first) {
+                const auto it = std::ranges::find(list, name);
+                const auto index = static_cast<std::uint16_t>(it - list.begin());
+                if (it == list.end()) {
+                    list.push_back(name);
+                }
+                return static_cast<std::uint16_t>(first + index);
+            }
+
+            std::vector<std::string_view> named_; // Named $DATA streams in order.
+            std::vector<std::pair<std::uint32_t, std::string_view>> extras_; // Other attributes by type and name.
+        };
+
+        // One merge run.
+        class Merger {
+        public:
+            Merger(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
+                   core::Executor& executor, const core::CancelToken& token) :
+                rows_(rows), extensions_(extensions), geometry_(geometry), executor_(executor), token_(token) {}
+
+            // All steps.
+            MergeOutput run(std::vector<core::ClusterRun> freeRuns) {
+                selectFiles();
+                forFiles([this](FileIndex f) { describe(f); });
+                rootFile_ = fileAt(rows_.find(rootRecordNumber));
+                forFiles([this](FileIndex f) { entries_[f].parent = parentOf(f); });
+                forFiles([this](FileIndex f) { markSystem(f); });
+                segments_.assign(rows_.segmentCount(), {});
+                forFiles([this](FileIndex f) { classifyStreams(f); });
+                return build(collectExtents(), std::move(freeRuns));
+            }
+
+        private:
+            // Runs body for every file on the executor.
+            template <typename Body>
+            void forFiles(Body body) {
+                executor_.parallelFor(
+                    {entries_.size(), fileGrain},
+                    [&](std::size_t begin, std::size_t end) {
+                        for (std::size_t f = begin; f < end; ++f) {
+                            body(static_cast<FileIndex>(f));
+                        }
+                    },
+                    token_);
+            }
+
+            // Calls fn with each row of a file: the base row, then its extension rows.
+            template <typename Fn>
+            void forEachPart(FileIndex f, Fn fn) const {
+                const std::size_t base = facts_[f].baseRow;
+                fn(base);
+                if (const auto it = extensions_.find(base); it != extensions_.end()) {
+                    for (const std::size_t row : it->second) {
+                        fn(row);
+                    }
+                }
+            }
+
+            // The file of a base row position, or noFile.
+            [[nodiscard]] FileIndex fileAt(std::size_t row) const {
+                return row == RowIndex::none ? noFile : fileOfRow_[row];
+            }
+
+            // Whether a base row becomes a file: it has a name (here or in an extension), or is a system record.
+            [[nodiscard]] bool qualifies(std::size_t i) const {
+                if (rows_.row(i).record() < systemRecordCount || rows_.row(i).nameCount != 0) {
+                    return true;
+                }
+                const auto it = extensions_.find(i);
+                return it != extensions_.end() &&
+                    std::ranges::any_of(it->second, [&](std::size_t r) { return rows_.row(r).nameCount != 0; });
+            }
+
+            // Numbers the files in record order and maps every accepted row to its file.
+            void selectFiles() {
+                fileOfRow_.assign(rows_.size(), noFile);
+                for (std::size_t i = 0; i < rows_.size(); ++i) {
+                    if (rows_.row(i).baseReference == 0 && qualifies(i)) {
+                        fileOfRow_[i] = static_cast<FileIndex>(facts_.size());
+                        facts_.push_back({.baseRow = i});
+                    }
+                }
+                if (facts_.size() >= noFile) {
+                    throw std::runtime_error("too many files for 32-bit file indexes");
+                }
+                for (const auto& [base, parts] : extensions_) {
+                    for (const std::size_t row : parts) {
+                        fileOfRow_[row] = fileOfRow_[base];
+                    }
+                }
+                entries_.resize(facts_.size());
+                token_.throwIfCancelled();
+            }
+
+            // Name, size, times and attribute flags of a file.
+            void describe(FileIndex f) {
+                const RecordRow& base = rows_.row(facts_[f].baseRow);
+                core::FileEntry& e = entries_[f];
+                e.fileReference = base.reference;
+                e.times = base.times;
+                e.flags = fileFlagsFromAttributes(base.dosAttributes);
+                e.flags |= (base.recordFlags & core::ntfs::recordDirectory) != 0 ? core::FileDirectory : 0;
+                chooseName(f);
+                e.flags |= facts_[f].links > 1 ? core::FileHardLinked : 0;
+                e.name = base.record() == rootRecordNumber ? std::string_view() : e.name;
+                e.sizeBytes = (e.flags & core::FileDirectory) != 0 ? indexSize(f) : mainSize(f);
+            }
+
+            // Logical size of the unnamed $DATA, from whichever part holds its first segment or resident value.
+            [[nodiscard]] std::uint64_t mainSize(FileIndex f) const {
+                std::uint64_t size = 0;
+                forEachPart(f, [&](std::size_t r) {
+                    const RecordRow& row = rows_.row(r);
+                    size = (row.facts & RowMainData) != 0 ? row.mainSize : size;
+                });
+                return size;
+            }
+
+            // A directory's size as Windows reports it (end of file): the size of its $I30 index allocation, 0 for a
+            // small directory whose index fits the record.
+            [[nodiscard]] std::uint64_t indexSize(FileIndex f) const {
+                std::uint64_t size = 0;
+                forEachPart(f, [&](std::size_t r) {
+                    const ChunkRows& chunk = rows_.chunk(r);
+                    const RecordRow& row = rows_.row(r);
+                    for (std::uint32_t k = row.firstSegment; k < row.firstSegment + row.segmentCount; ++k) {
+                        const SegmentRow& seg = chunk.segments[k];
+                        const bool index = seg.type == AttributeType::IndexAllocation && seg.startVcn == 0 &&
+                            chunk.textAt(seg.nameOffset, seg.nameBytes) == "$I30";
+                        size = index ? seg.dataSize : size;
+                    }
+                });
+                return size;
+            }
+
+            // The first name that is not a DOS alias (else the first name), and the hard link count.
+            void chooseName(FileIndex f) {
+                NamePick pick;
+                forEachPart(f, [&](std::size_t r) {
+                    const ChunkRows& chunk = rows_.chunk(r);
+                    const RecordRow& row = rows_.row(r);
+                    for (std::uint32_t k = row.firstName; k < row.firstName + row.nameCount; ++k) {
+                        pick.offer(chunk, chunk.names[k]);
+                    }
+                });
+                entries_[f].name = pick.name;
+                facts_[f].parentReference = pick.parentReference;
+                facts_[f].links = pick.links;
+            }
+
+            // The parent's index: by reference with matching sequence number; the root has none, and an unknown or
+            // stale parent means the root (as on the API path).
+            [[nodiscard]] FileIndex parentOf(FileIndex f) const {
+                if (f == rootFile_) {
+                    return noFile;
+                }
+                const std::uint64_t reference = facts_[f].parentReference;
+                const std::size_t row = rows_.find(core::ntfs::recordOf(reference));
+                const FileIndex parent = fileAt(row);
+                const bool current = parent != noFile && rows_.row(row).reference == reference;
+                return current && parent != f ? parent : rootFile_;
+            }
+
+            // Metadata (system records other than the root, and everything below them) and pinned root files.
+            void markSystem(FileIndex f) {
+                core::FileEntry& e = entries_[f];
+                FileIndex at = f;
+                for (int depth = 0; depth < maxDepth && at != noFile && at != rootFile_; ++depth) {
+                    if (core::ntfs::recordOf(entries_[at].fileReference) < systemRecordCount) {
+                        e.flags |= core::FileMetadata | core::FileUnmovable;
+                        break;
+                    }
+                    at = entries_[at].parent;
+                }
+                e.flags |=
+                    e.parent == rootFile_ && f != rootFile_ && isPinnedRootName(e.name) ? core::FileUnmovable : 0;
+            }
+
+            // Stream ordinals of a file's segments; then the stream-dependent flags.
+            void classifyStreams(FileIndex f) {
+                StreamNumbers numbers;
+                const bool directory = (entries_[f].flags & core::FileDirectory) != 0;
+                forEachPart(f, [&](std::size_t r) {
+                    const ChunkRows& chunk = rows_.chunk(r);
+                    const RecordRow& row = rows_.row(r);
+                    const std::size_t base = rows_.segmentBase(r);
+                    for (std::uint16_t s = 0; s < row.segmentCount; ++s) {
+                        const SegmentRow& seg = chunk.segments[row.firstSegment + s];
+                        const SegmentClass cls =
+                            numbers.classify(seg.type, chunk.textAt(seg.nameOffset, seg.nameBytes), directory);
+                        segments_[base + s] = cls;
+                        facts_[f].clusters = facts_[f].clusters || (!cls.extra && seg.extentCount != 0);
+                    }
+                });
+                core::FileEntry& e = entries_[f];
+                e.flags |= numbers.hasNamed() ? core::FileAlternateStreams : 0;
+                e.flags |= isResident(e.flags, facts_[f].clusters) ? core::FileResident : 0;
+            }
+
+            // Every chunk's extents with file indexes, stream ordinals and flags; rows that belong to no file and runs
+            // past the volume end are dropped.
+            std::vector<core::ExtentEntry> collectExtents() {
+                const auto& chunks = rows_.chunks();
+                std::vector<std::size_t> extentBase(chunks.size() + 1, 0);
+                for (std::size_t c = 0; c < chunks.size(); ++c) {
+                    extentBase[c + 1] = extentBase[c] + chunks[c]->extents.size();
+                }
+                std::vector<core::ExtentEntry> out(extentBase.back());
+                executor_.parallelFor(
+                    {chunks.size(), 1},
+                    [&](std::size_t begin, std::size_t end) {
+                        for (std::size_t c = begin; c < end; ++c) {
+                            placeChunk(c, std::span(out).subspan(extentBase[c], chunks[c]->extents.size()));
+                        }
+                    },
+                    token_);
+                std::erase_if(out, [](const core::ExtentEntry& e) { return e.file == noFile; });
+                return out;
+            }
+
+            // Rewrites one chunk's extents into out (same positions).
+            void placeChunk(std::size_t c, std::span<core::ExtentEntry> out) const {
+                const ChunkRows& chunk = *rows_.chunks()[c];
+                const std::size_t rowBase = rows_.chunkRowBase(c);
+                for (std::size_t r = 0; r < chunk.records.size(); ++r) {
+                    const RecordRow& row = chunk.records[r];
+                    const FileIndex f = fileOfRow_[rowBase + r];
+                    const std::size_t segmentBase = rows_.segmentBase(rowBase + r);
+                    for (std::uint32_t k = row.firstExtent; k < row.firstExtent + row.extentCount; ++k) {
+                        out[k] = placed(chunk.extents[k], f, segments_[segmentBase + chunk.extents[k].stream]);
+                    }
+                }
+            }
+
+            // One extent as stored: owner, ordinal and flags, or a dropped marker.
+            [[nodiscard]] core::ExtentEntry placed(core::ExtentEntry e, FileIndex f, SegmentClass cls) const {
+                if (f == noFile || e.run.end() > geometry_.totalClusters || e.run.end() < e.run.start) {
+                    e.file = noFile;
+                    return e;
+                }
+                e.file = f;
+                e.stream = cls.ordinal;
+                e.flags = extentFlagsFor(entries_[f].flags) | (cls.extra ? core::ExtentUnmovable : 0);
+                return e;
+            }
+
+            // Reconciles with the free runs and builds the snapshot; the placeholder comes last.
+            MergeOutput build(std::vector<core::ExtentEntry> extents, std::vector<core::ClusterRun> freeRuns) {
+                MergeOutput out;
+                const auto placeholder = static_cast<FileIndex>(entries_.size());
+                out.stats.scanner = ScannerKind::Mft;
+                out.stats.reconcile = core::reconcileScan(extents, freeRuns, geometry_.totalClusters, placeholder);
+                core::SnapshotBuilder builder(geometry_);
+                for (const core::FileEntry& e : entries_) {
+                    builder.addFile(e);
+                    out.stats.directories += (e.flags & core::FileDirectory) != 0 ? 1 : 0;
+                    out.stats.streams += (e.flags & core::FileAlternateStreams) != 0 ? 1 : 0;
+                }
+                builder.addFile({unattributedName, rootFile_, 0, core::FileMetadata | core::FileUnmovable, {}, 0});
+                builder.addExtents(std::move(extents));
+                for (const core::ClusterRun& run : freeRuns) {
+                    builder.addFreeRun(run);
+                }
+                out.snapshot = std::move(builder).build();
+                out.stats.files = entries_.size() + 1;
+                return out;
+            }
+
+            const RowIndex& rows_; // Every row.
+            const ExtensionMap& extensions_; // Accepted extension rows per base row.
+            core::VolumeGeometry geometry_; // Cluster size and count.
+            core::Executor& executor_; // Parallel loops.
+            const core::CancelToken& token_; // Checked by the loops.
+            std::vector<FileIndex> fileOfRow_; // Row -> file.
+            std::vector<FileFacts> facts_; // Per file.
+            std::vector<core::FileEntry> entries_; // Per file, as the builder takes them.
+            std::vector<SegmentClass> segments_; // Per global segment.
+            FileIndex rootFile_ = noFile; // The root directory.
+        };
+
+    } // namespace
+
+    RowIndex::RowIndex(std::vector<std::shared_ptr<const ChunkRows>> chunks) : chunks_(std::move(chunks)) {
+        std::ranges::sort(chunks_, {}, [](const auto& c) { return c->firstRecord; });
+        segmentBase_.push_back(0);
+        for (std::size_t c = 0; c < chunks_.size(); ++c) {
+            rowBase_.push_back(refs_.size());
+            for (std::size_t r = 0; r < chunks_[c]->records.size(); ++r) {
+                refs_.push_back({static_cast<std::uint32_t>(c), static_cast<std::uint32_t>(r)});
+            }
+            segmentBase_.push_back(segmentBase_.back() + chunks_[c]->segments.size());
+            extentCount_ += chunks_[c]->extents.size();
+        }
+        rowOfRecord_.assign(refs_.empty() ? 0 : row(refs_.size() - 1).record() + 1, 0);
+        for (std::size_t i = 0; i < refs_.size(); ++i) {
+            const std::uint64_t record = row(i).record();
+            if (record >= rowOfRecord_.size() || rowOfRecord_[record] != 0 ||
+                (i > 0 && record <= row(i - 1).record())) {
+                throw std::runtime_error("MFT chunks overlap or are out of order");
+            }
+            rowOfRecord_[record] = static_cast<std::uint32_t>(i + 1);
+        }
+    }
+
+    std::size_t RowIndex::find(std::uint64_t record) const {
+        if (record >= rowOfRecord_.size() || rowOfRecord_[record] == 0) {
+            return none;
+        }
+        return rowOfRecord_[record] - 1;
+    }
+
+    MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
+                          std::vector<core::ClusterRun> freeRuns, core::Executor& executor,
+                          const core::CancelToken& token) {
+        Merger merger(rows, extensions, geometry, executor, token);
+        return merger.run(std::move(freeRuns));
+    }
+
+} // namespace icd::services::mft

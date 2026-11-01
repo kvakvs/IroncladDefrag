@@ -81,10 +81,33 @@ namespace icd::services {
             json.endObject();
         }
 
-        // The scan object: time, journal cursor and what had to be corrected.
+        // The raw read figures of the MFT scanner.
+        void writeMftFigures(JsonWriter& json, const MftReadFigures& f) {
+            json.key("mft").beginObject();
+            json.key("records").value(f.records);
+            json.key("recordsInUse").value(f.recordsInUse);
+            json.key("skippedRecords").value(f.skippedRecords);
+            json.key("badRecords").value(f.badRecords);
+            json.key("extensionRecords").value(f.extensionRecords);
+            json.key("attributeListFiles").value(f.attributeListFiles);
+            json.key("bytesRead").value(f.bytesRead);
+            json.key("reads").value(f.reads);
+            json.key("readSeconds").value(f.readSeconds);
+            json.key("readerBusyPercent").value(f.readerBusyPercent);
+            json.key("deviceBusyPercent").value(f.deviceBusyPercent);
+            json.key("starvedSeconds").value(f.starvedSeconds);
+            json.key("workers").value(std::uint64_t{f.workers});
+            json.key("bufferBytes").value(std::uint64_t{f.bufferBytes});
+            json.key("inFlight").value(std::uint64_t{f.inFlight});
+            json.endObject();
+        }
+
+        // The scan object: scanner, time, journal cursor and what had to be corrected.
         void writeScan(JsonWriter& json, const AnalysisResult& result) {
             json.key("scan").beginObject();
+            json.key("scanner").value(scannerName(result.scan.scanner));
             json.key("seconds").value(result.seconds);
+            json.key("scanSeconds").value(result.scanSeconds);
             json.key("usnJournal");
             if (result.snapshot.usn) {
                 json.beginObject()
@@ -103,6 +126,9 @@ namespace icd::services {
             json.key("unreadableFiles").value(result.scan.unreadable);
             json.key("changedDuringScan").value(result.scan.reconcile.droppedExtents);
             json.key("unattributedClusters").value(result.scan.reconcile.unattributed);
+            if (result.scan.mft) {
+                writeMftFigures(json, *result.scan.mft);
+            }
             json.endObject();
         }
 
@@ -196,8 +222,12 @@ namespace icd::services {
 
     std::string analysisText(const core::DriveInfo& drive, const AnalysisResult& result) {
         const AnalysisSummary& s = result.summary;
-        std::string text = std::format("{} ({}, {}) analysed in {:.1f} s\n", core::driveName(drive),
-                                       core::describeStorage(drive), drive.fileSystem, result.seconds);
+        std::string text = std::format("{} ({}, {}) analysed in {:.1f} s ({} scanner, files in {:.2f} s)\n",
+                                       core::driveName(drive), core::describeStorage(drive), drive.fileSystem,
+                                       result.seconds, scannerName(result.scan.scanner), result.scanSeconds);
+        if (!result.fallbackReason.empty()) {
+            text += std::format("  MFT scan failed, API scan used: {}\n", result.fallbackReason);
+        }
         text += std::format("  Fragmentation      {:.1f}% of files ({} of {})\n", s.fragmentationPercent,
                             core::formatCount(s.fragmentedFiles), core::formatCount(s.files));
         text += std::format("  Extra fragments    {}\n", core::formatCount(s.fragments));

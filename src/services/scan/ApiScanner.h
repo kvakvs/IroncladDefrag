@@ -4,6 +4,8 @@
 #include "core/job/Progress.h"
 #include "core/snapshot/ScanReconcile.h"
 #include "core/snapshot/Snapshot.h"
+#include "services/scan/ScanRules.h"
+#include "services/scan/ScanStats.h"
 
 #include <windows.h>
 
@@ -15,25 +17,11 @@
 
 namespace icd::services {
 
-    // What the API scan saw, beyond the snapshot itself, for the summary and the log.
-    struct ApiScanStats {
-        std::uint64_t files = 0; // Files and directories in the snapshot (the placeholder included).
-        std::uint64_t directories = 0; // Directories among them.
-        std::uint64_t streams = 0; // Named data streams read.
-        std::uint64_t unreadable = 0; // Files that could not be opened or queried (listed without extents).
-        std::vector<core::FileIndex> unreadableFiles; // The first 100 of them, for the log.
-        core::ReconcileStats reconcile; // Corrections for changes during the scan and unreadable areas.
-    };
-
     // The snapshot and its statistics.
     struct ApiScanResult {
         core::Snapshot snapshot; // Files, extents and free space of the volume.
-        ApiScanStats stats; // What it took to get there.
+        ScanStats stats; // What it took to get there.
     };
-
-    // Name of the placeholder file that owns used clusters no readable file claims ($LogFile, $Bitmap,
-    // $Boot, $BadClus, locked files); it is unmovable.
-    inline constexpr const char* unattributedName = "$Unattributed";
 
     // Receives a snapshot of what the scan has read so far: files not read yet own nothing, and the clusters not
     // claimed yet belong to the placeholder. Lets the map fill in while the scan runs. Called on the scan's thread.

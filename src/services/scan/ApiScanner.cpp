@@ -6,6 +6,7 @@
 #include "platform/win/RetrievalPointers.h"
 #include "platform/win/TextConvert.h"
 #include "platform/win/UsnJournal.h"
+#include "services/scan/ScanRules.h"
 
 #include <algorithm>
 #include <array>
@@ -18,24 +19,12 @@ namespace icd::services {
 
         using platform::mftRecordOf;
 
-        constexpr std::uint64_t rootRecord = 5;
+        constexpr std::uint64_t rootRecord = rootRecordNumber;
 
         // NTFS system records 0-11 (12-15 are reserved and unused).
         constexpr std::array<const char*, 12> systemNames{"$MFT",     "$MFTMirr", "$LogFile", "$Volume",
                                                           "$AttrDef", "",         "$Bitmap",  "$Boot",
                                                           "$BadClus", "$Secure",  "$UpCase",  "$Extend"};
-
-        // Root-level files Windows keeps open and in place.
-        constexpr std::array<std::string_view, 3> pinnedNames{"pagefile.sys", "hiberfil.sys", "swapfile.sys"};
-
-        // FILE_ATTRIBUTE_* bits that map one to one onto file flags.
-        constexpr std::array<std::pair<std::uint32_t, std::uint16_t>, 5> attributeFlags{{
-            {FILE_ATTRIBUTE_DIRECTORY, core::FileDirectory},
-            {FILE_ATTRIBUTE_COMPRESSED, core::FileCompressed},
-            {FILE_ATTRIBUTE_SPARSE_FILE, core::FileSparse},
-            {FILE_ATTRIBUTE_ENCRYPTED, core::FileEncrypted},
-            {FILE_ATTRIBUTE_REPARSE_POINT, core::FileReparsePoint},
-        }};
 
         // How often progress and cancellation are checked, in files.
         constexpr std::size_t reportEvery = 256;
@@ -48,24 +37,6 @@ namespace icd::services {
             std::uint32_t attributes = 0; // Attributes from the enumeration (used when it cannot be opened).
             bool system = false; // One of the NTFS system records.
         };
-
-        // File flags from attributes alone.
-        std::uint16_t flagsFromAttributes(std::uint32_t attributes) {
-            std::uint16_t flags = 0;
-            for (const auto& [attribute, flag] : attributeFlags) {
-                flags |= (attributes & attribute) != 0 ? flag : 0;
-            }
-            return flags;
-        }
-
-        // Extent flags for the runs of a file with these flags.
-        std::uint16_t extentFlagsFor(std::uint16_t fileFlags) {
-            std::uint16_t flags = 0;
-            flags |= (fileFlags & core::FileDirectory) != 0 ? core::ExtentDirectoryIndex : 0;
-            flags |= (fileFlags & core::FileCompressed) != 0 ? core::ExtentCompressionUnit : 0;
-            flags |= (fileFlags & core::FileUnmovable) != 0 ? core::ExtentUnmovable : 0;
-            return flags;
-        }
 
         // One scan: collects the file list, reads every file, then builds the snapshot.
         class ApiScanner {
@@ -85,6 +56,7 @@ namespace icd::services {
                 report("Building snapshot", 0, 0);
                 core::Snapshot snapshot = makeSnapshot(std::move(extents_), std::move(freeRuns_), stats_.reconcile);
                 stats_.files = files_.size() + 1;
+                stats_.scanner = ScannerKind::Api;
                 ApiScanResult result{std::move(snapshot), stats_};
                 if (journal) {
                     result.snapshot.usn = core::UsnCursor{journal->journalId, journal->nextUsn};
@@ -169,8 +141,7 @@ namespace icd::services {
             // Whether the file is one of the root-level files Windows pins.
             bool isPinned(std::size_t i) const {
                 const auto name = std::string_view(pending_[i].name);
-                return parentOf(i) == rootIndex() &&
-                    std::ranges::any_of(pinnedNames, [&](std::string_view pinned) { return pinned == name; });
+                return parentOf(i) == rootIndex() && isPinnedRootName(name);
             }
 
             // Every file with what the enumeration knows (name, parent, attributes), so partial snapshots show
@@ -179,7 +150,7 @@ namespace icd::services {
                 files_.resize(pending_.size());
                 for (std::size_t i = 0; i < pending_.size(); ++i) {
                     const Pending& p = pending_[i];
-                    files_[i] = {p.name, parentOf(i), 0, flagsFromAttributes(p.attributes), {}, p.reference};
+                    files_[i] = {p.name, parentOf(i), 0, fileFlagsFromAttributes(p.attributes), {}, p.reference};
                 }
                 lastPartial_ = std::chrono::steady_clock::now();
             }
@@ -220,8 +191,7 @@ namespace icd::services {
                 const std::uint16_t extentFlags = extentFlagsFor(flags);
                 bool clusters = platform::readRetrievalPointers(handle.get(), runs_) && addRuns(i, 0, extentFlags);
                 clusters = scanNamedStreams(i, facts, extentFlags) || clusters;
-                const bool noData = (flags & (core::FileDirectory | core::FileSparse)) == 0 && !clusters;
-                flags |= noData ? core::FileResident : 0;
+                flags |= isResident(flags, clusters) ? core::FileResident : 0;
                 files_[i].sizeBytes = facts.size;
                 files_[i].flags = flags;
                 files_[i].times = {facts.created, facts.modified, facts.accessed};
@@ -232,15 +202,13 @@ namespace icd::services {
             // clusters end up with the placeholder.
             void markUnreadable(std::size_t i) {
                 ++stats_.unreadable;
-                if (stats_.unreadableFiles.size() < 100) {
-                    stats_.unreadableFiles.push_back(static_cast<core::FileIndex>(i));
-                }
+                stats_.unreadableFiles.push_back(static_cast<core::FileIndex>(i));
                 files_[i].flags |= isMetadata(i) ? core::FileMetadata | core::FileUnmovable : 0;
             }
 
             // Flags from the facts and the file's place in the tree (everything but residency).
             std::uint16_t baseFlags(std::size_t i, const platform::FileFacts& facts) {
-                std::uint16_t flags = flagsFromAttributes(facts.attributes);
+                std::uint16_t flags = fileFlagsFromAttributes(facts.attributes);
                 flags |= facts.links > 1 ? core::FileHardLinked : 0;
                 flags |= facts.namedStreams.empty() ? 0 : core::FileAlternateStreams;
                 flags |= isMetadata(i) ? core::FileMetadata | core::FileUnmovable : 0;
@@ -325,7 +293,7 @@ namespace icd::services {
             std::vector<core::FileEntry> files_; // Per file; names point into pending_.
             std::vector<core::ExtentEntry> extents_; // Every allocated run read.
             std::vector<platform::RetrievedRun> runs_; // Reused retrieval pointer buffer.
-            ApiScanStats stats_; // Counters.
+            ScanStats stats_; // Counters.
             PartialScanSink partial_; // Gets partial snapshots; may be empty.
             std::chrono::milliseconds partialInterval_; // Time between partial snapshots.
             std::chrono::steady_clock::time_point lastPartial_; // When the last one was handed over.

@@ -70,6 +70,7 @@ changes (see `AGENTS.md`).
 | `src/core/ntfs/NtfsFormat.h` | On-disk NTFS constants (attribute types, record/attribute/DOS flags, fixed records), file reference helpers, bounds-checked `fits()` and little-endian `load()`. |
 | `src/core/ntfs/Fixups.*` | `applyFixups()`: update sequence (multi-sector) protection undone in place; torn blocks rejected. |
 | `src/core/ntfs/RunList.*` | `DataRun`, `decodeRunList()`: mapping pairs to runs (holes, signed deltas), coverage and overflow checks. |
+| `src/core/ntfs/MftLayout.*` | `planMftReads()` (chunks in volume order, bitmap skips, split records), `isRecordUsed()`, `joinSegments()`, `mapStreamBytes()`, `MftGeometry`, `MftChunk`. |
 | `src/core/ntfs/MftRecord.*` | `parseRecord()` into a reusable `ParsedRecord` (header, `$STANDARD_INFORMATION`, `$FILE_NAME`s, attribute segments with runs or kept resident values), `RecordStatus`, `statusName()`. |
 | `src/core/ntfs/AttributeList.*` | `AttributeListEntry`, `parseAttributeList()`. |
 | `src/core/ntfs/NtfsText.*` | `utf16ToUtf8()` with U+FFFD for lone surrogates. |
@@ -125,7 +126,14 @@ changes (see `AGENTS.md`).
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
 | `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
-| `src/services/scan/ApiScanner.*` | `scanFilesApi()`: reference scan (enumeration, open by id in MFT order, metadata and retrieval pointers per stream, special-case flags, reconcile, snapshot with USN cursor), `ApiScanStats`. |
+| `src/platform/win/MftReader.*` | `MftReader` (overlapped unbuffered volume reads: `read()`, `stream()` with N in flight), `BufferPool`/`PooledBuffer` (bounded, page-aligned), `ReadStats` (busy time, device busy % from `IOCTL_DISK_PERFORMANCE`, starvation). |
+| `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
+| `src/services/scan/MftRows.*` | Parser output per chunk (`ChunkRows`: record, name, segment rows, provisional extents), `parseChunk()`, `appendRecord()`. |
+| `src/services/scan/MftMerge.*` | `RowIndex` (rows in record order, lookup by record), `mergeRows()` (files, names, parents, metadata, stream ordinals, flags, extents, reconcile), `ExtensionMap`, `extraStreamBase`. |
+| `src/services/scan/ScanRules.*` | Rules both scanners share: `unattributedName`, pinned root names, attribute bits to file flags, extent flags, residency; `scannerName()`. |
+| `src/services/scan/ScanStats.h` | `ScanStats` (shared by both scanners), `ScannerKind`, `MftReadFigures`. |
+| `src/services/scan/ScanCompare.*` | `compareWithApi()` (MFT scan against the API reference), `compareExact()` (snapshot equality), `ScanComparison`. |
+| `src/services/scan/ApiScanner.*` | `scanFilesApi()`: reference scan (enumeration, open by id in MFT order, metadata and retrieval pointers per stream, special-case flags, reconcile, snapshot with USN cursor); statistics in `ScanStats`. |
 | `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Analysis of fake drives: synthetic snapshot shaped like the drive, then `MapData` on the job's executor, handed over through `AnalysisOutput`. |
@@ -158,9 +166,14 @@ changes (see `AGENTS.md`).
 | `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
 | `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles, rectangle sets blended as one layer (`fillRects`, the grid), device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`, dispatch to commands. |
-| `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`. |
+| `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
+| `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
 | `tests/integration/analysis/check-analysis.ps1` | Phase 3 exit check: per scenario a fresh read-only test volume analysed by `icd-cli analyze --json --dump-extents`, compared with `fsutil volume diskfree` and `fsutil file queryextents`, plus cluster accounting; `-RealDrive X` for a data drive. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
+| `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
+| `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
+| `tests/services/MftScannerTest.cpp` | MFT scan of the `special` volume: 1 worker = 4 workers, read figures, every cluster accounted for, `$MFT` at its start LCN. |
 | `tests/core/NtfsParserTest.cpp` | Fixups, run lists (holes, deltas, malformed, overflow), names, attribute lists, handcrafted records, captured `special` records (MFT, root, resident, compressed, sparse, hard links, reparse points, streams, Unicode, EFS, big directory, 1,324-fragment file over five extension records), fuzzed and truncated records. |
 | `tests/core/NtfsRecordBuilder.h` | Test helper: MFT records byte by byte (header, attributes, update sequence) and run list encoding. |
 | `tests/data/ntfs/*.bin` | Raw MFT records captured from the `special` scenario (4 KB clusters) by `capture-mft-records.ps1`. |

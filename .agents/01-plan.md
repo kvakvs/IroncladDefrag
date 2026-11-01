@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T061 - MFT reader pipeline
-- Depends: T060, T047
-- Owns: `src/platform/win/MftReader.*`, `src/services/scan/MftScanner.*`
-- Do: `$MFT` extents, skip unused ranges via `$MFT::$BITMAP`, one overlapped sequential reader
-  (8-16 MB, 2-4 in flight), bounded queue, parser workers with thread-local output, parallel merge
-  (§6.3).
-- Done when: scans a test volume end to end; disk ≥ 90% busy during the read.
-
 ### T062 - Attribute lists and path resolution
 - Depends: T061
 - Owns: `src/services/scan/MftSecondPass.*`

@@ -184,7 +184,7 @@ namespace icd::platform {
         return paths;
     }
 
-    UniqueHandle openVolume(const std::wstring& volume, unsigned long access) {
+    UniqueHandle openVolume(const std::wstring& volume, unsigned long access, unsigned long flags) {
         std::wstring device = volume;
         if (device.size() == 3 && device[1] == L':') {
             device = L"\\\\.\\" + device.substr(0, 2); // "C:\" -> "\\.\C:"
@@ -193,7 +193,7 @@ namespace icd::platform {
             device.pop_back(); // A trailing backslash would open the root directory, not the volume.
         }
         return UniqueHandle(CreateFileW(device.c_str(), access, FILE_SHARE_READ | FILE_SHARE_WRITE, nullptr,
-                                        OPEN_EXISTING, 0, nullptr));
+                                        OPEN_EXISTING, flags, nullptr));
     }
 
     VolumeRecord queryVolume(const std::wstring& volumeName) {

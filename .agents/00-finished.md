@@ -174,3 +174,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   overflow checks), resident `$DATA`/`$ATTRIBUTE_LIST`/`$BITMAP`, attribute lists, UTF-16 names like
   `WideCharToMultiByte`. `NtfsParserTest` on handcrafted records (`NtfsRecordBuilder.h`), records captured from the
   `special` scenario (`tests/data/ntfs`, `tools/testvol/capture-mft-records.ps1`) and 20,000 fuzzed copies.
+- T061 MFT reader pipeline - `services/scan/MftScanner.*` (map of `$MFT` from record 0 and its extension records,
+  `$MFT::$BITMAP`), `core/ntfs/MftLayout.*` (read plan: 16 MB cluster-aligned chunks in volume order, unused stretches
+  skipped, split records), `platform/win/MftReader.*` (overlapped unbuffered reads, 3 in flight, bounded `BufferPool`,
+  busy time and device counters), parser tasks into per-chunk `MftRows`, `MftMerge` (files, names, parents, metadata,
+  stream ordinals, flags, reconcile; any executor gives the same snapshot), `ScanRules` shared with the API path,
+  `ScanCompare` and `icd-cli compare-scanners`, `icd-cli analyze --scanner/--threads`. `special` volume scans end to
+  end (1 = 2 = 8 workers); X: (112 K files) reads `$MFT` with the disk 100% busy, 3.9x faster than the API scan.

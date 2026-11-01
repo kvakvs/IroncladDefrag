@@ -85,6 +85,8 @@ add_library(icd_core STATIC
     src/core/ntfs/AttributeList.h
     src/core/ntfs/Fixups.cpp
     src/core/ntfs/Fixups.h
+    src/core/ntfs/MftLayout.cpp
+    src/core/ntfs/MftLayout.h
     src/core/ntfs/MftRecord.cpp
     src/core/ntfs/MftRecord.h
     src/core/ntfs/NtfsFormat.h
@@ -135,6 +137,8 @@ add_library(icd_platform STATIC
     src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
+    src/platform/win/MftReader.cpp
+    src/platform/win/MftReader.h
     src/platform/win/SystemResources.cpp
     src/platform/win/SystemResources.h
     src/platform/win/Privileges.cpp
@@ -182,6 +186,17 @@ add_library(icd_services STATIC
     src/services/scan/AnalysisReport.h
     src/services/scan/ApiScanner.cpp
     src/services/scan/ApiScanner.h
+    src/services/scan/MftMerge.cpp
+    src/services/scan/MftMerge.h
+    src/services/scan/MftRows.cpp
+    src/services/scan/MftRows.h
+    src/services/scan/MftScanner.cpp
+    src/services/scan/MftScanner.h
+    src/services/scan/ScanCompare.cpp
+    src/services/scan/ScanCompare.h
+    src/services/scan/ScanRules.cpp
+    src/services/scan/ScanRules.h
+    src/services/scan/ScanStats.h
     src/services/trim/TrimJob.cpp
     src/services/trim/TrimJob.h
     src/services/workflow/FakeResults.cpp
@@ -267,6 +282,10 @@ add_custom_command(TARGET IroncladDefrag POST_BUILD
 add_executable(icd-cli
     src/cli/commands/Analyze.cpp
     src/cli/commands/Analyze.h
+    src/cli/commands/CliCommon.cpp
+    src/cli/commands/CliCommon.h
+    src/cli/commands/CompareScanners.cpp
+    src/cli/commands/CompareScanners.h
     src/cli/main.cpp
 )
 target_link_libraries(icd-cli PRIVATE icd_services)

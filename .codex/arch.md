@@ -228,6 +228,44 @@ this file records what is actually built and the decisions made along the way.
   equal the API path's. `parseAttributeList()` reads list entries (type, start VCN, holding record, id, name); the
   scanner uses them to accept extension-record segments.
 
+## MFT scanner (fast path)
+
+- `services::scanFilesMft()` (T061, plan.md 6.3): record 0 is read at `MftStartLcn` and parsed; its `$DATA` segments
+  (following its attribute list into extension records when `$MFT` is that fragmented, in rounds over the part
+  already mapped) give the map of `$MFT`, and `$MFT::$BITMAP` (resident or read through its runs) which records are
+  in use. `core::ntfs::planMftReads()` turns that into reads: cluster-aligned chunks of whole records, at most 16 MB,
+  unused stretches of 1 MB or more skipped, sorted by volume offset so the head moves one way; a record cut by a run
+  boundary (clusters smaller than records) is read in pieces.
+- `platform::MftReader` opens the volume a second time with `FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING` and
+  streams the reads with 3 outstanding (a ring of OVERLAPPED slots, completed oldest first). Buffers come from a
+  `BufferPool` (VirtualAlloc, page-aligned): in flight plus up to 8 parsing plus one. `acquire()` blocks while all are
+  out, which is the bounded queue of plan.md 6.2: when parsers fall behind, the reader stops issuing reads and the
+  time shows as `starvedSeconds`. On cancel or error the reader waits for outstanding reads before buffers go.
+- Each completed buffer becomes a parser task on the job's executor (inline when the executor has one thread: a queued
+  task would wait behind the blocked reader). `mft::parseChunk()` writes the records of one chunk into that chunk's
+  own `ChunkRows` (thread-local output, no locks): record rows, names, segments and extents with the record number as
+  provisional file and the segment index as provisional stream.
+- `mft::mergeRows()`: `RowIndex` sorts chunks by first record (so the result does not depend on read order or worker
+  count) and maps record numbers to rows. Base records with a name, and records 0-11, become files in record order.
+  Name: the first that is not a DOS alias (the root's is empty); hard links count non-alias names. Parents by
+  reference with sequence check, unknown or stale parents become the root (as on the API path). Metadata: records 0-11
+  but the root and everything below them; pinned root names unmovable. Streams: unnamed `$DATA` or a directory's `$I30`
+  index is 0, named `$DATA` 1, 2, ... in record order (NTFS collation order, the same as `FileStreamInfo`), any other
+  non-resident attribute (`$BITMAP`, `$ATTRIBUTE_LIST`, `$REPARSE_POINT`, `$EFS`, view indexes `$R`, `$O`, `$Q`, ...)
+  `0x8000 + n` and unmovable. A directory's size is its `$I30` allocation size, which is what `FileStandardInfo`
+  reports. The rules shared with the API path live in `services/scan/ScanRules` (pinned names, attribute bits to flags,
+  extent flags, residency). Extents and free runs are reconciled and built like on the API path, `$Unattributed`
+  last; parallel steps write to disjoint slots, so any executor gives the same snapshot.
+- Disk busy time comes from the reader (time with a read outstanding; an upper bound) and from the device's own
+  counters (`IOCTL_DISK_PERFORMANCE`, 100 - idle %). Measured on X: (2.3 TB HDD, 112 K files, 116 MB of `$MFT`):
+  read in 1.64 s with the disk 100% busy (device 99.9%); 1.87 s for the whole MFT scan against 7.3 s for the API scan.
+- `AnalysisOptions` choose the scanner; a failed MFT scan falls back to the API path unless asked not to
+  (`AnalysisResult::fallbackReason`). `icd-cli analyze --scanner api|mft --threads N` picks them by hand, and
+  `icd-cli compare-scanners <vol> [--threads 1,2,8]` scans with both and diffs them (`services/scan/ScanCompare`):
+  field by field for every file the API path could read, free runs exactly, the remaining clusters as a total, and the
+  MFT runs among themselves exactly. `$Extend` metadata `FSCTL_ENUM_USN_DATA` does not list (`$Quota`, `$ObjId`,
+  `$Reparse`, `$Repair`, `$Deleted`) is an accepted extra of the MFT path.
+
 ## Analysis
 
 - `services::makeAnalysisJob()` (T048): opens the volume for reading (fails with a clear message without

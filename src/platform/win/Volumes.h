@@ -30,9 +30,10 @@ namespace icd::platform {
     std::vector<std::wstring> mountPathsOf(const std::wstring& volumeName);
 
     // Opens a volume device ("\\?\Volume{GUID}\" or "C:\"). access 0 is enough for storage and extent
-    // queries; GENERIC_READ (administrators only) for bitmap, USN and NTFS data. Invalid on failure, with
+    // queries; GENERIC_READ (administrators only) for bitmap, USN and NTFS data. `flags` adds CreateFileW flags
+    // (FILE_FLAG_OVERLAPPED | FILE_FLAG_NO_BUFFERING for the raw MFT reader). Invalid on failure, with
     // GetLastError() set.
-    UniqueHandle openVolume(const std::wstring& volume, unsigned long access);
+    UniqueHandle openVolume(const std::wstring& volume, unsigned long access, unsigned long flags = 0);
 
     // Everything Windows reports about one volume; missing facts are noted in `problem`, never thrown.
     VolumeRecord queryVolume(const std::wstring& volumeName);

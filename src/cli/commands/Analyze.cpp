@@ -1,18 +1,16 @@
 #include "cli/commands/Analyze.h"
 
+#include "cli/commands/CliCommon.h"
 #include "core/job/CancelToken.h"
 #include "core/job/Progress.h"
 #include "platform/win/Console.h"
-#include "platform/win/TextConvert.h"
 #include "platform/win/Volumes.h"
 #include "services/AppServices.h"
 #include "services/scan/AnalysisJob.h"
 #include "services/scan/AnalysisReport.h"
 
-#include <algorithm>
-#include <cctype>
 #include <cstdio>
-#include <cwctype>
+#include <cwchar>
 #include <memory>
 #include <optional>
 #include <string>
@@ -26,98 +24,83 @@ namespace icd::cli {
             std::wstring volume; // As given: "T", "T:", "T:\" or a mount folder.
             bool json = false; // Machine-readable output.
             bool dumpExtents = false; // Every file's runs (implies json).
+            services::ScannerKind scanner = services::ScannerKind::Api; // --scanner api|mft.
+            std::size_t threads = 0; // --threads N: own pool of N workers (1: inline); 0 uses the app's pool.
         };
 
-        // Progress on stderr, overwriting one line, so stdout stays clean for JSON.
-        class ConsoleProgress : public core::ProgressSink {
-        public:
-            void report(const core::Progress& p) override {
-                if (p.total != 0) {
-                    std::fprintf(stderr, "\r%-24s %5.1f%%   ", p.stage.c_str(), 100.0 * p.fraction());
-                }
-                else {
-                    std::fprintf(stderr, "\r%-24s          ", p.stage.c_str());
-                }
+        // Applies the option at args[i] with its value at args[i + 1] (--scanner, --threads); false when the value is
+        // missing or bad.
+        bool parseValue(std::span<const std::wstring_view> args, std::size_t i, AnalyzeArgs& out) {
+            if (i + 1 >= args.size()) {
+                return false;
             }
+            const std::wstring_view option = args[i];
+            const std::wstring_view value = args[i + 1];
+            if (option == L"--scanner") {
+                const auto scanner = scannerNamed(value);
+                out.scanner = scanner.value_or(out.scanner);
+                return scanner.has_value();
+            }
+            if (option == L"--threads") {
+                out.threads = static_cast<std::size_t>(std::wcstoul(std::wstring(value).c_str(), nullptr, 10));
+                return out.threads > 0;
+            }
+            return false;
+        }
 
-            // Ends the progress line.
-            static void finish() { std::fprintf(stderr, "\r%60s\r", ""); }
-        };
+        // Applies a flag or the volume; false when it is unknown.
+        bool parseFlag(std::wstring_view arg, AnalyzeArgs& out) {
+            if (arg == L"--json") {
+                out.json = true;
+            }
+            else if (arg == L"--dump-extents") {
+                out.dumpExtents = out.json = true;
+            }
+            else if (!arg.starts_with(L"--") && out.volume.empty()) {
+                out.volume = arg;
+            }
+            else {
+                return false;
+            }
+            return true;
+        }
 
         // Reads the arguments; nullopt on unknown options or a missing volume.
         std::optional<AnalyzeArgs> parse(std::span<const std::wstring_view> args) {
             AnalyzeArgs out;
-            for (const std::wstring_view arg : args) {
-                if (arg == L"--json") {
-                    out.json = true;
-                }
-                else if (arg == L"--dump-extents") {
-                    out.dumpExtents = out.json = true;
-                }
-                else if (!arg.starts_with(L"--") && out.volume.empty()) {
-                    out.volume = arg;
-                }
-                else {
+            for (std::size_t i = 0; i < args.size(); ++i) {
+                const bool withValue = args[i] == L"--scanner" || args[i] == L"--threads";
+                const bool ok = withValue ? parseValue(args, i, out) : parseFlag(args[i], out);
+                if (!ok) {
                     return std::nullopt;
                 }
+                i += withValue ? 1 : 0;
             }
             return out.volume.empty() ? std::nullopt : std::optional(out);
         }
 
-        // "t", "T:" and "T:\" all become "T:\"; other paths get a trailing backslash.
-        std::string normalizeRoot(const std::wstring& volume) {
-            std::wstring root = volume;
-            if (root.size() <= 2 && std::iswalpha(root[0]) != 0) {
-                root = std::wstring(1, static_cast<wchar_t>(std::towupper(root[0]))) + L":";
-            }
-            if (root.back() != L'\\') {
-                root += L'\\';
-            }
-            return platform::toUtf8(root);
-        }
-
-        // The drive mounted at the root, or nullopt.
-        std::optional<core::DriveInfo> findDrive(services::AppServices& app, const std::string& root) {
-            for (core::DriveInfo& drive : app.drives().listDrives()) {
-                const bool same = std::ranges::equal(drive.root, root, [](char a, char b) {
-                    return std::tolower(static_cast<unsigned char>(a)) == std::tolower(static_cast<unsigned char>(b));
-                });
-                if (same) {
-                    return std::move(drive);
-                }
-            }
-            return std::nullopt;
-        }
-
-        // Explains why a drive cannot be analysed, or returns nullptr.
-        const char* refusal(const std::optional<core::DriveInfo>& drive) {
-            if (!drive) {
-                return "no mounted volume at that path";
-            }
-            if (drive->fileSystem != "NTFS") {
-                return "only NTFS volumes can be analysed";
-            }
-            if (!platform::isElevated()) {
-                return "analyze needs administrator rights; run it from an elevated prompt";
-            }
-            return nullptr;
-        }
-
         // Runs the analysis with console progress and Ctrl+C cancel.
-        services::AnalysisResult analyze(services::AppServices& app, const core::DriveInfo& drive) {
+        services::AnalysisResult analyze(services::AppServices& app, const core::DriveInfo& drive,
+                                         const AnalyzeArgs& args) {
             core::CancelSource cancel;
             const platform::ConsoleCancel ctrlC(cancel);
             core::ThrottledProgress progress(std::make_shared<ConsoleProgress>());
-            services::JobContext context{cancel.token(), progress, app.pool()};
+            const auto own = ownExecutor(args.threads);
+            services::JobContext context{cancel.token(), progress, own ? *own : app.pool()};
             struct EndLine {
                 ~EndLine() { ConsoleProgress::finish(); }
             } endLine;
-            return services::analyzeVolume(drive, context);
+            services::AnalysisOptions options;
+            options.scanner = args.scanner;
+            options.fallbackToApi = false; // The command line asks for one scanner; failures are reported.
+            return services::analyzeVolume(drive, context, {}, options);
         }
 
     } // namespace
 
-    const char* analyzeUsage() { return "icd-cli analyze <volume> [--json] [--dump-extents]"; }
+    const char* analyzeUsage() {
+        return "icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]";
+    }
 
     int runAnalyze(std::span<const std::wstring_view> args) {
         const auto parsed = parse(args);
@@ -132,7 +115,7 @@ namespace icd::cli {
             return 1;
         }
         try {
-            const services::AnalysisResult result = analyze(app, *drive);
+            const services::AnalysisResult result = analyze(app, *drive, *parsed);
             const std::string out = parsed->json ? services::analysisJson(*drive, result, parsed->dumpExtents)
                                                  : services::analysisText(*drive, result);
             platform::useUtf8ConsoleOutput();

@@ -1,0 +1,98 @@
+#pragma once
+
+#include "core/exec/Executor.h"
+#include "core/job/CancelToken.h"
+#include "core/snapshot/Snapshot.h"
+#include "services/scan/MftRows.h"
+#include "services/scan/ScanStats.h"
+
+#include <cstddef>
+#include <cstdint>
+#include <limits>
+#include <memory>
+#include <unordered_map>
+#include <vector>
+
+namespace icd::services::mft {
+
+    // Every record row of a scan in record order, over the chunks the parser workers filled, with lookups by record
+    // number. Chunks may arrive in any order (reads go in LCN order); sorting them by first record makes the row order
+    // independent of how many workers parsed them (plan.md 6.2 principle 8).
+    class RowIndex {
+    public:
+        // "No such row".
+        static constexpr std::size_t none = std::numeric_limits<std::size_t>::max();
+
+        // Sorts the chunks and indexes their rows. Throws std::runtime_error when two chunks hold the same record.
+        explicit RowIndex(std::vector<std::shared_ptr<const ChunkRows>> chunks);
+
+        // Number of rows.
+        [[nodiscard]] std::size_t size() const { return refs_.size(); }
+
+        // A row by its position in record order.
+        [[nodiscard]] const RecordRow& row(std::size_t i) const { return chunk(i).records[refs_[i].row]; }
+
+        // The chunk holding a row (for its names, segments, extents and text).
+        [[nodiscard]] const ChunkRows& chunk(std::size_t i) const { return *chunks_[refs_[i].chunk]; }
+
+        // Position of the row of a record, or none.
+        [[nodiscard]] std::size_t find(std::uint64_t record) const;
+
+        // The chunks in record order.
+        [[nodiscard]] const std::vector<std::shared_ptr<const ChunkRows>>& chunks() const { return chunks_; }
+
+        // Position in record order of a chunk's first row.
+        [[nodiscard]] std::size_t chunkRowBase(std::size_t chunk) const { return rowBase_[chunk]; }
+
+        // Index over all chunks of a row's first segment: segments numbered across the scan.
+        [[nodiscard]] std::size_t segmentBase(std::size_t i) const {
+            return segmentBase_[refs_[i].chunk] + row(i).firstSegment;
+        }
+
+        // Segments over all chunks.
+        [[nodiscard]] std::size_t segmentCount() const { return segmentBase_.empty() ? 0 : segmentBase_.back(); }
+
+        // Extents over all chunks.
+        [[nodiscard]] std::size_t extentCount() const { return extentCount_; }
+
+    private:
+        // A row's chunk and position inside it.
+        struct Ref {
+            std::uint32_t chunk = 0; // Index into chunks_.
+            std::uint32_t row = 0; // Index into that chunk's records.
+        };
+
+        std::vector<std::shared_ptr<const ChunkRows>> chunks_; // Sorted by first record.
+        std::vector<Ref> refs_; // Rows in record order.
+        std::vector<std::size_t> rowBase_; // Per chunk: position of its first row.
+        std::vector<std::size_t> segmentBase_; // Per chunk: global index of its first segment; one end marker.
+        std::vector<std::uint32_t> rowOfRecord_; // Record number -> position + 1 (0: no row).
+        std::size_t extentCount_ = 0; // Sum over chunks.
+    };
+
+    // Extension rows that belong to a base row, as the second pass accepted them (MftSecondPass): base row position ->
+    // extension row positions in record order. Empty when the scan has no files spread over several records.
+    using ExtensionMap = std::unordered_map<std::size_t, std::vector<std::size_t>>;
+
+    // What the merge produces.
+    struct MergeOutput {
+        core::Snapshot snapshot; // Files, extents and free space.
+        ScanStats stats; // Counts for the summary.
+    };
+
+    // Turns the rows into a snapshot: base records with a name (and the system records 0-11) become files in record
+    // order; accepted extension rows add their names, sizes and segments to their base file. Names: the first that is
+    // not a DOS alias (the root's is empty). Parents by reference with sequence check (unknown parents: the root),
+    // resolved in parallel. Stream ordinals: unnamed $DATA or a directory's $I30 index is 0, named $DATA streams 1, 2,
+    // ... in record order, any other non-resident attribute 0x8000 + n and unmovable. Flags by the shared ScanRules.
+    // Extents and free runs are reconciled as on the API path, with the `$Unattributed` placeholder last. The result
+    // is identical for any executor (plan.md 6.2 principle 8).
+    [[nodiscard]] MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions,
+                                        core::VolumeGeometry geometry, std::vector<core::ClusterRun> freeRuns,
+                                        core::Executor& executor, const core::CancelToken& token = {});
+
+    // First stream ordinal of attributes that are neither $DATA nor a directory index ($BITMAP, $ATTRIBUTE_LIST,
+    // $REPARSE_POINT, $EA, $LOGGED_UTILITY_STREAM): only the MFT path sees them.
+    inline constexpr std::uint16_t extraStreamBase = 0x8000;
+
+} // namespace icd::services::mft

@@ -19,7 +19,7 @@ namespace {
         builder.addExtent({{12, 1}, 2, file, 0, 0}); // Continues the first run on disk.
         builder.addExtent({{50, 4}, 3, file, 0, 0});
         builder.addFreeRun({100, 900});
-        services::AnalysisResult result{std::move(builder).build(), {}, {}, {}, 1.5};
+        services::AnalysisResult result{std::move(builder).build(), {}, {}, {}, 1.5, 1.0, {}};
         result.summary.fragmentationPercent = 100.0;
         result.summary.files = 1;
         result.summary.fragmentedFiles = 1;

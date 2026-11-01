@@ -1,4 +1,5 @@
 #include "cli/commands/Analyze.h"
+#include "cli/commands/CompareScanners.h"
 #include "services/AppInfo.h"
 #include "services/AppLogging.h"
 
@@ -9,7 +10,10 @@
 namespace {
 
     // Prints the command summary; plan and execute arrive in later phases.
-    void printUsage() { std::printf("Usage: icd-cli [--version] [--help]\n       %s\n", icd::cli::analyzeUsage()); }
+    void printUsage() {
+        std::printf("Usage: icd-cli [--version] [--help]\n       %s\n       %s\n", icd::cli::analyzeUsage(),
+                    icd::cli::compareScannersUsage());
+    }
 
     // Handles the command line and returns the process exit code.
     int run(int argc, wchar_t** argv) {
@@ -27,9 +31,12 @@ namespace {
             printUsage();
             return 0;
         }
+        const std::vector<std::wstring_view> rest(argv + 2, argv + argc);
         if (arg == L"analyze") {
-            const std::vector<std::wstring_view> rest(argv + 2, argv + argc);
             return icd::cli::runAnalyze(rest);
+        }
+        if (arg == L"compare-scanners") {
+            return icd::cli::runCompareScanners(rest);
         }
         std::fprintf(stderr, "Unknown argument: %ls\n", argv[1]);
         printUsage();
