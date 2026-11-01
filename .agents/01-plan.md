@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T049 - CLI analyze
-- Depends: T048
-- Owns: `src/cli/commands/Analyze.*`
-- Do: `icd-cli analyze <vol> --json [--dump-extents]`.
-- Done when: JSON summary for a test volume matches the GUI summary.
-
 ### T050 - Analysis verification
 - Depends: T049
 - Owns: `tests/integration/analysis/*`

@@ -160,3 +160,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   Summary tab (existing `ui/panels/SummaryPage`, not a new `ui/tabs/SummaryTab`) with real-scan rows, ruler "% of disk",
   real Analyze for real drives (synthetic stays for `ICD_FAKE_DRIVES`). GUI: X: (2.3 TB, 112 K files) analysed in
   14.7 s without blocking; cancel stops it and clears the half-read map.
+- T049 CLI analyze - `icd-cli analyze <vol> [--json] [--dump-extents]` (`cli/commands/Analyze.*`): runs the shared
+  `services::analyzeVolume()` (the GUI job now wraps it), progress on stderr, Ctrl+C cancel (`platform/win/Console.*`);
+  report from `services/scan/AnalysisReport.*` with a small `core/format/Json` writer. The JSON summary of the
+  16 KB-cluster photos test volume equals the GUI Summary tab figure for figure.

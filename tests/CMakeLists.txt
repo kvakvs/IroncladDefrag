@@ -20,6 +20,7 @@ add_executable(icd_tests
     core/GridTest.cpp
     core/HitTestTest.cpp
     core/JobTypesTest.cpp
+    core/JsonTest.cpp
     core/LogTest.cpp
     core/LruCacheTest.cpp
     core/OverviewTest.cpp
@@ -44,6 +45,7 @@ add_executable(icd_tests
     platform/VolumeBitmapTest.cpp
     platform/VolumesTest.cpp
     services/AnalysisJobTest.cpp
+    services/AnalysisReportTest.cpp
     services/ApiScannerTest.cpp
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp

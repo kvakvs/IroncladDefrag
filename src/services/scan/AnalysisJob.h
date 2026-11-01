@@ -54,6 +54,22 @@ namespace icd::services {
     [[nodiscard]] AnalysisSummary summaryOf(const core::VolumeStats& stats, std::uint32_t bytesPerCluster,
                                             const ApiScanStats& scan);
 
+    // Everything an analysis produces besides maps.
+    struct AnalysisResult {
+        core::Snapshot snapshot; // Files, extents and free space.
+        ApiScanStats scan; // What the scan saw (unreadable files, corrections).
+        core::VolumeStats stats; // Figures of the snapshot.
+        AnalysisSummary summary; // The Summary tab's view of them.
+        double seconds = 0.0; // Wall time of the analysis.
+    };
+
+    // Analyses an NTFS volume on the calling thread (plan.md 10.2, API path): bitmap, then every file, then the
+    // figures. `onSnapshot` (optional) receives the bitmap-only snapshot and partial ones while files are read.
+    // The GUI job and `icd-cli analyze` both run this. Reads only; fails when the volume cannot be opened for
+    // reading (administrator rights) and throws OperationCancelled on cancel.
+    [[nodiscard]] AnalysisResult analyzeVolume(const core::DriveInfo& drive, JobContext& context,
+                                               const PartialScanSink& onSnapshot = {});
+
     // Real analysis of an NTFS volume (plan.md 10.2, API path): reads the bitmap (the map shows used and free
     // space at once), then every file, refreshing the map from partial snapshots every few seconds, then builds
     // the final map and the summary into `output`. Reads only. Fails when the volume cannot be opened for reading

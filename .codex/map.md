@@ -38,7 +38,7 @@ changes (see `AGENTS.md`).
 | `icd_platform` | static lib | `src/platform/win/**` | `icd_core` |
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx`, `d2d1` |
-| `icd-cli` | console exe | `src/cli/**` | `icd_services` |
+| `icd-cli` | console exe | `src/cli/main.cpp`, `src/cli/commands/*` | `icd_services` |
 | `map-render-spike` | console exe with a wx window | `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
 | `gen-scenario` | console exe | `tools/testvol/gen-scenario/*` | `icd_platform`, `advapi32` |
 | `synth-bench` | console exe | `tools/bench/synth-bench.cpp` | `icd_services`, `psapi` |
@@ -53,6 +53,7 @@ changes (see `AGENTS.md`).
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
 | `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
+| `src/core/format/Json.*` | `JsonWriter` (streaming, indented, RFC 8259 escaping), `jsonQuote()`. |
 | `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
 | `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeStorage()` (media with bus), `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`. |
 | `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType` (HDD, SSD, Virtual, Unknown), `StorageFacts`, `VolumeLayout`; `classifyMedia()`, `canOptimize()` (NTFS, not SSD), `isSsd()`. |
@@ -98,6 +99,7 @@ changes (see `AGENTS.md`).
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/ChildProcess.*` | `runCaptured()` (console program without a window, output chunks to a callback, cancel terminates, exit code), `systemProgram()` (System32 path). |
+| `src/platform/win/Console.*` | `ConsoleCancel` (Ctrl+C cancels a source while alive), `useUtf8ConsoleOutput()`. |
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
 | `src/platform/win/Privileges.*` | `enablePrivilege()` (e.g. `SE_BACKUP_NAME` for files only SYSTEM may open). |
 | `src/platform/win/RetrievalPointers.*` | `readRetrievalPointers()` (all runs of a stream, holes as LCN -1), `readFileFacts()` (times, attributes, size, links, named streams), `openFileById()`, `openForQuery()`. |
@@ -115,7 +117,8 @@ changes (see `AGENTS.md`).
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
-| `src/services/scan/AnalysisJob.*` | `makeAnalysisJob()` (bitmap, early map, file scan with partial maps every 3 s, summary, final map), `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
+| `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
+| `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
 | `src/services/scan/ApiScanner.*` | `scanFilesApi()`: reference scan (enumeration, open by id in MFT order, metadata and retrieval pointers per stream, special-case flags, reconcile, snapshot with USN cursor), `ApiScanStats`. |
 | `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
@@ -148,7 +151,8 @@ changes (see `AGENTS.md`).
 | `src/ui/map/Ruler.*` | Ruler windows (GDI, buffered) beside the map: vertical rows with offset, % and % of disk (`setDisk()`), horizontal offsets within a row; sized for their widest label, refreshed on view changes. |
 | `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
 | `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles, rectangle sets blended as one layer (`fillRects`, the grid), device-loss detection. |
-| `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
+| `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`, dispatch to commands. |
+| `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
 | `tests/core/SnapshotStatsTest.cpp` | Figures of a hand-made volume, parallel = serial on a synthetic one. |
@@ -172,6 +176,7 @@ changes (see `AGENTS.md`).
 | `tests/core/ScanReconcileTest.cpp` | Placeholder for unclaimed clusters, newer read wins, stale free space, clipping, random scans always tile. |
 | `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
+| `tests/core/JsonTest.cpp` | JSON structure and indentation, string escaping, non-finite numbers. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
@@ -179,6 +184,7 @@ changes (see `AGENTS.md`).
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
 | `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |
 | `tests/services/AnalysisJobTest.cpp` | Bitmap-only snapshot; full job on the `special` volume (stages, final map, summary); cancel during the scan. |
+| `tests/services/AnalysisReportTest.cpp` | JSON report carries the summary and USN cursor; dumped runs joined; flag names. |
 | `tests/services/ApiScannerTest.cpp` | On the `special` test volume: every special case flagged, extent kinds, every cluster accounted for, extents = `fsutil file queryextents` for sampled files. |
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |

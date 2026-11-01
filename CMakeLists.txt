@@ -37,6 +37,8 @@ add_library(icd_core STATIC
     src/core/format/Count.h
     src/core/format/DriveText.cpp
     src/core/format/DriveText.h
+    src/core/format/Json.cpp
+    src/core/format/Json.h
     src/core/format/Duration.cpp
     src/core/format/Duration.h
     src/core/job/CancelToken.cpp
@@ -117,6 +119,8 @@ icd_target_defaults(icd_core)
 add_library(icd_platform STATIC
     src/platform/win/ChildProcess.cpp
     src/platform/win/ChildProcess.h
+    src/platform/win/Console.cpp
+    src/platform/win/Console.h
     src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
@@ -163,6 +167,8 @@ add_library(icd_services STATIC
     src/services/job/JobRunner.h
     src/services/scan/AnalysisJob.cpp
     src/services/scan/AnalysisJob.h
+    src/services/scan/AnalysisReport.cpp
+    src/services/scan/AnalysisReport.h
     src/services/scan/ApiScanner.cpp
     src/services/scan/ApiScanner.h
     src/services/trim/TrimJob.cpp
@@ -248,6 +254,8 @@ add_custom_command(TARGET IroncladDefrag POST_BUILD
 
 # --- icd-cli: console front end ------------------------------------------------------------------
 add_executable(icd-cli
+    src/cli/commands/Analyze.cpp
+    src/cli/commands/Analyze.h
     src/cli/main.cpp
 )
 target_link_libraries(icd-cli PRIVATE icd_services)

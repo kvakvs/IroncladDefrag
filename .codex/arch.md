@@ -232,6 +232,21 @@ this file records what is actually built and the decisions made along the way.
   15 K files) 1.5 s including the 2.3 G-cluster bitmap. Cancel during the file scan stops within a fraction of a
   second ("cancelled after 1.7 s").
 
+## icd-cli analyze
+
+- `icd-cli analyze <volume> [--json] [--dump-extents]` (T049) runs `services::analyzeVolume()`, the same function
+  the GUI job wraps (the job only adds map building and publishing), so the CLI never builds maps. The volume is
+  given as `T`, `T:`, `T:\` or a mount folder and must be NTFS; administrator rights are checked up front.
+- Progress goes to stderr on one rewritten line, so stdout carries only the report; Ctrl+C cancels through
+  `platform::ConsoleCancel` (the console handler trips the job's cancel source, the analysis stops between
+  items). Exit codes: 0 done, 1 failed or cancelled, 2 bad arguments.
+- The report (`services/scan/AnalysisReport`): volume facts (sizes, geometry, disk placement, NTFS data, media),
+  the scan (seconds, USN cursor, unreadable files, corrections) and `summary`, written from the same
+  `AnalysisSummary` the Summary tab shows, so the two agree by construction (checked on the 16 KB-cluster test
+  volume: every figure equal). `--dump-extents` adds each file with clusters: path, size, flags and runs as
+  `[lcn, clusters, stream]`, records that continue on disk joined. JSON comes from a small writer in
+  `core/format/Json` (output only; no JSON library yet).
+
 ## Stripes
 
 - A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096

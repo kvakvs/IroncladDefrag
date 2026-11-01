@@ -1,13 +1,15 @@
+#include "cli/commands/Analyze.h"
 #include "services/AppInfo.h"
 #include "services/AppLogging.h"
 
 #include <cstdio>
 #include <string_view>
+#include <vector>
 
 namespace {
 
-    // Prints the command summary; real commands (analyze, plan, ...) arrive in later tasks.
-    void printUsage() { std::printf("Usage: icd-cli [--version] [--help]\n"); }
+    // Prints the command summary; plan and execute arrive in later phases.
+    void printUsage() { std::printf("Usage: icd-cli [--version] [--help]\n       %s\n", icd::cli::analyzeUsage()); }
 
     // Handles the command line and returns the process exit code.
     int run(int argc, wchar_t** argv) {
@@ -24,6 +26,10 @@ namespace {
         if (arg == L"--help" || arg == L"-h") {
             printUsage();
             return 0;
+        }
+        if (arg == L"analyze") {
+            const std::vector<std::wstring_view> rest(argv + 2, argv + argc);
+            return icd::cli::runAnalyze(rest);
         }
         std::fprintf(stderr, "Unknown argument: %ls\n", argv[1]);
         printUsage();
