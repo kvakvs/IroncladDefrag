@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T041 - Scenario generator
-- Depends: T040
-- Owns: `tools/testvol/gen-scenario/*`
-- Do: seeded scenarios `dev`, `archive`, `photos`, `video`, `mixed`, `almost-full`, `vss`, `special`
-  with interleaved writes/deletes/appends (§12).
-- Done when: each scenario generates reproducibly and leaves visible fragmentation.
-
 ### T045 - Volume bitmap to free runs
 - Depends: T021, T042
 - Owns: `src/platform/win/VolumeBitmap.*`, `src/core/snapshot/BitmapToRuns.*`

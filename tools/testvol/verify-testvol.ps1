@@ -56,37 +56,42 @@ function Get-Entries {
     }
 }
 
-# Builds one manifest row per entry, hashing in parallel; the hash code runs inside each runspace.
+# Builds one manifest row per entry, hashing in parallel. Entries go to the runspaces in batches:
+# ForEach-Object -Parallel costs milliseconds per input, which dominated volumes with many small files.
 function Get-ManifestRows {
     $rootLength = $root.Length
-    Get-Entries | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
+    $entries = @(Get-Entries)
+    $batches = for ($i = 0; $i -lt $entries.Count; $i += 500) { , $entries[$i..([math]::Min($i + 499, $entries.Count - 1))] }
+    $batches | ForEach-Object -ThrottleLimit $ThrottleLimit -Parallel {
         # SHA-256 of one stream ("file" or "file:stream"), read with .NET so ADS paths work.
         function Get-StreamHash([string]$StreamPath) {
             $stream = [System.IO.File]::Open($StreamPath, 'Open', 'Read', 'ReadWrite')
             try { return [Convert]::ToHexString([System.Security.Cryptography.SHA256]::HashData($stream)) }
             finally { $stream.Dispose() }
         }
-        $item = $_
-        $isLink = [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
-        $row = [ordered]@{
-            Path       = $item.FullName.Substring($using:rootLength)
-            Directory  = $item.PSIsContainer
-            Size       = if ($item.PSIsContainer) { 0 } else { $item.Length }
-            Attributes = [string]($item.Attributes -band -bnot [IO.FileAttributes]::Archive)
-            Link       = if ($isLink) { [string]$item.LinkTarget } else { '' }
-            Hash       = ''
-            Streams    = ''
+        foreach ($item in $_) {
+            $isLink = [bool]($item.Attributes -band [IO.FileAttributes]::ReparsePoint)
+            $row = [ordered]@{
+                Path       = $item.FullName.Substring($using:rootLength)
+                Directory  = $item.PSIsContainer
+                Size       = if ($item.PSIsContainer) { 0 } else { $item.Length }
+                Attributes = [string]($item.Attributes -band -bnot [IO.FileAttributes]::Archive)
+                Link       = if ($isLink) { [string]$item.LinkTarget } else { '' }
+                Hash       = ''
+                Streams    = ''
+            }
+            if (-not $item.PSIsContainer -and -not $isLink) { $row.Hash = Get-StreamHash $item.FullName }
+            if (-not $isLink) {
+                # Alternate data streams as "name=hash" pairs, sorted, so one string compares them all.
+                # The \\?\ prefix lets Get-Item reach paths over 260 characters.
+                $row.Streams = (Get-Item -LiteralPath "\\?\$($item.FullName)" -Stream * -Force -ErrorAction SilentlyContinue |
+                    Where-Object { $_.Stream -ne ':$DATA' -and $_.Stream -ne '' } |
+                    Sort-Object Stream | ForEach-Object {
+                        "$($_.Stream)=$(Get-StreamHash "$($item.FullName):$($_.Stream)")"
+                    }) -join ','
+            }
+            [pscustomobject]$row
         }
-        if (-not $item.PSIsContainer -and -not $isLink) { $row.Hash = Get-StreamHash $item.FullName }
-        if (-not $isLink) {
-            # Alternate data streams as "name=hash" pairs, sorted, so one string compares them all.
-            $row.Streams = (Get-Item -LiteralPath $item.FullName -Stream * -Force -ErrorAction SilentlyContinue |
-                Where-Object { $_.Stream -ne ':$DATA' -and $_.Stream -ne '' } |
-                Sort-Object Stream | ForEach-Object {
-                    "$($_.Stream)=$(Get-StreamHash "$($item.FullName):$($_.Stream)")"
-                }) -join ','
-        }
-        [pscustomobject]$row
     } | Sort-Object Path
 }
 
@@ -104,7 +109,8 @@ function Save-Manifest {
     $doc = [ordered]@{ Drive = $root; Created = (Get-Date).ToString('o'); Entries = $rows }
     $doc | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $Manifest -Encoding utf8
     $files = @($rows | Where-Object { -not $_.Directory }).Count
-    $bytes = ($rows | Measure-Object -Property Size -Sum).Sum
+    $bytes = [uint64]0
+    foreach ($r in $rows) { $bytes += [uint64]$r.Size }
     Write-Host "Hashed $files files, $($rows.Count - $files) directories, $bytes bytes -> $Manifest"
 }
 

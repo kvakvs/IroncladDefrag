@@ -426,7 +426,26 @@ this file records what is actually built and the decisions made along the way.
 - A read-only attach (`-ReadOnly`) is how analysis proves it writes nothing: the volume refuses writes.
 - `verify-testvol.ps1` manifests hash main streams and alternate streams with .NET (ADS paths work in
   PowerShell 7), record reparse targets instead of following them, and skip `System Volume Information`
-  and `$RECYCLE.BIN`, which change on their own. Verify adds `chkdsk /scan` (exit 0 = clean).
+  and `$RECYCLE.BIN`, which change on their own. Verify adds `chkdsk /scan` (exit 0 = clean). Entries are hashed
+  in batches of 500 per parallel runspace (per-item `ForEach-Object -Parallel` cost dominated 56 K-file volumes).
+- `gen-scenario` (C++, `tools/testvol/gen-scenario`) writes the plan.md 12 scenarios. All decisions and file bytes
+  come from `core::SynthRandom` (per-file content seeds), and writes run on one thread in a seeded order, so a seed
+  gives the same files, sizes and bytes every time. Fragmentation comes from how real drives get it: several files
+  growing at once in small appends (`WriteMode{streams, chunk}`), deletes that leave holes for later files, and
+  files appended to long after they were created (packs, logs, catalogs).
+- The physical layout is only nearly reproducible: on scenarios with tens of thousands of small files (`dev`,
+  `mixed`, `almost-full`, `vss`) NTFS places a few files differently from run to run (e.g. 2,385 vs 2,388
+  fragmented files), timing inside NTFS (lazy writer, metadata) the generator cannot control. `special`,
+  `archive`, `photos` and `video` reproduce their fragment counts exactly. Tests therefore compare a scan with the
+  volume it scanned, never with a stored layout.
+- `almost-full` measures the volume before its fill phase (cluster slack and NTFS metadata add about 3% on 4 GB that
+  file sizes miss) and rounds that budget down to 16 MB, so the measurement noise does not change the files.
+- Safety: it refuses the Windows drive, non-NTFS volumes and volumes whose label does not start with `ICD-TEST`
+  (unless `--force`).
+- On fresh 4 GB volumes (seed 1): `special` 1,324 fragments in one file (attribute list), compressed, sparse, links,
+  junction, ADS, EFS, resident and a 3,000-entry directory; `dev` 4% of 56 K files fragmented; `photos` 75% of 355;
+  `archive`, `video` every big file fragmented; `almost-full` 96.8% used; `vss` creates a shadow copy through
+  `Win32_ShadowCopy.Create` and changes files after it.
 
 ## Parallel execution
 

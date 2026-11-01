@@ -256,6 +256,17 @@ add_executable(map-bench
 target_link_libraries(map-bench PRIVATE icd_services wx::wx d2d1)
 icd_target_defaults(map-bench)
 
+# --- gen-scenario: seeded test volume scenarios (plan.md section 12, T041) ------------------------
+add_executable(gen-scenario
+    tools/testvol/gen-scenario/FileOps.cpp
+    tools/testvol/gen-scenario/FileOps.h
+    tools/testvol/gen-scenario/Scenarios.cpp
+    tools/testvol/gen-scenario/Scenarios.h
+    tools/testvol/gen-scenario/main.cpp
+)
+target_link_libraries(gen-scenario PRIVATE icd_platform advapi32)
+icd_target_defaults(gen-scenario)
+
 # --- map-render-spike: map composition at 4K with wx Direct2D, raw Direct2D and GDI (T026) --------
 add_executable(map-render-spike tools/spike/map-render-spike/main.cpp)
 target_link_libraries(map-render-spike PRIVATE icd_services wx::wx d2d1)

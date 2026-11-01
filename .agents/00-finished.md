@@ -134,3 +134,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   job; CR/LF line splitting, OEM output to UTF-8, retrim percentage as progress, other lines to the Log tab),
   `platform/win/ChildProcess.*` (`runCaptured()`, `systemProgram()`), `oemToUtf8()`. TRIM of the F: SSD from the GUI
   finished in 5.9 s with Windows' report in the Log tab; HDD, virtual and unknown rows never offer TRIM.
+- T041 Scenario generator - `tools/testvol/gen-scenario/` (`gen-scenario` target): seeded dev, archive, photos, video,
+  mixed, almost-full, vss (WMI shadow copy) and special (compressed, sparse, hard/symbolic links, junction, ADS, EFS,
+  resident, 1,324-fragment file, big directory) scenarios with interleaved writes, deletes and appends; refuses
+  non-ICD-TEST volumes. Two runs per scenario on fresh 4 GB volumes give identical content; fragment counts are
+  identical on special/archive/photos/video and within a few files on the small-file scenarios (NTFS timing).
+  verify-testvol hashes in batches and handles long paths and empty volumes.
