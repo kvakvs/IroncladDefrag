@@ -6,7 +6,7 @@
 namespace icd::services {
 
     // The real drive list (plan.md 10.1): every mounted volume with a file system, with its clusters, disk
-    // placement and NTFS data. Replaces the Phase 1 fake list in the GUI and the CLI.
+    // placement, NTFS data and media (HDD, SSD, virtual). Replaces the Phase 1 fake list in the GUI and the CLI.
     class SystemDriveProvider : public IDriveProvider {
     public:
         // Enumerates the volumes now (a few milliseconds; the queries are answered from cached metadata).

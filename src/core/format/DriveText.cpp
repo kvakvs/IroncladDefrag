@@ -44,10 +44,23 @@ namespace icd::core {
             return "HDD";
         case MediaType::Ssd:
             return "SSD";
+        case MediaType::Virtual:
+            return "Virtual";
         case MediaType::Unknown:
             break;
         }
         return "Unknown";
+    }
+
+    std::string describeStorage(const DriveInfo& drive) {
+        std::string text = describeMedia(drive.media);
+        if (!drive.storage.bus.empty() && drive.media != MediaType::Virtual) {
+            text += " · " + drive.storage.bus;
+        }
+        if (drive.storage.removable) {
+            text += " · removable";
+        }
+        return text;
     }
 
     std::string describeFragmentation(const DriveInfo& drive) {

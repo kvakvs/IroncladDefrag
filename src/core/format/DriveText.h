@@ -17,8 +17,11 @@ namespace icd::core {
     // "1.10 TB free of 4.00 TB".
     std::string describeSpace(const DriveInfo& drive);
 
-    // "HDD", "SSD" or "Unknown".
+    // "HDD", "SSD", "Virtual" or "Unknown".
     std::string describeMedia(MediaType media);
+
+    // Media column: the media type with the bus and a removable note, e.g. "HDD · SATA".
+    std::string describeStorage(const DriveInfo& drive);
 
     // "12.4%" after an analysis, "-" before one, "not supported" for non-NTFS volumes, empty for SSDs
     // (they are never analysed).

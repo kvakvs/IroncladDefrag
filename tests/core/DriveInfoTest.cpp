@@ -50,6 +50,42 @@ namespace icd::core { namespace {
         EXPECT_FALSE(canOptimize(drive));
     }
 
+    // Virtual disks keep the full workflow whatever their host file sits on; the seek penalty decides
+    // otherwise, TRIM is only a hint, and silence means unknown.
+    TEST(DriveInfo, ClassifiesMedia) {
+        StorageFacts facts;
+        EXPECT_EQ(classifyMedia(facts), MediaType::Unknown);
+        facts.trimEnabled = false;
+        EXPECT_EQ(classifyMedia(facts), MediaType::Unknown);
+        facts.trimEnabled = true;
+        EXPECT_EQ(classifyMedia(facts), MediaType::Ssd);
+        facts.seekPenalty = true;
+        EXPECT_EQ(classifyMedia(facts), MediaType::Hdd);
+        facts.seekPenalty = false;
+        EXPECT_EQ(classifyMedia(facts), MediaType::Ssd);
+        facts.virtualDisk = true;
+        EXPECT_EQ(classifyMedia(facts), MediaType::Virtual);
+        DriveInfo drive = hdd();
+        drive.media = MediaType::Virtual;
+        EXPECT_TRUE(canOptimize(drive));
+        EXPECT_FALSE(isSsd(drive));
+    }
+
+    // The media column adds the bus (not for virtual disks, whose bus is implied) and a removable note.
+    TEST(DriveText, Storage) {
+        DriveInfo drive = hdd();
+        EXPECT_EQ(describeStorage(drive), "HDD");
+        drive.storage.bus = "SATA";
+        EXPECT_EQ(describeStorage(drive), "HDD · SATA");
+        drive.storage.removable = true;
+        EXPECT_EQ(describeStorage(drive), "HDD · SATA · removable");
+        drive.media = MediaType::Virtual;
+        drive.storage = {};
+        drive.storage.bus = "Virtual";
+        EXPECT_EQ(describeStorage(drive), "Virtual");
+        EXPECT_EQ(describeMedia(MediaType::Virtual), "Virtual");
+    }
+
     // Name and space texts.
     TEST(DriveText, NameAndSpace) {
         DriveInfo drive = hdd();

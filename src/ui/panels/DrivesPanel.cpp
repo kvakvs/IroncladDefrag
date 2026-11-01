@@ -89,7 +89,7 @@ namespace icd::ui {
             case ColumnFileSystem:
                 return info.fileSystem;
             case ColumnMedia:
-                return core::describeMedia(info.media);
+                return core::describeStorage(info);
             case ColumnFragmentation:
                 return core::describeFragmentation(info);
             case ColumnLastAnalysed:
@@ -255,10 +255,10 @@ namespace icd::ui {
         text("Drive", ColumnName, 120);
         view_->AppendColumn(new wxDataViewColumn("Space", new SpaceRenderer(*model_), ColumnSpace, FromDIP(260)));
         text("File system", ColumnFileSystem, 80);
-        text("Media", ColumnMedia, 60);
+        text("Media", ColumnMedia, 110);
         text("Fragmentation", ColumnFragmentation, 100);
         text("Last analysed", ColumnLastAnalysed, 100);
-        text("Badges", ColumnBadges, 420);
+        text("Badges", ColumnBadges, 360);
         auto* trim = new TrimRenderer([this](std::size_t row) { requestTrim(row); });
         view_->AppendColumn(new wxDataViewColumn("Action", trim, ColumnAction, FromDIP(90), wxALIGN_CENTER));
     }

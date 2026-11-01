@@ -1,6 +1,7 @@
 #include "services/drives/SystemDriveProvider.h"
 
 #include "core/log/Log.h"
+#include "platform/win/StorageProperties.h"
 #include "platform/win/TextConvert.h"
 
 namespace icd::services {
@@ -28,7 +29,11 @@ namespace icd::services {
                     "volume query incomplete",
                     {{"volume", platform::toUtf8(volume.volumeName)}, {"problem", platform::toUtf8(volume.problem)}});
             }
-            drives.push_back(toDriveInfo(volume, elevated));
+            core::DriveInfo drive = toDriveInfo(volume, elevated);
+            drive.storage = volume.layout.diskNumber ? platform::queryDiskStorage(*volume.layout.diskNumber)
+                                                     : platform::queryVolumeStorage(volume.volumeName);
+            drive.media = core::classifyMedia(drive.storage);
+            drives.push_back(std::move(drive));
         }
         return drives;
     }

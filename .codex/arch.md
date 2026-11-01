@@ -106,6 +106,12 @@ this file records what is actually built and the decisions made along the way.
   (`FSCTL_GET_NTFS_VOLUME_DATA`: exact cluster counts, MFT, MFT mirror and zone, record size, version) through a
   read handle, which needs administrator rights. Cluster counts come from NTFS data when present:
   `GetDiskFreeSpaceW`'s 32-bit counts wrap above 16 TB with 4 KB clusters.
+- Media (`platform/win/StorageProperties`): `IOCTL_STORAGE_QUERY_PROPERTY` on `\\.\PhysicalDriveN` (no read access
+  needed) for seek penalty, TRIM, bus type, removable and model, kept raw as `core::StorageFacts`.
+  `core::classifyMedia()` decides: file-backed virtual disks are `Virtual` first (a VHDX on an SSD reports no seek
+  penalty, yet it is the test bed and keeps the full workflow), then the seek penalty (HDD / SSD), then TRIM as an
+  SSD hint; a device that says nothing stays `Unknown` (full workflow, shown as such). Checked against
+  `Get-PhysicalDisk` in `StoragePropertiesTest`.
 - Nothing throws: the first failed query is kept in `VolumeRecord::problem` and logged, and the drive is listed with
   what was answered. Without NTFS data and without elevation the drive gets the "Admin needed" badge.
 - The core model is `core::VolumeLayout` inside `DriveInfo`; `toDriveInfo()` converts (UTF-16 to UTF-8 through

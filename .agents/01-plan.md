@@ -29,12 +29,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   with interleaved writes/deletes/appends (§12).
 - Done when: each scenario generates reproducibly and leaves visible fragmentation.
 
-### T043 - Media detection
-- Depends: T042
-- Owns: `src/platform/win/StorageProperties.*`
-- Do: seek penalty, TRIM, bus type, removable; HDD/SSD badge.
-- Done when: HDDs and SSDs on the dev machine are classified correctly; unknown media is shown as such.
-
 ### T044 - SSD TRIM action
 - Depends: T043, T009
 - Owns: `src/services/trim/TrimJob.*`

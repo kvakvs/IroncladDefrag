@@ -15,6 +15,18 @@ namespace icd::core {
         Unknown, // Detection failed; treated like an HDD but flagged.
         Hdd, // Seek penalty: layout matters, full workflow.
         Ssd, // No seek penalty: TRIM only.
+        Virtual, // VHD/VHDX file: full workflow (it is the test bed); its real media is the host's.
+    };
+
+    // What the storage stack reports about the disk behind a volume (plan.md 10.1). Kept as raw facts so the
+    // classification rule is pure core code and tested.
+    struct StorageFacts {
+        std::optional<bool> seekPenalty; // StorageDeviceSeekPenaltyProperty; empty when the device did not say.
+        std::optional<bool> trimEnabled; // StorageDeviceTrimProperty.
+        std::string bus; // "SATA", "NVMe", "USB", "Virtual", ...; empty when unknown.
+        bool virtualDisk = false; // File-backed virtual disk (VHD/VHDX).
+        bool removable = false; // Removable media (card readers, some USB sticks).
+        std::string model; // Product id, e.g. "ST12000NE0008-2PK103".
     };
 
     // Facts shown as badges in the all-disks panel (plan.md 10.1); each one changes what the app can do or
@@ -38,6 +50,7 @@ namespace icd::core {
         std::uint64_t freeBytes = 0; // Free space.
         std::string fileSystem; // "NTFS", "exFAT", ...
         MediaType media = MediaType::Unknown; // HDD or SSD.
+        StorageFacts storage; // Raw media facts behind `media` (real drives only).
         std::optional<double> fragmentationPercent; // From the last analysis; empty before one.
         std::optional<std::chrono::system_clock::time_point> lastAnalysed; // When it was last analysed.
         DriveBadges badges; // Extra facts for the badges column.
@@ -52,6 +65,10 @@ namespace icd::core {
 
     // Whether the full workflow (analyze, plan, execute) applies: an NTFS volume on an HDD or unknown media.
     [[nodiscard]] bool canOptimize(const DriveInfo& drive);
+
+    // Media type from the storage facts: virtual disks first (their seek penalty describes the host file),
+    // then the seek penalty, then TRIM support as an SSD hint; Unknown when the device said nothing.
+    [[nodiscard]] MediaType classifyMedia(const StorageFacts& facts);
 
     // Whether the drive gets the TRIM action instead of the workflow.
     [[nodiscard]] bool isSsd(const DriveInfo& drive);

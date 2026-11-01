@@ -114,6 +114,8 @@ add_library(icd_platform STATIC
     src/platform/win/LogSinks.h
     src/platform/win/SystemResources.cpp
     src/platform/win/SystemResources.h
+    src/platform/win/StorageProperties.cpp
+    src/platform/win/StorageProperties.h
     src/platform/win/TextConvert.cpp
     src/platform/win/TextConvert.h
     src/platform/win/Volumes.cpp

@@ -13,6 +13,16 @@ namespace icd::core {
 
     bool canOptimize(const DriveInfo& drive) { return !isSsd(drive) && drive.fileSystem == "NTFS"; }
 
+    MediaType classifyMedia(const StorageFacts& facts) {
+        if (facts.virtualDisk) {
+            return MediaType::Virtual;
+        }
+        if (facts.seekPenalty) {
+            return *facts.seekPenalty ? MediaType::Hdd : MediaType::Ssd;
+        }
+        return facts.trimEnabled.value_or(false) ? MediaType::Ssd : MediaType::Unknown;
+    }
+
     bool isSsd(const DriveInfo& drive) { return drive.media == MediaType::Ssd; }
 
 } // namespace icd::core

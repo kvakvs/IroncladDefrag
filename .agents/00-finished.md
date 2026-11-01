@@ -126,3 +126,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `platform/win/TextConvert.*`, `core/model/VolumeLayout.h` in `DriveInfo`, `services/drives/SystemDriveProvider.*` as
   the default drive list (`ICD_FAKE_DRIVES=1` for the fake one). Undetected badges are optional (no guessed "off").
   `VolumesTest` matches `fsutil fsinfo ntfsinfo` on every lettered NTFS volume.
+- T043 Media detection - `platform/win/StorageProperties.*` (seek penalty, TRIM, bus type, removable, model on the
+  physical disk, no elevation needed), `core::StorageFacts` and `classifyMedia()` (virtual disks first, then seek
+  penalty, TRIM as a hint, else Unknown), `MediaType::Virtual` keeps the full workflow for VHDX test volumes, Media
+  column "HDD · SATA" (`describeStorage()`). `StoragePropertiesTest` matches `Get-PhysicalDisk` on every disk.

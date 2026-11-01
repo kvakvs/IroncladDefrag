@@ -34,6 +34,7 @@ add_executable(icd_tests
     core/ViewportTest.cpp
     core/WorldTest.cpp
     platform/LogSinksTest.cpp
+    platform/StoragePropertiesTest.cpp
     platform/SystemResourcesTest.cpp
     platform/VolumesTest.cpp
     services/FakeDriveProviderTest.cpp
