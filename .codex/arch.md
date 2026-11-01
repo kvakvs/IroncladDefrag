@@ -247,6 +247,83 @@ this file records what is actually built and the decisions made along the way.
   `[lcn, clusters, stream]`, records that continue on disk joined. JSON comes from a small writer in
   `core/format/Json` (output only; no JSON library yet).
 
+## Analysis verification (T050, Phase 3 exit)
+
+- `tests/integration/analysis/check-analysis.ps1` builds a fresh 4 GB test volume per scenario, fills it with
+  gen-scenario, and remounts it read-only before analysing: a read-only volume refuses every write (the script
+  proves it with a write probe), so a passing run shows analysis writes nothing. It then runs
+  `icd-cli analyze --json --dump-extents` and checks free space against `fsutil volume diskfree` (after NTFS's
+  reserved clusters), that file runs plus free space cover every cluster exactly once, and that the runs of up to
+  40 sampled files equal `fsutil file queryextents`. `-RealDrive X` runs the free-space (within 0.1%, the drive is
+  live) and extent checks on a real data drive. It is a script, not a CTest, because it needs administrator
+  rights and a few minutes.
+- Cancel is covered by `AnalysisJobTest.CancelStopsTheScan` and was checked in the GUI (T048).
+- Result of the Phase 3 exit run (Release, 4 GB volumes, seed 1):
+
+```
+[dev]
+    ok    volume mounted read-only (any write would fail)
+    63132 files, 4.1% fragmented, 2327 free runs, 5.03 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 40 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[archive]
+    ok    volume mounted read-only (any write would fail)
+    7 files, 100.0% fragmented, 30 free runs, 0.01 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 6 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[photos]
+    ok    volume mounted read-only (any write would fail)
+    356 files, 74.6% fragmented, 352 free runs, 0.03 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 40 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[video]
+    ok    volume mounted read-only (any write would fail)
+    6 files, 100.0% fragmented, 30 free runs, 0.01 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 5 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[mixed]
+    ok    volume mounted read-only (any write would fail)
+    15867 files, 4.8% fragmented, 976 free runs, 1.24 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 40 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[almost-full]
+    ok    volume mounted read-only (any write would fail)
+    18956 files, 5.2% fragmented, 450 free runs, 1.54 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 40 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[vss]
+    ok    volume mounted read-only (any write would fail)
+    8916 files, 11.1% fragmented, 1706 free runs, 0.73 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 40 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[special]
+    ok    volume mounted read-only (any write would fail)
+    3217 files, 57.1% fragmented, 2098 free runs, 0.07 s
+    ok    free space = fsutil volume diskfree + reserved
+    ok    extents of 12 sampled files = fsutil file queryextents
+    ok    runs + free space = every cluster
+    ok    nothing changed during the scan
+[real drive X:]
+    109466 files, 0.1% fragmented, 3.78 s
+    ok    free space ~ fsutil volume diskfree (live drive)
+    ok    extents of 40 sampled files = fsutil file queryextents
+All analysis checks passed.
+```
+
 ## Stripes
 
 - A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096

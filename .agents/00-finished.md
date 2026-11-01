@@ -164,3 +164,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `services::analyzeVolume()` (the GUI job now wraps it), progress on stderr, Ctrl+C cancel (`platform/win/Console.*`);
   report from `services/scan/AnalysisReport.*` with a small `core/format/Json` writer. The JSON summary of the
   16 KB-cluster photos test volume equals the GUI Summary tab figure for figure.
+- T050 Analysis verification - `tests/integration/analysis/check-analysis.ps1`: per scenario a fresh 4 GB test volume,
+  remounted read-only (no writes possible), analysed by `icd-cli analyze --json --dump-extents` and compared with
+  `fsutil volume diskfree` and `fsutil file queryextents` (sampled files), plus every-cluster accounting; `-RealDrive`
+  for a data drive. All 8 scenarios and the X: data drive (109 K files, 3.8 s) pass; `quality.bat all` passes.
+  **Phase 3 exit.**

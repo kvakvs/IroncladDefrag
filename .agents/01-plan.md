@@ -20,16 +20,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ---
 
-## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
-
-### T050 - Analysis verification
-- Depends: T049
-- Owns: `tests/integration/analysis/*`
-- Do: integration test on all scenarios comparing against `fsutil` output; checks no writes happen.
-- Done when: passes on all scenarios. **Phase 3 exit check.**
-
----
-
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
 ### T060 - MFT record parser

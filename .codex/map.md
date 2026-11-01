@@ -153,6 +153,7 @@ changes (see `AGENTS.md`).
 | `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles, rectangle sets blended as one layer (`fillRects`, the grid), device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`, dispatch to commands. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `tests/integration/analysis/check-analysis.ps1` | Phase 3 exit check: per scenario a fresh read-only test volume analysed by `icd-cli analyze --json --dump-extents`, compared with `fsutil volume diskfree` and `fsutil file queryextents`, plus cluster accounting; `-RealDrive X` for a data drive. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
 | `tests/core/SnapshotStatsTest.cpp` | Figures of a hand-made volume, parallel = serial on a synthetic one. |
