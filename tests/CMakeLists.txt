@@ -68,5 +68,15 @@ icd_target_defaults(icd_tests)
 target_compile_definitions(icd_tests PRIVATE ICD_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 # Test helpers shared between test directories ("core/NtfsRecordBuilder.h").
 target_include_directories(icd_tests PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}")
+# Tests that read real volumes and disks (administrator rights, mounted ICD-TEST volumes, the Windows drive): slower
+# and machine-dependent, so test.bat runs them only on demand ("test.bat Release slow"). Every other test is "fast" and
+# runs on each build. Add each new volume test to this list.
+set(ICD_SLOW_TESTS
+    "UsnJournal.EnumeratesEveryFileOnTestVolumes:UsnJournal.ReadsTheWindowsDriveJournal"
+    ":ApiScanner.*:MftScanner.*:AnalysisJob.AnalysesTheSpecialVolume:AnalysisJob.CancelStopsTheScan"
+    ":VolumeBitmap.*:Volumes.ListsTheWindowsDriveWithItsDisk:Volumes.NtfsDataMatchesFsutil"
+    ":StorageProperties.MatchesGetPhysicalDisk:UsnCatchUp.SnapshotDraftsFinishIntoTheSameSnapshot")
+string(JOIN "" ICD_SLOW_TESTS ${ICD_SLOW_TESTS})
 # Runs the exe at test time to list tests, so building never depends on running it.
-gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST)
+gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST TEST_FILTER "-${ICD_SLOW_TESTS}" PROPERTIES LABELS fast)
+gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST TEST_FILTER "${ICD_SLOW_TESTS}" PROPERTIES LABELS slow)

@@ -205,3 +205,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   and dirty ranges), `platform::readUsnJournal()`, analysis catches up and saves snapshots, `MapData::update()` for
   dirty ranges, `icd-cli check-catchup`, `tests/integration/catchup/check-catchup.ps1`: after every round of scripted
   changes the catch-up equals a full rescan (access times aside, which NTFS does not journal).
+- T068 Fast and slow test split - CTest labels `fast`/`slow` (`ICD_SLOW_TESTS` in `tests/CMakeLists.txt`: tests on
+  real volumes and disks), `test.bat [config] [fast|slow|all]` running only fast tests by default (about 260 in seconds),
+  the USN enumeration test limited to scenario volumes, integration scripts defaulting to `special` + `mixed` on 2 GB
+  volumes (`-Scenarios all` for every scenario). The quick run found TxF files under unlisted `$Extend` folders, now
+  accepted by `compareWithApi()`.

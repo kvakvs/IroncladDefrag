@@ -16,6 +16,7 @@ namespace icd::services {
         std::uint64_t differences = 0; // Everything that did not match.
         std::uint64_t extraMetadataFiles = 0; // NTFS metadata only the MFT scan lists (not a difference).
         std::uint64_t deferredAccessTimes = 0; // Access times newer in memory than in the record (not a difference).
+        std::uint64_t underUnlistedMetadata = 0; // Files below metadata the API path does not list (placed by MFT).
         std::vector<std::string> samples; // The first differences, for the report.
 
         // Whether nothing differed.

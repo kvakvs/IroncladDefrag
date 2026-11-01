@@ -14,6 +14,8 @@ current drive map panel and controls and info panel in the bottom.
 - The main compiler is clang-cl from LLVM (`C:\Program Files\LLVM\bin`) with Ninja Multi-Config in
   `build/`. MSVC stays supported as a fallback: `set ICD_TOOLCHAIN=msvc` builds in `build-msvc/`.
 - Use `build.bat`, `test.bat`, `quality.bat` (they set up the environment through `tools\dev-env.cmd`).
+  `test.bat` runs the fast tests; tests on real volumes (`test.bat Release slow`) and the scripts under
+  `tests/integration` run on demand, for example before finishing a task that changes scanning.
   In these scripts never `exit /b` inside a `( )` block: cmd loses the exit code there; use `goto`.
 
 # Design

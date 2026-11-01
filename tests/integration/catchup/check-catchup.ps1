@@ -22,13 +22,13 @@ param(
     [string]$Scenario = 'mixed',
 
     # Size of the test volume.
-    [int]$SizeGB = 4,
+    [int]$SizeGB = 2,
 
     # Drive letter for the test volume.
     [string]$Letter = 'Q',
 
     # Rounds of changes.
-    [int]$Rounds = 3,
+    [int]$Rounds = 2,
 
     # Build configuration whose icd-cli and gen-scenario are used.
     [string]$Config = 'Release'

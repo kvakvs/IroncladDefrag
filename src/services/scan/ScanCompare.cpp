@@ -94,8 +94,8 @@ namespace icd::services {
         // One readable file of the API scan against the MFT scan's file of the same record.
         class FilePair {
         public:
-            FilePair(const Snapshot& api, FileIndex a, const Snapshot& mft, FileIndex m) :
-                api_(api), mft_(mft), a_(a), m_(m), path_(api.path(a)) {}
+            FilePair(const Snapshot& api, FileIndex a, const Snapshot& mft, FileIndex m, bool unlistedParent) :
+                api_(api), mft_(mft), a_(a), m_(m), unlistedParent_(unlistedParent), path_(api.path(a)) {}
 
             // Compares every field and the runs; returns the clusters compared.
             core::ClusterCount compare(Report& report, ScanComparison& out) const {
@@ -118,13 +118,10 @@ namespace icd::services {
                 const auto& mf = mft_.files;
                 report.expectEqual(api_.names.name(af.name(a_)), mft_.names.name(mf.name(m_)),
                                    std::format("{}: name differs (MFT: {})", path_, mft_.path(m_)));
-                report.expectEqual(parentRecord(api_, a_), parentRecord(mft_, m_), path_ + ": parent differs");
+                placement(report, out);
                 report.expectEqual(
                     af.sizeBytes(a_), mf.sizeBytes(m_),
                     std::format("{}: size {} by API, {} by MFT", path_, af.sizeBytes(a_), mf.sizeBytes(m_)));
-                report.expectEqual(
-                    af.flags(a_), mf.flags(m_),
-                    std::format("{}: flags 0x{:x} by API, 0x{:x} by MFT", path_, af.flags(a_), mf.flags(m_)));
                 const auto& at = af.times(a_);
                 const auto& mt = mf.times(m_);
                 report.expectEqual(std::tie(at.created, at.modified), std::tie(mt.created, mt.modified),
@@ -142,12 +139,38 @@ namespace icd::services {
                 }
             }
 
+            // Parent and flags. A file below metadata the API path does not list ($Extend\$RmMetadata\$Txf\...) sits
+            // under the root there and is not flagged metadata; the MFT path places it right, so only the other flags
+            // count.
+            void placement(Report& report, ScanComparison& out) const {
+                const std::uint16_t apiFlags = api_.files.flags(a_);
+                const std::uint16_t mftFlags = mft_.files.flags(m_);
+                if (unlistedParent_) {
+                    ++out.underUnlistedMetadata;
+                    constexpr std::uint16_t system = core::FileMetadata | core::FileUnmovable;
+                    report.expectEqual(apiFlags & ~system, mftFlags & ~system, path_ + ": flags differ");
+                    return;
+                }
+                report.expectEqual(parentRecord(api_, a_), parentRecord(mft_, m_), path_ + ": parent differs");
+                report.expectEqual(apiFlags, mftFlags,
+                                   std::format("{}: flags 0x{:x} by API, 0x{:x} by MFT", path_, apiFlags, mftFlags));
+            }
+
             const Snapshot& api_; // Reference scan.
             const Snapshot& mft_; // Scan under test.
             FileIndex a_; // File in the reference.
             FileIndex m_; // Same record in the scan under test.
+            bool unlistedParent_; // The MFT parent is metadata the API path does not list.
             std::string path_; // For messages.
         };
+
+        // Whether a file's MFT parent is a metadata file the API scan does not list.
+        bool hasUnlistedParent(const Snapshot& mft, FileIndex m,
+                               const std::unordered_map<std::uint64_t, FileIndex>& apiFiles) {
+            const FileIndex parent = mft.files.parent(m);
+            return parent != core::noFile && mft.files.has(parent, core::FileMetadata) &&
+                !apiFiles.contains(core::ntfs::recordOf(mft.files.fileReference(parent)));
+        }
 
         // Clusters neither free nor in compared runs.
         core::ClusterCount remainder(const Snapshot& s, core::ClusterCount compared) {
@@ -196,6 +219,7 @@ namespace icd::services {
                                                                           const Snapshot& mft, Report& report,
                                                                           ScanComparison& out) {
             const auto mftFiles = byRecord(mft);
+            const auto apiFiles = byRecord(api);
             const std::unordered_set<FileIndex> unreadable(apiStats.unreadableFiles.begin(),
                                                            apiStats.unreadableFiles.end());
             core::ClusterCount apiCompared = 0;
@@ -207,7 +231,8 @@ namespace icd::services {
                 }
                 else if (!unreadable.contains(a)) {
                     ++out.filesCompared;
-                    apiCompared += FilePair(api, a, mft, it->second).compare(report, out);
+                    const bool unlisted = hasUnlistedParent(mft, it->second, apiFiles);
+                    apiCompared += FilePair(api, a, mft, it->second, unlisted).compare(report, out);
                     mftCompared += clustersOf(runsOf(mft, it->second));
                 }
             }

@@ -74,6 +74,14 @@ namespace {
             if (v.fileSystem != L"NTFS" || !v.label.starts_with(L"ICD-TEST")) {
                 continue;
             }
+            // Scenario volumes only: walking a million-file scale volume takes far too long for a unit test, and the
+            // scanner cross-check (check-scanners.ps1 -ScaleDrive) covers it.
+            constexpr std::uint64_t maxRecords = 100'000;
+            const auto& ntfs = v.layout.ntfs;
+            if (ntfs && ntfs->bytesPerFileRecord != 0 &&
+                ntfs->mftValidDataLength / ntfs->bytesPerFileRecord > maxRecords) {
+                continue;
+            }
             const std::wstring root = v.mountPaths.front();
             SCOPED_TRACE(icd::platform::toUtf8(root));
             const auto volume = icd::platform::openVolume(v.volumeName, GENERIC_READ);

@@ -19,11 +19,12 @@
 #>
 [CmdletBinding()]
 param(
-    # Scenarios to check (default: all of plan.md section 12).
-    [string[]]$Scenarios = @('dev', 'archive', 'photos', 'video', 'mixed', 'almost-full', 'vss', 'special'),
+    # Scenarios to check: a quick pair by default (every special case, and a realistic mix); 'all' for every
+    # scenario of plan.md section 12.
+    [string[]]$Scenarios = @('special', 'mixed'),
 
     # Size of each test volume.
-    [int]$SizeGB = 4,
+    [int]$SizeGB = 2,
 
     # Drive letter for the test volume.
     [string]$Letter = 'Q',
@@ -52,6 +53,7 @@ $MakeVol = Join-Path $Repo 'tools\testvol\make-testvol.ps1'
 $Work = Join-Path ([IO.Path]::GetTempPath()) 'icd-scanner-check'
 New-Item -ItemType Directory -Force $Work | Out-Null
 $Scenarios = @($Scenarios -split ',' | Where-Object { $_ }) # -Scenarios '' checks none.
+if ($Scenarios -contains 'all') { $Scenarios = @('dev', 'archive', 'photos', 'video', 'mixed', 'almost-full', 'vss', 'special') }
 $RealDrives = @($RealDrives -split ',' | Where-Object { $_ })
 $script:Failures = 0
 

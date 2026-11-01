@@ -786,6 +786,20 @@ All analysis checks passed.
 - Auto: workers = min(32, processors - 1, >= 1); memory = min(8 GB, 60% of available RAM). Manual
   values are capped to what was detected. The startup log records both.
 
+## Test runs
+
+- Unit tests carry a CTest label (T068): `slow` for the tests that read real volumes and disks (administrator rights,
+  mounted ICD-TEST volumes, the Windows drive), listed in `ICD_SLOW_TESTS` in `tests/CMakeLists.txt` (two
+  `gtest_discover_tests` calls with opposite `TEST_FILTER`s), `fast` for all others. `test.bat` runs only `fast` unless
+  asked (`slow`, `all`): about 260 fast tests in seconds, 17 slow ones in a few more. The USN enumeration test walks
+  scenario volumes only (at most 100 K MFT records), not scale volumes.
+- The integration scripts under `tests/integration` run only by hand. By default they take a quick pair of scenarios
+  (`special` for every special case, `mixed` for a realistic volume) on 2 GB volumes; `-Scenarios all` runs every
+  scenario. Quick runs: `check-scanners.ps1` about 5 min, `check-catchup.ps1` (2 rounds) about 1.5 min.
+- Found by the quick run: files below `$Extend` metadata the API path does not list (TxF's
+  `$Extend\$RmMetadata\$Txf\...`) sit under the root there and are not metadata; the MFT path places them right, so
+  `compareWithApi()` compares their other fields and runs only (`underUnlistedMetadata`).
+
 ## Quality gate
 
 - Lizard and clang-tidy, pinned in a Python venv, so results do not depend on the installed LLVM.
