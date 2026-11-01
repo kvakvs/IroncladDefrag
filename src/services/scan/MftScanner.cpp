@@ -10,6 +10,8 @@
 #include "services/scan/MftSecondPass.h"
 
 #include <algorithm>
+#include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <exception>
 #include <memory>
@@ -270,12 +272,20 @@ namespace icd::services {
                 progress_(progress), options_(options),
                 mftGeometry_{geometry.bytesPerCluster, layout.bytesPerFileRecord} {}
 
+            // Hands partial snapshots to sink about every interval while chunks are parsed.
+            void streamPartials(const PartialScanSink& sink, std::chrono::milliseconds interval) {
+                partial_ = sink;
+                partialInterval_ = interval;
+            }
+
             // Reads and merges.
             MftScanResult run(std::vector<core::ClusterRun> freeRuns) {
                 if (mftGeometry_.bytesPerRecord == 0 || mftGeometry_.bytesPerRecord % ntfs::fixupStride != 0) {
                     throw std::runtime_error("unexpected MFT record size");
                 }
                 report("Reading MFT", 0, 0);
+                freeRuns_ = freeRuns; // Partial snapshots need them while the final merge takes the original.
+                lastPartial_ = std::chrono::steady_clock::now();
                 map_ = Bootstrap(reader_, mftGeometry_, layout_.mftStartLcn).run();
                 plan_ =
                     ntfs::planMftReads(map_.runs, map_.recordCount, mftGeometry_, map_.bitmap,
@@ -318,6 +328,7 @@ namespace icd::services {
                             done += plan_.chunks[i].bytes;
                             report("Reading MFT", done, plan_.bytes);
                             tasks.run([this, i, buffer = std::move(buffer)]() mutable { parse(i, buffer); });
+                            maybePartial(tasks);
                         },
                         token_);
                     tasks.wait();
@@ -333,7 +344,44 @@ namespace icd::services {
                 mft::parseChunk(records, {chunk.firstRecord, chunk.recordCount, mftGeometry_.bytesPerRecord},
                                 map_.bitmap, *rows);
                 buffer.release();
+                const std::scoped_lock lock(doneMutex_);
+                done_.push_back(rows);
                 chunks_[i] = std::move(rows);
+            }
+
+            // Starts a partial snapshot of the chunks parsed so far on a task, unless one is still being built or the
+            // interval has not passed.
+            void maybePartial(TaskGroup& tasks) {
+                const auto now = std::chrono::steady_clock::now();
+                if (!partial_ || now - lastPartial_ < partialInterval_ || partialBusy_.exchange(true)) {
+                    return;
+                }
+                lastPartial_ = now;
+                std::vector<std::shared_ptr<const mft::ChunkRows>> parsed;
+                {
+                    const std::scoped_lock lock(doneMutex_);
+                    parsed = done_;
+                }
+                tasks.run([this, parsed = std::move(parsed)]() mutable { buildPartial(std::move(parsed)); });
+            }
+
+            // Merges a subset of chunks (no second pass) and hands the snapshot over. A failed partial only skips
+            // one map update; cancellation still stops the scan.
+            void buildPartial(std::vector<std::shared_ptr<const mft::ChunkRows>> parsed) {
+                struct Done {
+                    std::atomic<bool>& busy; // Cleared however the build ends.
+                    ~Done() { busy = false; }
+                } done{partialBusy_};
+                try {
+                    const mft::RowIndex rows(std::move(parsed));
+                    partial_(mft::mergeRows(rows, {}, geometry_, freeRuns_, executor_, token_).snapshot);
+                }
+                catch (const core::OperationCancelled&) {
+                    throw;
+                }
+                catch (const std::exception&) {
+                    return; // The final snapshot follows anyway.
+                }
             }
 
             // Records cut by $MFT run boundaries, read piece by piece.
@@ -396,6 +444,13 @@ namespace icd::services {
             ntfs::MftReadPlan plan_; // What to read.
             std::vector<std::shared_ptr<const mft::ChunkRows>> chunks_; // Parser output per chunk and split record.
             platform::ReadStats read_; // Cost of the stream.
+            PartialScanSink partial_; // Gets partial snapshots; may be empty.
+            std::chrono::milliseconds partialInterval_{3000}; // Time between partial snapshots.
+            std::chrono::steady_clock::time_point lastPartial_; // When the last one was started.
+            std::atomic<bool> partialBusy_{false}; // A partial snapshot is being built.
+            std::mutex doneMutex_; // Guards done_.
+            std::vector<std::shared_ptr<const mft::ChunkRows>> done_; // Chunks parsed so far, for partials.
+            std::vector<core::ClusterRun> freeRuns_; // Copy of the free runs for partial merges.
         };
 
     } // namespace
@@ -403,9 +458,11 @@ namespace icd::services {
     MftScanResult scanFilesMft(HANDLE volume, const std::wstring& volumeName, core::VolumeGeometry geometry,
                                const core::NtfsLayout& ntfs, std::vector<core::ClusterRun> freeRuns,
                                core::Executor& executor, const core::CancelToken& token, core::ProgressSink* progress,
-                               const MftScanOptions& options) {
+                               const MftScanOptions& options, const PartialScanSink& partial,
+                               std::chrono::milliseconds partialInterval) {
         const auto journal = platform::queryUsnJournal(volume); // Before the read: later changes stay after it.
         MftScan scan(volumeName, geometry, ntfs, executor, token, progress, options);
+        scan.streamPartials(partial, partialInterval);
         MftScanResult result = scan.run(std::move(freeRuns));
         if (journal) {
             result.snapshot.usn = core::UsnCursor{journal->journalId, journal->nextUsn};

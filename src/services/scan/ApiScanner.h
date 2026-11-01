@@ -23,10 +23,6 @@ namespace icd::services {
         ScanStats stats; // What it took to get there.
     };
 
-    // Receives a snapshot of what the scan has read so far: files not read yet own nothing, and the clusters not
-    // claimed yet belong to the placeholder. Lets the map fill in while the scan runs. Called on the scan's thread.
-    using PartialScanSink = std::function<void(core::Snapshot)>;
-
     // The reference scanner of plan.md 10.2 (API path): file list from FSCTL_ENUM_USN_DATA, then for each file
     // in MFT record order its metadata and the retrieval pointers of every data stream (directories: their
     // index allocation). Flags resident, compressed, sparse, encrypted, reparse points, hard links, alternate

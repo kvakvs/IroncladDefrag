@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T063 - Scanner cross-check
-- Depends: T062
-- Owns: `tests/integration/scanner-equivalence/*`
-- Touches: default scanner selection in `AnalysisJob`
-- Do: compare MFT and API extent indexes on every scenario for 1, 2 and N workers; switch the default
-  to MFT with API as fallback.
-- Done when: identical results everywhere; MFT ≥ 10× faster on a 1 M-file volume.
-
 ### T064 - Snapshot persistence
 - Depends: T063
 - Owns: `src/core/snapshot/SnapshotIO.*`, `src/services/snapshot/SnapshotStore.*`

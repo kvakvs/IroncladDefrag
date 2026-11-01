@@ -272,6 +272,15 @@ this file records what is actually built and the decisions made along the way.
   can be older than what the API reports (never newer); these count as deferred, not as differences. Mounting a
   volume touches the access time of the root and `System Volume Information`. On X: (live, 112 K files) the scans
   agree completely when nothing writes in between.
+- Default since T063: analysis uses the MFT scanner and falls back to the API scanner when it fails (not on
+  cancel); `icd-cli analyze` follows the default unless `--scanner` names one, which then has no fallback. The MFT scan
+  hands partial snapshots to the live map like the API path: every 3 s the chunks parsed so far are merged (no second
+  pass) on a pool task, at most one at a time, so the reader keeps issuing reads; a failed partial only skips one map
+  update. `PartialScanSink` moved to `ScanStats.h`, shared by both scanners.
+- Cross-check (T063, `tests/integration/scanner-equivalence/check-scanners.ps1`): every scenario on a fresh read-only
+  volume, `compare-scanners --threads 1,2,0`: all eight agree (the MFT scan was up to 42x faster on these small
+  volumes). Real drives E: (15 K files, 621 extension records) and X: (112 K files) agree too; real-drive read tests use
+  only those two storage drives. On the 1 M-file scale volume: API scan 23.5 s, MFT scan 0.48 s (49x; the VHDX sits on an SSD, $MFT 1 GB read with the device 99% busy).
 - Disk busy time comes from the reader (time with a read outstanding; an upper bound) and from the device's own
   counters (`IOCTL_DISK_PERFORMANCE`, 100 - idle %). Measured on X: (2.3 TB HDD, 112 K files, 116 MB of `$MFT`):
   read in 1.64 s with the disk 100% busy (device 99.9%); 1.87 s for the whole MFT scan against 7.3 s for the API scan.

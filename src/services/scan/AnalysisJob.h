@@ -69,7 +69,7 @@ namespace icd::services {
 
     // How an analysis reads the files.
     struct AnalysisOptions {
-        ScannerKind scanner = ScannerKind::Api; // Which scanner to use first.
+        ScannerKind scanner = ScannerKind::Mft; // Which scanner to use first (the API path is the fallback).
         bool fallbackToApi = true; // When the MFT scan fails (not on cancel), scan again with the API path.
         MftScanOptions mft; // Reader settings of the MFT scanner.
     };

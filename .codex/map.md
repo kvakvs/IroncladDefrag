@@ -170,6 +170,7 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`. |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `tests/integration/scanner-equivalence/check-scanners.ps1` | T063 cross-check: per scenario a fresh read-only volume through `icd-cli compare-scanners --threads 1,2,0`; `-RealDrives E,X`; `-ScaleDrive S` with the 10x speed-up check. |
 | `tests/integration/analysis/check-analysis.ps1` | Phase 3 exit check: per scenario a fresh read-only test volume analysed by `icd-cli analyze --json --dump-extents`, compared with `fsutil volume diskfree` and `fsutil file queryextents`, plus cluster accounting; `-RealDrive X` for a data drive. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |

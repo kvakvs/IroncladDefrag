@@ -190,3 +190,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   millions of allocated, never written files (`SetEndOfFile` + `SetFileValidData`, cluster-rounded log-uniform sizes,
   interleaved growth for a fragmented share) on ICD-TEST volumes. 1 M files in 294 s; the thin VHDX still grows by
   about one block per file (NTFS writes where each file's data begins), 139 GB for that volume.
+- T063 Scanner cross-check - `tests/integration/scanner-equivalence/check-scanners.ps1` (every scenario read-only
+  through `compare-scanners` for 1, 2 and all workers, real drives E: and X:, scale volume with a speed-up check); all
+  agree. Analysis now defaults to the MFT scanner with the API scanner as fallback, and the MFT scan feeds partial
+  maps. 1 M-file scale volume: API scan 23.5 s, MFT scan 0.48 s (49x; the VHDX sits on an SSD, $MFT 1 GB read with the device 99% busy).

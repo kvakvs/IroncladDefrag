@@ -83,7 +83,7 @@ namespace icd::services {
                     try {
                         MftScanResult mft =
                             scanFilesMft(volume, volumeName_, geometry, *layout.ntfs, freeRuns, context_.executor,
-                                         context_.token, &context_.progress, options_.mft);
+                                         context_.token, &context_.progress, options_.mft, onSnapshot_);
                         return {std::move(mft.snapshot), std::move(mft.stats)};
                     }
                     catch (const core::OperationCancelled&) {

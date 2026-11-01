@@ -12,7 +12,10 @@
 
 #include <gtest/gtest.h>
 
+#include <chrono>
+#include <mutex>
 #include <optional>
+#include <vector>
 
 namespace icd::services { namespace {
 
@@ -108,6 +111,34 @@ namespace icd::services { namespace {
         ASSERT_TRUE(mft.stats.mft);
         EXPECT_GE(mft.stats.mft->extensionsJoined, 5U);
         EXPECT_EQ(mft.stats.mft->badAttributeLists, 0U);
+    }
+
+    // Partial snapshots arrive while chunks are parsed (the live map, plan.md 6.2 principle 7); each is a whole
+    // snapshot of the volume with at most the final file count.
+    TEST(MftScanner, HandsOverPartialSnapshots) {
+        const auto v = usableVolume();
+        if (!v) {
+            GTEST_SKIP() << "needs administrator rights and the special test volume";
+        }
+        ThreadPool pool(4);
+        const auto handle = platform::openVolume(v->volumeName, GENERIC_READ);
+        const core::VolumeGeometry geometry{v->layout.bytesPerCluster, v->layout.totalClusters};
+        const auto free = platform::readFreeRuns(handle.get(), geometry.totalClusters, pool);
+        std::mutex mutex;
+        std::vector<std::size_t> partialFiles;
+        const PartialScanSink sink = [&](core::Snapshot snapshot) {
+            EXPECT_EQ(snapshot.geometry.totalClusters, geometry.totalClusters);
+            const std::scoped_lock lock(mutex);
+            partialFiles.push_back(snapshot.files.size());
+        };
+        const MftScanOptions small{.bufferBytes = 64 * 1024, .inFlight = 2, .minSkipBytes = 1 << 20};
+        const MftScanResult result = scanFilesMft(handle.get(), v->volumeName, geometry, *v->layout.ntfs,
+                                                  {free.runs().begin(), free.runs().end()}, pool, {}, nullptr, small,
+                                                  sink, std::chrono::milliseconds(0));
+        ASSERT_FALSE(partialFiles.empty());
+        for (const std::size_t files : partialFiles) {
+            EXPECT_LE(files, result.snapshot.files.size());
+        }
     }
 
 }} // namespace icd::services

@@ -1,9 +1,11 @@
 #pragma once
 
 #include "core/snapshot/ScanReconcile.h"
+#include "core/snapshot/Snapshot.h"
 #include "core/snapshot/Types.h"
 
 #include <cstdint>
+#include <functional>
 #include <optional>
 #include <vector>
 
@@ -18,6 +20,11 @@ namespace icd::services {
 
     // "api" or "mft", for logs, reports and the command line.
     [[nodiscard]] const char* scannerName(ScannerKind kind);
+
+    // Receives a snapshot of what a scan has read so far: files not read yet own nothing, and the clusters not claimed
+    // yet belong to the placeholder. Lets the map fill in while the scan runs (plan.md 6.2 principle 7). The API scan
+    // calls it on its own thread, the MFT scan on a pool task; never twice at once.
+    using PartialScanSink = std::function<void(core::Snapshot)>;
 
     // What the raw MFT read cost and found, for the plan.md 6.5 targets (disk 90% busy) and the log.
     struct MftReadFigures {

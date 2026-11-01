@@ -24,7 +24,7 @@ namespace icd::cli {
             std::wstring volume; // As given: "T", "T:", "T:\" or a mount folder.
             bool json = false; // Machine-readable output.
             bool dumpExtents = false; // Every file's runs (implies json).
-            services::ScannerKind scanner = services::ScannerKind::Api; // --scanner api|mft.
+            std::optional<services::ScannerKind> scanner; // --scanner api|mft; default: MFT with API fallback.
             std::size_t threads = 0; // --threads N: own pool of N workers (1: inline); 0 uses the app's pool.
         };
 
@@ -37,9 +37,8 @@ namespace icd::cli {
             const std::wstring_view option = args[i];
             const std::wstring_view value = args[i + 1];
             if (option == L"--scanner") {
-                const auto scanner = scannerNamed(value);
-                out.scanner = scanner.value_or(out.scanner);
-                return scanner.has_value();
+                out.scanner = scannerNamed(value);
+                return out.scanner.has_value();
             }
             if (option == L"--threads") {
                 out.threads = static_cast<std::size_t>(std::wcstoul(std::wstring(value).c_str(), nullptr, 10));
@@ -91,8 +90,10 @@ namespace icd::cli {
                 ~EndLine() { ConsoleProgress::finish(); }
             } endLine;
             services::AnalysisOptions options;
-            options.scanner = args.scanner;
-            options.fallbackToApi = false; // The command line asks for one scanner; failures are reported.
+            if (args.scanner) {
+                options.scanner = *args.scanner;
+                options.fallbackToApi = false; // One scanner was asked for by name: failures are reported.
+            }
             return services::analyzeVolume(drive, context, {}, options);
         }
 

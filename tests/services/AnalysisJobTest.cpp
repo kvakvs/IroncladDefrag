@@ -99,7 +99,7 @@ namespace {
         const auto stages = sink.stages();
         ASSERT_GE(stages.size(), 3U);
         EXPECT_EQ(stages.front(), "Reading volume bitmap");
-        EXPECT_NE(std::ranges::find(stages, "Reading files"), stages.end());
+        EXPECT_NE(std::ranges::find(stages, "Reading MFT"), stages.end()); // The default scanner.
         EXPECT_EQ(stages.back(), "Building map");
     }
 

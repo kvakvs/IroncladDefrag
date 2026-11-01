@@ -9,6 +9,7 @@
 
 #include <windows.h>
 
+#include <chrono>
 #include <cstdint>
 #include <string>
 #include <vector>
@@ -36,12 +37,15 @@ namespace icd::services {
     //   volumeName  "\\?\Volume{GUID}\" or "T:\", opened again for overlapped unbuffered reads
     //   ntfs        MFT location and record size (FSCTL_GET_NTFS_VOLUME_DATA)
     //   freeRuns    free space from the bitmap, read before
+    //   partial     optional; gets a snapshot of the chunks parsed so far about every `partialInterval`, built on a
+    //               pool task so the reader keeps the disk busy
     // Throws std::runtime_error when $MFT cannot be mapped or read (the caller may fall back to the API scanner) and
     // OperationCancelled on cancel.
     [[nodiscard]] MftScanResult scanFilesMft(HANDLE volume, const std::wstring& volumeName,
                                              core::VolumeGeometry geometry, const core::NtfsLayout& ntfs,
                                              std::vector<core::ClusterRun> freeRuns, core::Executor& executor,
                                              const core::CancelToken& token, core::ProgressSink* progress,
-                                             const MftScanOptions& options = {});
+                                             const MftScanOptions& options = {}, const PartialScanSink& partial = {},
+                                             std::chrono::milliseconds partialInterval = std::chrono::seconds(3));
 
 } // namespace icd::services
