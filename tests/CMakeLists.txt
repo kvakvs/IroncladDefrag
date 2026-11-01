@@ -38,6 +38,7 @@ add_executable(icd_tests
     platform/LogSinksTest.cpp
     platform/StoragePropertiesTest.cpp
     platform/SystemResourcesTest.cpp
+    platform/UsnJournalTest.cpp
     platform/VolumeBitmapTest.cpp
     platform/VolumesTest.cpp
     services/FakeDriveProviderTest.cpp

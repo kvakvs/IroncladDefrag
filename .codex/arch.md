@@ -173,6 +173,17 @@ this file records what is actually built and the decisions made along the way.
   report that minus `TotalReserved`. `VolumeBitmapTest` checks both exactly on every mounted ICD-TEST volume
   (4 KB and 16 KB clusters) and re-reads with 4 KB pieces to exercise the stitching on real data.
 
+## USN journal and file enumeration
+
+- `platform::enumerateUsnFiles()` walks every in-use MFT record with `FSCTL_ENUM_USN_DATA` (V2 records, 64 KB
+  batches, in MFT record order): file reference, parent reference, attributes and one name (UTF-8). It works
+  without an active journal; a file with hard links appears once, under one of its names.
+- `platform::queryUsnJournal()` returns journal ID, first, next and lowest valid USN, or nothing when the volume has
+  no journal. Analysis never creates a journal (a write); such volumes simply cannot be caught up later and get a
+  full rescan. The test volumes have none; Windows keeps one on its own drive.
+- `UsnJournalTest` walks each ICD-TEST volume (not into reparse points), identifies every entry by handle, and
+  requires the enumeration to hold it with the same name and parent (single-link files).
+
 ## Stripes
 
 - A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096

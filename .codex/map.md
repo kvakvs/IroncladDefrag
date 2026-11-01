@@ -99,6 +99,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
 | `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
+| `src/platform/win/UsnJournal.*` | `queryUsnJournal()` (ID and USN cursor, none when inactive), `enumerateUsnFiles()` (`FSCTL_ENUM_USN_DATA`: reference, parent, attributes, name per MFT record), `mftRecordOf()`. |
 | `src/platform/win/VolumeBitmap.*` | `readVolumeBitmap()` (chunked `FSCTL_GET_VOLUME_BITMAP`), `readFreeRuns()` (32 MB pieces converted in parallel into a `FreeRunList`, progress callback). |
 | `src/platform/win/Volumes.*` | `VolumeRecord`, `listVolumeNames()`, `mountPathsOf()`, `openVolume()`, `queryVolume()` (basics, disk extents and disk size, NTFS volume data; failures noted, never thrown), `enumerateVolumes()`, `isElevated()`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
@@ -172,6 +173,7 @@ changes (see `AGENTS.md`).
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/StoragePropertiesTest.cpp` | Media and bus of every physical disk vs `Get-PhysicalDisk`; bus names. |
+| `tests/platform/UsnJournalTest.cpp` | Enumeration = directory walk (reference, name, parent) on ICD-TEST volumes; Windows drive journal state; record numbers. |
 | `tests/platform/VolumeBitmapTest.cpp` | Free runs = NTFS free clusters and diskfree (minus reserved) on ICD-TEST volumes, small pieces = large pieces; Windows drive within 1%. |
 | `tests/platform/VolumesTest.cpp` | Volume enumeration (Windows drive, disk placement, order), NTFS data vs `fsutil fsinfo ntfsinfo` (elevated only), `toDriveInfo()`. |
 | `tests/platform/SystemResourcesTest.cpp` | Detection plausibility and the low-memory signal. |

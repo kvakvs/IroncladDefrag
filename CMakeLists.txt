@@ -122,6 +122,8 @@ add_library(icd_platform STATIC
     src/platform/win/StorageProperties.h
     src/platform/win/TextConvert.cpp
     src/platform/win/TextConvert.h
+    src/platform/win/UsnJournal.cpp
+    src/platform/win/UsnJournal.h
     src/platform/win/VolumeBitmap.cpp
     src/platform/win/VolumeBitmap.h
     src/platform/win/Volumes.cpp

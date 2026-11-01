@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T046 - USN enumeration
-- Depends: T042
-- Owns: `src/platform/win/UsnJournal.*`
-- Do: query journal ID / next USN; `FSCTL_ENUM_USN_DATA` for file references, names, parents.
-- Done when: enumerates every file on a test volume; journal ID and USN recorded.
-
 ### T047 - API extent scan
 - Depends: T045, T046, T041
 - Owns: `src/platform/win/RetrievalPointers.*`, `src/services/scan/ApiScanner.*`

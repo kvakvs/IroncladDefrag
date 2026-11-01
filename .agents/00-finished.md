@@ -144,3 +144,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   grains equal to serial), `platform/win/VolumeBitmap.*` (chunked `FSCTL_GET_VOLUME_BITMAP`, `readFreeRuns()` with
   32 MB pieces converted on the pool). Free total = NTFS free clusters and = `fsutil volume diskfree` + reserved on
   4 KB and 16 KB test volumes; 4 KB pieces give the same runs.
+- T046 USN enumeration - `platform/win/UsnJournal.*`: `queryUsnJournal()` (journal ID, first/next/lowest valid USN;
+  none when inactive, never created by analysis), `enumerateUsnFiles()` (`FSCTL_ENUM_USN_DATA`, works without a
+  journal). Every entry a directory walk finds on the `special` and `photos` test volumes is enumerated with the same
+  reference, name and parent; the Windows drive journal is read.
