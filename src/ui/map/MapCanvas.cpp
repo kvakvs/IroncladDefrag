@@ -294,6 +294,7 @@ namespace icd::ui {
             return;
         }
         uploadArrived();
+        missingTiles_ = 0;
         renderer_->clear(background);
         if (map_ != nullptr) {
             drawTiles();
@@ -345,6 +346,7 @@ namespace icd::ui {
                 }
                 request(tile);
                 if (fallback) {
+                    ++missingTiles_;
                     drawFallback(tile, destination);
                 }
             }

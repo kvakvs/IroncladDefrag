@@ -185,14 +185,17 @@ this file records what is actually built and the decisions made along the way.
   grid lines (see Grid lines below).
 - Color modes are `Palette` implementations over a `PixelSummary` (bin, level, capacity); see Color
   modes and legend below.
-- Speed: per-record owner flags (`extentMapFlags()`, one byte per extent, ~55 MB at 30 TB) are read in
-  record order instead of two random lookups into the 20 M-entry file tables; rows gallop forward from
-  the previous row's position; neighbouring identical summaries reuse one palette call; scratch
-  buffers are per thread (fresh multi-MB blocks cost a page fault per 4 KB).
-- Measured on the 30 TB synthetic volume (one thread per tile): coarse levels 4-9 at 0.8-1.1 ms;
-  fine levels 0 and below at 0.3-1.1 ms (targets 5 ms and 2 ms). Level 3 (64 clusters per pixel, one
-  below the base) takes 3.4 ms: within the coarse target but over the fine one. Tiles render on the
-  pool in parallel, so throughput is not at risk; T033 rechecks it.
+- Speed: per-record owner flags (`extentMapFlags()`) and color values (`extentColorValues()`), one
+  byte each per extent (~55 MB each at 30 TB), are read in record order instead of random lookups into
+  the 20 M-entry file columns. Each tile row starts from a coarse LCN index (`recordBlocks()`: first
+  record per 2,048-cluster block, 14 MB at 30 TB) and gallops from there, instead of galloping ~1,000
+  records from the previous row. A piece adds its partial end units, then whole units in a tight loop
+  (`BinAccumulator::add()` is inline). Runs of identical unit totals reuse the previous color without
+  finishing again; unit capacity is a multiplication except at the volume's edges; scratch buffers
+  are per thread (fresh multi-MB blocks cost a page fault per 4 KB).
+- Measured by `map-bench` (T033) on the 30 TB synthetic volume, one thread per tile, worst of the
+  three color modes: coarse levels 4-9 at 0.65-0.8 ms (target 5 ms); fine level 3 1.5 ms (median 1.8),
+  level 2 0.8 ms, levels 1 and below 0.2-0.5 ms (target 2 ms).
 
 ## Map rendering backend (T026 spike)
 
@@ -337,8 +340,7 @@ this file records what is actually built and the decisions made along the way.
 - `core::ColorMode`: fragmentation (`OccupancyPalette`: free, contiguous, fragmented, unmovable), age
   (time since the owning file's last change, from under a day to three years or more) and size (under
   64 KB, then 16x steps to 4 GB or more). File class, zone fit and plan preview come with their features.
-- Age and size are six buckets each. `MapData` stores one byte per file (`fileColorValues()`, ~39 MB at
-  20 M files) as `bucket * 51`; the pyramid averages them per bin like the fragmented share, and the
+- Age and size are six buckets each, one byte per file (`fileColorValues()`) as `bucket * 51`; the pyramid averages them per bin like the fragmented share, and the
   palette shows the nearest bucket's color blended with free space by the used share. A cell of one
   file keeps its exact bucket, so deep-zoom colors equal the legend colors (tested).
 - Ages are measured from the newest modification in the snapshot (`newestModification()`), so a
@@ -351,9 +353,33 @@ this file records what is actually built and the decisions made along the way.
   for whole rows or one per row, cut into 4 M-cluster pieces summed in parallel; equal to a per-cluster
   count (tested). It runs on the pool 150 ms after the view rests, cancelled by a newer view or mode,
   and keeps the old numbers until the new ones arrive. Whole 30 TB volume: ~85 ms.
-- 30 TB synthetic volume with the values: pyramid 0.84 s on 8 threads, map data ~414 MB (pyramid
-  320 MB, extent flags 55 MB, values 39 MB). The per-file lookups slowed fine tiles at level 3 from
-  4.4 to 6.5 ms (target 2 ms); T033 addresses it.
+- The per-file values feed the pyramid build only; the map keeps them per extent record
+  (`extentColorValues()`, packed heat and size steps in one byte), which tiles read in record order.
+  Per-file lookups had slowed level-3 tiles from 4.4 to 6.5 ms.
+
+## Map performance (T033, Phase 2 exit)
+
+- `map-bench` builds the 30 TB / 20 M-file synthetic map the way the app does (`MapData::build`),
+  checks the pyramid on 8 threads, map memory and tile times at every level in every color mode, then
+  drives the real `MapCanvas` (compiled into the bench) in a 1920 x 1080 window: zoom from the whole
+  volume to 8 px per cluster and back, and pans at 2,000 px/s at 16 clusters per pixel, one cluster
+  per pixel and 8 px per cluster.
+- The bench turns off power throttling for itself. A background console process otherwise gets
+  EcoQoS and, on this hybrid CPU, efficiency cores: single-thread tile times doubled and swung from
+  run to run. The app in the foreground is not throttled.
+- Results (RTX 4070, 32 threads, 120 Hz display), all plan.md 7.5 targets met:
+
+  | Check | Result | Target |
+  | --- | --- | --- |
+  | Pyramid build, 8 threads | 0.74-0.87 s | 5 s |
+  | Map memory | 441 MB (pyramid 320, flags 55, color values 55, block index 14) | 512 MB |
+  | Coarse tile (levels 4-9) | 0.65-0.8 ms | 5 ms |
+  | Fine tile (levels 3 to -5) | 1.5 ms at level 3, 0.2-0.8 ms below | 2 ms |
+  | Zoom, whole volume to 8 px/cluster and back | 119 fps, p95 10.8 ms, max 17.7 ms | 60 fps |
+  | Pans at three zooms | 120 fps, p95 <= 10.8 ms, max 13.4 ms | 60 fps |
+
+  Frames run at the display rate (Direct2D presents with vsync). 2-7% of frames show a coarser
+  stand-in for some tiles while the exact ones render.
 
 ## Parallel execution
 

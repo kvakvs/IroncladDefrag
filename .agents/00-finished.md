@@ -112,3 +112,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T034 Shortcut help - description on every `ui/Accelerators` entry (menu shortcuts and map keys), `commandTip()`,
   `ui/dialogs/ShortcutsDialog.*` (Help > Keyboard shortcuts, F1: grouped by menu, then map keys), tooltips with the
   shortcut on the workflow buttons, the drawn TRIM button, the map color choice and Find file.
+- T033 Map performance check - `tools/bench/map-bench.cpp` (30 TB synthetic map as the app builds it; pyramid, memory,
+  tiles per level and color mode, real `MapCanvas` in a window through scripted zoom and pans; no power throttling).
+  Fixes: per-record color values, LCN record block index for tile rows, tight whole-unit loop, reuse of identical
+  unit colors. All plan.md 7.5 targets met: pyramid 0.74 s on 8 threads, map 441 MB, coarse tiles <= 0.8 ms, fine
+  <= 1.5 ms (level 3), zoom 119 fps and pans 120 fps at 1920 x 1080. **Phase 2 exit.**

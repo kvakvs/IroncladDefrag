@@ -108,6 +108,10 @@ namespace icd::ui {
         // Logs the frame times recorded since beginFrameStats() (an animation ended).
         void endFrameStats();
 
+        // Tiles of the exact level that were not ready in the last frame (a coarser stand-in was shown); for
+        // benchmarks.
+        [[nodiscard]] std::size_t missingTiles() const { return missingTiles_; }
+
         // Takes a rendered tile on the UI thread (called through the mailbox).
         void deliver(RenderStamp stamp, core::TileId tile, std::vector<core::Rgba>&& pixels);
 
@@ -193,6 +197,7 @@ namespace icd::ui {
         std::vector<double> paintTimes_; // Milliseconds spent painting each of those frames.
         std::optional<core::AnimationClock::time_point> lastFrame_; // Start of the previous animated frame.
         bool recording_ = false; // Whether frame times are being recorded.
+        std::size_t missingTiles_ = 0; // Exact-level tiles missing from the last frame.
     };
 
 } // namespace icd::ui

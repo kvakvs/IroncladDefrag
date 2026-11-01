@@ -198,6 +198,24 @@ namespace icd::core {
         return values;
     }
 
+    std::vector<std::uint8_t> extentColorValues(const Snapshot& snapshot, const FileColorValues& values,
+                                                Executor& executor, const CancelToken& token) {
+        const auto records = snapshot.extents.records();
+        std::vector<std::uint8_t> out(records.size(), 0);
+        executor.parallelFor(
+            {.count = out.size(), .grain = 65536},
+            [&](std::size_t begin, std::size_t end) {
+                for (std::size_t index = begin; index < end; ++index) {
+                    const FileIndex file = records[index].file();
+                    const std::uint32_t heat = file < values.heat.size() ? values.heat[file] / bucketStep : 0;
+                    const std::uint32_t size = file < values.sizes.size() ? values.sizes[file] / bucketStep : 0;
+                    out[index] = packExtentValues(heat, size);
+                }
+            },
+            token);
+        return out;
+    }
+
     std::span<const LegendEntry> legendOf(ColorMode mode) {
         switch (mode) {
         case ColorMode::Age:

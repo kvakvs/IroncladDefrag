@@ -226,6 +226,22 @@ add_executable(synth-bench tools/bench/synth-bench.cpp)
 target_link_libraries(synth-bench PRIVATE icd_services psapi)
 icd_target_defaults(synth-bench)
 
+# --- map-bench: drive map performance targets (plan.md 7.5), the Phase 2 exit check (T033) ----------
+# Compiles the map control's sources directly: the bench drives the real MapCanvas in a window.
+add_executable(map-bench
+    tools/bench/map-bench.cpp
+    src/ui/Accelerators.cpp
+    src/ui/Commands.cpp
+    src/ui/map/D2DRenderer.cpp
+    src/ui/map/MapCanvas.cpp
+    src/ui/map/MapHover.cpp
+    src/ui/map/MapNavigator.cpp
+    src/ui/map/MapSelection.cpp
+    src/ui/map/Minimap.cpp
+)
+target_link_libraries(map-bench PRIVATE icd_services wx::wx d2d1)
+icd_target_defaults(map-bench)
+
 # --- map-render-spike: map composition at 4K with wx Direct2D, raw Direct2D and GDI (T026) --------
 add_executable(map-render-spike tools/spike/map-render-spike/main.cpp)
 target_link_libraries(map-render-spike PRIVATE icd_services wx::wx d2d1)

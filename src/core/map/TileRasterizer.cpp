@@ -73,6 +73,36 @@ namespace icd::core {
             return static_cast<std::size_t>(found - records.begin());
         }
 
+        // Adds a piece of one world row (columns [start, end()) of the tile) to the units of that row: the partial
+        // units at either end, and in between whole units in a tight loop, since one extent usually covers many
+        // pixels of a fine tile and this loop is where fine tiles spend their time.
+        void addPiece(ClusterRun columns, const PieceOwner& owner, int level, std::span<BinAccumulator> row) {
+            const auto shift = static_cast<unsigned>(level);
+            const std::uint64_t span = std::uint64_t{1} << shift;
+            const std::uint64_t first = columns.start;
+            const std::uint64_t last = columns.end();
+            const std::uint64_t firstFull = (first + span - 1) >> shift; // First unit wholly inside.
+            const std::uint64_t endFull = last >> shift; // One past the last unit wholly inside.
+            if (firstFull >= endFull) {
+                // Within one unit, or across one boundary without a whole unit between.
+                const std::uint64_t boundary = std::min(last, ((first >> shift) + 1) << shift);
+                row[first >> shift].add(boundary - first, owner);
+                if (boundary < last) {
+                    row[boundary >> shift].add(last - boundary, owner);
+                }
+                return;
+            }
+            if ((firstFull << shift) > first) {
+                row[firstFull - 1].add((firstFull << shift) - first, owner);
+            }
+            for (std::uint64_t unit = firstFull; unit < endFull; ++unit) {
+                row[unit].add(span, owner);
+            }
+            if ((endFull << shift) < last) {
+                row[endFull].add(last - (endFull << shift), owner);
+            }
+        }
+
         // Adds the extents of one world row of the tile to the unit accumulators; cursor carries the search
         // position from row to row.
         void sweepRow(const MapSource& source, const CellRect& rect, std::uint64_t row, Units& units,
@@ -85,17 +115,62 @@ namespace icd::core {
             }
             const std::uint64_t unitRow = (row - rect.y) >> static_cast<unsigned>(units.level);
             const auto records = source.facts.snapshot.extents.records();
+            const std::span<const std::uint32_t> blocks = source.facts.recordBlocks;
+            if (const std::uint64_t block = cells.start >> recordBlockShift; block < blocks.size()) {
+                cursor = std::max<std::size_t>(cursor, blocks[block]); // Never past the answer, often right at it.
+            }
             cursor = firstEndingAfter(records, cursor, cells.start);
             for (std::size_t index = cursor; index < records.size() && records[index].lcn() < cells.end(); ++index) {
                 const PieceOwner owner = ownerOf(index, source.facts);
                 const ClusterRun piece = clip(records[index].run(), cells);
                 const std::uint64_t first = piece.start - rowStart - rect.x;
-                const std::uint64_t last = first + piece.length;
-                for (std::uint64_t column = first; column < last;) {
-                    const std::uint64_t unit = column >> static_cast<unsigned>(units.level);
-                    const std::uint64_t unitEnd = std::min((unit + 1) << static_cast<unsigned>(units.level), last);
-                    totals[unitRow * units.across + unit].add(unitEnd - column, owner);
-                    column = unitEnd;
+                addPiece({first, piece.length}, owner, units.level,
+                         std::span(totals).subspan(unitRow * units.across, units.across));
+            }
+        }
+
+        // Clusters of the volume in the unit squares of one row of units: the full square, except in the last
+        // world row (which ends at the last cluster) and past the world's right and bottom edges.
+        class UnitCapacity {
+        public:
+            // Units of span x span cells of a world.
+            UnitCapacity(const World& world, std::uint64_t span) : world_(world), span_(span) {
+                if (world.clusters() > 0) {
+                    last_ = world.cellOf(world.clusters() - 1);
+                }
+            }
+
+            // Clusters in the unit square with top-left cell (x, y).
+            [[nodiscard]] ClusterCount at(std::uint64_t x, std::uint64_t y) const {
+                const bool inside = x + span_ <= world_.rowWidth() && y + span_ <= last_.y;
+                // Squares above the last row and inside the width are full; the rest take the exact count.
+                return inside ? span_ * span_ : clustersInRect(world_, {x, y, span_, span_});
+            }
+
+        private:
+            const World& world_; // Layout.
+            std::uint64_t span_ = 1; // Unit edge in cells.
+            CellPoint last_; // Cell of the last cluster.
+        };
+
+        // Colors the units of a tile from their totals. Runs of identical totals (one extent over many units)
+        // reuse the previous color without finishing and coloring again.
+        void colorUnits(const World& world, const CellRect& rect, const std::vector<BinAccumulator>& totals,
+                        const Palette& palette, Units& units) {
+            const std::uint64_t span = std::uint64_t{1} << static_cast<unsigned>(units.level);
+            const UnitCapacity capacities(world, span);
+            units.colors.resize(totals.size());
+            units.capacity.resize(totals.size());
+            ColorCache colors(palette, units.level);
+            for (std::uint64_t y = 0; y < units.down; ++y) {
+                for (std::uint64_t x = 0; x < units.across; ++x) {
+                    const std::size_t index = y * units.across + x;
+                    const ClusterCount capacity = capacities.at(rect.x + x * span, rect.y + y * span);
+                    units.capacity[index] = capacity;
+                    const bool same =
+                        x > 0 && totals[index] == totals[index - 1] && capacity == units.capacity[index - 1];
+                    units.colors[index] =
+                        same ? units.colors[index - 1] : colors.get(totals[index].finish(units.level), capacity);
                 }
             }
         }
@@ -116,19 +191,7 @@ namespace icd::core {
             for (std::uint64_t row = rect.y; row < rect.y + rect.height; ++row) {
                 sweepRow(source, rect, row, units, totals, cursor);
             }
-            const std::uint64_t span = std::uint64_t{1} << static_cast<unsigned>(units.level);
-            units.colors.resize(totals.size());
-            units.capacity.resize(totals.size());
-            ColorCache colors(palette, units.level);
-            for (std::uint64_t y = 0; y < units.down; ++y) {
-                for (std::uint64_t x = 0; x < units.across; ++x) {
-                    const std::size_t index = y * units.across + x;
-                    const ClusterCount capacity =
-                        clustersInRect(world, {rect.x + x * span, rect.y + y * span, span, span});
-                    units.capacity[index] = capacity;
-                    units.colors[index] = colors.get(totals[index].finish(units.level), capacity);
-                }
-            }
+            colorUnits(world, rect, totals, palette, units);
             return units;
         }
 

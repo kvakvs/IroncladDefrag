@@ -4,6 +4,7 @@
 
 #include <gtest/gtest.h>
 
+#include <algorithm>
 #include <cstdio>
 
 namespace icd::core { namespace {
@@ -129,6 +130,46 @@ namespace icd::core { namespace {
         const std::uint64_t fine = checksum(renderTile(source, {-2, 3, 1}, palette));
         EXPECT_EQ(coarse, 0xa10d1818f4c65a74ULL) << std::hex << "coarse 0x" << coarse;
         EXPECT_EQ(fine, 0xa391484b50ce8525ULL) << std::hex << "fine 0x" << fine;
+    }
+
+    // The record block index points at the first record ending after each block start, and fine tiles drawn with it
+    // equal tiles drawn without it at every level below the pyramid, also with per-record color values.
+    TEST(TileRasterizer, RecordBlocksMatchSearch) {
+        SynthOptions options;
+        options.seed = 13;
+        options.files = 4000;
+        options.geometry.totalClusters = (1ULL << 22U) + 1000; // A partial last block.
+        const Snapshot snapshot = generateSyntheticVolume(options);
+        InlineExecutor serial;
+        const std::vector<std::uint32_t> blocks = recordBlocks(snapshot, serial);
+        const auto records = snapshot.extents.records();
+        ASSERT_EQ(blocks.size(), (snapshot.geometry.totalClusters >> recordBlockShift) + 1);
+        for (std::size_t block = 0; block < blocks.size(); ++block) {
+            const Lcn start = Lcn{block} << recordBlockShift;
+            const auto first =
+                std::ranges::partition_point(records, [start](const ExtentRecord& r) { return r.end() <= start; });
+            ASSERT_EQ(blocks[block], static_cast<std::size_t>(first - records.begin())) << block;
+        }
+
+        const World world(snapshot.geometry.totalClusters, {.width = 16, .height = 9});
+        const auto extentFlags = extentMapFlags(snapshot, serial);
+        const Pyramid pyramid =
+            Pyramid::build({.snapshot = snapshot, .world = world, .maxBaseBins = 1U << 14U}, serial);
+        std::vector<std::uint8_t> values(records.size());
+        for (std::size_t index = 0; index < values.size(); ++index) {
+            values[index] = packExtentValues(index % 6, (index / 7) % 6);
+        }
+        const MapSource plain{.world = world,
+                              .pyramid = pyramid,
+                              .facts = {.snapshot = snapshot, .extentFlags = extentFlags, .extentValues = values}};
+        MapSource indexed = plain;
+        indexed.facts.recordBlocks = blocks;
+        const OccupancyPalette palette;
+        for (int level = pyramid.baseLevel() - 1; level >= World::minLevel; --level) {
+            for (const TileId tile : {TileId{level, 0, 0}, TileId{level, 1, 0}, TileId{level, 0, 1}}) {
+                EXPECT_EQ(renderTile(plain, tile, palette), renderTile(indexed, tile, palette)) << level;
+            }
+        }
     }
 
 }} // namespace icd::core

@@ -39,8 +39,10 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx`, `d2d1` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
-| `map-render-spike` | console exe with a wx window | `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
+| `map-render-spike` | console exe with a wx window | `tools/bench/map-bench.cpp` | `map-bench` target (T033): plan.md 7.5 checks on the 30 TB synthetic map: pyramid on 8 threads, map memory, tile times per level and color mode, and the real `MapCanvas` in a window through scripted zoom and pans (fps, stand-in frames); `--no-window 1` skips the window. |
+| `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
 | `synth-bench` | console exe | `tools/bench/synth-bench.cpp` | `icd_services`, `psapi` |
+| `map-bench` | console exe with a wx window | `tools/bench/map-bench.cpp` plus the `src/ui/map` canvas sources, `ui/Accelerators`, `ui/Commands` | `icd_services`, `wx::wx`, `d2d1` |
 | `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `icd_services`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
 
@@ -75,14 +77,14 @@ changes (see `AGENTS.md`).
 | `src/core/snapshot/Stripes.*` | `StripeLayout` (fixed LCN stripes, 16 MB aligned, 512 on large volumes), `Stripes` views over extents and free runs, `clip()`, `mapStripes()` / `reduceStripes()` with stripe-order merge. |
 | `src/core/synth/SynthRandom.h` | Self-contained seeded generator (xoshiro256**, own distributions) so seeds reproduce everywhere. |
 | `src/core/synth/SyntheticVolume.*` | `generateSyntheticVolume()`: seeded snapshots up to 30 TB / 20 M files (class mix, fill, fragmentation, free pattern, $MFT, directory indexes). |
-| `src/core/map/BinSummary.*` | `MapBin`, `BinAccumulator`, per-record `extentMapFlags()`, `ownerOf()`: the summary rules the pyramid and the rasterizer share. |
+| `src/core/map/BinSummary.*` | `MapBin`, `BinAccumulator` (inline `add()`), per-record `extentMapFlags()`, `packExtentValues()`, `recordBlocks()` (LCN block -> first record), `ownerOf()`: the summary rules the pyramid and the rasterizer share. |
 | `src/core/map/Palette.*` | `Rgba` (BGRA in memory), `blendColors()`, `usedShare()`, `Palette` interface over `PixelSummary`, `OccupancyPalette` (the fragmentation mode). |
-| `src/core/map/ColorModes.*` | `ColorMode` (fragmentation, age, size), age/size buckets, `newestModification()`, per-file `fileColorValues()`, legends and `paletteFor()`, `visibleCells()`, exact parallel `countLegend()`. |
+| `src/core/map/ColorModes.*` | `ColorMode` (fragmentation, age, size), age/size buckets, `newestModification()`, per-file `fileColorValues()` and per-record `extentColorValues()`, legends and `paletteFor()`, `visibleCells()`, exact parallel `countLegend()`. |
 | `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), no grid lines (see `Grid`), `clustersInRect()`. |
 | `src/core/map/Grid.*` | Deep-zoom grid drawn per frame at screen resolution: `gridLines()` (each visible cell's right and bottom edge on the last pixel nearest-neighbour drawing gives it, clipped to the last cluster and the window), `gridOpacity()` (fades in from 5 to 10 px per cell), `edgePixel()`. |
 | `src/core/map/HitTest.*` | Hover lookups: `hitTest()` (pointer -> cell -> LCN -> extent or free run, fragment i/n via `fragmentOf()`, the pixel's cells and used clusters), `formatFileTime()`, `describeHit()` tooltip lines. |
 | `src/core/map/Selection.*` | Selection math: `fileFragments()` (VCN order, continuing runs joined), `SelectionOverlay` / `selectionOf()` (LCN-sorted merged runs), `shapeOf()` (a run as at most three cell rectangles), `runsTouch()` (dirty-tile test), `highlightRuns()` (paints the selection into a tile), `focusView()`. |
-| `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid, extent flags and per-file color values (`source()` for the rasterizer, `ageReference()`); `TileIdHash`. |
+| `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid, extent flags, per-record color values and the record block index (`source()` for the rasterizer, `ageReference()`); `TileIdHash`. |
 | `src/core/map/Overview.*` | Minimap math: `placeOverview()` (world shape in the bottom-right corner, hidden in small windows), minimap pixel <-> world, view marker box (clipped, minimum size), `dragTo()`. |
 | `src/core/map/Ruler.*` | Ruler ticks: `rowTicks()` (row starts: byte offset, % of volume, % of disk when the partition is known), `columnTicks()` (offset within a row), power-of-two steps, `formatOffset()` / `formatPercent()` label precision. |
 | `src/core/map/Pyramid.*` | Map LOD pyramid: quadtree of 8-byte `MapBin`s over the world grid (level k bin = one tile pixel at zoom k), parallel build per base-bin row band, 2x2 merges, dirty-range `update()`. |
@@ -122,7 +124,7 @@ changes (see `AGENTS.md`).
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers (tooltip on the drawn TRIM button), selection callback. |
 | `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays still disabled, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above and the legend below; forwards the canvas's view changes to the rulers and the legend; View > Color mode, Minimap, Legend, Go to file, next/previous fragment. |
 | `src/ui/map/Legend.*` | Legend strip: swatch, label, size and share of the visible area per entry of the color mode; counts on the pool after the view rests, cancellable, delivered through a mailbox. |
-| `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), selection highlight painted into tiles with dirty-tile refresh, frame-time log per animation. |
+| `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), selection highlight painted into tiles with dirty-tile refresh, frame-time log per animation, `missingTiles()` of the last frame. |
 | `src/ui/map/MapSelection.*` | Selected file: click (press and release within 4 DIP, not on the minimap) selects the owner of the cluster or clears on free space; fragments in file order, current fragment, next/previous and go to with an animated focus view; observer for the toolbar label. |
 | `src/ui/map/MapHover.*` | Hover tooltip: `wxPopupWindow` after a 350 ms rest, follows the pointer, hides on press/drag/wheel/key/leave; local time zone for file times. |
 | `src/ui/map/Minimap.*` | Minimap overlay drawn in the canvas's Direct2D frame: holds the coarsest tile as its image, frame and view marker, drag state (grab offset). |
@@ -138,7 +140,7 @@ changes (see `AGENTS.md`).
 | `tests/core/WorldTest.cpp` | Nice widths, landscape/portrait aspect, round trips and edge cells, levels, tile clipping, row segments. |
 | `tests/core/ColorModesTest.cpp` | Age and size bucket edges, bucket values, legend counts vs per-cluster brute force (all modes, random rectangles, pool = serial), tile colors = legend colors, visible cells. |
 | `tests/core/PyramidTest.cpp` | Base-level choice, every bin vs brute force, dominant class, parallel = serial, dirty-range update = rebuild. |
-| `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells (no grid) on a hand volume, pyramid = extents at the base level, golden checksums. |
+| `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells (no grid) on a hand volume, pyramid = extents at the base level, golden checksums, record block index = search and tiles with it = tiles without. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |

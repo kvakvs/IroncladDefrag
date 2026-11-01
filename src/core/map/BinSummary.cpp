@@ -1,5 +1,6 @@
 #include "core/map/BinSummary.h"
 
+#include <algorithm>
 #include <cmath>
 
 namespace icd::core {
@@ -14,6 +15,30 @@ namespace icd::core {
     } // namespace
 
     unsigned binUsedShift(int level) { return 2 * level > 23 ? static_cast<unsigned>(2 * level - 23) : 0U; }
+
+    std::vector<std::uint32_t> recordBlocks(const Snapshot& snapshot, Executor& executor, const CancelToken& token) {
+        const auto records = snapshot.extents.records();
+        const std::uint64_t blockCount =
+            (snapshot.geometry.totalClusters >> recordBlockShift) + 1; // Also covers a partial last block.
+        std::vector<std::uint32_t> blocks(blockCount, static_cast<std::uint32_t>(records.size()));
+        // Record i is the first ending after every block start in [end of record i - 1, end of record i), so each
+        // record writes its own blocks and the chunks never overlap.
+        executor.parallelFor(
+            {.count = records.size(), .grain = 65536},
+            [&](std::size_t begin, std::size_t end) {
+                for (std::size_t index = begin; index < end; ++index) {
+                    const Lcn from = index == 0 ? 0 : records[index - 1].end();
+                    const std::uint64_t first = (from + (Lcn{1} << recordBlockShift) - 1) >> recordBlockShift;
+                    const std::uint64_t last = std::min<std::uint64_t>(
+                        blockCount, (records[index].end() + (Lcn{1} << recordBlockShift) - 1) >> recordBlockShift);
+                    for (std::uint64_t block = first; block < last; ++block) {
+                        blocks[block] = static_cast<std::uint32_t>(index);
+                    }
+                }
+            },
+            token);
+        return blocks;
+    }
 
     std::vector<std::uint8_t> fragmentedFileFlags(const Snapshot& snapshot, Executor& executor,
                                                   const CancelToken& token) {
@@ -67,6 +92,31 @@ namespace icd::core {
             return file < column.size() ? column[file] : 0;
         }
 
+        // Fills the owner's per-file facts (class, and heat and size unless they come per record).
+        void addFileFacts(std::size_t record, const MapFileFacts& facts, PieceOwner& owner) {
+            const bool perRecord = !facts.extentValues.empty();
+            const bool perFile = !facts.kinds.empty() || (!perRecord && (!facts.heat.empty() || !facts.sizes.empty()));
+            if (!perFile) {
+                return; // Looked up only when present: the file columns are far apart in memory.
+            }
+            const FileIndex file = facts.snapshot.extents.records()[record].file();
+            owner.kind = valueOf(facts.kinds, file);
+            if (!perRecord) {
+                owner.heat = valueOf(facts.heat, file);
+                owner.size = valueOf(facts.sizes, file);
+            }
+        }
+
+        // Fills the owner's heat and size from the per-record values, when there are any.
+        void addRecordValues(std::size_t record, const MapFileFacts& facts, PieceOwner& owner) {
+            if (record >= facts.extentValues.size()) {
+                return;
+            }
+            const std::uint32_t packed = facts.extentValues[record];
+            owner.heat = static_cast<std::uint8_t>((packed & 0xFU) * extentValueStep);
+            owner.size = static_cast<std::uint8_t>((packed >> 4U) * extentValueStep);
+        }
+
     } // namespace
 
     PieceOwner ownerOf(std::size_t record, const MapFileFacts& facts) {
@@ -75,26 +125,9 @@ namespace icd::core {
         owner.fragmented = (flags & ExtentOwnerFragmented) != 0;
         owner.flags = static_cast<std::uint8_t>(((flags & ExtentOwnerUnmovable) != 0 ? BinUnmovable : 0) |
                                                 ((flags & ExtentIsDirectoryIndex) != 0 ? BinDirectoryIndex : 0));
-        // Kinds, heat and sizes are per file; looked up only when present.
-        if (!facts.kinds.empty() || !facts.heat.empty() || !facts.sizes.empty()) {
-            const FileIndex file = facts.snapshot.extents.records()[record].file();
-            owner.kind = valueOf(facts.kinds, file);
-            owner.heat = valueOf(facts.heat, file);
-            owner.size = valueOf(facts.sizes, file);
-        }
+        addRecordValues(record, facts, owner);
+        addFileFacts(record, facts, owner);
         return owner;
-    }
-
-    void BinAccumulator::add(ClusterCount clusters, const PieceOwner& owner) {
-        used_ += clusters;
-        fragmented_ += owner.fragmented ? clusters : 0;
-        heatSum_ += clusters * owner.heat;
-        sizeSum_ += clusters * owner.size;
-        flags_ |= owner.flags;
-        if (clusters > largestPiece_) {
-            largestPiece_ = clusters;
-            kind_ = owner.kind;
-        }
     }
 
     MapBin BinAccumulator::finish(int level) const {

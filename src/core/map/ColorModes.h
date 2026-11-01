@@ -34,6 +34,8 @@ namespace icd::core {
     // Value distance between neighbouring buckets (0, 51, ..., 255).
     inline constexpr std::uint32_t bucketStep = 255 / (valueBuckets - 1);
 
+    static_assert(bucketStep == extentValueStep, "per-record values use the same steps as the buckets");
+
     // The per-file value of a bucket.
     [[nodiscard]] constexpr std::uint8_t bucketValue(std::size_t bucket) {
         return static_cast<std::uint8_t>(bucket * bucketStep);
@@ -65,6 +67,11 @@ namespace icd::core {
     // Computes the per-file values in parallel.
     [[nodiscard]] FileColorValues fileColorValues(const Snapshot& snapshot, std::int64_t reference, Executor& executor,
                                                   const CancelToken& token = {});
+
+    // The same values per extent record, packed into one byte (packExtentValues()), so tiles read them in record
+    // order instead of jumping into the 20 M-entry file columns.
+    [[nodiscard]] std::vector<std::uint8_t> extentColorValues(const Snapshot& snapshot, const FileColorValues& values,
+                                                              Executor& executor, const CancelToken& token = {});
 
     // One row of the map legend.
     struct LegendEntry {

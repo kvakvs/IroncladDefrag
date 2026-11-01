@@ -20,16 +20,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ---
 
-## Phase 2 - Drive map engine (§7, §13 Phase 2)
-
-### T033 - Map performance check
-- Depends: T029, T031, T032
-- Owns: `tools/bench/map-bench.cpp`
-- Do: scripted pan/zoom benchmark against §7.5 targets; fix what fails.
-- Done when: all §7.5 targets met and recorded. **Phase 2 exit check.**
-
----
-
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
 ### T040 - Test volume scripts

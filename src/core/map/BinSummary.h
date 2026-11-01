@@ -47,6 +47,24 @@ namespace icd::core {
         ExtentIsDirectoryIndex = 1U << 2U, // The record is a directory index allocation.
     };
 
+    // Value distance between the steps of a per-record value (extentValues): six steps, 0, 51, ..., 255.
+    inline constexpr std::uint32_t extentValueStep = 51;
+
+    // A heat step (0-5) and a size step (0-5) packed into one byte per extent record, heat in the low nibble.
+    [[nodiscard]] constexpr std::uint8_t packExtentValues(std::uint32_t heatStep, std::uint32_t sizeStep) {
+        return static_cast<std::uint8_t>((heatStep & 0xFU) | ((sizeStep & 0xFU) << 4U));
+    }
+
+    // Clusters per block of the record block index: 2^recordBlockShift (2,048, so 30 TB takes 14 MB).
+    inline constexpr unsigned recordBlockShift = 11;
+
+    // A coarse LCN index into the extent records: for block k, the first record ending after LCN k * 2^shift
+    // (records.size() past the last one). Tiles walk their cell rows far apart in LCN order, and a binary or
+    // galloping search per row costs a cache miss per step; from the block's entry the row start is a few records
+    // away. Computed in parallel.
+    [[nodiscard]] std::vector<std::uint32_t> recordBlocks(const Snapshot& snapshot, Executor& executor,
+                                                          const CancelToken& token = {});
+
     // Per file: 1 when it has more than one fragment, computed in parallel.
     [[nodiscard]] std::vector<std::uint8_t> fragmentedFileFlags(const Snapshot& snapshot, Executor& executor,
                                                                 const CancelToken& token = {});
@@ -64,6 +82,10 @@ namespace icd::core {
         std::span<const std::uint8_t> kinds{}; // Class per file; empty means all 0.
         std::span<const std::uint8_t> heat{}; // Heat bucket per file; empty means all 0.
         std::span<const std::uint8_t> sizes{}; // Size value per file; empty means all 0.
+        // Per record: heat and size steps (packExtentValues()); when present it replaces heat and sizes, read in
+        // record order like extentFlags instead of jumping into the file columns.
+        std::span<const std::uint8_t> extentValues{};
+        std::span<const std::uint32_t> recordBlocks{}; // recordBlocks() of the snapshot; empty: search per row.
     };
 
     // What one extent contributes to a summary, looked up once per record.
@@ -81,11 +103,26 @@ namespace icd::core {
     // Collects the extent pieces of one square of cells and turns them into a MapBin.
     class BinAccumulator {
     public:
-        // Adds clusters owned by owner.
-        void add(ClusterCount clusters, const PieceOwner& owner);
+        // Adds clusters owned by owner. Inline: fine tiles call it for every pixel an extent crosses, and inlined
+        // the owner's part is worked out once per extent instead of once per pixel.
+        void add(ClusterCount clusters, const PieceOwner& owner) {
+            used_ += clusters;
+            fragmented_ += owner.fragmented ? clusters : 0;
+            heatSum_ += clusters * owner.heat;
+            sizeSum_ += clusters * owner.size;
+            flags_ |= owner.flags;
+            if (clusters > largestPiece_) {
+                largestPiece_ = clusters;
+                kind_ = owner.kind;
+            }
+        }
 
         // The summary for a bin of 2^level x 2^level cells.
         [[nodiscard]] MapBin finish(int level) const;
+
+        // Accumulators compare as values: neighbouring tile pixels are often identical, and comparing is cheaper
+        // than finishing and coloring again.
+        friend bool operator==(const BinAccumulator&, const BinAccumulator&) = default;
 
     private:
         ClusterCount used_ = 0; // Used clusters.
