@@ -74,7 +74,8 @@ changes (see `AGENTS.md`).
 | `src/core/snapshot/DirectoryTree.*` | Child lists from parent indexes, roots, `path()` with a cycle guard. |
 | `src/core/snapshot/ExtentIndex.*` | 16-byte `ExtentRecord` (40-bit LCN, 24-bit length), index by LCN (`find`, `overlapping`) and by file in VCN order (`extentsOf`, `fragmentCount`). |
 | `src/core/snapshot/FreeRunList.*` | Sorted, merged free runs (`find`, `overlapping`, `largest`). |
-| `src/core/snapshot/Snapshot.*` | The aggregate the map, classifier and planner read; `snapshotMemoryBytes()`. |
+| `src/core/snapshot/Snapshot.*` | The aggregate the map, classifier and planner read (with the `UsnCursor` of the scan); `snapshotMemoryBytes()`. |
+| `src/core/snapshot/ScanReconcile.*` | `reconcileScan()`: newer read wins overlaps, extents trim stale free runs, unclaimed used clusters go to a placeholder file; result tiles the volume. |
 | `src/core/snapshot/SnapshotBuilder.*` | Validating, order-independent builder (sorts, splits long runs, groups by file). |
 | `src/core/snapshot/Stripes.*` | `StripeLayout` (fixed LCN stripes, 16 MB aligned, 512 on large volumes), `Stripes` views over extents and free runs, `clip()`, `mapStripes()` / `reduceStripes()` with stripe-order merge. |
 | `src/core/synth/SynthRandom.h` | Self-contained seeded generator (xoshiro256**, own distributions) so seeds reproduce everywhere. |
@@ -97,6 +98,8 @@ changes (see `AGENTS.md`).
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/ChildProcess.*` | `runCaptured()` (console program without a window, output chunks to a callback, cancel terminates, exit code), `systemProgram()` (System32 path). |
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
+| `src/platform/win/Privileges.*` | `enablePrivilege()` (e.g. `SE_BACKUP_NAME` for files only SYSTEM may open). |
+| `src/platform/win/RetrievalPointers.*` | `readRetrievalPointers()` (all runs of a stream, holes as LCN -1), `readFileFacts()` (times, attributes, size, links, named streams), `openFileById()`, `openForQuery()`. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
 | `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
 | `src/platform/win/UsnJournal.*` | `queryUsnJournal()` (ID and USN cursor, none when inactive), `enumerateUsnFiles()` (`FSCTL_ENUM_USN_DATA`: reference, parent, attributes, name per MFT record), `mftRecordOf()`. |
@@ -111,6 +114,7 @@ changes (see `AGENTS.md`).
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
+| `src/services/scan/ApiScanner.*` | `scanFilesApi()`: reference scan (enumeration, open by id in MFT order, metadata and retrieval pointers per stream, special-case flags, reconcile, snapshot with USN cursor), `ApiScanStats`. |
 | `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Phase 2 stand-in for analysis: synthetic snapshot shaped like the drive, then `MapData` on the job's executor; `AnalysisOutput` hands it to the UI. |
@@ -162,6 +166,7 @@ changes (see `AGENTS.md`).
 | `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
 | `tests/core/FileSearchTest.cpp` | Ranks, case, path queries (slashes, trailing backslash, mid-name start), empty queries, limit and total, brute force over built paths on a synthetic volume, pool = serial. |
 | `tests/core/GridTest.cpp` | Grid fade and edge rounding, no grid at small cells, lines exactly on the last pixel of each drawn cell at random fractional views (also at the partial last row), line count bounded by the window. |
+| `tests/core/ScanReconcileTest.cpp` | Placeholder for unclaimed clusters, newer read wins, stale free space, clipping, random scans always tile. |
 | `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
@@ -170,6 +175,7 @@ changes (see `AGENTS.md`).
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
 | `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |
+| `tests/services/ApiScannerTest.cpp` | On the `special` test volume: every special case flagged, extent kinds, every cluster accounted for, extents = `fsutil file queryextents` for sampled files. |
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/StoragePropertiesTest.cpp` | Media and bus of every physical disk vs `Get-PhysicalDisk`; bus names. |

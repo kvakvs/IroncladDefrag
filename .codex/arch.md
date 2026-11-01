@@ -184,6 +184,30 @@ this file records what is actually built and the decisions made along the way.
 - `UsnJournalTest` walks each ICD-TEST volume (not into reparse points), identifies every entry by handle, and
   requires the enumeration to hold it with the same name and parent (single-link files).
 
+## API scanner (reference path)
+
+- `services::scanFilesApi()` (plan.md 10.2): journal cursor first (changes during the scan stay after it), then
+  the system records 0-11 under the root, then the `FSCTL_ENUM_USN_DATA` list; each file is opened by its file
+  reference (`OpenFileById`, `FILE_READ_ATTRIBUTES`, backup semantics, reparse points not followed) in MFT
+  record order, so no paths are built. One handle gives basic and standard info (times, attributes, size, link
+  count), the stream list and the main stream's retrieval pointers; a directory handle yields its index
+  allocation. Named streams are opened by path (`\?\T:\dirile:stream`), the only place a path is built.
+- Flags: attributes give directory, compressed, sparse, encrypted, reparse point; link count > 1 hard link (the
+  enumeration lists a file once, so it is counted once); named streams; system records and everything under
+  `$Extend` are metadata and unmovable; root `pagefile.sys`, `hiberfil.sys`, `swapfile.sys` unmovable; a file
+  without clusters that is neither a directory nor sparse is resident. Extents carry directory-index,
+  compression-unit and unmovable flags; holes (LCN -1 in sparse and compressed files) are skipped.
+- The process enables `SeBackupPrivilege` (administrators hold it switched off) so `System Volume Information`
+  opens too. `$LogFile`, `$Volume`, `$Bitmap`, `$Boot`, `$BadClus`, `$Secure` still refuse `OpenFileById`; they
+  are listed without extents.
+- `core::reconcileScan()` then makes the reads one consistent picture: overlapping extents keep the newer read
+  (higher file index), extents take their clusters out of the earlier bitmap's free runs, and every used cluster
+  nobody claims becomes an unmovable extent of the `$Unattributed` placeholder file (the unreadable system files,
+  locked files, extents dropped because a file changed). Extents and free runs then tile the volume, which the
+  snapshot builder requires. Quiet test volumes need no corrections beyond the placeholder.
+- Checked on the `special` scenario: every special case flagged, clusters fully accounted for, bitmap free count
+  unchanged, and the extents of ~25 sampled files equal `fsutil file queryextents`.
+
 ## Stripes
 
 - A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096

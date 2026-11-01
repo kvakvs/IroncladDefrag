@@ -22,15 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T047 - API extent scan
-- Depends: T045, T046, T041
-- Owns: `src/platform/win/RetrievalPointers.*`, `src/services/scan/ApiScanner.*`
-- Do: per file and stream, in MFT record order, read retrieval pointers and metadata; fill the
-  snapshot builders; flag resident, compressed, sparse, reparse, hard links, unmovable system files
-  (§10.2).
-- Done when: on the `special` scenario every special case is flagged; extents match
-  `fsutil file queryextents` for sampled files.
-
 ### T048 - Analysis service and live map
 - Depends: T047, T027
 - Owns: `src/services/scan/AnalysisJob.*`, `src/ui/tabs/SummaryTab.*`

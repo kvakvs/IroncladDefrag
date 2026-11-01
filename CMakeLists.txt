@@ -94,6 +94,8 @@ add_library(icd_core STATIC
     src/core/snapshot/FreeRunList.h
     src/core/snapshot/NamePool.cpp
     src/core/snapshot/NamePool.h
+    src/core/snapshot/ScanReconcile.cpp
+    src/core/snapshot/ScanReconcile.h
     src/core/snapshot/Snapshot.cpp
     src/core/snapshot/Snapshot.h
     src/core/snapshot/SnapshotBuilder.cpp
@@ -118,6 +120,10 @@ add_library(icd_platform STATIC
     src/platform/win/LogSinks.h
     src/platform/win/SystemResources.cpp
     src/platform/win/SystemResources.h
+    src/platform/win/Privileges.cpp
+    src/platform/win/Privileges.h
+    src/platform/win/RetrievalPointers.cpp
+    src/platform/win/RetrievalPointers.h
     src/platform/win/StorageProperties.cpp
     src/platform/win/StorageProperties.h
     src/platform/win/TextConvert.cpp
@@ -153,6 +159,8 @@ add_library(icd_services STATIC
     src/services/job/FakeJob.h
     src/services/job/JobRunner.cpp
     src/services/job/JobRunner.h
+    src/services/scan/ApiScanner.cpp
+    src/services/scan/ApiScanner.h
     src/services/trim/TrimJob.cpp
     src/services/trim/TrimJob.h
     src/services/workflow/FakeResults.cpp

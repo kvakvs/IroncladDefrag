@@ -148,3 +148,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   none when inactive, never created by analysis), `enumerateUsnFiles()` (`FSCTL_ENUM_USN_DATA`, works without a
   journal). Every entry a directory walk finds on the `special` and `photos` test volumes is enumerated with the same
   reference, name and parent; the Windows drive journal is read.
+- T047 API extent scan - `services/scan/ApiScanner.*` (USN list plus system records, files opened by id in MFT order,
+  metadata, stream list and retrieval pointers per stream, special-case flags, USN cursor in the snapshot),
+  `platform/win/RetrievalPointers.*`, `platform/win/Privileges.*` (backup privilege for System Volume Information),
+  `core/snapshot/ScanReconcile.*` (newer read wins, stale free runs trimmed, unclaimed clusters to an unmovable
+  `$Unattributed` placeholder). On the `special` volume every special case is flagged, all clusters are accounted
+  for, and sampled extents equal `fsutil file queryextents`.
