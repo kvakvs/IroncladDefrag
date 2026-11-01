@@ -6,6 +6,7 @@
 #include "platform/win/VolumeBitmap.h"
 #include "platform/win/Volumes.h"
 #include "services/exec/ThreadPool.h"
+#include "services/scan/ApiScanner.h"
 #include "services/scan/MftScanner.h"
 #include "services/scan/ScanCompare.h"
 
@@ -76,6 +77,37 @@ namespace icd::services { namespace {
         const auto* first = s.extents.find(v->layout.ntfs->mftStartLcn);
         ASSERT_NE(first, nullptr);
         EXPECT_EQ(s.path(first->file()), "\\$MFT");
+    }
+
+    // The Done-when of T062: files spread over several records (the 1,324-fragment file, compressed logs) resolve, and
+    // the whole snapshot matches the API scanner's.
+    TEST(MftScanner, MatchesTheApiScanner) {
+        const auto v = usableVolume();
+        if (!v) {
+            GTEST_SKIP() << "needs administrator rights and the special test volume";
+        }
+        ThreadPool pool(4);
+        const MftScanResult mft = scanWith(*v, pool);
+        const auto handle = platform::openVolume(v->volumeName, GENERIC_READ);
+        const core::VolumeGeometry geometry{v->layout.bytesPerCluster, v->layout.totalClusters};
+        const auto free = platform::readFreeRuns(handle.get(), geometry.totalClusters, pool);
+        const ApiScanResult api = scanFilesApi(handle.get(), v->mountPaths.front(), geometry,
+                                               {free.runs().begin(), free.runs().end()}, {}, nullptr);
+        const ScanComparison c = compareWithApi(api.snapshot, api.stats, mft.snapshot);
+        EXPECT_TRUE(c.same()) << c.differences
+                              << " differences, first: " << (c.samples.empty() ? "" : c.samples.front());
+        EXPECT_GT(c.filesCompared, 3000U);
+
+        const core::Snapshot& s = mft.snapshot;
+        for (core::FileIndex f = 0; f < s.files.size(); ++f) {
+            if (s.path(f) == R"(\special\fragmented\many.bin)") {
+                EXPECT_EQ(s.extents.fragmentCount(f), 1324U);
+                EXPECT_EQ(s.files.allocatedClusters(f), 100663296U / v->layout.bytesPerCluster);
+            }
+        }
+        ASSERT_TRUE(mft.stats.mft);
+        EXPECT_GE(mft.stats.mft->extensionsJoined, 5U);
+        EXPECT_EQ(mft.stats.mft->badAttributeLists, 0U);
     }
 
 }} // namespace icd::services

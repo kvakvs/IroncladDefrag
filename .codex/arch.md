@@ -256,6 +256,22 @@ this file records what is actually built and the decisions made along the way.
   reports. The rules shared with the API path live in `services/scan/ScanRules` (pinned names, attribute bits to flags,
   extent flags, residency). Extents and free runs are reconciled and built like on the API path, `$Unattributed`
   last; parallel steps write to disjoint slots, so any executor gives the same snapshot.
+- Files spread over several records (T062, `mft::joinExtensionRecords()` in `MftSecondPass`): extension records are
+  ordinary in-use records, so the main pass has already parsed them; the second pass only decides which belong where.
+  For every base row with an `$ATTRIBUTE_LIST` it parses the list (resident value from the rows, or read from its
+  clusters through a `ListReader`, which the scanner backs with `MftReader::read()`) and accepts each listed record
+  that is in use, names that base record (record and sequence) and has the sequence number the list names. Unlisted
+  and stale records are rejected and their clusters stay with `$Unattributed`, so a reused record never adds clusters
+  to the wrong file. A list that cannot be read leaves the file with its base record (and it is then not called
+  resident). The merge folds accepted parts into their base file: names (hard links in extension records count),
+  main size and `$I30` size from whichever part holds the first segment, segments and extents in VCN order. Parent
+  resolution is the merge's parallel per-file step (reference with sequence check against the row index).
+- Cross-check on quiet volumes: `compare-scanners` on the `special` volume mounted read-only finds nothing for 1, 2
+  and 8 workers (the 1,324-fragment file over five extension records and the compressed logs included). Last-access
+  times are the one field that may differ: NTFS updates them in memory and writes the record later, so the raw record
+  can be older than what the API reports (never newer); these count as deferred, not as differences. Mounting a
+  volume touches the access time of the root and `System Volume Information`. On X: (live, 112 K files) the scans
+  agree completely when nothing writes in between.
 - Disk busy time comes from the reader (time with a read outstanding; an upper bound) and from the device's own
   counters (`IOCTL_DISK_PERFORMANCE`, 100 - idle %). Measured on X: (2.3 TB HDD, 112 K files, 116 MB of `$MFT`):
   read in 1.64 s with the disk 100% busy (device 99.9%); 1.87 s for the whole MFT scan against 7.3 s for the API scan.

@@ -7,6 +7,7 @@
 #include "platform/win/UsnJournal.h"
 #include "services/scan/MftMerge.h"
 #include "services/scan/MftRows.h"
+#include "services/scan/MftSecondPass.h"
 
 #include <algorithm>
 #include <condition_variable>
@@ -281,9 +282,17 @@ namespace icd::services {
                                        {.maxChunkBytes = options_.bufferBytes, .minSkipBytes = options_.minSkipBytes});
                 readAll();
                 report("Building snapshot", 0, 0);
+                std::erase(chunks_, nullptr);
                 const mft::RowIndex rows(std::move(chunks_));
-                mft::MergeOutput merged = mft::mergeRows(rows, {}, geometry_, std::move(freeRuns), executor_, token_);
-                merged.stats.mft = figures(rows);
+                const auto readList = [this](std::span<const ntfs::DataRun> runs, std::uint64_t size) {
+                    return readStream(reader_, runs, mftGeometry_.bytesPerCluster, size);
+                };
+                mft::SecondPassStats second;
+                const mft::ExtensionMap extensions =
+                    mft::joinExtensionRecords(rows, readList, executor_, second, token_);
+                mft::MergeOutput merged =
+                    mft::mergeRows(rows, extensions, geometry_, std::move(freeRuns), executor_, token_);
+                merged.stats.mft = figures(rows, second);
                 return {std::move(merged.snapshot), std::move(merged.stats)};
             }
 
@@ -343,15 +352,16 @@ namespace icd::services {
             }
 
             // What the read cost and found.
-            MftReadFigures figures(const mft::RowIndex& rows) const {
+            MftReadFigures figures(const mft::RowIndex& rows, const mft::SecondPassStats& second) const {
                 MftReadFigures f;
                 f.records = map_.recordCount;
                 f.skippedRecords = plan_.skippedRecords;
                 f.recordsInUse = rows.size();
-                for (std::size_t i = 0; i < rows.size(); ++i) {
-                    f.extensionRecords += rows.row(i).baseReference != 0 ? 1 : 0;
-                    f.attributeListFiles += (rows.row(i).facts & mft::RowAttributeList) != 0 ? 1 : 0;
-                }
+                f.extensionRecords = second.accepted + second.rejected;
+                f.attributeListFiles = second.listFiles;
+                f.extensionsJoined = second.accepted;
+                f.extensionsRejected = second.rejected;
+                f.badAttributeLists = second.badLists;
                 for (const auto& chunk : rows.chunks()) {
                     f.badRecords += chunk->badRecords;
                 }

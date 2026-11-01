@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T062 - Attribute lists and path resolution
-- Depends: T061
-- Owns: `src/services/scan/MftSecondPass.*`
-- Do: second pass for `$ATTRIBUTE_LIST` records; parallel parent resolution.
-- Done when: fragmented-MFT-record files from the `special` scenario resolve correctly.
-
 ### T063 - Scanner cross-check
 - Depends: T062
 - Owns: `tests/integration/scanner-equivalence/*`

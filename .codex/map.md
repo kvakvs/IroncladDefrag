@@ -130,6 +130,7 @@ changes (see `AGENTS.md`).
 | `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
 | `src/services/scan/MftRows.*` | Parser output per chunk (`ChunkRows`: record, name, segment rows, provisional extents), `parseChunk()`, `appendRecord()`. |
 | `src/services/scan/MftMerge.*` | `RowIndex` (rows in record order, lookup by record), `mergeRows()` (files, names, parents, metadata, stream ordinals, flags, extents, reconcile), `ExtensionMap`, `extraStreamBase`. |
+| `src/services/scan/MftSecondPass.*` | `joinExtensionRecords()`: attribute lists (resident or read through a `ListReader`) decide which extension records join which base file; `SecondPassStats`. |
 | `src/services/scan/ScanRules.*` | Rules both scanners share: `unattributedName`, pinned root names, attribute bits to file flags, extent flags, residency; `scannerName()`. |
 | `src/services/scan/ScanStats.h` | `ScanStats` (shared by both scanners), `ScannerKind`, `MftReadFigures`. |
 | `src/services/scan/ScanCompare.*` | `compareWithApi()` (MFT scan against the API reference), `compareExact()` (snapshot equality), `ScanComparison`. |
@@ -173,7 +174,8 @@ changes (see `AGENTS.md`).
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
-| `tests/services/MftScannerTest.cpp` | MFT scan of the `special` volume: 1 worker = 4 workers, read figures, every cluster accounted for, `$MFT` at its start LCN. |
+| `tests/services/MftScannerTest.cpp` | MFT scan of the `special` volume: 1 worker = 4 workers, read figures, every cluster accounted for, `$MFT` at its start LCN; equal to the API scan, 1,324-fragment file resolved. |
+| `tests/services/MftSecondPassTest.cpp` | Extension records joined only when listed with the right sequence, non-resident and unreadable lists, names and runs across records, same result for any executor. |
 | `tests/core/NtfsParserTest.cpp` | Fixups, run lists (holes, deltas, malformed, overflow), names, attribute lists, handcrafted records, captured `special` records (MFT, root, resident, compressed, sparse, hard links, reparse points, streams, Unicode, EFS, big directory, 1,324-fragment file over five extension records), fuzzed and truncated records. |
 | `tests/core/NtfsRecordBuilder.h` | Test helper: MFT records byte by byte (header, attributes, update sequence) and run list encoding. |
 | `tests/data/ntfs/*.bin` | Raw MFT records captured from the `special` scenario (4 KB clusters) by `capture-mft-records.ps1`. |

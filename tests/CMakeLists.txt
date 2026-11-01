@@ -54,6 +54,7 @@ add_executable(icd_tests
     services/JobRunnerTest.cpp
     services/MftMergeTest.cpp
     services/MftScannerTest.cpp
+    services/MftSecondPassTest.cpp
     services/ThreadPoolTest.cpp
     services/TrimJobTest.cpp
     services/WorkflowTest.cpp

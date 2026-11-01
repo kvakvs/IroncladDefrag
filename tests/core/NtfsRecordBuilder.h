@@ -65,6 +65,33 @@ namespace icd::test {
         return out;
     }
 
+    // One $ATTRIBUTE_LIST entry as bytes: which record holds a segment of an attribute.
+    inline std::vector<std::byte> listEntry(core::ntfs::AttributeType type, std::uint64_t vcn, std::uint64_t reference,
+                                            std::uint16_t id, const std::u16string& name) {
+        std::vector<std::byte> e(26);
+        const auto put = [&](std::size_t at, auto v) { std::memcpy(e.data() + at, &v, sizeof(v)); };
+        put(0, static_cast<std::uint32_t>(type));
+        e[6] = static_cast<std::byte>(name.size());
+        e[7] = static_cast<std::byte>(26);
+        put(8, vcn);
+        put(16, reference);
+        put(24, id);
+        const auto text = utf16(name);
+        e.insert(e.end(), text.begin(), text.end());
+        e.resize((e.size() + 7) / 8 * 8);
+        put(4, static_cast<std::uint16_t>(e.size()));
+        return e;
+    }
+
+    // Several attribute list entries back to back.
+    inline std::vector<std::byte> joinBytes(const std::vector<std::vector<std::byte>>& parts) {
+        std::vector<std::byte> out;
+        for (const auto& part : parts) {
+            out.insert(out.end(), part.begin(), part.end());
+        }
+        return out;
+    }
+
     // Assembles one record.
     class RecordBuilder {
     public:

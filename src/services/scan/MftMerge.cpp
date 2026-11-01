@@ -31,6 +31,7 @@ namespace icd::services::mft {
             std::uint64_t parentReference = 0; // From the chosen name.
             std::uint16_t links = 0; // Names that are not DOS aliases.
             bool clusters = false; // A data stream or directory index has clusters.
+            bool mainSeen = false; // Some part holds the unnamed $DATA (its value or first segment).
         };
 
         // The name a file is listed under: the first that is not a DOS alias (else the first), and its link count.
@@ -273,6 +274,7 @@ namespace icd::services::mft {
                     const ChunkRows& chunk = rows_.chunk(r);
                     const RecordRow& row = rows_.row(r);
                     const std::size_t base = rows_.segmentBase(r);
+                    facts_[f].mainSeen = facts_[f].mainSeen || (row.facts & RowMainData) != 0;
                     for (std::uint16_t s = 0; s < row.segmentCount; ++s) {
                         const SegmentRow& seg = chunk.segments[row.firstSegment + s];
                         const SegmentClass cls =
@@ -283,7 +285,10 @@ namespace icd::services::mft {
                 });
                 core::FileEntry& e = entries_[f];
                 e.flags |= numbers.hasNamed() ? core::FileAlternateStreams : 0;
-                e.flags |= isResident(e.flags, facts_[f].clusters) ? core::FileResident : 0;
+                // Residency needs the main stream: a file whose data sits in an extension record that could not be
+                // joined (unreadable attribute list) is not known to be resident.
+                const bool resident = facts_[f].mainSeen && isResident(e.flags, facts_[f].clusters);
+                e.flags |= resident ? core::FileResident : 0;
             }
 
             // Every chunk's extents with file indexes, stream ordinals and flags; rows that belong to no file and runs

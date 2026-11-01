@@ -27,6 +27,9 @@ namespace icd::services {
         std::uint64_t badRecords = 0; // Read but damaged (signature, fixups, header, attributes); skipped.
         std::uint64_t extensionRecords = 0; // In-use records holding attributes of another file.
         std::uint64_t attributeListFiles = 0; // Files whose attributes spread over several records.
+        std::uint64_t extensionsJoined = 0; // Extension records their base file's attribute list names.
+        std::uint64_t extensionsRejected = 0; // Extension records no current list names (stale); not used.
+        std::uint64_t badAttributeLists = 0; // Attribute lists that could not be read or parsed.
         std::uint64_t bytesRead = 0; // Bytes read from the volume.
         std::uint64_t reads = 0; // Read requests.
         double readSeconds = 0.0; // Wall time of the read stream.

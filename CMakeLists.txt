@@ -192,6 +192,8 @@ add_library(icd_services STATIC
     src/services/scan/MftRows.h
     src/services/scan/MftScanner.cpp
     src/services/scan/MftScanner.h
+    src/services/scan/MftSecondPass.cpp
+    src/services/scan/MftSecondPass.h
     src/services/scan/ScanCompare.cpp
     src/services/scan/ScanCompare.h
     src/services/scan/ScanRules.cpp

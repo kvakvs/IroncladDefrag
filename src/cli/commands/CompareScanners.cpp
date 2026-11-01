@@ -70,10 +70,12 @@ namespace icd::cli {
 
         // Prints a comparison; true when it found nothing.
         bool print(const char* what, const services::ScanComparison& c) {
-            std::printf("  %-34s %s (%llu files, %llu runs compared, %llu differences)\n", what,
-                        c.same() ? "same" : "DIFFERENT", static_cast<unsigned long long>(c.filesCompared),
-                        static_cast<unsigned long long>(c.runsCompared),
-                        static_cast<unsigned long long>(c.differences));
+            std::printf("  %-34s %s (%llu files, %llu runs compared, %llu differences; %llu extra metadata files, %llu "
+                        "deferred access times)\n",
+                        what, c.same() ? "same" : "DIFFERENT", static_cast<unsigned long long>(c.filesCompared),
+                        static_cast<unsigned long long>(c.runsCompared), static_cast<unsigned long long>(c.differences),
+                        static_cast<unsigned long long>(c.extraMetadataFiles),
+                        static_cast<unsigned long long>(c.deferredAccessTimes));
             for (const std::string& line : c.samples) {
                 std::printf("      %s\n", line.c_str());
             }

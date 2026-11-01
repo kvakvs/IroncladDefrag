@@ -181,3 +181,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   stream ordinals, flags, reconcile; any executor gives the same snapshot), `ScanRules` shared with the API path,
   `ScanCompare` and `icd-cli compare-scanners`, `icd-cli analyze --scanner/--threads`. `special` volume scans end to
   end (1 = 2 = 8 workers); X: (112 K files) reads `$MFT` with the disk 100% busy, 3.9x faster than the API scan.
+- T062 Attribute lists and path resolution - `services/scan/MftSecondPass.*` (`joinExtensionRecords()`: resident or
+  read-from-disk attribute lists accept only listed, current extension records; stale ones go to `$Unattributed`),
+  merge folds names, sizes and segments of accepted parts into the base file; parents resolved per file in parallel
+  in the merge. Access times compared as "deferred" when the record is older than memory. `special` (1,324-fragment
+  file over five extension records, compressed logs) and X: now equal to the API scan; `MftSecondPassTest`.

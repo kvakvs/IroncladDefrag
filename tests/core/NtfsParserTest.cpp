@@ -22,6 +22,7 @@
 namespace icd::core::ntfs { namespace {
 
     using test::encodeRuns;
+    using test::listEntry;
     using test::RecordBuilder;
     using test::RunSpec;
 
@@ -168,24 +169,6 @@ namespace icd::core::ntfs { namespace {
     }
 
     // --- Attribute lists ------------------------------------------------------------------------------------------
-
-    // One attribute list entry as bytes.
-    std::vector<std::byte> listEntry(AttributeType type, std::uint64_t vcn, std::uint64_t reference, std::uint16_t id,
-                                     const std::u16string& name) {
-        std::vector<std::byte> e(26);
-        const auto put = [&](std::size_t at, auto v) { std::memcpy(e.data() + at, &v, sizeof(v)); };
-        put(0, static_cast<std::uint32_t>(type));
-        e[6] = static_cast<std::byte>(name.size());
-        e[7] = static_cast<std::byte>(26);
-        put(8, vcn);
-        put(16, reference);
-        put(24, id);
-        const auto text = test::utf16(name);
-        e.insert(e.end(), text.begin(), text.end());
-        e.resize((e.size() + 7) / 8 * 8);
-        put(4, static_cast<std::uint16_t>(e.size()));
-        return e;
-    }
 
     TEST(NtfsAttributeList, ParsesEntries) {
         auto value = listEntry(AttributeType::Data, 0, makeReference(300, 2), 3, u"");

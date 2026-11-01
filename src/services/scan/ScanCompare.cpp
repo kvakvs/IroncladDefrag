@@ -99,7 +99,7 @@ namespace icd::services {
 
             // Compares every field and the runs; returns the clusters compared.
             core::ClusterCount compare(Report& report, ScanComparison& out) const {
-                fields(report);
+                fields(report, out);
                 const auto apiRuns = runsOf(api_, a_);
                 const auto mftRuns = runsOf(mft_, m_);
                 out.runsCompared += apiRuns.size();
@@ -113,7 +113,7 @@ namespace icd::services {
 
         private:
             // Name, parent, size, flags and times.
-            void fields(Report& report) const {
+            void fields(Report& report, ScanComparison& out) const {
                 const auto& af = api_.files;
                 const auto& mf = mft_.files;
                 report.expectEqual(api_.names.name(af.name(a_)), mft_.names.name(mf.name(m_)),
@@ -127,8 +127,19 @@ namespace icd::services {
                     std::format("{}: flags 0x{:x} by API, 0x{:x} by MFT", path_, af.flags(a_), mf.flags(m_)));
                 const auto& at = af.times(a_);
                 const auto& mt = mf.times(m_);
-                report.expectEqual(std::tie(at.created, at.modified, at.accessed),
-                                   std::tie(mt.created, mt.modified, mt.accessed), path_ + ": times differ");
+                report.expectEqual(std::tie(at.created, at.modified), std::tie(mt.created, mt.modified),
+                                   std::format("{}: times differ (created {} / {}, modified {} / {})", path_,
+                                               at.created, mt.created, at.modified, mt.modified));
+                // NTFS updates last-access times in memory and writes them to the record later (plan.md 8.2), so the
+                // raw record may be older than what the API reports, never newer.
+                if (at.accessed > mt.accessed) {
+                    ++out.deferredAccessTimes;
+                }
+                else {
+                    report.expectEqual(
+                        at.accessed, mt.accessed,
+                        std::format("{}: access time {} by API, {} by MFT", path_, at.accessed, mt.accessed));
+                }
             }
 
             const Snapshot& api_; // Reference scan.

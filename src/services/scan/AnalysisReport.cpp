@@ -90,6 +90,9 @@ namespace icd::services {
             json.key("badRecords").value(f.badRecords);
             json.key("extensionRecords").value(f.extensionRecords);
             json.key("attributeListFiles").value(f.attributeListFiles);
+            json.key("extensionsJoined").value(f.extensionsJoined);
+            json.key("extensionsRejected").value(f.extensionsRejected);
+            json.key("badAttributeLists").value(f.badAttributeLists);
             json.key("bytesRead").value(f.bytesRead);
             json.key("reads").value(f.reads);
             json.key("readSeconds").value(f.readSeconds);
