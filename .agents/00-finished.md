@@ -154,3 +154,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `core/snapshot/ScanReconcile.*` (newer read wins, stale free runs trimmed, unclaimed clusters to an unmovable
   `$Unattributed` placeholder). On the `special` volume every special case is flagged, all clusters are accounted
   for, and sampled extents equal `fsutil file queryextents`.
+- T048 Analysis service and live map - `services/scan/AnalysisJob.*` (bitmap first with an immediate map, API scan
+  with partial maps every 3 s, final map and summary; cancellable), `core/snapshot/SnapshotStats.*` (fragmentation and
+  free-run figures), `MapCanvas/MapPanel::updateMap()` (newer data keeps the view, tiles redraw without blanking), the
+  Summary tab (existing `ui/panels/SummaryPage`, not a new `ui/tabs/SummaryTab`) with real-scan rows, ruler "% of disk",
+  real Analyze for real drives (synthetic stays for `ICD_FAKE_DRIVES`). GUI: X: (2.3 TB, 112 K files) analysed in
+  14.7 s without blocking; cancel stops it and clears the half-read map.

@@ -1,10 +1,12 @@
 #pragma once
 
 #include "core/map/ColorModes.h"
+#include "core/map/Ruler.h"
 
 #include <wx/panel.h>
 
 #include <memory>
+#include <optional>
 
 class wxChoice;
 class wxSearchCtrl;
@@ -19,6 +21,7 @@ namespace icd::ui {
 
     class Legend;
     class MapCanvas;
+    class Ruler;
 
     // The drive map area (plan.md section 11): a toolbar with the color mode, overlays, a caption saying which
     // drive is shown and in what state, the selected file and a file search, above the map canvas with its rulers
@@ -48,6 +51,12 @@ namespace icd::ui {
 
         // Shows a map, or clears it with null.
         void setMap(std::shared_ptr<const core::MapData> map);
+
+        // Shows newer data of the same volume, keeping the view (MapCanvas::updateMap()).
+        void updateMap(std::shared_ptr<const core::MapData> map);
+
+        // Where the selected volume sits on its disk (rulers' "% of disk"); nullopt when unknown.
+        void setDisk(std::optional<core::DiskPlacement> disk);
 
         // Whether a map is shown.
         [[nodiscard]] bool hasMap() const;
@@ -85,6 +94,7 @@ namespace icd::ui {
         std::shared_ptr<const core::MapData> map_; // The map shown, for searches; null for none.
         MapCanvas* canvas_ = nullptr; // The map; child window owned by wx.
         Legend* legend_ = nullptr; // Colors and counts of the view; child window owned by wx.
+        Ruler* rows_ = nullptr; // Row ruler left of the map; child window owned by wx.
         core::ColorMode mode_ = core::ColorMode::Fragmentation; // Current color mode.
         wxChoice* colorMode_ = nullptr; // Toolbar color mode; child window owned by wx.
         wxStaticText* caption_ = nullptr; // Drive and state; child window owned by wx.

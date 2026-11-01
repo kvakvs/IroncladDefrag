@@ -4,30 +4,11 @@
 #include "core/model/DriveInfo.h"
 #include "core/synth/SyntheticVolume.h"
 #include "services/job/JobRunner.h"
+#include "services/scan/AnalysisJob.h"
 
 #include <memory>
-#include <mutex>
 
 namespace icd::services {
-
-    // Where a synthetic analysis leaves its map. The job writes it on a worker; the UI takes it after the job's
-    // success event.
-    struct AnalysisOutput {
-        // Stores the map (worker side).
-        void set(std::shared_ptr<const core::MapData> data) {
-            const std::scoped_lock lock(mutex);
-            map = std::move(data);
-        }
-
-        // Takes the map (UI side); null when the job did not get that far.
-        [[nodiscard]] std::shared_ptr<const core::MapData> take() {
-            const std::scoped_lock lock(mutex);
-            return std::exchange(map, nullptr);
-        }
-
-        std::mutex mutex; // Guards map.
-        std::shared_ptr<const core::MapData> map; // The result.
-    };
 
     // Synthetic volume options shaped like a drive: same size and fill, files from the used space, and a
     // fragmented share from the drive's figure, seeded by the drive letter so a drive always looks the same.

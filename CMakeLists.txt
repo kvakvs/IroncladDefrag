@@ -96,6 +96,8 @@ add_library(icd_core STATIC
     src/core/snapshot/NamePool.h
     src/core/snapshot/ScanReconcile.cpp
     src/core/snapshot/ScanReconcile.h
+    src/core/snapshot/SnapshotStats.cpp
+    src/core/snapshot/SnapshotStats.h
     src/core/snapshot/Snapshot.cpp
     src/core/snapshot/Snapshot.h
     src/core/snapshot/SnapshotBuilder.cpp
@@ -159,6 +161,8 @@ add_library(icd_services STATIC
     src/services/job/FakeJob.h
     src/services/job/JobRunner.cpp
     src/services/job/JobRunner.h
+    src/services/scan/AnalysisJob.cpp
+    src/services/scan/AnalysisJob.h
     src/services/scan/ApiScanner.cpp
     src/services/scan/ApiScanner.h
     src/services/trim/TrimJob.cpp

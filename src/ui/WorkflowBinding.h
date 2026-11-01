@@ -109,6 +109,12 @@ namespace icd::ui {
         // Moves TRIM output collected so far into the Log tab.
         void takeTrimOutput();
 
+        // Shows the newest map a running analysis has left (bitmap first, then partial scans).
+        void takeAnalysisMap();
+
+        // Clears the map after a cancelled or failed analysis, so a half-read volume never looks analysed.
+        void dropPartialMap(services::WorkflowJob job);
+
         // Status line text after a plan was built.
         [[nodiscard]] std::string planReadyText() const;
 

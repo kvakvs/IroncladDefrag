@@ -75,6 +75,7 @@ namespace icd::ui {
         canvas_ = new MapCanvas(this, executor);
         legend_ = new Legend(this, executor);
         auto* rows = new Ruler(this, *canvas_, Ruler::Orientation::Vertical);
+        rows_ = rows;
         auto* columns = new Ruler(this, *canvas_, Ruler::Orientation::Horizontal);
         canvas_->setViewObserver([rows, columns, legend = legend_, canvas = canvas_] {
             rows->Refresh(false);
@@ -167,6 +168,15 @@ namespace icd::ui {
         legend_->setMap(map); // Before the canvas, which reports its first view.
         canvas_->setMap(std::move(map));
     }
+
+    void MapPanel::updateMap(std::shared_ptr<const core::MapData> map) {
+        map_ = map;
+        search_->Enable(map_ != nullptr);
+        legend_->setMap(map);
+        canvas_->updateMap(std::move(map));
+    }
+
+    void MapPanel::setDisk(std::optional<core::DiskPlacement> disk) { rows_->setDisk(disk); }
 
     void MapPanel::showLegend(bool shown) {
         legend_->Show(shown);

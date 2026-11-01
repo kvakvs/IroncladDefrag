@@ -23,6 +23,9 @@ namespace icd::ui {
         void clear(const wxString& hint);
 
     private:
+        // Rows only a real scan has (directories, fragmented data, large free runs, unmovable, problems).
+        void addScanRows(const services::AnalysisSummary::ScanFigures& scan);
+
         wxStaticText* hint_ = nullptr; // What to do to get content; hidden while content is shown.
         wxListView* metrics_ = nullptr; // Volume-wide figures.
         wxListView* classes_ = nullptr; // Per-class rows.

@@ -122,10 +122,29 @@ namespace icd::ui {
         notifyView();
     }
 
+    void MapCanvas::updateMap(std::shared_ptr<const core::MapData> map) {
+        const bool sameWorld = map_ != nullptr && map != nullptr &&
+            map->world().clusters() == map_->world().clusters() && map->world().rowWidth() == map_->world().rowWidth();
+        if (!sameWorld) {
+            setMap(std::move(map));
+            return;
+        }
+        hover_->hide();
+        selection_->reset(); // Its runs came from the old snapshot.
+        overlay_.reset();
+        map_ = std::move(map);
+        markAllDirty();
+        notifyView();
+    }
+
     void MapCanvas::setPalette(std::shared_ptr<const core::Palette> palette) {
         palette_ = std::move(palette);
+        markAllDirty();
+    }
+
+    void MapCanvas::markAllDirty() {
         // Like a selection change that touches every tile: cached tiles stay on screen until each one renders
-        // again in the new colors, so the map never blanks while switching modes.
+        // again, so the map never blanks while switching modes or taking newer data.
         ++selectionVersion_;
         for (const core::TileId tile : cache_.keys()) {
             dirty_[tile] = selectionVersion_;

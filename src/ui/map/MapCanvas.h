@@ -61,6 +61,10 @@ namespace icd::ui {
         // Shows a map (null clears it) and fits the whole volume into the window.
         void setMap(std::shared_ptr<const core::MapData> map);
 
+        // Shows newer data of the same volume (an analysis still reading files): with the same world the view stays
+        // and cached tiles stay on screen until they render again from the new data; otherwise like setMap().
+        void updateMap(std::shared_ptr<const core::MapData> map);
+
         // Changes the color mode: cached tiles are marked dirty and render again, shown in the old colors until
         // then.
         void setPalette(std::shared_ptr<const core::Palette> palette);
@@ -116,6 +120,9 @@ namespace icd::ui {
         void deliver(RenderStamp stamp, core::TileId tile, std::vector<core::Rgba>&& pixels);
 
     private:
+        // Marks every cached and rendering tile dirty: they stay on screen and render again.
+        void markAllDirty();
+
         // Draws the frame.
         void onPaint(wxPaintEvent& event);
 

@@ -29,6 +29,7 @@ add_executable(icd_tests
     core/ScanReconcileTest.cpp
     core/SelectionTest.cpp
     core/SmokeTest.cpp
+    core/SnapshotStatsTest.cpp
     core/SnapshotTest.cpp
     core/StripesTest.cpp
     core/SyntheticVolumeTest.cpp
@@ -42,6 +43,7 @@ add_executable(icd_tests
     platform/UsnJournalTest.cpp
     platform/VolumeBitmapTest.cpp
     platform/VolumesTest.cpp
+    services/AnalysisJobTest.cpp
     services/ApiScannerTest.cpp
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp

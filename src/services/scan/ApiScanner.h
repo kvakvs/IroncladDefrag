@@ -7,7 +7,9 @@
 
 #include <windows.h>
 
+#include <chrono>
 #include <cstdint>
+#include <functional>
 #include <string>
 #include <vector>
 
@@ -33,6 +35,10 @@ namespace icd::services {
     // $Boot, $BadClus, locked files); it is unmovable.
     inline constexpr const char* unattributedName = "$Unattributed";
 
+    // Receives a snapshot of what the scan has read so far: files not read yet own nothing, and the clusters not
+    // claimed yet belong to the placeholder. Lets the map fill in while the scan runs. Called on the scan's thread.
+    using PartialScanSink = std::function<void(core::Snapshot)>;
+
     // The reference scanner of plan.md 10.2 (API path): file list from FSCTL_ENUM_USN_DATA, then for each file
     // in MFT record order its metadata and the retrieval pointers of every data stream (directories: their
     // index allocation). Flags resident, compressed, sparse, encrypted, reparse points, hard links, alternate
@@ -40,9 +46,11 @@ namespace icd::services {
     //   volume     handle with read access (administrators)
     //   root       path the volume is mounted on ("T:\"), for opening named streams by path
     //   freeRuns   free space from the bitmap, read before the files
+    //   partial    optional; gets a partial snapshot about every `partialInterval` while files are read
     // Throws std::runtime_error when the volume cannot be enumerated and OperationCancelled on cancel.
     [[nodiscard]] ApiScanResult scanFilesApi(HANDLE volume, const std::wstring& root, core::VolumeGeometry geometry,
                                              std::vector<core::ClusterRun> freeRuns, const core::CancelToken& token,
-                                             core::ProgressSink* progress);
+                                             core::ProgressSink* progress, const PartialScanSink& partial = {},
+                                             std::chrono::milliseconds partialInterval = std::chrono::seconds(3));
 
 } // namespace icd::services

@@ -40,8 +40,8 @@ namespace icd::ui {
         hint_ = new wxStaticText(this, wxID_ANY, "");
         hint_->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
         metrics_ = new wxListView(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
-        metrics_->AppendColumn("Volume", wxLIST_FORMAT_LEFT, FromDIP(170));
-        metrics_->AppendColumn("Value", wxLIST_FORMAT_RIGHT, FromDIP(120));
+        metrics_->AppendColumn("Volume", wxLIST_FORMAT_LEFT, FromDIP(200));
+        metrics_->AppendColumn("Value", wxLIST_FORMAT_RIGHT, FromDIP(110));
         classes_ = new wxListView(this, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
         classes_->AppendColumn("Class", wxLIST_FORMAT_LEFT, FromDIP(170));
         classes_->AppendColumn("Files", wxLIST_FORMAT_RIGHT, FromDIP(90));
@@ -51,7 +51,7 @@ namespace icd::ui {
         auto* tables = new wxBoxSizer(wxHORIZONTAL);
         tables->Add(metrics_, wxSizerFlags(0).Expand().Border(wxRIGHT, FromDIP(8)));
         tables->Add(classes_, wxSizerFlags(1).Expand());
-        metrics_->SetMinSize(FromDIP(wxSize(300, -1)));
+        metrics_->SetMinSize(FromDIP(wxSize(340, -1)));
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(hint_, wxSizerFlags().Border(wxALL, FromDIP(8)));
         sizer->Add(tables, wxSizerFlags(1).Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, FromDIP(8)));
@@ -69,12 +69,28 @@ namespace icd::ui {
         addRow(*metrics_, {"Free space", core::formatBytes(summary.freeBytes)});
         addRow(*metrics_, {"Free-space runs", core::formatCount(summary.freeRuns)});
         addRow(*metrics_, {"Largest free run", core::formatBytes(summary.largestFreeRun)});
+        if (summary.scan) {
+            addScanRows(*summary.scan);
+        }
         for (const services::ClassSummary& row : summary.classes) {
             addRow(*classes_,
                    {row.name, core::formatCount(row.files), core::formatBytes(row.bytes), percent(row.inZonePercent)});
         }
         hint_->Hide();
         Layout();
+    }
+
+    void SummaryPage::addScanRows(const services::AnalysisSummary::ScanFigures& scan) {
+        addRow(*metrics_, {"Directories", core::formatCount(scan.directories)});
+        addRow(*metrics_, {"Data in fragmented files", percent(scan.fragmentedBytesPercent)});
+        addRow(*metrics_, {"Free space in runs of 64 MB+", percent(scan.largeRunFreePercent)});
+        addRow(*metrics_, {"Unmovable", core::formatBytes(scan.unmovableBytes)});
+        if (scan.unreadableFiles != 0) {
+            addRow(*metrics_, {"Unreadable files", core::formatCount(scan.unreadableFiles)});
+        }
+        if (scan.changedDuringScan != 0) {
+            addRow(*metrics_, {"Changed during the scan", core::formatCount(scan.changedDuringScan)});
+        }
     }
 
     void SummaryPage::clear(const wxString& hint) {

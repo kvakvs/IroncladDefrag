@@ -6,6 +6,7 @@
 #include <chrono>
 #include <cstddef>
 #include <cstdint>
+#include <optional>
 #include <string>
 #include <utility>
 #include <vector>
@@ -40,6 +41,17 @@ namespace icd::services {
         std::uint64_t freeRuns = 0; // Separate free-space runs.
         std::uint64_t largestFreeRun = 0; // Bytes in the largest free run.
         std::vector<ClassSummary> classes; // Per-class counts.
+
+        // Figures only a real scan has; empty for the fake and synthetic stand-ins, so the tab hides them.
+        struct ScanFigures {
+            std::uint64_t directories = 0; // Directories.
+            double fragmentedBytesPercent = 0.0; // Share of file bytes in fragmented files.
+            double largeRunFreePercent = 0.0; // Share of free space in runs of 64 MB or more.
+            std::uint64_t unmovableBytes = 0; // Metadata, pinned files and unreadable areas.
+            std::uint64_t unreadableFiles = 0; // Files that could not be opened.
+            std::uint64_t changedDuringScan = 0; // Extents dropped because their file changed during the scan.
+        };
+        std::optional<ScanFigures> scan; // Present after a real analysis.
     };
 
     // One zone of a strategy preset (plan.md 8.1), in disk order.

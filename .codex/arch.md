@@ -208,6 +208,30 @@ this file records what is actually built and the decisions made along the way.
 - Checked on the `special` scenario: every special case flagged, clusters fully accounted for, bitmap free count
   unchanged, and the extents of ~25 sampled files equal `fsutil file queryextents`.
 
+## Analysis
+
+- `services::makeAnalysisJob()` (T048): opens the volume for reading (fails with a clear message without
+  administrator rights), reads fresh geometry, then the bitmap. A map of the bitmap alone follows at once
+  (`bitmapSnapshot()`: used space owned by one "(files not read yet)" placeholder), so the map shows used and
+  free space within a second or two (plan.md 6.2 principle 7). The API scan then reads the files and hands over a
+  partial snapshot every 3 s (files read so far; unread used space still belongs to the unmovable placeholder,
+  so the map turns from green to file colors as the scan proceeds); each becomes a `MapData` in the job.
+  Finally `core::summarize()` gives the Summary figures and the final map is published.
+- The API path reads files in MFT order, not by LCN stripe, so the map fills in by file rather than stripe by
+  stripe as plan.md 6.2 describes for the MFT scanner (Phase 4).
+- `AnalysisOutput` (moved from SyntheticAnalysis) holds only the newest map; the UI takes it on every progress
+  event and shows it with `MapPanel::updateMap()`: same world, so the canvas keeps its view and marks every
+  tile dirty (the palette-switch path) instead of resetting, and nothing blanks. A cancelled or failed analysis
+  clears the map, so a half-read volume never looks analysed.
+- `core::VolumeStats`: files, directories, fragmented files and extra fragments, fragmented share of files and
+  of file bytes, unmovable clusters, free runs, largest run and the free share in runs of 64 MB or more. The
+  Summary tab adds these real-scan rows (`AnalysisSummary::scan`) plus unreadable files and files changed during
+  the scan when there are any; the drive row takes the fragmented-file percentage.
+- The selected drive's partition offset and disk size feed the row ruler's "% of disk" labels.
+- Measured from the GUI (Release): X: (2.3 TB HDD, 112 K files) 14.7 s cold, about 2 s warm; E: (8.6 TB HDD,
+  15 K files) 1.5 s including the 2.3 G-cluster bitmap. Cancel during the file scan stops within a fraction of a
+  second ("cancelled after 1.7 s").
+
 ## Stripes
 
 - A volume is cut into fixed LCN stripes (`core::StripeLayout`): sizes are multiples of 4096
@@ -316,10 +340,10 @@ this file records what is actually built and the decisions made along the way.
   (`D2DERR_RECREATE_TARGET`) drop every tile and recreate the target on the next paint.
 - The view is a scale (cells per pixel) and a world center. A new map is fitted once the window has
   a real size; afterwards resizing keeps scale and center, so the world never re-flows (plan.md 7.1).
-- Until real scanning (Phase 3), Analyze runs `services::makeSyntheticAnalysis()`: a synthetic volume
-  shaped like the fake drive (size, fill, fragmentation) plus its `MapData`. Measured: the 4 TB fake
-  drive in 2.1 s, the 30 TB one (20.5 M files, 48.9 M extents, 384 MB map data) in 16.6 s; the fitted
-  view's tiles arrive within 40 ms.
+- With the fake drive list (`ICD_FAKE_DRIVES=1`), Analyze runs `services::makeSyntheticAnalysis()`: a
+  synthetic volume shaped like the fake drive (size, fill, fragmentation) plus its `MapData`. Measured: the
+  4 TB fake drive in 2.1 s, the 30 TB one (20.5 M files, 48.9 M extents, 384 MB map data) in 16.6 s; the
+  fitted view's tiles arrive within 40 ms. Real drives run the analysis job (see Analysis below).
 - `PrintWindow` does not capture Direct2D output of a child window; scripted screenshots of the map
   need a real screen capture.
 

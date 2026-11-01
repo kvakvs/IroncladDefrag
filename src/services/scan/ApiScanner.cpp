@@ -71,16 +71,21 @@ namespace icd::services {
         class ApiScanner {
         public:
             ApiScanner(HANDLE volume, std::wstring root, core::VolumeGeometry geometry, core::CancelToken token,
-                       core::ProgressSink* progress) :
+                       core::ProgressSink* progress, PartialScanSink partial, std::chrono::milliseconds interval) :
                 volume_(volume), root_(std::move(root)), geometry_(geometry), token_(std::move(token)),
-                progress_(progress) {}
+                progress_(progress), partial_(std::move(partial)), partialInterval_(interval) {}
 
             // Runs the scan.
             ApiScanResult run(std::vector<core::ClusterRun> freeRuns) {
                 const auto journal = platform::queryUsnJournal(volume_); // Before the files: changes during the
                 collect(); // scan stay after the cursor.
+                freeRuns_ = std::move(freeRuns);
+                initFiles();
                 scanAll();
-                ApiScanResult result{build(std::move(freeRuns)), stats_};
+                report("Building snapshot", 0, 0);
+                core::Snapshot snapshot = makeSnapshot(std::move(extents_), std::move(freeRuns_), stats_.reconcile);
+                stats_.files = files_.size() + 1;
+                ApiScanResult result{std::move(snapshot), stats_};
                 if (journal) {
                     result.snapshot.usn = core::UsnCursor{journal->journalId, journal->nextUsn};
                 }
@@ -168,23 +173,43 @@ namespace icd::services {
                     std::ranges::any_of(pinnedNames, [&](std::string_view pinned) { return pinned == name; });
             }
 
+            // Every file with what the enumeration knows (name, parent, attributes), so partial snapshots show
+            // names before the files are read.
+            void initFiles() {
+                files_.resize(pending_.size());
+                for (std::size_t i = 0; i < pending_.size(); ++i) {
+                    const Pending& p = pending_[i];
+                    files_[i] = {p.name, parentOf(i), 0, flagsFromAttributes(p.attributes), {}, p.reference};
+                }
+                lastPartial_ = std::chrono::steady_clock::now();
+            }
+
             // Reads every pending file in MFT record order.
             void scanAll() {
-                files_.resize(pending_.size());
                 for (std::size_t i = 0; i < pending_.size(); ++i) {
                     if (i % reportEvery == 0) {
                         token_.throwIfCancelled();
                         report("Reading files", i, pending_.size());
+                        maybePartial();
                     }
                     scanFile(i);
                 }
                 report("Reading files", pending_.size(), pending_.size());
             }
 
+            // Hands a snapshot of the reads so far to the partial sink once the interval has passed.
+            void maybePartial() {
+                if (!partial_ || std::chrono::steady_clock::now() - lastPartial_ < partialInterval_) {
+                    return;
+                }
+                core::ReconcileStats ignored;
+                partial_(makeSnapshot(extents_, freeRuns_, ignored));
+                lastPartial_ = std::chrono::steady_clock::now(); // After building, so slow builds do not pile up.
+            }
+
             // Metadata and extents of one file.
             void scanFile(std::size_t i) {
                 const Pending& p = pending_[i];
-                files_[i] = {p.name, parentOf(i), 0, flagsFromAttributes(p.attributes), {}, p.reference};
                 const auto handle = platform::openFileById(volume_, p.reference);
                 platform::FileFacts facts;
                 if (!handle || !platform::readFileFacts(handle.get(), facts)) {
@@ -266,21 +291,20 @@ namespace icd::services {
                 return path;
             }
 
-            // Reconciles the reads with the bitmap and builds the snapshot; the placeholder file comes last.
-            core::Snapshot build(std::vector<core::ClusterRun> freeRuns) {
-                report("Building snapshot", 0, 0);
+            // Reconciles extents with free runs and builds a snapshot; the placeholder file comes last.
+            core::Snapshot makeSnapshot(std::vector<core::ExtentEntry> extents, std::vector<core::ClusterRun> freeRuns,
+                                        core::ReconcileStats& stats) const {
                 const auto placeholder = static_cast<core::FileIndex>(files_.size());
-                stats_.reconcile = core::reconcileScan(extents_, freeRuns, geometry_.totalClusters, placeholder);
+                stats = core::reconcileScan(extents, freeRuns, geometry_.totalClusters, placeholder);
                 core::SnapshotBuilder builder(geometry_);
                 for (const core::FileEntry& file : files_) {
                     builder.addFile(file);
                 }
                 builder.addFile({unattributedName, rootIndex(), 0, core::FileMetadata | core::FileUnmovable, {}, 0});
-                builder.addExtents(std::move(extents_));
+                builder.addExtents(std::move(extents));
                 for (const core::ClusterRun& run : freeRuns) {
                     builder.addFreeRun(run);
                 }
-                stats_.files = files_.size() + 1;
                 return std::move(builder).build();
             }
 
@@ -302,17 +326,22 @@ namespace icd::services {
             std::vector<core::ExtentEntry> extents_; // Every allocated run read.
             std::vector<platform::RetrievedRun> runs_; // Reused retrieval pointer buffer.
             ApiScanStats stats_; // Counters.
+            PartialScanSink partial_; // Gets partial snapshots; may be empty.
+            std::chrono::milliseconds partialInterval_; // Time between partial snapshots.
+            std::chrono::steady_clock::time_point lastPartial_; // When the last one was handed over.
+            std::vector<core::ClusterRun> freeRuns_; // Free space from the bitmap.
         };
 
     } // namespace
 
     ApiScanResult scanFilesApi(HANDLE volume, const std::wstring& root, core::VolumeGeometry geometry,
                                std::vector<core::ClusterRun> freeRuns, const core::CancelToken& token,
-                               core::ProgressSink* progress) {
+                               core::ProgressSink* progress, const PartialScanSink& partial,
+                               std::chrono::milliseconds partialInterval) {
         // Administrators hold the backup privilege but have it switched off; with it on, files only SYSTEM may
         // open (System Volume Information) can still be queried.
         platform::enablePrivilege(SE_BACKUP_NAME);
-        ApiScanner scanner(volume, root, geometry, token, progress);
+        ApiScanner scanner(volume, root, geometry, token, progress, partial, partialInterval);
         return scanner.run(std::move(freeRuns));
     }
 

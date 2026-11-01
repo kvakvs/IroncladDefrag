@@ -51,6 +51,12 @@ namespace icd::ui {
         InvalidateBestSize();
     }
 
+    void Ruler::setDisk(std::optional<core::DiskPlacement> disk) {
+        disk_ = disk;
+        updateMetrics();
+        Refresh(false);
+    }
+
     core::RulerInput Ruler::input() const {
         core::RulerInput in;
         const core::MapData* map = canvas_.map();
@@ -60,7 +66,7 @@ namespace icd::ui {
         in.world = &map->world();
         in.view = canvas_.viewport();
         in.bytesPerCluster = map->snapshot().geometry.bytesPerCluster;
-        // The partition placement comes with real volumes (Phase 3); until then there is no "% of disk" line.
+        in.disk = disk_;
         const int lines = in.disk ? 3 : 2;
         in.minSpacing =
             orientation_ == Orientation::Vertical ? lines * lineHeight_ + 2 * padding_ : labelWidth_ + 4 * padding_;

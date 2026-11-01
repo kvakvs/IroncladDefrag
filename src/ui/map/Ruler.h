@@ -6,6 +6,7 @@
 #include <wx/window.h>
 
 #include <cstdint>
+#include <optional>
 
 class wxDC;
 
@@ -27,6 +28,9 @@ namespace icd::ui {
 
         // Describes canvas, a sibling that outlives the ruler's paints (both belong to the same panel).
         Ruler(wxWindow* parent, const MapCanvas& canvas, Orientation orientation);
+
+        // Where the volume sits on its disk, for the "% of disk" labels of the row ruler; nullopt hides them.
+        void setDisk(std::optional<core::DiskPlacement> disk);
 
     private:
         // Draws the ticks for the current view.
@@ -50,6 +54,7 @@ namespace icd::ui {
         int lineHeight_ = 0; // Height of one label line.
         int labelWidth_ = 0; // Width of the widest expected label.
         int padding_ = 0; // Gap between ticks, labels and edges.
+        std::optional<core::DiskPlacement> disk_; // Partition placement of the shown volume, when known.
     };
 
 } // namespace icd::ui

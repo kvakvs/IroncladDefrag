@@ -8,6 +8,7 @@
 #include "core/log/Log.h"
 #include "services/AppServices.h"
 #include "services/job/FakeJob.h"
+#include "services/scan/AnalysisJob.h"
 #include "services/workflow/SyntheticAnalysis.h"
 #include "ui/Commands.h"
 #include "ui/MainMenu.h"
@@ -94,8 +95,8 @@ namespace icd::ui {
             "SSD, TRIM only (no map)",
             "TRIM running",
             "not analysed yet",
-            "analysing (synthetic volume)...",
-            "analysed (synthetic volume)",
+            "analysing...",
+            "analysed",
             "building plan...",
             "plan ready (the plan overlay arrives with the planner)",
             "executing plan...",
@@ -291,7 +292,10 @@ namespace icd::ui {
     services::JobFunction WorkflowBinding::makeJob(WorkflowJob job, const core::DriveInfo& drive) {
         if (job == WorkflowJob::Analyze) {
             analysisOutput_ = std::make_shared<services::AnalysisOutput>();
-            return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
+            if (services_.fakeDrives()) {
+                return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
+            }
+            return services::makeAnalysisJob(drive, screenAspect(), analysisOutput_);
         }
         if (job == WorkflowJob::Trim) {
             trimOutput_ = std::make_shared<services::TrimOutput>();
@@ -338,6 +342,16 @@ namespace icd::ui {
                                    .eta = remaining ? wxString::FromUTF8(core::formatDuration(*remaining)) : "",
                                    .currentFile = wxString::FromUTF8(progress.message)});
         takeTrimOutput();
+        takeAnalysisMap();
+    }
+
+    void WorkflowBinding::takeAnalysisMap() {
+        if (activeKind_ != WorkflowJob::Analyze || !analysisOutput_) {
+            return;
+        }
+        if (auto map = analysisOutput_->take(); map) {
+            widgets_.map.updateMap(std::move(map)); // Fills in while the files are read; the view stays.
+        }
     }
 
     void WorkflowBinding::onJobFinished(wxThreadEvent& event) {
@@ -366,15 +380,24 @@ namespace icd::ui {
             status = successText(job, result);
             break;
         case services::JobOutcome::Cancelled:
+            dropPartialMap(job);
             status = std::format("{} of {} cancelled after {}", textOf(job).title, driveLabel(), seconds(result));
             break;
         case services::JobOutcome::Failed:
+            dropPartialMap(job);
             status = std::format("{} of {} failed: {}", textOf(job).title, driveLabel(), result.error);
             break;
         }
         bottom.setStatus(wxString::FromUTF8(status));
         startJob(next); // The plan of a Quick run.
         refresh();
+    }
+
+    void WorkflowBinding::dropPartialMap(WorkflowJob job) {
+        if (job == WorkflowJob::Analyze) {
+            widgets_.map.setMap(nullptr); // A half-read volume must not look analysed.
+            analysisOutput_.reset();
+        }
     }
 
     void WorkflowBinding::showResults(WorkflowJob job) {
@@ -397,10 +420,14 @@ namespace icd::ui {
     }
 
     void WorkflowBinding::showAnalysis(core::DriveInfo& drive) {
+        std::optional<services::AnalysisSummary> real;
         if (analysisOutput_) {
-            widgets_.map.setMap(analysisOutput_->take());
+            if (auto map = analysisOutput_->take(); map) {
+                widgets_.map.updateMap(std::move(map));
+            }
+            real = analysisOutput_->takeSummary();
         }
-        const services::AnalysisSummary analysis = services::fakeAnalysis(drive);
+        const services::AnalysisSummary analysis = real ? *real : services::fakeAnalysis(drive);
         drive.fragmentationPercent = analysis.fragmentationPercent;
         drive.lastAnalysed = std::chrono::system_clock::now();
         BottomPanel& bottom = widgets_.bottom;
@@ -484,6 +511,10 @@ namespace icd::ui {
         }
         drive_ = selected != nullptr ? std::optional(*selected) : std::nullopt;
         widgets_.map.setMap(nullptr);
+        const bool placed = drive_ && drive_->layout.diskBytes != 0;
+        widgets_.map.setDisk(
+            placed ? std::optional(core::DiskPlacement{drive_->layout.partitionOffset, drive_->layout.diskBytes})
+                   : std::nullopt);
         core::logging::info("drive selected", {{"root", root}});
         analysis_.reset();
         plan_.reset();
@@ -549,8 +580,13 @@ namespace icd::ui {
             widgets_.map.setCaption("No drive selected");
             return;
         }
-        const char* caption = mapCaptions.at(static_cast<std::size_t>(workflow_.state()));
-        widgets_.map.setCaption(wxString::FromUTF8(driveLabel() + ": " + caption));
+        const WorkflowState state = workflow_.state();
+        std::string caption = driveLabel() + ": " + mapCaptions.at(static_cast<std::size_t>(state));
+        const bool analysis = state == WorkflowState::Analyzing || state == WorkflowState::Analyzed;
+        if (analysis && services_.fakeDrives()) {
+            caption += " (synthetic volume)";
+        }
+        widgets_.map.setCaption(wxString::FromUTF8(caption));
     }
 
     core::ScreenAspect WorkflowBinding::screenAspect() const {

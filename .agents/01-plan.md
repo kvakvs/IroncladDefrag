@@ -22,14 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T048 - Analysis service and live map
-- Depends: T047, T027
-- Owns: `src/services/scan/AnalysisJob.*`, `src/ui/tabs/SummaryTab.*`
-- Touches: workflow (real Analyze), map (real snapshot)
-- Do: bitmap first (map shows used/free early), then file scan with stripe-by-stripe map fill;
-  progress, cancel; Summary tab with fragmentation and free-run statistics.
-- Done when: a real data drive analyses from the GUI without blocking; cancel works.
-
 ### T049 - CLI analyze
 - Depends: T048
 - Owns: `src/cli/commands/Analyze.*`
