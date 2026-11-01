@@ -165,16 +165,29 @@ namespace icd::services {
         }
 
         // Every column of file f.
-        bool sameFile(const Snapshot& a, const Snapshot& b, FileIndex f) {
+        // The first column in which file f differs ("" when none); access times only when asked.
+        const char* fileDifference(const Snapshot& a, const Snapshot& b, FileIndex f, bool accessTimes) {
             const auto& x = a.files;
             const auto& y = b.files;
             const auto& tx = x.times(f);
             const auto& ty = y.times(f);
-            return a.names.name(x.name(f)) == b.names.name(y.name(f)) && x.parent(f) == y.parent(f) &&
-                x.sizeBytes(f) == y.sizeBytes(f) && x.allocatedClusters(f) == y.allocatedClusters(f) &&
-                x.flags(f) == y.flags(f) && x.fileReference(f) == y.fileReference(f) &&
-                std::tie(tx.created, tx.modified, tx.accessed) == std::tie(ty.created, ty.modified, ty.accessed) &&
-                std::ranges::equal(a.extents.extentsOf(f), b.extents.extentsOf(f));
+            const std::pair<bool, const char*> checks[] = {
+                {a.names.name(x.name(f)) == b.names.name(y.name(f)), "name"},
+                {x.parent(f) == y.parent(f), "parent"},
+                {x.sizeBytes(f) == y.sizeBytes(f), "size"},
+                {x.allocatedClusters(f) == y.allocatedClusters(f), "clusters"},
+                {x.flags(f) == y.flags(f), "flags"},
+                {x.fileReference(f) == y.fileReference(f), "file reference"},
+                {std::tie(tx.created, tx.modified) == std::tie(ty.created, ty.modified), "times"},
+                {!accessTimes || tx.accessed == ty.accessed, "access time"},
+                {std::ranges::equal(a.extents.extentsOf(f), b.extents.extentsOf(f)), "extents"},
+            };
+            for (const auto& [same, what] : checks) {
+                if (!same) {
+                    return what;
+                }
+            }
+            return "";
         }
 
         // Every file the API path could read against the MFT scan; returns the clusters compared on each side.
@@ -234,7 +247,7 @@ namespace icd::services {
         return out;
     }
 
-    ScanComparison compareExact(const Snapshot& a, const Snapshot& b) {
+    ScanComparison compareExact(const Snapshot& a, const Snapshot& b, const ExactOptions& options) {
         ScanComparison out;
         Report report(out);
         report.expectEqual(std::tie(a.geometry.bytesPerCluster, a.geometry.totalClusters),
@@ -244,8 +257,8 @@ namespace icd::services {
         const std::size_t files = std::min(a.files.size(), b.files.size());
         for (FileIndex f = 0; f < files; ++f) {
             ++out.filesCompared;
-            if (!sameFile(a, b, f)) {
-                report.differ(std::format("file {} ({}) differs", f, a.path(f)));
+            if (const std::string_view what = fileDifference(a, b, f, options.accessTimes); !what.empty()) {
+                report.differ(std::format("file {} ({}): {} differs", f, a.path(f), what));
             }
         }
         out.runsCompared = a.extents.size();

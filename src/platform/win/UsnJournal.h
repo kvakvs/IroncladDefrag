@@ -46,4 +46,34 @@ namespace icd::platform {
     void enumerateUsnFiles(HANDLE volume, const std::function<void(std::span<const UsnFileEntry>)>& onBatch,
                            const core::CancelToken& token = {});
 
+    // One change record of the journal (USN_RECORD_V2): which file changed and how. Catch-up re-reads the files these
+    // name (plan.md 6.2 principle 6).
+    struct UsnChange {
+        std::uint64_t fileReference = 0; // The file that changed.
+        std::uint64_t parentReference = 0; // Its directory at the time (its index may have grown or shrunk too).
+        std::int64_t usn = 0; // Position of the record.
+        std::uint32_t reason = 0; // USN_REASON_* bits.
+    };
+
+    // How reading the journal from a saved position went.
+    enum class UsnReadStatus : std::uint8_t {
+        Complete, // Every record from the position to the end was read.
+        JournalChanged, // The journal was deleted or recreated (another id): rescan.
+        RecordsLost, // Records at the position were already purged (journal wrapped): rescan.
+    };
+
+    // Which part of which journal to read.
+    struct UsnRange {
+        std::uint64_t journalId = 0; // The journal the start position belongs to.
+        std::int64_t startUsn = 0; // First USN to read (a saved cursor).
+        std::int64_t endUsn = 0; // Stop before this USN: the next USN queried before reading.
+    };
+
+    // Reads the journal records with USNs in the range in batches of one output buffer (64 KB); changes after endUsn
+    // stay for the next catch-up. Returns why it could not when the journal no longer matches. Throws
+    // std::runtime_error on other failures and OperationCancelled between batches.
+    [[nodiscard]] UsnReadStatus readUsnJournal(HANDLE volume, const UsnRange& range,
+                                               const std::function<void(std::span<const UsnChange>)>& onBatch,
+                                               const core::CancelToken& token = {});
+
 } // namespace icd::platform

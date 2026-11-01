@@ -61,6 +61,9 @@ namespace icd::ui {
         // Whether a map is shown.
         [[nodiscard]] bool hasMap() const;
 
+        // The map shown, or null.
+        [[nodiscard]] std::shared_ptr<const core::MapData> currentMap() const;
+
         // Carries out a View map command (color mode, minimap and legend toggles, zoom in/out, fit, one cluster per
         // pixel, go to file, next/previous fragment); false for other ids.
         bool handleViewCommand(int id);

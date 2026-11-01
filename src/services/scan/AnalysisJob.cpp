@@ -8,8 +8,11 @@
 #include "platform/win/VolumeBitmap.h"
 #include "platform/win/Volumes.h"
 #include "platform/win/WinError.h"
+#include "services/snapshot/SnapshotStore.h"
+#include "services/snapshot/UsnCatchUp.h"
 
 #include <chrono>
+#include <format>
 #include <stdexcept>
 
 namespace icd::services {
@@ -34,6 +37,30 @@ namespace icd::services {
             ScanStats stats; // What the scan saw.
         };
 
+        // The store an analysis uses.
+        SnapshotStore storeFor(const std::filesystem::path& directory) {
+            return SnapshotStore(directory.empty() ? SnapshotStore::defaultDirectory() : directory);
+        }
+
+        // The current time as FILETIME ticks.
+        std::int64_t now() {
+            FILETIME time{};
+            GetSystemTimePreciseAsFileTime(&time);
+            return static_cast<std::int64_t>((std::uint64_t{time.dwHighDateTime} << 32U) | time.dwLowDateTime);
+        }
+
+        // Counts of a snapshot from a catch-up, which has no scan of its own.
+        ScanStats caughtUpStats(const core::Snapshot& s) {
+            ScanStats stats;
+            stats.scanner = ScannerKind::Mft;
+            stats.files = s.files.size();
+            for (core::FileIndex f = 0; f < s.files.size(); ++f) {
+                stats.directories += s.files.has(f, core::FileDirectory) ? 1 : 0;
+                stats.streams += s.files.has(f, core::FileAlternateStreams) ? 1 : 0;
+            }
+            return stats;
+        }
+
         // Opens the volume for reading or explains why not.
         platform::UniqueHandle openForAnalysis(const std::wstring& volumeName) {
             platform::UniqueHandle volume = platform::openVolume(volumeName, GENERIC_READ);
@@ -52,30 +79,93 @@ namespace icd::services {
                 name_(core::driveName(drive)), volumeName_(platform::fromUtf8(drive.layout.volumeName)),
                 root_(platform::fromUtf8(drive.root)), context_(context), onSnapshot_(onSnapshot), options_(options) {}
 
-            // Bitmap, files and figures.
+            // Saved snapshot caught up, or bitmap and files; then figures, and the snapshot saved again.
             AnalysisResult run() {
                 const auto start = std::chrono::steady_clock::now();
+                const std::int64_t scanTime = now();
                 const platform::UniqueHandle volume = openForAnalysis(volumeName_);
                 const core::VolumeLayout layout = layoutOf(volumeName_);
                 const core::VolumeGeometry geometry{layout.bytesPerCluster, layout.totalClusters};
-                std::vector<core::ClusterRun> freeRuns = readBitmap(volume.get(), geometry);
-                if (onSnapshot_) {
-                    onSnapshot_(bitmapSnapshot(geometry, freeRuns));
-                }
+                AnalysisResult result;
+                result.aspect = options_.aspect;
                 const auto scanStart = std::chrono::steady_clock::now();
-                ScanOutcome scan = scanFiles(volume.get(), layout, geometry, std::move(freeRuns));
+                ScanOutcome scan = fromSaved(volume.get(), layout, geometry, result);
+                if (!result.caughtUp) {
+                    std::vector<core::ClusterRun> freeRuns = readBitmap(volume.get(), geometry);
+                    if (onSnapshot_) {
+                        onSnapshot_(bitmapSnapshot(geometry, freeRuns));
+                    }
+                    scan = scanFiles(volume.get(), layout, geometry, std::move(freeRuns));
+                }
                 const auto scanEnd = std::chrono::steady_clock::now();
                 context_.progress.report({.stage = "Summarizing", .done = 0, .total = 1, .message = name_});
-                AnalysisResult result{std::move(scan.snapshot), std::move(scan.stats), {}, {}, 0.0, 0.0, fallback_};
+                result.snapshot = std::move(scan.snapshot);
+                result.scan = std::move(scan.stats);
+                result.fallbackReason = fallback_;
                 result.stats = core::summarize(result.snapshot, context_.executor);
                 result.summary = summaryOf(result.stats, geometry.bytesPerCluster, result.scan);
                 result.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
                 result.scanSeconds = std::chrono::duration<double>(scanEnd - scanStart).count();
+                save(result, layout, scanTime);
                 log(result);
                 return result;
             }
 
         private:
+            // The saved snapshot of this volume brought up to date, when there is one the journal can catch up;
+            // otherwise an empty outcome with result.catchUp saying why.
+            ScanOutcome fromSaved(HANDLE volume, const core::VolumeLayout& layout, core::VolumeGeometry geometry,
+                                  AnalysisResult& result) {
+                if (!options_.useSavedSnapshot || options_.scanner != ScannerKind::Mft || !layout.ntfs) {
+                    return {};
+                }
+                std::string why;
+                auto saved = storeFor(options_.snapshotDirectory).load(utf8VolumeName(), context_.executor, &why);
+                if (!saved || saved->meta.volumeSerial != layout.ntfs->serialNumber ||
+                    saved->meta.scanner != static_cast<std::uint8_t>(ScannerKind::Mft)) {
+                    result.catchUp = saved ? "the saved snapshot belongs to another volume or scanner" : why;
+                    return {};
+                }
+                result.aspect = saved->meta.aspect;
+                CatchUpResult caught = catchUpSnapshot(volume, volumeName_, std::move(saved->snapshot), *layout.ntfs,
+                                                       geometry, context_.executor, context_.token, &context_.progress);
+                if (caught.outcome == CatchUpOutcome::RescanNeeded) {
+                    result.catchUp = "rescanned: " + caught.reason;
+                    return {};
+                }
+                result.caughtUp = true;
+                result.dirty = std::move(caught.dirty);
+                result.catchUp = caught.outcome == CatchUpOutcome::UpToDate
+                    ? std::string("up to date")
+                    : std::format("caught up from {} journal records ({} records read again)", caught.journalRecords,
+                                  caught.recordsRead);
+                ScanStats stats = caughtUpStats(caught.snapshot);
+                return {std::move(caught.snapshot), std::move(stats)};
+            }
+
+            // Saves the snapshot for the next run; a failure is logged, never fatal.
+            void save(const AnalysisResult& result, const core::VolumeLayout& layout, std::int64_t scanTime) const {
+                if (!options_.saveSnapshot || !layout.ntfs) {
+                    return;
+                }
+                const core::SnapshotMeta meta{.volumeName = utf8VolumeName(),
+                                              .volumeSerial = layout.ntfs->serialNumber,
+                                              .scanTime = scanTime,
+                                              .aspect = result.aspect,
+                                              .scanner = static_cast<std::uint8_t>(result.scan.scanner),
+                                              .files = result.snapshot.files.size(),
+                                              .extents = result.snapshot.extents.size()};
+                try {
+                    storeFor(options_.snapshotDirectory).save(result.snapshot, meta, context_.executor);
+                }
+                catch (const std::exception& e) {
+                    core::logging::warning("analysis", {{"drive", name_}, {"snapshot_not_saved", e.what()}});
+                }
+            }
+
+            // The volume name as stored in snapshot meta.
+            [[nodiscard]] std::string utf8VolumeName() const { return platform::toUtf8(volumeName_); }
+
             // The chosen scanner; a failed MFT scan falls back to the API path when allowed (never on cancel).
             ScanOutcome scanFiles(HANDLE volume, const core::VolumeLayout& layout, core::VolumeGeometry geometry,
                                   std::vector<core::ClusterRun> freeRuns) {
@@ -119,6 +209,7 @@ namespace icd::services {
                 core::logging::info("analysis",
                                     {{"drive", name_},
                                      {"scanner", scannerName(result.scan.scanner)},
+                                     {"saved_snapshot", result.catchUp},
                                      {"files", result.stats.files},
                                      {"directories", result.stats.directories},
                                      {"extents", result.snapshot.extents.size()},
@@ -176,6 +267,31 @@ namespace icd::services {
         return summary;
     }
 
+    namespace {
+
+        // Whether a map shows the volume a snapshot describes: same size and the same change journal (journal ids
+        // are unique per volume).
+        bool sameVolume(const core::MapData* map, const core::Snapshot& snapshot) {
+            if (map == nullptr || !map->snapshot().usn || !snapshot.usn) {
+                return false;
+            }
+            const core::Snapshot& shown = map->snapshot();
+            return shown.usn->journalId == snapshot.usn->journalId &&
+                shown.geometry.totalClusters == snapshot.geometry.totalClusters &&
+                shown.geometry.bytesPerCluster == snapshot.geometry.bytesPerCluster;
+        }
+
+    } // namespace
+
+    std::optional<core::SnapshotMeta> savedSnapshotMeta(const core::DriveInfo& drive,
+                                                        const std::filesystem::path& directory) {
+        auto meta = storeFor(directory).peek(drive.layout.volumeName);
+        if (!meta || !drive.layout.ntfs || meta->volumeSerial != drive.layout.ntfs->serialNumber) {
+            return std::nullopt;
+        }
+        return meta;
+    }
+
     AnalysisResult analyzeVolume(const core::DriveInfo& drive, JobContext& context, const PartialScanSink& onSnapshot,
                                  const AnalysisOptions& options) {
         return Analysis(drive, context, onSnapshot, options).run();
@@ -184,13 +300,24 @@ namespace icd::services {
     JobFunction makeAnalysisJob(const core::DriveInfo& drive, core::ScreenAspect aspect,
                                 std::shared_ptr<AnalysisOutput> output) {
         return [drive, aspect, output = std::move(output)](JobContext& context) {
+            // A drive analysed before keeps its world layout (plan.md 7.1).
+            const auto saved = savedSnapshotMeta(drive);
+            const core::ScreenAspect world = saved ? saved->aspect : aspect;
             const auto publish = [&](core::Snapshot snapshot) {
-                output->set(core::MapData::build(std::move(snapshot), aspect, context.executor, context.token));
+                output->set(core::MapData::build(std::move(snapshot), world, context.executor, context.token));
             };
-            AnalysisResult result = analyzeVolume(drive, context, publish);
+            AnalysisOptions options;
+            options.aspect = world;
+            AnalysisResult result = analyzeVolume(drive, context, publish, options);
             context.progress.report({.stage = "Building map", .done = 0, .total = 1, .message = {}});
             output->setSummary(std::move(result.summary));
-            publish(std::move(result.snapshot));
+            if (result.caughtUp && sameVolume(output->previous.get(), result.snapshot)) {
+                output->set(core::MapData::update(*output->previous, std::move(result.snapshot), result.dirty,
+                                                  context.executor, context.token));
+            }
+            else {
+                publish(std::move(result.snapshot));
+            }
             context.progress.report({.stage = "Building map", .done = 1, .total = 1, .message = {}});
         };
     }

@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T065 - USN catch-up
-- Depends: T064
-- Owns: `src/services/snapshot/UsnCatchUp.*`
-- Do: read journal from the saved USN, re-read changed files, update snapshot and mark pyramid ranges
-  dirty; full-rescan rules (journal ID changed, journal wrapped).
-- Done when: after scripted changes on a test volume, catch-up result equals a full rescan.
-
 ### T066 - Memory modes
 - Depends: T064, T007
 - Owns: `src/core/resources/MemoryPlanner.*`, `src/services/snapshot/MappedStorage.*`

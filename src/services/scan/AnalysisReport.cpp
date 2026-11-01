@@ -111,6 +111,8 @@ namespace icd::services {
             json.key("scanner").value(scannerName(result.scan.scanner));
             json.key("seconds").value(result.seconds);
             json.key("scanSeconds").value(result.scanSeconds);
+            json.key("caughtUp").value(result.caughtUp);
+            json.key("savedSnapshot").value(result.catchUp);
             json.key("usnJournal");
             if (result.snapshot.usn) {
                 json.beginObject()
@@ -228,6 +230,9 @@ namespace icd::services {
         std::string text = std::format("{} ({}, {}) analysed in {:.1f} s ({} scanner, files in {:.2f} s)\n",
                                        core::driveName(drive), core::describeStorage(drive), drive.fileSystem,
                                        result.seconds, scannerName(result.scan.scanner), result.scanSeconds);
+        if (!result.catchUp.empty()) {
+            text += std::format("  Saved snapshot     {}\n", result.catchUp);
+        }
         if (!result.fallbackReason.empty()) {
             text += std::format("  MFT scan failed, API scan used: {}\n", result.fallbackReason);
         }

@@ -212,6 +212,8 @@ namespace icd::ui {
 
     bool MapPanel::hasMap() const { return canvas_->hasMap(); }
 
+    std::shared_ptr<const core::MapData> MapPanel::currentMap() const { return canvas_->sharedMap(); }
+
     bool MapPanel::minimapShown() const { return canvas_->minimap().shown(); }
 
     bool MapPanel::legendShown() const { return legend_->IsShown(); }

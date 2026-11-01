@@ -287,8 +287,9 @@ namespace icd::services {
                 freeRuns_ = freeRuns; // Partial snapshots need them while the final merge takes the original.
                 lastPartial_ = std::chrono::steady_clock::now();
                 map_ = Bootstrap(reader_, mftGeometry_, layout_.mftStartLcn).run();
+                active_ = map_.bitmap;
                 plan_ =
-                    ntfs::planMftReads(map_.runs, map_.recordCount, mftGeometry_, map_.bitmap,
+                    ntfs::planMftReads(map_.runs, map_.recordCount, mftGeometry_, active_,
                                        {.maxChunkBytes = options_.bufferBytes, .minSkipBytes = options_.minSkipBytes});
                 readAll();
                 report("Building snapshot", 0, 0);
@@ -306,7 +307,44 @@ namespace icd::services {
                 return {std::move(merged.snapshot), std::move(merged.stats)};
             }
 
+            // Reads the chosen records and then the extension records their lists name.
+            MftRecordSet readRecords(const std::vector<std::uint64_t>& records) {
+                map_ = Bootstrap(reader_, mftGeometry_, layout_.mftStartLcn).run();
+                std::vector<std::shared_ptr<const mft::ChunkRows>> all = readWanted(records);
+                const auto readList = [this](std::span<const ntfs::DataRun> runs, std::uint64_t size) {
+                    return readStream(reader_, runs, mftGeometry_.bytesPerCluster, size);
+                };
+                const auto missing = mft::missingListedRecords(mft::RowIndex(all), readList);
+                if (!missing.empty()) {
+                    auto more = readWanted(missing);
+                    all.insert(all.end(), more.begin(), more.end());
+                }
+                MftRecordSet out;
+                out.rows = std::make_unique<mft::RowIndex>(std::move(all));
+                mft::SecondPassStats second;
+                out.extensions = mft::joinExtensionRecords(*out.rows, readList, executor_, second, token_);
+                out.recordCount = map_.recordCount;
+                out.bytesRead = bytesRead_;
+                return out;
+            }
+
         private:
+            // One round of a record re-read: the chosen records that are in use, read in planned stretches.
+            std::vector<std::shared_ptr<const mft::ChunkRows>> readWanted(const std::vector<std::uint64_t>& records) {
+                active_.assign((map_.recordCount + 7) / 8, std::byte{0});
+                for (const std::uint64_t r : records) {
+                    if (r < map_.recordCount && ntfs::isRecordUsed(map_.bitmap, r)) {
+                        active_[r / 8] |= static_cast<std::byte>(1U << (r % 8));
+                    }
+                }
+                // Short skips: chosen records are few and scattered, so only the stretches around them are read.
+                plan_ = ntfs::planMftReads(map_.runs, map_.recordCount, mftGeometry_, active_,
+                                           {.maxChunkBytes = options_.bufferBytes, .minSkipBytes = 64U * 1024U});
+                readAll();
+                std::erase(chunks_, nullptr);
+                return std::move(chunks_);
+            }
+
             // Streams every chunk to parser tasks, then reads the split records.
             void readAll() {
                 std::vector<platform::ReadRequest> requests;
@@ -333,6 +371,7 @@ namespace icd::services {
                         token_);
                     tasks.wait();
                 }
+                bytesRead_ += read_.bytes;
                 readSplit();
             }
 
@@ -341,8 +380,8 @@ namespace icd::services {
                 const ntfs::MftChunk& chunk = plan_.chunks[i];
                 auto rows = std::make_shared<mft::ChunkRows>();
                 const std::span<std::byte> records = buffer.bytes().subspan(chunk.recordOffset);
-                mft::parseChunk(records, {chunk.firstRecord, chunk.recordCount, mftGeometry_.bytesPerRecord},
-                                map_.bitmap, *rows);
+                mft::parseChunk(records, {chunk.firstRecord, chunk.recordCount, mftGeometry_.bytesPerRecord}, active_,
+                                *rows);
                 buffer.release();
                 const std::scoped_lock lock(doneMutex_);
                 done_.push_back(rows);
@@ -394,7 +433,7 @@ namespace icd::services {
                         at += piece.bytes;
                     }
                     auto rows = std::make_shared<mft::ChunkRows>();
-                    mft::parseChunk(raw, {plan_.split[k].record, 1, mftGeometry_.bytesPerRecord}, map_.bitmap, *rows);
+                    mft::parseChunk(raw, {plan_.split[k].record, 1, mftGeometry_.bytesPerRecord}, active_, *rows);
                     chunks_[plan_.chunks.size() + k] = std::move(rows);
                 }
             }
@@ -441,7 +480,9 @@ namespace icd::services {
             MftScanOptions options_; // Reader settings.
             ntfs::MftGeometry mftGeometry_; // Cluster and record size for the planner.
             MftMap map_; // Where $MFT is.
-            ntfs::MftReadPlan plan_; // What to read.
+            ntfs::MftReadPlan plan_; // What to read in the current round.
+            std::vector<std::byte> active_; // Records parsed in the current round: in use, or chosen and in use.
+            std::uint64_t bytesRead_ = 0; // Over all rounds.
             std::vector<std::shared_ptr<const mft::ChunkRows>> chunks_; // Parser output per chunk and split record.
             platform::ReadStats read_; // Cost of the stream.
             PartialScanSink partial_; // Gets partial snapshots; may be empty.
@@ -468,6 +509,13 @@ namespace icd::services {
             result.snapshot.usn = core::UsnCursor{journal->journalId, journal->nextUsn};
         }
         return result;
+    }
+
+    MftRecordSet readMftRecords(const std::wstring& volumeName, core::VolumeGeometry geometry,
+                                const core::NtfsLayout& ntfs, const std::vector<std::uint64_t>& records,
+                                core::Executor& executor, const core::CancelToken& token) {
+        MftScan scan(volumeName, geometry, ntfs, executor, token, nullptr, {});
+        return scan.readRecords(records);
     }
 
 } // namespace icd::services

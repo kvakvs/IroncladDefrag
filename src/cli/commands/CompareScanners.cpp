@@ -63,6 +63,8 @@ namespace icd::cli {
             services::AnalysisOptions options;
             options.scanner = kind;
             options.fallbackToApi = false;
+            options.useSavedSnapshot = false; // Both scanners read the whole volume, and nothing is saved.
+            options.saveSnapshot = false;
             auto result = services::analyzeVolume(drive, context, {}, options);
             ConsoleProgress::finish();
             return result;

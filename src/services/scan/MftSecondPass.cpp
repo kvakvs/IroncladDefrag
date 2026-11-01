@@ -122,6 +122,23 @@ namespace icd::services::mft {
 
     } // namespace
 
+    std::vector<std::uint64_t> missingListedRecords(const RowIndex& rows, const ListReader& readList) {
+        std::vector<std::uint64_t> out;
+        for (const std::size_t i : listRows(rows)) {
+            Joined ignored;
+            const auto entries = entriesOf(rows, i, readList, ignored);
+            for (const AttributeListEntry& e : entries.value_or(std::vector<AttributeListEntry>{})) {
+                const std::uint64_t record = core::ntfs::recordOf(e.recordReference);
+                if (rows.find(record) == RowIndex::none) {
+                    out.push_back(record);
+                }
+            }
+        }
+        std::ranges::sort(out);
+        out.erase(std::ranges::unique(out).begin(), out.end());
+        return out;
+    }
+
     ExtensionMap joinExtensionRecords(const RowIndex& rows, const ListReader& readList, core::Executor& executor,
                                       SecondPassStats& stats, const core::CancelToken& token) {
         const std::vector<std::size_t> bases = listRows(rows);

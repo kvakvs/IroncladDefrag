@@ -25,13 +25,10 @@ namespace icd::services::mft {
         // Parent walks stop here; deeper chains only occur in damaged data.
         constexpr int maxDepth = 64;
 
-        // What the merge tracks per file besides its FileEntry.
-        struct FileFacts {
+        // Where a draft's records are and how many real names it has, while drafting.
+        struct DraftSource {
             std::size_t baseRow = 0; // Position of the base record's row.
-            std::uint64_t parentReference = 0; // From the chosen name.
             std::uint16_t links = 0; // Names that are not DOS aliases.
-            bool clusters = false; // A data stream or directory index has clusters.
-            bool mainSeen = false; // Some part holds the unnamed $DATA (its value or first segment).
         };
 
         // The name a file is listed under: the first that is not a DOS alias (else the first), and its link count.
@@ -101,54 +98,49 @@ namespace icd::services::mft {
             std::vector<std::pair<std::uint32_t, std::string_view>> extras_; // Other attributes by type and name.
         };
 
-        // One merge run.
-        class Merger {
+        // Runs body(i) for i in [0, count) on the executor.
+        template <typename Body>
+        void forEach(core::Executor& executor, const core::CancelToken& token, std::size_t count, Body body) {
+            executor.parallelFor(
+                {count, fileGrain},
+                [&](std::size_t begin, std::size_t end) {
+                    for (std::size_t i = begin; i < end; ++i) {
+                        body(static_cast<FileIndex>(i));
+                    }
+                },
+                token);
+        }
+
+        // Rows to drafts.
+        class Drafter {
         public:
-            Merger(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
-                   core::Executor& executor, const core::CancelToken& token) :
+            Drafter(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
+                    core::Executor& executor, const core::CancelToken& token) :
                 rows_(rows), extensions_(extensions), geometry_(geometry), executor_(executor), token_(token) {}
 
             // All steps.
-            MergeOutput run(std::vector<core::ClusterRun> freeRuns) {
+            DraftSet run() {
                 selectFiles();
-                forFiles([this](FileIndex f) { describe(f); });
-                rootFile_ = fileAt(rows_.find(rootRecordNumber));
-                forFiles([this](FileIndex f) { entries_[f].parent = parentOf(f); });
-                forFiles([this](FileIndex f) { markSystem(f); });
+                forEach(executor_, token_, drafts_.size(), [this](FileIndex f) { describe(f); });
                 segments_.assign(rows_.segmentCount(), {});
-                forFiles([this](FileIndex f) { classifyStreams(f); });
-                return build(collectExtents(), std::move(freeRuns));
+                forEach(executor_, token_, drafts_.size(), [this](FileIndex f) { classifyStreams(f); });
+                DraftSet out;
+                out.extents = collectExtents();
+                out.files = std::move(drafts_);
+                return out;
             }
 
         private:
-            // Runs body for every file on the executor.
-            template <typename Body>
-            void forFiles(Body body) {
-                executor_.parallelFor(
-                    {entries_.size(), fileGrain},
-                    [&](std::size_t begin, std::size_t end) {
-                        for (std::size_t f = begin; f < end; ++f) {
-                            body(static_cast<FileIndex>(f));
-                        }
-                    },
-                    token_);
-            }
-
             // Calls fn with each row of a file: the base row, then its extension rows.
             template <typename Fn>
             void forEachPart(FileIndex f, Fn fn) const {
-                const std::size_t base = facts_[f].baseRow;
+                const std::size_t base = sources_[f].baseRow;
                 fn(base);
                 if (const auto it = extensions_.find(base); it != extensions_.end()) {
                     for (const std::size_t row : it->second) {
                         fn(row);
                     }
                 }
-            }
-
-            // The file of a base row position, or noFile.
-            [[nodiscard]] FileIndex fileAt(std::size_t row) const {
-                return row == RowIndex::none ? noFile : fileOfRow_[row];
             }
 
             // Whether a base row becomes a file: it has a name (here or in an extension), or is a system record.
@@ -166,11 +158,11 @@ namespace icd::services::mft {
                 fileOfRow_.assign(rows_.size(), noFile);
                 for (std::size_t i = 0; i < rows_.size(); ++i) {
                     if (rows_.row(i).baseReference == 0 && qualifies(i)) {
-                        fileOfRow_[i] = static_cast<FileIndex>(facts_.size());
-                        facts_.push_back({.baseRow = i});
+                        fileOfRow_[i] = static_cast<FileIndex>(sources_.size());
+                        sources_.push_back({.baseRow = i});
                     }
                 }
-                if (facts_.size() >= noFile) {
+                if (sources_.size() >= noFile) {
                     throw std::runtime_error("too many files for 32-bit file indexes");
                 }
                 for (const auto& [base, parts] : extensions_) {
@@ -178,22 +170,22 @@ namespace icd::services::mft {
                         fileOfRow_[row] = fileOfRow_[base];
                     }
                 }
-                entries_.resize(facts_.size());
+                drafts_.resize(sources_.size());
                 token_.throwIfCancelled();
             }
 
             // Name, size, times and attribute flags of a file.
             void describe(FileIndex f) {
-                const RecordRow& base = rows_.row(facts_[f].baseRow);
-                core::FileEntry& e = entries_[f];
-                e.fileReference = base.reference;
-                e.times = base.times;
-                e.flags = fileFlagsFromAttributes(base.dosAttributes);
-                e.flags |= (base.recordFlags & core::ntfs::recordDirectory) != 0 ? core::FileDirectory : 0;
+                const RecordRow& base = rows_.row(sources_[f].baseRow);
+                FileDraft& d = drafts_[f];
+                d.reference = base.reference;
+                d.times = base.times;
+                d.flags = fileFlagsFromAttributes(base.dosAttributes);
+                d.flags |= (base.recordFlags & core::ntfs::recordDirectory) != 0 ? core::FileDirectory : 0;
                 chooseName(f);
-                e.flags |= facts_[f].links > 1 ? core::FileHardLinked : 0;
-                e.name = base.record() == rootRecordNumber ? std::string_view() : e.name;
-                e.sizeBytes = (e.flags & core::FileDirectory) != 0 ? indexSize(f) : mainSize(f);
+                d.flags |= sources_[f].links > 1 ? core::FileHardLinked : 0;
+                d.name = base.record() == rootRecordNumber ? std::string_view() : d.name;
+                d.sizeBytes = (d.flags & core::FileDirectory) != 0 ? indexSize(f) : mainSize(f);
             }
 
             // Logical size of the unnamed $DATA, from whichever part holds its first segment or resident value.
@@ -233,66 +225,34 @@ namespace icd::services::mft {
                         pick.offer(chunk, chunk.names[k]);
                     }
                 });
-                entries_[f].name = pick.name;
-                facts_[f].parentReference = pick.parentReference;
-                facts_[f].links = pick.links;
+                drafts_[f].name = pick.name;
+                drafts_[f].parentReference = pick.parentReference;
+                sources_[f].links = pick.links;
             }
 
-            // The parent's index: by reference with matching sequence number; the root has none, and an unknown or
-            // stale parent means the root (as on the API path).
-            [[nodiscard]] FileIndex parentOf(FileIndex f) const {
-                if (f == rootFile_) {
-                    return noFile;
-                }
-                const std::uint64_t reference = facts_[f].parentReference;
-                const std::size_t row = rows_.find(core::ntfs::recordOf(reference));
-                const FileIndex parent = fileAt(row);
-                const bool current = parent != noFile && rows_.row(row).reference == reference;
-                return current && parent != f ? parent : rootFile_;
-            }
-
-            // Metadata (system records other than the root, and everything below them) and pinned root files.
-            void markSystem(FileIndex f) {
-                core::FileEntry& e = entries_[f];
-                FileIndex at = f;
-                for (int depth = 0; depth < maxDepth && at != noFile && at != rootFile_; ++depth) {
-                    if (core::ntfs::recordOf(entries_[at].fileReference) < systemRecordCount) {
-                        e.flags |= core::FileMetadata | core::FileUnmovable;
-                        break;
-                    }
-                    at = entries_[at].parent;
-                }
-                e.flags |=
-                    e.parent == rootFile_ && f != rootFile_ && isPinnedRootName(e.name) ? core::FileUnmovable : 0;
-            }
-
-            // Stream ordinals of a file's segments; then the stream-dependent flags.
+            // Stream ordinals of a file's segments; then whether it has clusters and named streams.
             void classifyStreams(FileIndex f) {
                 StreamNumbers numbers;
-                const bool directory = (entries_[f].flags & core::FileDirectory) != 0;
+                FileDraft& d = drafts_[f];
+                const bool directory = (d.flags & core::FileDirectory) != 0;
                 forEachPart(f, [&](std::size_t r) {
                     const ChunkRows& chunk = rows_.chunk(r);
                     const RecordRow& row = rows_.row(r);
                     const std::size_t base = rows_.segmentBase(r);
-                    facts_[f].mainSeen = facts_[f].mainSeen || (row.facts & RowMainData) != 0;
+                    d.mainSeen = d.mainSeen || (row.facts & RowMainData) != 0;
                     for (std::uint16_t s = 0; s < row.segmentCount; ++s) {
                         const SegmentRow& seg = chunk.segments[row.firstSegment + s];
                         const SegmentClass cls =
                             numbers.classify(seg.type, chunk.textAt(seg.nameOffset, seg.nameBytes), directory);
                         segments_[base + s] = cls;
-                        facts_[f].clusters = facts_[f].clusters || (!cls.extra && seg.extentCount != 0);
+                        d.clusters = d.clusters || (!cls.extra && seg.extentCount != 0);
                     }
                 });
-                core::FileEntry& e = entries_[f];
-                e.flags |= numbers.hasNamed() ? core::FileAlternateStreams : 0;
-                // Residency needs the main stream: a file whose data sits in an extension record that could not be
-                // joined (unreadable attribute list) is not known to be resident.
-                const bool resident = facts_[f].mainSeen && isResident(e.flags, facts_[f].clusters);
-                e.flags |= resident ? core::FileResident : 0;
+                d.flags |= numbers.hasNamed() ? core::FileAlternateStreams : 0;
             }
 
-            // Every chunk's extents with file indexes, stream ordinals and flags; rows that belong to no file and runs
-            // past the volume end are dropped.
+            // Every chunk's extents with file positions and stream ordinals; rows that belong to no file and runs past
+            // the volume end are dropped.
             std::vector<core::ExtentEntry> collectExtents() {
                 const auto& chunks = rows_.chunks();
                 std::vector<std::size_t> extentBase(chunks.size() + 1, 0);
@@ -326,7 +286,7 @@ namespace icd::services::mft {
                 }
             }
 
-            // One extent as stored: owner, ordinal and flags, or a dropped marker.
+            // One extent as drafted: owner, ordinal and the extra-attribute flag, or a dropped marker.
             [[nodiscard]] core::ExtentEntry placed(core::ExtentEntry e, FileIndex f, SegmentClass cls) const {
                 if (f == noFile || e.run.end() > geometry_.totalClusters || e.run.end() < e.run.start) {
                     e.file = noFile;
@@ -334,30 +294,8 @@ namespace icd::services::mft {
                 }
                 e.file = f;
                 e.stream = cls.ordinal;
-                e.flags = extentFlagsFor(entries_[f].flags) | (cls.extra ? core::ExtentUnmovable : 0);
+                e.flags = cls.extra ? core::ExtentUnmovable : 0;
                 return e;
-            }
-
-            // Reconciles with the free runs and builds the snapshot; the placeholder comes last.
-            MergeOutput build(std::vector<core::ExtentEntry> extents, std::vector<core::ClusterRun> freeRuns) {
-                MergeOutput out;
-                const auto placeholder = static_cast<FileIndex>(entries_.size());
-                out.stats.scanner = ScannerKind::Mft;
-                out.stats.reconcile = core::reconcileScan(extents, freeRuns, geometry_.totalClusters, placeholder);
-                core::SnapshotBuilder builder(geometry_);
-                for (const core::FileEntry& e : entries_) {
-                    builder.addFile(e);
-                    out.stats.directories += (e.flags & core::FileDirectory) != 0 ? 1 : 0;
-                    out.stats.streams += (e.flags & core::FileAlternateStreams) != 0 ? 1 : 0;
-                }
-                builder.addFile({unattributedName, rootFile_, 0, core::FileMetadata | core::FileUnmovable, {}, 0});
-                builder.addExtents(std::move(extents));
-                for (const core::ClusterRun& run : freeRuns) {
-                    builder.addFreeRun(run);
-                }
-                out.snapshot = std::move(builder).build();
-                out.stats.files = entries_.size() + 1;
-                return out;
             }
 
             const RowIndex& rows_; // Every row.
@@ -366,9 +304,117 @@ namespace icd::services::mft {
             core::Executor& executor_; // Parallel loops.
             const core::CancelToken& token_; // Checked by the loops.
             std::vector<FileIndex> fileOfRow_; // Row -> file.
-            std::vector<FileFacts> facts_; // Per file.
-            std::vector<core::FileEntry> entries_; // Per file, as the builder takes them.
+            std::vector<DraftSource> sources_; // Per file, while drafting.
+            std::vector<FileDraft> drafts_; // Per file.
             std::vector<SegmentClass> segments_; // Per global segment.
+        };
+
+        // Drafts to a snapshot.
+        class Finisher {
+        public:
+            Finisher(DraftSet drafts, core::VolumeGeometry geometry, core::Executor& executor,
+                     const core::CancelToken& token) :
+                drafts_(std::move(drafts)), geometry_(geometry), executor_(executor), token_(token) {}
+
+            // All steps.
+            MergeOutput run(std::vector<core::ClusterRun> freeRuns) {
+                indexRecords();
+                entries_.resize(drafts_.files.size());
+                forEach(executor_, token_, entries_.size(), [this](FileIndex f) { describe(f); });
+                forEach(executor_, token_, entries_.size(), [this](FileIndex f) { markSystem(f); });
+                forEach(executor_, token_, drafts_.extents.size(), [this](std::size_t i) { flagExtent(i); });
+                return build(std::move(freeRuns));
+            }
+
+        private:
+            // Record number -> file, and the root.
+            void indexRecords() {
+                const auto& files = drafts_.files;
+                const std::uint64_t records = files.empty() ? 0 : core::ntfs::recordOf(files.back().reference) + 1;
+                fileOfRecord_.assign(records, noFile);
+                for (std::size_t f = 0; f < files.size(); ++f) {
+                    const std::uint64_t record = core::ntfs::recordOf(files[f].reference);
+                    if (record >= records || fileOfRecord_[record] != noFile ||
+                        (f > 0 && record <= core::ntfs::recordOf(files[f - 1].reference))) {
+                        throw std::runtime_error("file drafts are not in record order");
+                    }
+                    fileOfRecord_[record] = static_cast<FileIndex>(f);
+                }
+                rootFile_ = rootRecordNumber < records ? fileOfRecord_[rootRecordNumber] : noFile;
+            }
+
+            // The entry of a draft with its parent.
+            void describe(FileIndex f) {
+                const FileDraft& d = drafts_.files[f];
+                entries_[f] = {d.name, parentOf(f), d.sizeBytes, d.flags, d.times, d.reference};
+            }
+
+            // The parent's index: by reference with matching sequence number; the root has none, and an unknown or
+            // stale parent means the root (as on the API path).
+            [[nodiscard]] FileIndex parentOf(FileIndex f) const {
+                if (f == rootFile_) {
+                    return noFile;
+                }
+                const std::uint64_t reference = drafts_.files[f].parentReference;
+                const std::uint64_t record = core::ntfs::recordOf(reference);
+                const FileIndex parent = record < fileOfRecord_.size() ? fileOfRecord_[record] : noFile;
+                const bool current = parent != noFile && drafts_.files[parent].reference == reference;
+                return current && parent != f ? parent : rootFile_;
+            }
+
+            // Metadata (system records other than the root, and everything below them), pinned root files and
+            // residency (which needs the main stream to have been seen).
+            void markSystem(FileIndex f) {
+                core::FileEntry& e = entries_[f];
+                FileIndex at = f;
+                for (int depth = 0; depth < maxDepth && at != noFile && at != rootFile_; ++depth) {
+                    if (core::ntfs::recordOf(entries_[at].fileReference) < systemRecordCount) {
+                        e.flags |= core::FileMetadata | core::FileUnmovable;
+                        break;
+                    }
+                    at = entries_[at].parent;
+                }
+                e.flags |=
+                    e.parent == rootFile_ && f != rootFile_ && isPinnedRootName(e.name) ? core::FileUnmovable : 0;
+                const FileDraft& d = drafts_.files[f];
+                e.flags |= d.mainSeen && isResident(e.flags, d.clusters) ? core::FileResident : 0;
+            }
+
+            // An extent's flags from its file's final flags.
+            void flagExtent(std::size_t i) {
+                core::ExtentEntry& e = drafts_.extents[i];
+                e.flags = static_cast<std::uint16_t>(e.flags | extentFlagsFor(entries_[e.file].flags));
+            }
+
+            // Reconciles with the free runs and builds the snapshot; the placeholder comes last.
+            MergeOutput build(std::vector<core::ClusterRun> freeRuns) {
+                MergeOutput out;
+                const auto placeholder = static_cast<FileIndex>(entries_.size());
+                out.stats.scanner = ScannerKind::Mft;
+                out.stats.reconcile =
+                    core::reconcileScan(drafts_.extents, freeRuns, geometry_.totalClusters, placeholder);
+                core::SnapshotBuilder builder(geometry_);
+                for (const core::FileEntry& e : entries_) {
+                    builder.addFile(e);
+                    out.stats.directories += (e.flags & core::FileDirectory) != 0 ? 1 : 0;
+                    out.stats.streams += (e.flags & core::FileAlternateStreams) != 0 ? 1 : 0;
+                }
+                builder.addFile({unattributedName, rootFile_, 0, core::FileMetadata | core::FileUnmovable, {}, 0});
+                builder.addExtents(std::move(drafts_.extents));
+                for (const core::ClusterRun& run : freeRuns) {
+                    builder.addFreeRun(run);
+                }
+                out.snapshot = std::move(builder).build();
+                out.stats.files = entries_.size() + 1;
+                return out;
+            }
+
+            DraftSet drafts_; // Input; extents get their final flags.
+            core::VolumeGeometry geometry_; // Cluster size and count.
+            core::Executor& executor_; // Parallel loops.
+            const core::CancelToken& token_; // Checked by the loops.
+            std::vector<FileIndex> fileOfRecord_; // Record number -> file.
+            std::vector<core::FileEntry> entries_; // Per file, as the builder takes them.
             FileIndex rootFile_ = noFile; // The root directory.
         };
 
@@ -403,11 +449,125 @@ namespace icd::services::mft {
         return rowOfRecord_[record] - 1;
     }
 
+    namespace {
+
+        // Whether a snapshot's last file is the `$Unattributed` placeholder the scanners add.
+        bool hasPlaceholder(const core::Snapshot& s) {
+            const auto last = static_cast<FileIndex>(s.files.size() - 1);
+            return s.files.size() != 0 && s.files.fileReference(last) == 0 &&
+                s.names.name(s.files.name(last)) == unattributedName;
+        }
+
+        // The draft of one snapshot file.
+        FileDraft draftOf(const core::Snapshot& s, FileIndex f) {
+            const auto& files = s.files;
+            FileDraft d;
+            d.reference = files.fileReference(f);
+            d.parentReference = files.parent(f) == noFile ? d.reference : files.fileReference(files.parent(f));
+            d.name = s.names.name(files.name(f));
+            d.sizeBytes = files.sizeBytes(f);
+            d.times = files.times(f);
+            d.flags = static_cast<std::uint16_t>(files.flags(f) &
+                                                 ~(core::FileMetadata | core::FileUnmovable | core::FileResident));
+            for (const std::uint32_t position : s.extents.extentsOf(f)) {
+                d.clusters = d.clusters || s.extents.records()[position].stream() < extraStreamBase;
+            }
+            // finishDrafts() calls a file resident only when its main stream was seen: say so exactly when that gives
+            // back the saved flag.
+            d.mainSeen = files.has(f, core::FileResident) || !isResident(d.flags, d.clusters);
+            return d;
+        }
+
+        // A snapshot file's extents (file = f), VCNs counted per stream in the saved order.
+        void appendExtents(const core::Snapshot& s, FileIndex f, std::vector<core::ExtentEntry>& out) {
+            std::vector<std::pair<std::uint16_t, std::uint64_t>> vcns; // Next VCN per stream.
+            for (const std::uint32_t position : s.extents.extentsOf(f)) {
+                const core::ExtentRecord& r = s.extents.records()[position];
+                auto it = std::ranges::find(vcns, r.stream(), &std::pair<std::uint16_t, std::uint64_t>::first);
+                if (it == vcns.end()) {
+                    it = vcns.insert(vcns.end(), {r.stream(), 0});
+                }
+                const auto flags =
+                    r.stream() >= extraStreamBase ? std::uint16_t{core::ExtentUnmovable} : std::uint16_t{0};
+                out.push_back({.run = r.run(), .vcn = it->second, .file = f, .stream = r.stream(), .flags = flags});
+                it->second += r.length();
+            }
+        }
+
+        // Extents of a draft set renumbered by `to` (noFile drops them) and appended.
+        void appendRemapped(const std::vector<core::ExtentEntry>& extents, const std::vector<FileIndex>& to,
+                            std::vector<core::ExtentEntry>& out) {
+            for (core::ExtentEntry e : extents) {
+                e.file = to[e.file];
+                if (e.file != noFile) {
+                    out.push_back(e);
+                }
+            }
+        }
+
+        // Record number of a draft.
+        std::uint64_t recordOfDraft(const FileDraft& d) { return core::ntfs::recordOf(d.reference); }
+
+    } // namespace
+
+    DraftSet draftsOfSnapshot(const core::Snapshot& snapshot, const std::function<bool(std::uint64_t record)>& keep) {
+        DraftSet out;
+        const std::size_t files = snapshot.files.size() - (hasPlaceholder(snapshot) ? 1 : 0);
+        for (FileIndex f = 0; f < files; ++f) {
+            if (!keep(core::ntfs::recordOf(snapshot.files.fileReference(f)))) {
+                continue;
+            }
+            const auto to = static_cast<FileIndex>(out.files.size());
+            out.files.push_back(draftOf(snapshot, f));
+            const std::size_t first = out.extents.size();
+            appendExtents(snapshot, f, out.extents);
+            for (std::size_t k = first; k < out.extents.size(); ++k) {
+                out.extents[k].file = to;
+            }
+        }
+        return out;
+    }
+
+    DraftSet combineDrafts(DraftSet kept, DraftSet fresh) {
+        DraftSet out;
+        std::vector<FileIndex> keptTo(kept.files.size(), noFile);
+        std::vector<FileIndex> freshTo(fresh.files.size(), noFile);
+        const auto take = [&](const FileDraft& d, FileIndex& to) {
+            to = static_cast<FileIndex>(out.files.size());
+            out.files.push_back(d);
+        };
+        std::size_t k = 0;
+        for (std::size_t n = 0; n < fresh.files.size(); ++n) {
+            const std::uint64_t record = recordOfDraft(fresh.files[n]);
+            for (; k < kept.files.size() && recordOfDraft(kept.files[k]) < record; ++k) {
+                take(kept.files[k], keptTo[k]);
+            }
+            k += k < kept.files.size() && recordOfDraft(kept.files[k]) == record ? 1 : 0; // Replaced by the fresh one.
+            take(fresh.files[n], freshTo[n]);
+        }
+        for (; k < kept.files.size(); ++k) {
+            take(kept.files[k], keptTo[k]);
+        }
+        appendRemapped(kept.extents, keptTo, out.extents);
+        appendRemapped(fresh.extents, freshTo, out.extents);
+        return out;
+    }
+
+    DraftSet draftFiles(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
+                        core::Executor& executor, const core::CancelToken& token) {
+        return Drafter(rows, extensions, geometry, executor, token).run();
+    }
+
+    MergeOutput finishDrafts(DraftSet drafts, core::VolumeGeometry geometry, std::vector<core::ClusterRun> freeRuns,
+                             core::Executor& executor, const core::CancelToken& token) {
+        return Finisher(std::move(drafts), geometry, executor, token).run(std::move(freeRuns));
+    }
+
     MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,
                           std::vector<core::ClusterRun> freeRuns, core::Executor& executor,
                           const core::CancelToken& token) {
-        Merger merger(rows, extensions, geometry, executor, token);
-        return merger.run(std::move(freeRuns));
+        return finishDrafts(draftFiles(rows, extensions, geometry, executor, token), geometry, std::move(freeRuns),
+                            executor, token);
     }
 
 } // namespace icd::services::mft

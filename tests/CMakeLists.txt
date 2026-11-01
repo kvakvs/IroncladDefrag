@@ -23,6 +23,7 @@ add_executable(icd_tests
     core/JsonTest.cpp
     core/LogTest.cpp
     core/LruCacheTest.cpp
+    core/MapUpdateTest.cpp
     core/MftLayoutTest.cpp
     core/NtfsParserTest.cpp
     core/NtfsRecordBuilder.h
@@ -57,6 +58,7 @@ add_executable(icd_tests
     services/MftSecondPassTest.cpp
     services/SnapshotStoreTest.cpp
     services/ThreadPoolTest.cpp
+    services/UsnCatchUpTest.cpp
     services/TrimJobTest.cpp
     services/WorkflowTest.cpp
 )

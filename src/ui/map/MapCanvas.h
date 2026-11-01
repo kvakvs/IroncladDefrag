@@ -82,6 +82,9 @@ namespace icd::ui {
         // The map shown, or null; for widgets that describe the view (rulers).
         [[nodiscard]] const core::MapData* map() const { return map_.get(); }
 
+        // The map shown, shared (an analysis of the same volume updates it instead of building anew).
+        [[nodiscard]] std::shared_ptr<const core::MapData> sharedMap() const { return map_; }
+
         // Calls observer after every change of the view or the map, so rulers can follow; empty to stop.
         void setViewObserver(std::function<void()> observer) { viewObserver_ = std::move(observer); }
 

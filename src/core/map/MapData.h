@@ -12,6 +12,7 @@
 #include <cstdint>
 #include <functional>
 #include <memory>
+#include <span>
 #include <vector>
 
 namespace icd::core {
@@ -25,6 +26,14 @@ namespace icd::core {
         // Builds the world for a screen aspect, the color-mode values, the pyramid and the flags.
         [[nodiscard]] static std::shared_ptr<const MapData> build(Snapshot snapshot, ScreenAspect aspect,
                                                                   Executor& executor, const CancelToken& token = {});
+
+        // The map of a newer snapshot of the same volume (USN catch-up): the same world, and only the pyramid bins over
+        // `dirty` recomputed, where every range whose summaries may have changed is listed (old and new extents of
+        // changed files). Falls back to a full pyramid when file ages shift (the newest modification changed). The
+        // result equals build() with the previous map's aspect. Throws SnapshotError for another volume size.
+        [[nodiscard]] static std::shared_ptr<const MapData> update(const MapData& previous, Snapshot snapshot,
+                                                                   std::span<const ClusterRun> dirty,
+                                                                   Executor& executor, const CancelToken& token = {});
 
         // The snapshot.
         [[nodiscard]] const Snapshot& snapshot() const { return snapshot_; }
@@ -47,6 +56,9 @@ namespace icd::core {
     private:
         // Takes the parts.
         MapData(Snapshot snapshot, World world);
+
+        // The per-record arrays of the snapshot (color values, map flags, block index), shared by build() and update().
+        void fillRecordData(const FileColorValues& values, Executor& executor, const CancelToken& token);
 
         Snapshot snapshot_; // Layout of the volume.
         World world_; // Cell layout, fixed for this map.

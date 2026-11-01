@@ -295,6 +295,7 @@ namespace icd::ui {
             if (services_.fakeDrives()) {
                 return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
             }
+            analysisOutput_->previous = widgets_.map.currentMap(); // Used only when it shows the same volume.
             return services::makeAnalysisJob(drive, screenAspect(), analysisOutput_);
         }
         if (job == WorkflowJob::Trim) {

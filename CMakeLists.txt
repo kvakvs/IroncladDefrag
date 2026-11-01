@@ -206,6 +206,8 @@ add_library(icd_services STATIC
     src/services/scan/ScanStats.h
     src/services/snapshot/SnapshotStore.cpp
     src/services/snapshot/SnapshotStore.h
+    src/services/snapshot/UsnCatchUp.cpp
+    src/services/snapshot/UsnCatchUp.h
     src/services/trim/TrimJob.cpp
     src/services/trim/TrimJob.h
     src/services/workflow/FakeResults.cpp
@@ -291,6 +293,8 @@ add_custom_command(TARGET IroncladDefrag POST_BUILD
 add_executable(icd-cli
     src/cli/commands/Analyze.cpp
     src/cli/commands/Analyze.h
+    src/cli/commands/CheckCatchUp.cpp
+    src/cli/commands/CheckCatchUp.h
     src/cli/commands/CliCommon.cpp
     src/cli/commands/CliCommon.h
     src/cli/commands/CompareScanners.cpp

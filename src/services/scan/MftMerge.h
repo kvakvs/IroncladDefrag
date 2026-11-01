@@ -8,6 +8,7 @@
 
 #include <cstddef>
 #include <cstdint>
+#include <functional>
 #include <limits>
 #include <memory>
 #include <unordered_map>
@@ -80,13 +81,54 @@ namespace icd::services::mft {
         ScanStats stats; // Counts for the summary.
     };
 
-    // Turns the rows into a snapshot: base records with a name (and the system records 0-11) become files in record
-    // order; accepted extension rows add their names, sizes and segments to their base file. Names: the first that is
-    // not a DOS alias (the root's is empty). Parents by reference with sequence check (unknown parents: the root),
-    // resolved in parallel. Stream ordinals: unnamed $DATA or a directory's $I30 index is 0, named $DATA streams 1, 2,
-    // ... in record order, any other non-resident attribute 0x8000 + n and unmovable. Flags by the shared ScanRules.
-    // Extents and free runs are reconciled as on the API path, with the `$Unattributed` placeholder last. The result
-    // is identical for any executor (plan.md 6.2 principle 8).
+    // One file as its records (or a saved snapshot) describe it, before file indexes, parents and the flags that depend
+    // on the whole volume (metadata, pinned, resident, extent flags) are known. A full scan and a USN catch-up both
+    // produce drafts and finish them the same way, so their snapshots agree field by field.
+    struct FileDraft {
+        std::uint64_t reference = 0; // File reference (record and sequence).
+        std::uint64_t parentReference = 0; // Directory of the chosen name.
+        std::string_view name; // Chosen name; points into rows or a snapshot the caller keeps alive.
+        std::uint64_t sizeBytes = 0; // Main stream size, or a directory's index size.
+        core::FileTimes times; // From $STANDARD_INFORMATION.
+        std::uint16_t flags = 0; // Attribute flags, directory, hard links, alternate streams.
+        bool clusters = false; // A data stream or directory index has clusters.
+        bool mainSeen = false; // The unnamed $DATA was seen (needed to call a file resident).
+    };
+
+    // Drafts in record order with their extents: `file` is the draft's position, `stream` the final ordinal, and
+    // `flags` only ExtentUnmovable for attributes beyond data and directory indexes.
+    struct DraftSet {
+        std::vector<FileDraft> files; // Sorted by record number.
+        std::vector<core::ExtentEntry> extents; // Any order.
+    };
+
+    // The drafts of rows: base records with a name (and the system records 0-11) become files in record order;
+    // accepted extension rows add their names, sizes and segments to their base file. Names: the first that is not a
+    // DOS alias (the root's is empty). Stream ordinals: unnamed $DATA or a directory's $I30 index is 0, named $DATA
+    // streams 1, 2, ... in record order, any other non-resident attribute 0x8000 + n. Runs past the volume end are
+    // dropped. The same for any executor.
+    [[nodiscard]] DraftSet draftFiles(const RowIndex& rows, const ExtensionMap& extensions,
+                                      core::VolumeGeometry geometry, core::Executor& executor,
+                                      const core::CancelToken& token = {});
+
+    // Finishes drafts into a snapshot: parents by reference with sequence check (unknown or stale parents: the root),
+    // resolved in parallel; metadata (system records but the root, and all below them), pinned root files, residency
+    // and extent flags by the shared ScanRules; extents and free runs reconciled as on the API path with the
+    // `$Unattributed` placeholder last. The same for any executor (plan.md 6.2 principle 8).
+    [[nodiscard]] MergeOutput finishDrafts(DraftSet drafts, core::VolumeGeometry geometry,
+                                           std::vector<core::ClusterRun> freeRuns, core::Executor& executor,
+                                           const core::CancelToken& token = {});
+
+    // Drafts of the files of a snapshot made by the MFT scanner whose record `keep` accepts (the `$Unattributed`
+    // placeholder is never kept): the flags finishDrafts() derives (metadata, unmovable, resident) are left out and
+    // extent VCNs renumbered in the per-file order, so finishing them again gives the same files and extents.
+    [[nodiscard]] DraftSet draftsOfSnapshot(const core::Snapshot& snapshot,
+                                            const std::function<bool(std::uint64_t record)>& keep);
+
+    // Two draft sets as one in record order (extent file positions renumbered); a record in both takes `fresh`'s.
+    [[nodiscard]] DraftSet combineDrafts(DraftSet kept, DraftSet fresh);
+
+    // draftFiles() then finishDrafts(): the merge of a full MFT scan.
     [[nodiscard]] MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions,
                                         core::VolumeGeometry geometry, std::vector<core::ClusterRun> freeRuns,
                                         core::Executor& executor, const core::CancelToken& token = {});

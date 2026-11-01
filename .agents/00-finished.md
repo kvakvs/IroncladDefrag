@@ -199,3 +199,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   validation on load), `core/util/Crc32.h`, `platform/win/Compression.*` (XPRESS via the Windows Compression API),
   `services/snapshot/SnapshotStore.*` (per-volume files, atomic replace). Round trips are identical; damaged,
   truncated, foreign and other-version files are rejected cleanly (`SnapshotStoreTest`).
+- T065 USN catch-up - `services/snapshot/UsnCatchUp.*` (rescan rules; journal from the saved cursor; changed,
+  parent and metadata records re-read through `readMftRecords()` with their extension records; saved drafts replaced
+  via the new `draftFiles()`/`finishDrafts()` split of the merge and `draftsOfSnapshot()`/`combineDrafts()`; free space
+  and dirty ranges), `platform::readUsnJournal()`, analysis catches up and saves snapshots, `MapData::update()` for
+  dirty ranges, `icd-cli check-catchup`, `tests/integration/catchup/check-catchup.ps1`: after every round of scripted
+  changes the catch-up equals a full rescan (access times aside, which NTFS does not journal).

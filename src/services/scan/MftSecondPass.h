@@ -37,4 +37,8 @@ namespace icd::services::mft {
                                                     core::Executor& executor, SecondPassStats& stats,
                                                     const core::CancelToken& token = {});
 
+    // Records that the attribute lists of the rows name but that are not among the rows: the extension records a
+    // re-read of chosen files (USN catch-up) still has to read. Sorted, without duplicates; unreadable lists name none.
+    [[nodiscard]] std::vector<std::uint64_t> missingListedRecords(const RowIndex& rows, const ListReader& readList);
+
 } // namespace icd::services::mft

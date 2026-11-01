@@ -181,6 +181,43 @@ this file records what is actually built and the decisions made along the way.
   writes a `.tmp` and renames it over the old file (a crash mid-save keeps the previous snapshot), and turns damaged or
   old files into "no snapshot" with a reason for the log.
 
+## USN catch-up
+
+- The MFT merge has two stages (T065): `draftFiles()` turns rows into `FileDraft`s (name, parent reference, size,
+  times, attribute flags, stream ordinals, whether clusters and the main stream were seen) with their extents, and
+  `finishDrafts()` resolves parents, metadata, pinned, residency and extent flags, reconciles and builds. A full scan
+  is `mergeRows()` = both stages; `draftsOfSnapshot()` turns a saved snapshot back into drafts (derived flags dropped,
+  VCNs renumbered in the saved per-file order) and finishing them gives the same snapshot. So a catch-up and a full
+  scan share the final stage and agree field by field.
+- `services::catchUpSnapshot()` (`services/snapshot/UsnCatchUp`): `catchUpBlocker()` sends to a rescan when the
+  snapshot has no cursor, the volume no journal, the journal id changed (recreated), records since the cursor were
+  purged (wrapped) or the volume size changed. Otherwise `platform::readUsnJournal()` reads from the saved USN to the
+  current next USN (queried first, so later changes stay for the next run) and collects every file and parent record
+  named; records 0-15 and the snapshot's metadata files are always added, because changes to `$MFT`, `$Secure`,
+  `$UsnJrnl` and the like are not journaled. `readMftRecords()` reads just those records through the MFT pipeline (a
+  "wanted" bitmap instead of the in-use one, 64 KB skips), then the extension records their attribute lists name
+  (`missingListedRecords()`), and the second pass joins them. The saved drafts of every re-read record are replaced
+  by the fresh ones (`combineDrafts()`), free space is the saved free runs plus the re-read files' old clusters
+  (reconcile takes out their new ones), and the result gets the new cursor. Dirty ranges: old and new clusters of the
+  re-read files.
+- Last-access times are the one thing a catch-up cannot follow: NTFS does not journal access-time updates, so the
+  catch-up keeps the saved ones. `compareExact()` can leave them out (`ExactOptions::accessTimes`), which
+  `icd-cli check-catchup` does.
+- Raw reads see what is on disk: a change still in the cache when the cursor is taken is read stale and, with the
+  cursor already past it, not re-read next time. The tests flush the volume first (`Write-VolumeCache`); in the app
+  this is the same window a full raw scan has and it closes with the next change to those files.
+- Analysis (`analyzeVolume()`) now tries the saved snapshot first: same volume GUID and NTFS serial, made by the MFT
+  scanner, caught up when the journal allows; otherwise the full path. Every analysis saves its snapshot
+  (`AnalysisOptions::saveSnapshot`), and the map keeps the saved world aspect (`savedSnapshotMeta()`); the report says
+  what happened (`savedSnapshot`, `caughtUp`). After a catch-up of the volume the GUI shows,
+  `MapData::update()` copies the shown map's pyramid and recomputes only the dirty ranges (a full pyramid when the
+  newest modification time moved); the result equals a fresh build.
+- `tests/integration/catchup/check-catchup.ps1`: a `mixed` volume with a USN journal, analysed, then three rounds of
+  seeded changes (small and large files, interleaved appends, truncation, deletions, moves, renames of a directory,
+  a 400-file directory, named streams, hard links, a deleted tree): each catch-up equals a full rescan (about 1,750
+  journal records and 490 records read per round, 0.04 s), the analyses in between catch up and save, an unchanged
+  volume is up to date, and a recreated journal forces a rescan.
+
 ## Free space from the volume bitmap
 
 - `platform::readVolumeBitmap()` asks `FSCTL_GET_VOLUME_BITMAP` for pieces of about 32 MB of bitmap (1 TB of 4 KB

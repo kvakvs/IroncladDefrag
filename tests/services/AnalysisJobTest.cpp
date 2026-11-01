@@ -98,7 +98,8 @@ namespace {
                   map->snapshot().freeSpace.freeClusters() * map->snapshot().geometry.bytesPerCluster);
         const auto stages = sink.stages();
         ASSERT_GE(stages.size(), 3U);
-        EXPECT_EQ(stages.front(), "Reading volume bitmap");
+        // A saved snapshot is tried first (test volumes have no journal, so the bitmap and files are read anyway).
+        EXPECT_NE(std::ranges::find(stages, "Reading volume bitmap"), stages.end());
         EXPECT_NE(std::ranges::find(stages, "Reading MFT"), stages.end()); // The default scanner.
         EXPECT_EQ(stages.back(), "Building map");
     }

@@ -2,12 +2,14 @@
 
 #include "core/map/MapData.h"
 #include "core/model/DriveInfo.h"
+#include "core/snapshot/SnapshotIO.h"
 #include "core/snapshot/SnapshotStats.h"
 #include "services/job/JobRunner.h"
 #include "services/scan/ApiScanner.h"
 #include "services/scan/MftScanner.h"
 #include "services/workflow/FakeResults.h"
 
+#include <filesystem>
 #include <memory>
 #include <mutex>
 #include <optional>
@@ -43,6 +45,10 @@ namespace icd::services {
             return std::exchange(summary, std::nullopt);
         }
 
+        // The map shown when the analysis started (UI side, before the job runs). After a catch-up of the same volume
+        // the final map only recomputes the ranges that changed (MapData::update()).
+        std::shared_ptr<const core::MapData> previous;
+
         std::mutex mutex; // Guards map and summary.
         std::shared_ptr<const core::MapData> map; // Newest map not yet taken.
         std::optional<AnalysisSummary> summary; // Final figures.
@@ -65,6 +71,10 @@ namespace icd::services {
         double seconds = 0.0; // Wall time of the analysis.
         double scanSeconds = 0.0; // Wall time of the file scan alone (bitmap and figures excluded).
         std::string fallbackReason; // Why the MFT scan gave way to the API scan; empty when it did not.
+        core::ScreenAspect aspect; // The drive's map aspect: the saved snapshot's, else the options' (plan.md 7.1).
+        bool caughtUp = false; // The snapshot came from the saved one and the journal, not from a full scan.
+        std::string catchUp; // What happened to the saved snapshot ("caught up ...", or why it was rescanned).
+        std::vector<core::ClusterRun> dirty; // After a catch-up: the LCN ranges whose map may have changed.
     };
 
     // How an analysis reads the files.
@@ -72,7 +82,16 @@ namespace icd::services {
         ScannerKind scanner = ScannerKind::Mft; // Which scanner to use first (the API path is the fallback).
         bool fallbackToApi = true; // When the MFT scan fails (not on cancel), scan again with the API path.
         MftScanOptions mft; // Reader settings of the MFT scanner.
+        bool useSavedSnapshot = true; // Catch the saved snapshot up from the USN journal instead of scanning.
+        bool saveSnapshot = true; // Save the result for the next run (plan.md 6.2 principle 6).
+        std::filesystem::path snapshotDirectory; // Where snapshots live; empty: SnapshotStore::defaultDirectory().
+        core::ScreenAspect aspect; // Map aspect stored with a first snapshot of the drive.
     };
+
+    // The saved snapshot's meta for a drive when it still belongs to that volume (same NTFS serial), else nullopt.
+    // Gives the map its saved aspect before an analysis starts, and the "saved snapshot" age.
+    [[nodiscard]] std::optional<core::SnapshotMeta> savedSnapshotMeta(const core::DriveInfo& drive,
+                                                                      const std::filesystem::path& directory = {});
 
     // Analyses an NTFS volume on the calling thread (plan.md 10.2, API path): bitmap, then every file, then the
     // figures. `onSnapshot` (optional) receives the bitmap-only snapshot and partial ones while files are read.

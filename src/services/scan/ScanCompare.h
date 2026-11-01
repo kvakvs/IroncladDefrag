@@ -32,8 +32,16 @@ namespace icd::services {
     [[nodiscard]] ScanComparison compareWithApi(const core::Snapshot& api, const ScanStats& apiStats,
                                                 const core::Snapshot& mft);
 
+    // What compareExact() leaves out.
+    struct ExactOptions {
+        // Compare last-access times. A USN catch-up cannot: NTFS does not journal access-time updates.
+        bool accessTimes = true;
+    };
+
     // Exact equality of two snapshots (two runs of one scanner with different worker counts, plan.md 6.2 principle
-    // 8): geometry, every file column and name, every extent record, the per-file order and the free runs.
-    [[nodiscard]] ScanComparison compareExact(const core::Snapshot& a, const core::Snapshot& b);
+    // 8, or a catch-up against a full rescan): geometry, every file column and name, every extent record, the per-file
+    // order and the free runs.
+    [[nodiscard]] ScanComparison compareExact(const core::Snapshot& a, const core::Snapshot& b,
+                                              const ExactOptions& options = {});
 
 } // namespace icd::services
