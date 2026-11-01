@@ -1,6 +1,7 @@
 #include "ui/panels/MapPanel.h"
 
 #include "core/map/MapData.h"
+#include "ui/Accelerators.h"
 #include "ui/Commands.h"
 #include "ui/dialogs/GoToFileDialog.h"
 #include "ui/map/Legend.h"
@@ -39,6 +40,17 @@ namespace icd::ui {
             ModeItem{core::ColorMode::Age, ID_COLOR_AGE, "Age"},
             ModeItem{core::ColorMode::Size, ID_COLOR_SIZE, "Size"},
         };
+
+        // The color choice's tooltip: every mode with its shortcut, from the shortcut table.
+        wxString colorModeTip() {
+            wxString tip = "Color mode";
+            for (const ModeItem& item : modeItems) {
+                if (const auto shortcut = shortcutFor(item.command); shortcut) {
+                    tip += "\n" + shortcutText(*shortcut) + "  " + item.label;
+                }
+            }
+            return tip;
+        }
 
         // The toolbar entry of a mode.
         int modeIndex(core::ColorMode mode) {
@@ -98,6 +110,7 @@ namespace icd::ui {
             colorMode_->Append(item.label);
         }
         colorMode_->SetSelection(modeIndex(mode_));
+        colorMode_->SetToolTip(colorModeTip());
         // The same command as the menu, so the menu's check mark and the toolbar always agree.
         colorMode_->Bind(wxEVT_CHOICE, [this](wxCommandEvent& event) {
             const int index = event.GetSelection();
@@ -111,6 +124,7 @@ namespace icd::ui {
         auto* plan = new wxCheckBox(this, wxID_ANY, "Plan overlay");
         search_ = new wxSearchCtrl(this, wxID_ANY, "", wxDefaultPosition, FromDIP(wxSize(220, -1)), wxTE_PROCESS_ENTER);
         search_->SetDescriptiveText("Find file");
+        search_->SetToolTip(commandTip(ID_GOTO_FILE));
         search_->Bind(wxEVT_SEARCH, [this](wxCommandEvent&) { goToFile(search_->GetValue()); });
         search_->Disable(); // Until a map is shown.
         caption_ = new wxStaticText(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize,

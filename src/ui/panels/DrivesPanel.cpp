@@ -1,6 +1,7 @@
 #include "ui/panels/DrivesPanel.h"
 
 #include "core/format/DriveText.h"
+#include "ui/Accelerators.h"
 #include "ui/Commands.h"
 
 #include <wx/dataview.h>
@@ -239,6 +240,7 @@ namespace icd::ui {
         view_->SetRowHeight(FromDIP(26));
         createColumns();
         view_->Bind(wxEVT_DATAVIEW_SELECTION_CHANGED, &DrivesPanel::onSelectionChanged, this);
+        view_->GetMainWindow()->Bind(wxEVT_MOTION, &DrivesPanel::onListMotion, this);
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(view_, wxSizerFlags(1).Expand());
@@ -320,6 +322,23 @@ namespace icd::ui {
     void DrivesPanel::onSelectionChanged(wxDataViewEvent& /*event*/) {
         if (onSelection_) {
             onSelection_(selectedRow());
+        }
+    }
+
+    void DrivesPanel::onListMotion(wxMouseEvent& event) {
+        event.Skip();
+        wxWindow* rows = view_->GetMainWindow();
+        wxDataViewItem item;
+        wxDataViewColumn* column = nullptr;
+        view_->HitTest(view_->ScreenToClient(rows->ClientToScreen(event.GetPosition())), item, column);
+        const bool onTrim = item.IsOk() && column != nullptr && column->GetModelColumn() == ColumnAction &&
+            core::isSsd(drives_.at(model_->GetRow(item)));
+        // The TRIM button is drawn in a cell, so the rows window shows its tooltip while the pointer is over it.
+        if (onTrim && rows->GetToolTipText() != commandTip(ID_TRIM)) {
+            rows->SetToolTip(commandTip(ID_TRIM));
+        }
+        else if (!onTrim && rows->GetToolTip() != nullptr) {
+            rows->UnsetToolTip();
         }
     }
 

@@ -7,6 +7,7 @@
 #include <wx/event.h>
 #include <wx/menu.h>
 
+#include <algorithm>
 #include <array>
 
 namespace icd::ui {
@@ -14,62 +15,97 @@ namespace icd::ui {
     namespace {
 
         constexpr std::array shortcuts{
-            Shortcut{ID_ANALYZE, wxACCEL_NORMAL, WXK_F5},
-            Shortcut{ID_QUICK, wxACCEL_SHIFT, WXK_F5},
-            Shortcut{ID_REFRESH_DRIVES, wxACCEL_CTRL, 'R'},
-            Shortcut{ID_TRIM, wxACCEL_CTRL, 'T'},
-            Shortcut{ID_CHOOSE_STRATEGY, wxACCEL_NORMAL, WXK_F6},
-            Shortcut{ID_BUILD_PLAN, wxACCEL_NORMAL, WXK_F7},
-            Shortcut{ID_REVIEW_PLAN, wxACCEL_NORMAL, WXK_F8},
-            Shortcut{ID_EXECUTE, wxACCEL_NORMAL, WXK_F9}, // Always asks for confirmation.
-            Shortcut{ID_PAUSE, wxACCEL_NORMAL, WXK_PAUSE},
-            Shortcut{ID_CANCEL, wxACCEL_NORMAL, WXK_ESCAPE},
-            Shortcut{ID_COLOR_CLASS, wxACCEL_ALT, '1'},
-            Shortcut{ID_COLOR_FRAGMENTATION, wxACCEL_ALT, '2'},
-            Shortcut{ID_COLOR_AGE, wxACCEL_ALT, '3'},
-            Shortcut{ID_COLOR_SIZE, wxACCEL_ALT, '4'},
-            Shortcut{ID_COLOR_ZONE_FIT, wxACCEL_ALT, '5'},
-            Shortcut{ID_COLOR_PLAN, wxACCEL_ALT, '6'},
-            Shortcut{ID_SHOW_MINIMAP, wxACCEL_CTRL, 'M'},
-            Shortcut{ID_SHOW_LEGEND, wxACCEL_CTRL, 'L'},
-            Shortcut{ID_ZOOM_IN, wxACCEL_CTRL, '+'},
-            Shortcut{ID_ZOOM_OUT, wxACCEL_CTRL, '-'},
-            Shortcut{ID_ZOOM_FIT, wxACCEL_CTRL, '0'},
-            Shortcut{ID_ZOOM_CLUSTER, wxACCEL_CTRL, '1'},
-            Shortcut{ID_GOTO_FILE, wxACCEL_CTRL, 'F'},
-            Shortcut{ID_NEXT_FRAGMENT, wxACCEL_NORMAL, WXK_F3},
-            Shortcut{ID_PREVIOUS_FRAGMENT, wxACCEL_SHIFT, WXK_F3},
-            Shortcut{wxID_PREFERENCES, wxACCEL_CTRL, ','},
-        };
-
-        // A map key and the character codes that produce it.
-        struct MapKeyBinding {
-            int keyCode = 0; // wx key code from a character event.
-            MapKey key = MapKey::Fit; // What it does on the map.
+            Shortcut{ID_ANALYZE, wxACCEL_NORMAL, WXK_F5, "Analyze the selected drive"},
+            Shortcut{ID_QUICK, wxACCEL_SHIFT, WXK_F5, "Analyze and build a Fast plan, stopping at review"},
+            Shortcut{ID_REFRESH_DRIVES, wxACCEL_CTRL, 'R', "Refresh the drive list"},
+            Shortcut{ID_TRIM, wxACCEL_CTRL, 'T', "TRIM the selected SSD"},
+            Shortcut{ID_CHOOSE_STRATEGY, wxACCEL_NORMAL, WXK_F6, "Choose the strategy"},
+            Shortcut{ID_BUILD_PLAN, wxACCEL_NORMAL, WXK_F7, "Build the plan"},
+            Shortcut{ID_REVIEW_PLAN, wxACCEL_NORMAL, WXK_F8, "Review the plan on the map"},
+            Shortcut{ID_EXECUTE, wxACCEL_NORMAL, WXK_F9, "Execute the plan (asks first)"},
+            Shortcut{ID_PAUSE, wxACCEL_NORMAL, WXK_PAUSE, "Pause or resume execution"},
+            Shortcut{ID_CANCEL, wxACCEL_NORMAL, WXK_ESCAPE, "Cancel the running job"},
+            Shortcut{ID_COLOR_CLASS, wxACCEL_ALT, '1', "Color the map by file class"},
+            Shortcut{ID_COLOR_FRAGMENTATION, wxACCEL_ALT, '2', "Color the map by fragmentation"},
+            Shortcut{ID_COLOR_AGE, wxACCEL_ALT, '3', "Color the map by file age"},
+            Shortcut{ID_COLOR_SIZE, wxACCEL_ALT, '4', "Color the map by file size"},
+            Shortcut{ID_COLOR_ZONE_FIT, wxACCEL_ALT, '5', "Color the map by zone fit"},
+            Shortcut{ID_COLOR_PLAN, wxACCEL_ALT, '6', "Color the map by the planned moves"},
+            Shortcut{ID_SHOW_MINIMAP, wxACCEL_CTRL, 'M', "Show or hide the minimap"},
+            Shortcut{ID_SHOW_LEGEND, wxACCEL_CTRL, 'L', "Show or hide the legend"},
+            Shortcut{ID_ZOOM_IN, wxACCEL_CTRL, '+', "Zoom in"},
+            Shortcut{ID_ZOOM_OUT, wxACCEL_CTRL, '-', "Zoom out"},
+            Shortcut{ID_ZOOM_FIT, wxACCEL_CTRL, '0', "Fit the whole volume"},
+            Shortcut{ID_ZOOM_CLUSTER, wxACCEL_CTRL, '1', "One cluster per pixel"},
+            Shortcut{ID_GOTO_FILE, wxACCEL_CTRL, 'F', "Find a file and show it on the map"},
+            Shortcut{ID_NEXT_FRAGMENT, wxACCEL_NORMAL, WXK_F3, "Next fragment of the selected file"},
+            Shortcut{ID_PREVIOUS_FRAGMENT, wxACCEL_SHIFT, WXK_F3, "Previous fragment of the selected file"},
+            Shortcut{wxID_PREFERENCES, wxACCEL_CTRL, ',', "Open the preferences"},
+            Shortcut{ID_SHORTCUTS, wxACCEL_NORMAL, WXK_F1, "List the keyboard shortcuts"},
         };
 
         constexpr std::array mapKeys{
-            MapKeyBinding{'+', MapKey::ZoomIn},
-            MapKeyBinding{WXK_NUMPAD_ADD, MapKey::ZoomIn},
-            MapKeyBinding{'-', MapKey::ZoomOut},
-            MapKeyBinding{WXK_NUMPAD_SUBTRACT, MapKey::ZoomOut},
-            MapKeyBinding{WXK_LEFT, MapKey::PanLeft},
-            MapKeyBinding{WXK_RIGHT, MapKey::PanRight},
-            MapKeyBinding{WXK_UP, MapKey::PanUp},
-            MapKeyBinding{WXK_DOWN, MapKey::PanDown},
-            MapKeyBinding{WXK_PAGEUP, MapKey::PageUp},
-            MapKeyBinding{WXK_PAGEDOWN, MapKey::PageDown},
-            MapKeyBinding{WXK_HOME, MapKey::Start},
-            MapKeyBinding{WXK_END, MapKey::End},
-            MapKeyBinding{'0', MapKey::Fit},
-            MapKeyBinding{WXK_NUMPAD0, MapKey::Fit},
-            MapKeyBinding{'1', MapKey::OneClusterPerPixel},
-            MapKeyBinding{WXK_NUMPAD1, MapKey::OneClusterPerPixel},
+            MapKeyBinding{'+', MapKey::ZoomIn, "Zoom in"},
+            MapKeyBinding{WXK_NUMPAD_ADD, MapKey::ZoomIn, "Zoom in"},
+            MapKeyBinding{'-', MapKey::ZoomOut, "Zoom out"},
+            MapKeyBinding{WXK_NUMPAD_SUBTRACT, MapKey::ZoomOut, "Zoom out"},
+            MapKeyBinding{WXK_LEFT, MapKey::PanLeft, "Pan left"},
+            MapKeyBinding{WXK_RIGHT, MapKey::PanRight, "Pan right"},
+            MapKeyBinding{WXK_UP, MapKey::PanUp, "Pan up"},
+            MapKeyBinding{WXK_DOWN, MapKey::PanDown, "Pan down"},
+            MapKeyBinding{WXK_PAGEUP, MapKey::PageUp, "One screen back"},
+            MapKeyBinding{WXK_PAGEDOWN, MapKey::PageDown, "One screen forward"},
+            MapKeyBinding{WXK_HOME, MapKey::Start, "Start of the volume"},
+            MapKeyBinding{WXK_END, MapKey::End, "End of the volume"},
+            MapKeyBinding{'0', MapKey::Fit, "Fit the whole volume"},
+            MapKeyBinding{WXK_NUMPAD0, MapKey::Fit, "Fit the whole volume"},
+            MapKeyBinding{'1', MapKey::OneClusterPerPixel, "One cluster per pixel"},
+            MapKeyBinding{WXK_NUMPAD1, MapKey::OneClusterPerPixel, "One cluster per pixel"},
+        };
+
+        // A numpad key the map uses and its name; wx writes them as "KP_ADD".
+        struct NumpadName {
+            int keyCode = 0; // wx key code.
+            const char* name = ""; // How the shortcut list writes it.
+        };
+
+        constexpr std::array numpadNames{
+            NumpadName{WXK_NUMPAD_ADD, "Num +"},
+            NumpadName{WXK_NUMPAD_SUBTRACT, "Num -"},
+            NumpadName{WXK_NUMPAD0, "Num 0"},
+            NumpadName{WXK_NUMPAD1, "Num 1"},
         };
 
     } // namespace
 
     std::span<const Shortcut> menuShortcuts() { return shortcuts; }
+
+    std::optional<Shortcut> shortcutFor(int id) {
+        const auto found = std::ranges::find(shortcuts, id, &Shortcut::id);
+        return found == shortcuts.end() ? std::nullopt : std::optional<Shortcut>(*found);
+    }
+
+    wxString shortcutText(const Shortcut& shortcut) {
+        return wxAcceleratorEntry(shortcut.flags, shortcut.keyCode, shortcut.id).ToString();
+    }
+
+    wxString commandTip(int id) {
+        const auto shortcut = shortcutFor(id);
+        if (!shortcut) {
+            return {};
+        }
+        return wxString::FromUTF8(shortcut->description) + " (" + shortcutText(*shortcut) + ")";
+    }
+
+    std::span<const MapKeyBinding> mapKeyBindings() { return mapKeys; }
+
+    wxString mapKeyText(int keyCode) {
+        const auto numpad = std::ranges::find(numpadNames, keyCode, &NumpadName::keyCode);
+        if (numpad != numpadNames.end()) {
+            return numpad->name;
+        }
+        return wxAcceleratorEntry(wxACCEL_NORMAL, keyCode).ToString();
+    }
 
     void applyMenuShortcuts(wxMenuBar& bar) {
         for (const Shortcut& shortcut : shortcuts) {

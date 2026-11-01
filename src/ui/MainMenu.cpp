@@ -71,6 +71,8 @@ namespace icd::ui {
         };
 
         constexpr std::array helpItems{
+            ItemSpec{ID_SHORTCUTS, "&Keyboard shortcuts"},
+            separator,
             ItemSpec{wxID_ABOUT, "&About Ironclad Defrag"},
         };
 

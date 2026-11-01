@@ -109,3 +109,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `countLegend()` for the visible cells), `ui/map/Legend.*` (strip under the map, counts after the view rests),
   toolbar/menu mode switching (cached tiles re-render via the dirty path, no data rebuild); 7 tests incl. counts =
   per-cluster brute force and tile colors = legend colors; 30 TB whole-volume count ~85 ms, map data ~414 MB.
+- T034 Shortcut help - description on every `ui/Accelerators` entry (menu shortcuts and map keys), `commandTip()`,
+  `ui/dialogs/ShortcutsDialog.*` (Help > Keyboard shortcuts, F1: grouped by menu, then map keys), tooltips with the
+  shortcut on the workflow buttons, the drawn TRIM button, the map color choice and Find file.

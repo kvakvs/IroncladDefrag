@@ -167,6 +167,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/dialogs/AboutDialog.h
     src/ui/dialogs/GoToFileDialog.cpp
     src/ui/dialogs/GoToFileDialog.h
+    src/ui/dialogs/ShortcutsDialog.cpp
+    src/ui/dialogs/ShortcutsDialog.h
     src/ui/map/D2DRenderer.cpp
     src/ui/map/D2DRenderer.h
     src/ui/map/Legend.cpp

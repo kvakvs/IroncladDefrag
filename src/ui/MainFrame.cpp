@@ -4,9 +4,11 @@
 #include "services/AppInfo.h"
 #include "services/AppServices.h"
 #include "ui/Accelerators.h"
+#include "ui/Commands.h"
 #include "ui/MainMenu.h"
 #include "ui/WorkflowBinding.h"
 #include "ui/dialogs/AboutDialog.h"
+#include "ui/dialogs/ShortcutsDialog.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
 #include "ui/panels/MapPanel.h"
@@ -38,6 +40,9 @@ namespace icd {
                                                          ui::WorkflowBinding::Widgets{*drives_, *map_, *bottom_});
         Bind(wxEVT_MENU, [this](wxCommandEvent&) { Close(); }, wxID_EXIT);
         Bind(wxEVT_MENU, [this](wxCommandEvent&) { ui::AboutDialog(this, services_).ShowModal(); }, wxID_ABOUT);
+        Bind(
+            wxEVT_MENU, [this](wxCommandEvent&) { ui::ShortcutsDialog(this, *GetMenuBar()).ShowModal(); },
+            ui::ID_SHORTCUTS);
         Bind(wxEVT_CLOSE_WINDOW, &MainFrame::onClose, this);
         SetMinSize(FromDIP(wxSize(800, 600)));
         SetSize(FromDIP(wxSize(1280, 860)));

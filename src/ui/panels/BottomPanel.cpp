@@ -1,5 +1,6 @@
 #include "ui/panels/BottomPanel.h"
 
+#include "ui/Accelerators.h"
 #include "ui/Commands.h"
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
@@ -97,6 +98,7 @@ namespace icd::ui {
         auto* strip = new wxBoxSizer(wxHORIZONTAL);
         for (const ButtonSpec& spec : workflowButtons) {
             auto* button = new wxButton(this, spec.id, wxString::FromUTF8(spec.label));
+            button->SetToolTip(commandTip(spec.id)); // What it does and its key, from the shortcut table.
             button->Disable(); // Enabled by the frame from the app state.
             strip->Add(button, wxSizerFlags().Border(wxRIGHT, FromDIP(4)));
         }

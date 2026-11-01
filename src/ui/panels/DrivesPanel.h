@@ -55,6 +55,9 @@ namespace icd::ui {
         // Reports a selection change from the control.
         void onSelectionChanged(wxDataViewEvent& event);
 
+        // Shows the TRIM button's tooltip (action and shortcut) while the pointer is over a button.
+        void onListMotion(wxMouseEvent& event);
+
         // A TRIM button was clicked: selects its row and sends the Drive > TRIM command up to the frame.
         void requestTrim(std::size_t row);
 

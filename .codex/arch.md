@@ -86,6 +86,11 @@ this file records what is actually built and the decisions made along the way.
   Pause and Esc (only enabled while a job runs). The plain map keys of plan.md 7.4 (+, -, 0, 1,
   arrows, PgUp/PgDn, Home/End) act only while the map has focus, so they never steal typing; zoom
   keys post the same View commands as the menu, panning is reserved for the map engine.
+- Every shortcut table entry (menu shortcuts and map keys) carries a short description. Help > Keyboard
+  shortcuts (F1) and the tooltips of the workflow buttons, the TRIM button and the map toolbar are
+  generated from it (`commandTip()`: "Analyze the selected drive (F5)"), so there is no second list to
+  drift. The TRIM button is drawn in a list cell, so the list's rows window shows its tooltip while the
+  pointer is over it.
 - View commands are enabled once a map is shown; color modes whose features are still to come (file
   class, zone fit, plan preview) stay disabled (`MapPanel::commandAvailable()`). The toolbar color
   choice posts the same View command as the menu, so check marks and toolbar always agree.

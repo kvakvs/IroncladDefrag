@@ -43,6 +43,7 @@ namespace icd::ui {
         ID_GOTO_FILE, // View > Go to file: search the drive and jump to a file.
         ID_NEXT_FRAGMENT, // View > Next fragment of the selected file.
         ID_PREVIOUS_FRAGMENT, // View > Previous fragment of the selected file.
+        ID_SHORTCUTS, // Help > Keyboard shortcuts: lists every menu shortcut and map key.
     };
 
     // Whether a command acts on the drive map (View menu: color modes, overlays, zoom, selection), and so needs a map

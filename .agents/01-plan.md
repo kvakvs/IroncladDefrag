@@ -22,16 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T034 - Shortcut help
-- Depends: T028, T013
-- Owns: `src/ui/dialogs/ShortcutsDialog.*`; touches `src/ui/Accelerators.*`, `BottomPanel`, `DrivesPanel`,
-  map toolbar
-- Do: make shortcuts discoverable (user request at Gate G1). Help > Keyboard shortcuts lists every menu
-  shortcut and map key, grouped by menu / map, generated from the `Accelerators` tables (add a short
-  description per entry; no second list). Tooltips on the workflow buttons, the TRIM button and the
-  map toolbar name the action and its shortcut, from the same table.
-- Done when: the dialog shows every table entry; every button with a shortcut shows it in its tooltip.
-
 ### T033 - Map performance check
 - Depends: T029, T031, T032
 - Owns: `tools/bench/map-bench.cpp`

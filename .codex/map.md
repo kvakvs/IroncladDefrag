@@ -110,15 +110,16 @@ changes (see `AGENTS.md`).
 | `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
 | `src/ui/WorkflowBinding.*` | Commands to workflow actions, fake jobs per step, progress and results to the panels, command enable state. |
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
-| `src/ui/Accelerators.*` | One table of menu shortcuts (`applyMenuShortcuts()`; Ctrl+F go to file, F3 / Shift+F3 fragments), and the map keys of plan.md 7.4 (`mapKeyFor()`, `commandForMapKey()`). |
+| `src/ui/Accelerators.*` | One table of menu shortcuts with a description each (`applyMenuShortcuts()`, `shortcutFor()`, `shortcutText()`, `commandTip()` for tooltips; Ctrl+F go to file, F3 / Shift+F3 fragments, F1 shortcut list), and the map keys of plan.md 7.4 with descriptions (`mapKeyBindings()`, `mapKeyText()`, `mapKeyFor()`, `commandForMapKey()`). |
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
+| `src/ui/dialogs/ShortcutsDialog.*` | Help > Keyboard shortcuts (F1): `shortcutLines()` groups the shortcut table by the menu holding each command, then the map keys (keys of one action on one line); shown as a list with bold headings. |
 | `src/ui/dialogs/GoToFileDialog.*` | View > Go to file: search field and match list (path, size, fragments); searches on the pool as the user types (200 ms pause, cancelled when replaced), results through a detachable mailbox. |
 | `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators; later ids appended so values stay stable), `isMapCommand()`, `enableCommand()` for menu item + button. |
-| `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons, the single status line and gauge. |
+| `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons (tooltips with action and shortcut), the single status line and gauge. |
 | `src/ui/panels/SummaryPage.*` | Summary tab: volume figures and per-class table. |
 | `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
-| `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers, selection callback. |
+| `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers (tooltip on the drawn TRIM button), selection callback. |
 | `src/ui/panels/MapPanel.*` | Map area: toolbar (color mode, overlays still disabled, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above and the legend below; forwards the canvas's view changes to the rulers and the legend; View > Color mode, Minimap, Legend, Go to file, next/previous fragment. |
 | `src/ui/map/Legend.*` | Legend strip: swatch, label, size and share of the visible area per entry of the color mode; counts on the pool after the view rests, cancellable, delivered through a mailbox. |
 | `src/ui/map/MapCanvas.*` | Drive map widget: Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), selection highlight painted into tiles with dirty-tile refresh, frame-time log per animation. |
