@@ -318,6 +318,11 @@ add_executable(synth-bench tools/bench/synth-bench.cpp)
 target_link_libraries(synth-bench PRIVATE icd_services psapi)
 icd_target_defaults(synth-bench)
 
+# --- scan-bench: plan.md 6.5 scan and catch-up targets on a scale volume, the Phase 4 exit check (T067) -----------
+add_executable(scan-bench tools/bench/scan-bench.cpp)
+target_link_libraries(scan-bench PRIVATE icd_services)
+icd_target_defaults(scan-bench)
+
 # --- map-bench: drive map performance targets (plan.md 7.5), the Phase 2 exit check (T033) ----------
 # Compiles the map control's sources directly: the bench drives the real MapCanvas in a window.
 add_executable(map-bench

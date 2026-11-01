@@ -790,6 +790,30 @@ All analysis checks passed.
   cost their full size on the host, large ones 1-2 MB each. A 1 M-file volume (sizes up to 1 MB, 150 GB allocated)
   takes 294 s to fill and 139 GB on the host. Fills at the 30 TB scale must keep files few and large accordingly.
 
+## Scan benchmarks (T067, Phase 4 exit)
+
+- `scan-bench <drive>` (tools/bench) on a mounted ICD-TEST volume with a USN journal: bitmap and free runs, full MFT
+  scan with the disk's busy share, snapshot memory, compressed save and load, a "typical day" of 10,000 changes (new,
+  grown, deleted, renamed files) followed by the USN catch-up checked against a full rescan, and the scan capped to 2
+  workers, a 2 GB budget and mapped storage checked against the uncapped one.
+- NTFS cannot address 30 TB with 4 KB clusters (2^32 clusters is 16 TB), so the 30 TB scale volume uses 8 KB clusters
+  (3.66 G clusters, a 458 MB bitmap); plan.md 6.1's 4 KB figures hold up to 16 TB.
+- Results, 30 TB thin VHDX on the C: SSD, 2,002,031 files (2 M chosen to keep the host file at 51 GB; filled by
+  `make-scalevol` in 8 min), 2,455,110 extents, 31 workers:
+  - bitmap and free runs 0.16 s (target 15 s);
+  - full MFT scan 1.58 s; `$MFT` 1.91 GB read in 0.33 s with the disk 100% busy (device counters 98.7%) (target
+    90%); the parsers keep up with 6 GB/s, far above an HDD's 180 MB/s, so on the target HDD the scan is bounded by
+    the read (about 2 min for 20 GB);
+  - snapshot memory 181 MB; the estimate for 20 M files and 60 M extents is about 4.5 GB (target 8 GB);
+  - save 0.22 s, load 0.25 s, 34 MB compressed;
+  - catch-up after 10,000 changes (50,002 journal records, 5,030 records read) 1.14 s and equal to a full rescan
+    (target 10 s);
+  - capped scan (2 workers, mapped storage) 1.37 s and identical.
+  On the 1 M-file volume (4 KB clusters): MFT scan 0.54 s, catch-up 0.54 s, capped identical; there the API scan took
+  23.5 s against 0.48 s for the MFT scan.
+- Catch-up time grows with the snapshot (the kept files are finished again), so 20 M files extrapolate to about 11 s,
+  just over the target: follow-up T069.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

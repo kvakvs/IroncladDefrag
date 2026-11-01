@@ -215,3 +215,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `platform/win/MappedMemory.*` (delete-on-close mapped files), `services/snapshot/MappedStorage.*` (storage per plan,
   `MemoryGovernor` on the low-memory signal), analysis plans and reports its memory mode, `icd-cli check-caps`. 2
   workers, 2 GB budget and mapped storage give exactly the uncapped result on the special and 1 M-file volumes.
+- T067 Scale volume and benchmarks - `tools/bench/scan-bench.cpp`; 30 TB thin VHDX (8 KB clusters, 2 M files from
+  `make-scalevol`, 51 GB on the host): bitmap 0.16 s, MFT scan 1.58 s with the disk 100% busy, 181 MB snapshot
+  (about 4.5 GB estimated at 20 M files), catch-up of 10,000 changes 1.14 s and equal to a rescan, capped mapped scan
+  identical; on 1 M files the MFT scan is 49x faster than the API scan. Catch-up at 20 M files extrapolates to about
+  11 s: follow-up T069. `quality.bat all` passes. Both scale volumes deleted afterwards. **Phase 4 exit.**

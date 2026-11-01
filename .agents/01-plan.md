@@ -22,11 +22,14 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T067 - Scale volume and benchmarks
-- Depends: T065, T066
-- Owns: `tools/bench/scan-bench.*`
-- Do: 30 TB thin VHDX filled by `make-scalevol` (T063a, §12); benchmarks for §6.5 scan and catch-up targets.
-- Done when: targets met and recorded. **Phase 4 exit check.**
+### T069 - Catch-up at 20 M files
+- Depends: T067
+- Owns: `src/services/snapshot/UsnCatchUp.*`, `src/services/scan/MftMerge.*` (finish stage)
+- Do: the catch-up re-finishes every kept file (1.14 s at 2 M files, about 11 s extrapolated to 20 M, plan.md 6.5
+  asks for 10 s); keep the unchanged files' finished columns and extent records and patch only the changed ones, or
+  find and remove what dominates.
+- Done when: a 20 M-file (or extrapolation-free 10 M-file) scale volume catches up a typical day in 10 s or less and
+  still equals a full rescan.
 
 ---
 
