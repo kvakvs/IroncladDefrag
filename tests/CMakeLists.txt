@@ -23,6 +23,8 @@ add_executable(icd_tests
     core/JsonTest.cpp
     core/LogTest.cpp
     core/LruCacheTest.cpp
+    core/NtfsParserTest.cpp
+    core/NtfsRecordBuilder.h
     core/OverviewTest.cpp
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
@@ -55,5 +57,7 @@ add_executable(icd_tests
 )
 target_link_libraries(icd_tests PRIVATE icd_core icd_platform icd_services GTest::gtest_main)
 icd_target_defaults(icd_tests)
+# Captured test data (MFT records and the like) is read from the source tree.
+target_compile_definitions(icd_tests PRIVATE ICD_TEST_DATA_DIR="${CMAKE_CURRENT_SOURCE_DIR}/data")
 # Runs the exe at test time to list tests, so building never depends on running it.
 gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST)

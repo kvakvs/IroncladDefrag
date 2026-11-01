@@ -81,6 +81,17 @@ add_library(icd_core STATIC
     src/core/model/DriveInfo.cpp
     src/core/model/DriveInfo.h
     src/core/model/VolumeLayout.h
+    src/core/ntfs/AttributeList.cpp
+    src/core/ntfs/AttributeList.h
+    src/core/ntfs/Fixups.cpp
+    src/core/ntfs/Fixups.h
+    src/core/ntfs/MftRecord.cpp
+    src/core/ntfs/MftRecord.h
+    src/core/ntfs/NtfsFormat.h
+    src/core/ntfs/NtfsText.cpp
+    src/core/ntfs/NtfsText.h
+    src/core/ntfs/RunList.cpp
+    src/core/ntfs/RunList.h
     src/core/resources/ResourceCaps.cpp
     src/core/resources/ResourceCaps.h
     src/core/snapshot/BitmapToRuns.cpp

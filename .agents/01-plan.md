@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T060 - MFT record parser
-- Depends: T020
-- Owns: `src/core/ntfs/*`
-- Do: pure parser: update-sequence fixups, `$STANDARD_INFORMATION`, `$FILE_NAME`, `$DATA` (resident
-  and run lists), `$ATTRIBUTE_LIST`, `$INDEX_ALLOCATION`; run-list decoding.
-- Done when: unit tests on handcrafted and captured records, including corrupt ones (no crash).
-
 ### T061 - MFT reader pipeline
 - Depends: T060, T047
 - Owns: `src/platform/win/MftReader.*`, `src/services/scan/MftScanner.*`

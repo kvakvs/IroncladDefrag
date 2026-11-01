@@ -67,6 +67,12 @@ changes (see `AGENTS.md`).
 | `src/core/log/Log.h` | `logging::Level`, `Field`, `Record`, `Sink`, thread-safe `Logger`, `globalLogger()`, `info()`/`error()`/... helpers. |
 | `src/core/log/LogFormat.cpp` | `formatRecord()`: one-line `key=value` records, UTC time, escaping. |
 | `src/core/log/Logger.cpp` | `Logger` and the global helpers. |
+| `src/core/ntfs/NtfsFormat.h` | On-disk NTFS constants (attribute types, record/attribute/DOS flags, fixed records), file reference helpers, bounds-checked `fits()` and little-endian `load()`. |
+| `src/core/ntfs/Fixups.*` | `applyFixups()`: update sequence (multi-sector) protection undone in place; torn blocks rejected. |
+| `src/core/ntfs/RunList.*` | `DataRun`, `decodeRunList()`: mapping pairs to runs (holes, signed deltas), coverage and overflow checks. |
+| `src/core/ntfs/MftRecord.*` | `parseRecord()` into a reusable `ParsedRecord` (header, `$STANDARD_INFORMATION`, `$FILE_NAME`s, attribute segments with runs or kept resident values), `RecordStatus`, `statusName()`. |
+| `src/core/ntfs/AttributeList.*` | `AttributeListEntry`, `parseAttributeList()`. |
+| `src/core/ntfs/NtfsText.*` | `utf16ToUtf8()` with U+FFFD for lone surrogates. |
 | `src/core/snapshot/Types.h` | `Lcn`, `ClusterCount`, `FileIndex` (32-bit, `noFile`), `ClusterRun`, `VolumeGeometry`, `SnapshotError`. |
 | `src/core/snapshot/NamePool.*` | Interned UTF-8 names in one buffer (`intern()`, `name()`, `freezeLookup()`). |
 | `src/core/snapshot/FileTable.h` | Per-file columns (name, parent, size, clusters, flags, times, file reference); `FileFlag`. |
@@ -155,6 +161,9 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
 | `tests/integration/analysis/check-analysis.ps1` | Phase 3 exit check: per scenario a fresh read-only test volume analysed by `icd-cli analyze --json --dump-extents`, compared with `fsutil volume diskfree` and `fsutil file queryextents`, plus cluster accounting; `-RealDrive X` for a data drive. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
+| `tests/core/NtfsParserTest.cpp` | Fixups, run lists (holes, deltas, malformed, overflow), names, attribute lists, handcrafted records, captured `special` records (MFT, root, resident, compressed, sparse, hard links, reparse points, streams, Unicode, EFS, big directory, 1,324-fragment file over five extension records), fuzzed and truncated records. |
+| `tests/core/NtfsRecordBuilder.h` | Test helper: MFT records byte by byte (header, attributes, update sequence) and run list encoding. |
+| `tests/data/ntfs/*.bin` | Raw MFT records captured from the `special` scenario (4 KB clusters) by `capture-mft-records.ps1`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
 | `tests/core/SnapshotStatsTest.cpp` | Figures of a hand-made volume, parallel = serial on a synthetic one. |
 | `tests/core/StripesTest.cpp` | Stripe layout coverage, view coverage on random volumes, parallel = serial on 2-16 threads. |
@@ -204,6 +213,7 @@ changes (see `AGENTS.md`).
 | `tools/bench/map-bench.cpp` | `map-bench` target (T033): plan.md 7.5 checks on the 30 TB synthetic map: pyramid on 8 threads, map memory, tile times per level and color mode, and the real `MapCanvas` in a window through scripted zoom and pans (fps, stand-in frames); `--no-window 1` skips the window. |
 | `tools/testvol/make-testvol.ps1` | Test VHDX volumes through diskpart (admin): `-Action Create` (dynamic VHDX, GPT, NTFS with `-ClusterSize`, `-Letter` or a free one from T down), `Mount` (`-ReadOnly` for no-write checks), `Dismount`, `Remove`, `Info`; files in `%ICD_TESTVOL_DIR%` or `%LOCALAPPDATA%\IroncladDefrag\testvol`. |
 | `tools/testvol/gen-scenario/` | `gen-scenario` target: `gen-scenario <scenario> <drive> [--seed N] [--fill SHARE] [--force]`. `FileOps.*` (seeded content, interleaved writers, appends, deletes, compression, sparse, links, junction, EFS, attributes, fragment count via retrieval pointers), `Scenarios.*` (dev, archive, photos, video, mixed, almost-full, vss, special), `main.cpp` (safety checks, budget from the fill level, summary). |
+| `tools/testvol/capture-mft-records.ps1` | Reads raw MFT records (fixups as on disk) and their extension records from an ICD-TEST volume into `.bin` test data. |
 | `tools/testvol/verify-testvol.ps1` | `-Action Hash` writes a JSON manifest (every entry: size, attributes, SHA-256 of the main stream and each ADS, reparse targets not followed); `Verify` compares and runs `chkdsk /scan` (exit 1 on any difference); `Chkdsk` alone. |
 | `tools/fetch-wx.ps1` | Downloads the pinned wxWidgets prebuilt MSVC x64 archives (Dev, ReleaseDLL, headers), checks SHA-256, extracts to `3rdparty/wxWidgets`. No-op when the stamp matches; `-Force` redoes it. |
 

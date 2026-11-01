@@ -169,3 +169,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `fsutil volume diskfree` and `fsutil file queryextents` (sampled files), plus every-cluster accounting; `-RealDrive`
   for a data drive. All 8 scenarios and the X: data drive (109 K files, 3.8 s) pass; `quality.bat all` passes.
   **Phase 3 exit.**
+- T060 MFT record parser - `core/ntfs/*` (pure C++): update sequence fixups, header checks, `$STANDARD_INFORMATION`,
+  `$FILE_NAME`, every non-resident attribute with its run list (`decodeRunList()`: holes, deltas, coverage and
+  overflow checks), resident `$DATA`/`$ATTRIBUTE_LIST`/`$BITMAP`, attribute lists, UTF-16 names like
+  `WideCharToMultiByte`. `NtfsParserTest` on handcrafted records (`NtfsRecordBuilder.h`), records captured from the
+  `special` scenario (`tests/data/ntfs`, `tools/testvol/capture-mft-records.ps1`) and 20,000 fuzzed copies.

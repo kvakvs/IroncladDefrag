@@ -208,6 +208,26 @@ this file records what is actually built and the decisions made along the way.
 - Checked on the `special` scenario: every special case flagged, clusters fully accounted for, bitmap free count
   unchanged, and the extents of ~25 sampled files equal `fsutil file queryextents`.
 
+## MFT record parser
+
+- `core/ntfs` (T060) parses raw `$MFT` records with no Win32: it is the CPU half of the MFT scanner (plan.md 6.3)
+  and is tested on handcrafted records (`tests/core/NtfsRecordBuilder.h` writes them the way NTFS does, update
+  sequence included) and on records captured from the `special` scenario (`tests/data/ntfs/*.bin`, made by
+  `tools/testvol/capture-mft-records.ps1`).
+- `parseRecord()` applies the update sequence fixups in place (512-byte stride whatever the sector size), checks
+  the header (signature, used bytes, first attribute, the record's own number) and walks the attributes. It keeps
+  `$STANDARD_INFORMATION` (times, DOS attributes), every `$FILE_NAME` (parent, namespace, UTF-8 name), every
+  non-resident attribute of any type with its decoded run list (they own clusters), and the resident `$DATA`
+  (size only), `$ATTRIBUTE_LIST` and `$BITMAP` (values). One `ParsedRecord` is reused per worker; `clear()` keeps
+  capacity.
+- Corrupt input never crashes or reads out of bounds: every offset is checked with `fits()` before `load()`, and
+  any inconsistency returns a `RecordStatus` (Empty, BadSignature, BadFixup, BadHeader, BadAttribute) so the
+  scanner skips that record. Run lists must cover exactly `[startVcn, lastVcn]`; LCN deltas may not leave
+  `[0, int64 max]`. Fuzzing 20,000 damaged copies of captured records and random run lists is part of the tests.
+- Names convert UTF-16 to UTF-8 with lone surrogates as U+FFFD, the same as `WideCharToMultiByte`, so raw names
+  equal the API path's. `parseAttributeList()` reads list entries (type, start VCN, holding record, id, name); the
+  scanner uses them to accept extension-record segments.
+
 ## Analysis
 
 - `services::makeAnalysisJob()` (T048): opens the volume for reading (fails with a clear message without
