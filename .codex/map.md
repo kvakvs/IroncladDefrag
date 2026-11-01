@@ -74,6 +74,8 @@ changes (see `AGENTS.md`).
 | `src/core/ntfs/MftRecord.*` | `parseRecord()` into a reusable `ParsedRecord` (header, `$STANDARD_INFORMATION`, `$FILE_NAME`s, attribute segments with runs or kept resident values), `RecordStatus`, `statusName()`. |
 | `src/core/ntfs/AttributeList.*` | `AttributeListEntry`, `parseAttributeList()`. |
 | `src/core/ntfs/NtfsText.*` | `utf16ToUtf8()` with U+FFFD for lone surrogates. |
+| `src/core/snapshot/SnapshotIO.*` | Snapshot files: `writeSnapshotFile()`, `readSnapshotFile()`, `readSnapshotMeta()`, `SnapshotMeta`, `BlockCodec`, byte sinks and sources, `SnapshotFormatError`; checksummed parallel blocks, full validation on load. |
+| `src/core/util/Crc32.h` | `Crc32`: IEEE CRC-32 for snapshot blocks. |
 | `src/core/snapshot/Types.h` | `Lcn`, `ClusterCount`, `FileIndex` (32-bit, `noFile`), `ClusterRun`, `VolumeGeometry`, `SnapshotError`. |
 | `src/core/snapshot/NamePool.*` | Interned UTF-8 names in one buffer (`intern()`, `name()`, `freezeLookup()`). |
 | `src/core/snapshot/FileTable.h` | Per-file columns (name, parent, size, clusters, flags, times, file reference); `FileFlag`. |
@@ -126,7 +128,9 @@ changes (see `AGENTS.md`).
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
 | `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
+| `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
 | `src/platform/win/MftReader.*` | `MftReader` (overlapped unbuffered volume reads: `read()`, `stream()` with N in flight), `BufferPool`/`PooledBuffer` (bounded, page-aligned), `ReadStats` (busy time, device busy % from `IOCTL_DISK_PERFORMANCE`, starvation). |
+| `src/services/snapshot/SnapshotStore.*` | `SnapshotStore`: per-volume snapshot files under `%LOCALAPPDATA%\IroncladDefrag\snapshots`, atomic save, `peek()`, `load()` with a reason when rejected, `remove()`. |
 | `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
 | `src/services/scan/MftRows.*` | Parser output per chunk (`ChunkRows`: record, name, segment rows, provisional extents), `parseChunk()`, `appendRecord()`. |
 | `src/services/scan/MftMerge.*` | `RowIndex` (rows in record order, lookup by record), `mergeRows()` (files, names, parents, metadata, stream ordinals, flags, extents, reconcile), `ExtensionMap`, `extraStreamBase`. |
@@ -175,6 +179,7 @@ changes (see `AGENTS.md`).
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
+| `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/MftScannerTest.cpp` | MFT scan of the `special` volume: 1 worker = 4 workers, read figures, every cluster accounted for, `$MFT` at its start LCN; equal to the API scan, 1,324-fragment file resolved. |
 | `tests/services/MftSecondPassTest.cpp` | Extension records joined only when listed with the right sequence, non-resident and unreadable lists, names and runs across records, same result for any executor. |
 | `tests/core/NtfsParserTest.cpp` | Fixups, run lists (holes, deltas, malformed, overflow), names, attribute lists, handcrafted records, captured `special` records (MFT, root, resident, compressed, sparse, hard links, reparse points, streams, Unicode, EFS, big directory, 1,324-fragment file over five extension records), fuzzed and truncated records. |

@@ -117,10 +117,13 @@ add_library(icd_core STATIC
     src/core/snapshot/Snapshot.h
     src/core/snapshot/SnapshotBuilder.cpp
     src/core/snapshot/SnapshotBuilder.h
+    src/core/snapshot/SnapshotIO.cpp
+    src/core/snapshot/SnapshotIO.h
     src/core/snapshot/Stripes.cpp
     src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
     src/core/synth/SynthRandom.h
+    src/core/util/Crc32.h
     src/core/util/LruCache.h
     src/core/synth/SyntheticVolume.cpp
     src/core/synth/SyntheticVolume.h
@@ -133,6 +136,8 @@ add_library(icd_platform STATIC
     src/platform/win/ChildProcess.cpp
     src/platform/win/ChildProcess.h
     src/platform/win/Console.cpp
+    src/platform/win/Compression.cpp
+    src/platform/win/Compression.h
     src/platform/win/Console.h
     src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
@@ -158,7 +163,7 @@ add_library(icd_platform STATIC
     src/platform/win/WinError.cpp
     src/platform/win/WinError.h
 )
-target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32)
+target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32 cabinet)
 icd_target_defaults(icd_platform)
 
 # --- icd_services: jobs, thread pool, orchestration ----------------------------------------------
@@ -199,6 +204,8 @@ add_library(icd_services STATIC
     src/services/scan/ScanRules.cpp
     src/services/scan/ScanRules.h
     src/services/scan/ScanStats.h
+    src/services/snapshot/SnapshotStore.cpp
+    src/services/snapshot/SnapshotStore.h
     src/services/trim/TrimJob.cpp
     src/services/trim/TrimJob.h
     src/services/workflow/FakeResults.cpp
@@ -325,6 +332,11 @@ add_executable(gen-scenario
 target_link_libraries(gen-scenario PRIVATE icd_platform advapi32)
 icd_target_defaults(gen-scenario)
 
+# --- make-scalevol: scale test volumes with allocated, never written files (plan.md section 12, T063a) ------------
+add_executable(make-scalevol tools/testvol/make-scalevol/main.cpp)
+target_link_libraries(make-scalevol PRIVATE icd_platform advapi32)
+icd_target_defaults(make-scalevol)
+
 # --- map-render-spike: map composition at 4K with wx Direct2D, raw Direct2D and GDI (T026) --------
 add_executable(map-render-spike tools/spike/map-render-spike/main.cpp)
 target_link_libraries(map-render-spike PRIVATE icd_services wx::wx d2d1)
@@ -332,11 +344,6 @@ icd_target_defaults(map-render-spike)
 
 # --- Tests ---------------------------------------------------------------------------------------
 enable_testing()
-# --- make-scalevol: scale test volumes with allocated, never written files (plan.md section 12, T063a) ------------
-add_executable(make-scalevol tools/testvol/make-scalevol/main.cpp)
-target_link_libraries(make-scalevol PRIVATE icd_platform advapi32)
-icd_target_defaults(make-scalevol)
-
 add_subdirectory(tests)
 
 # --- Quality gate (quality.bat): Lizard everywhere, clang-tidy only with a compile database -------

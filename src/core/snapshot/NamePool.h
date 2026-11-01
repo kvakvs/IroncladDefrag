@@ -9,6 +9,9 @@
 
 namespace icd::core {
 
+    // Saves and loads the private parts of snapshot classes (SnapshotIO.cpp).
+    struct SnapshotAccess;
+
     // Identifies a name in a NamePool.
     using NameId = std::uint32_t;
 
@@ -34,6 +37,8 @@ namespace icd::core {
         void freezeLookup();
 
     private:
+        friend struct SnapshotAccess; // Saves and loads the private parts (SnapshotIO).
+
         std::string text_; // All names back to back.
         std::vector<std::uint32_t> offsets_{0}; // Start of each name in text_, plus one end marker.
         // Ids by the hash of their text (several ids may share a hash). Keyed by hash rather than by

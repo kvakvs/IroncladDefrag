@@ -194,3 +194,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   through `compare-scanners` for 1, 2 and all workers, real drives E: and X:, scale volume with a speed-up check); all
   agree. Analysis now defaults to the MFT scanner with the API scanner as fallback, and the MFT scan feeds partial
   maps. 1 M-file scale volume: API scan 23.5 s, MFT scan 0.48 s (49x; the VHDX sits on an SSD, $MFT 1 GB read with the device 99% busy).
+- T064 Snapshot persistence - `core/snapshot/SnapshotIO.*` (versioned file: checksummed header with `SnapshotMeta`
+  incl. USN cursor and map aspect, payload of in-memory arrays in CRC-32 blocks compressed in parallel, full
+  validation on load), `core/util/Crc32.h`, `platform/win/Compression.*` (XPRESS via the Windows Compression API),
+  `services/snapshot/SnapshotStore.*` (per-volume files, atomic replace). Round trips are identical; damaged,
+  truncated, foreign and other-version files are rejected cleanly (`SnapshotStoreTest`).

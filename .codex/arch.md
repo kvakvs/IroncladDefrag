@@ -160,6 +160,27 @@ this file records what is actually built and the decisions made along the way.
 - Runs longer than 24 bits are split into consecutive records; `fragmentCount()` rejoins runs that
   continue on disk, so splitting never inflates fragmentation.
 
+## Saved snapshots
+
+- `core/snapshot/SnapshotIO` (T064, plan.md 6.2 principle 6): one file per volume. Header: magic `ICDSNAP\x1A`,
+  format version (any other version is rejected and the volume rescanned, never migrated), the meta section
+  (`SnapshotMeta`: volume GUID name and NTFS serial, scan time, map aspect of plan.md 7.1, scanner, counts) and the
+  payload size, both under one CRC-32. `readSnapshotMeta()` reads only that much (badges, the catch-up decision).
+- The payload is the snapshot's arrays as they are in memory (geometry, USN cursor, name offsets and text, the seven
+  file columns, extent records, per-file positions, free runs), cut into 4 MB blocks; each block carries its raw
+  size and CRC-32 and is compressed by a pluggable `BlockCodec` (stored as is when that is not smaller). Blocks are
+  encoded and decoded in parallel batches of eight on the executor; the bytes are the same for any executor. The
+  private parts are reached through `SnapshotAccess`, a friend of the snapshot classes; the directory tree and the
+  free total are rebuilt on load.
+- Loading checks every block checksum and every invariant the builder guarantees (column sizes, name ids, parents,
+  sorted disjoint extents inside the volume owned by real files, cluster sums, the per-file index, sorted free runs)
+  before anything is used, so a file either loads identical to what was written or throws `SnapshotFormatError`.
+  Tests flip every header byte and hundreds of random payload bytes and truncate at hundreds of lengths: all caught.
+- `platform::XpressCodec` uses the Windows Compression API (XPRESS Huffman, cabinet.dll), so no library is added.
+  `services::SnapshotStore` keeps the files in `%LOCALAPPDATA%\IroncladDefrag\snapshots\Volume{GUID}.icds`,
+  writes a `.tmp` and renames it over the old file (a crash mid-save keeps the previous snapshot), and turns damaged or
+  old files into "no snapshot" with a reason for the log.
+
 ## Free space from the volume bitmap
 
 - `platform::readVolumeBitmap()` asks `FSCTL_GET_VOLUME_BITMAP` for pieces of about 32 MB of bitmap (1 TB of 4 KB

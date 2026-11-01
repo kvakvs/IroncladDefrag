@@ -9,6 +9,9 @@
 
 namespace icd::core {
 
+    // Saves and loads the private parts of snapshot classes (SnapshotIO.cpp).
+    struct SnapshotAccess;
+
     // Facts about an extent that limit how it may be moved.
     enum ExtentFlag : std::uint8_t {
         ExtentUnmovable = 1U << 0U, // Metadata or locked data that must stay in place.
@@ -34,6 +37,9 @@ namespace icd::core {
             std::uint16_t stream = 0; // Stream ordinal.
             std::uint16_t flags = 0; // ExtentFlag bits.
         };
+
+        // An empty record (no clusters at LCN 0, no file); arrays of records are loaded into these.
+        ExtentRecord() = default;
 
         // A record; throws SnapshotError when the run does not fit.
         explicit ExtentRecord(const Fields& fields);
@@ -96,6 +102,7 @@ namespace icd::core {
 
     private:
         friend class SnapshotBuilder; // The only writer.
+        friend struct SnapshotAccess; // Saves and loads the index (SnapshotIO).
 
         std::vector<ExtentRecord> records_; // Sorted by LCN.
         std::vector<std::uint32_t> fileStart_; // Per file: start in byFile_; one extra end marker.

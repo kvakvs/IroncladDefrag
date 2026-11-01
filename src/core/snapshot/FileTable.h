@@ -9,6 +9,9 @@
 
 namespace icd::core {
 
+    // Saves and loads the private parts of snapshot classes (SnapshotIO.cpp).
+    struct SnapshotAccess;
+
     // Facts about a file that change how it may be treated (plan.md 10.2 special handling).
     enum FileFlag : std::uint16_t {
         FileDirectory = 1U << 0U, // A directory; its index allocation is placed first (plan.md 8.3).
@@ -68,6 +71,7 @@ namespace icd::core {
 
     private:
         friend class SnapshotBuilder; // The only writer.
+        friend struct SnapshotAccess; // Saves and loads the columns (SnapshotIO).
 
         std::vector<NameId> names_; // Own name.
         std::vector<FileIndex> parents_; // Containing directory.

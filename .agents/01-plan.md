@@ -22,12 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 4 - Fast MFT scanner, snapshots, scale (§6.3, §6.6, §13 Phase 4)
 
-### T064 - Snapshot persistence
-- Depends: T063
-- Owns: `src/core/snapshot/SnapshotIO.*`, `src/services/snapshot/SnapshotStore.*`
-- Do: compressed, versioned snapshot file with journal ID, USN and map aspect (§6.2.6, §7.1).
-- Done when: save → load round trip is identical; corrupt or old-version files are rejected cleanly.
-
 ### T065 - USN catch-up
 - Depends: T064
 - Owns: `src/services/snapshot/UsnCatchUp.*`
