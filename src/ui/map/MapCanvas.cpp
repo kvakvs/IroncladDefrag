@@ -2,6 +2,7 @@
 
 #include "core/exec/Executor.h"
 #include "core/log/Log.h"
+#include "core/map/ColorModes.h"
 #include "core/map/Grid.h"
 #include "core/map/Selection.h"
 #include "core/map/TileRasterizer.h"
@@ -83,7 +84,7 @@ namespace icd::ui {
     MapCanvas::MapCanvas(wxWindow* parent, core::Executor& executor) :
         wxWindow(parent, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxFULL_REPAINT_ON_RESIZE | wxWANTS_CHARS),
         executor_(executor), mailbox_(std::make_shared<TileMailbox>()),
-        palette_(std::make_shared<core::OccupancyPalette>()) {
+        palette_(core::paletteFor(core::ColorMode::Fragmentation)) {
         mailbox_->target = this;
         SetBackgroundStyle(wxBG_STYLE_PAINT); // Direct2D paints every pixel; no erase, no flicker.
         Bind(wxEVT_PAINT, &MapCanvas::onPaint, this);
@@ -123,7 +124,15 @@ namespace icd::ui {
 
     void MapCanvas::setPalette(std::shared_ptr<const core::Palette> palette) {
         palette_ = std::move(palette);
-        resetTiles();
+        // Like a selection change that touches every tile: cached tiles stay on screen until each one renders
+        // again in the new colors, so the map never blanks while switching modes.
+        ++selectionVersion_;
+        for (const core::TileId tile : cache_.keys()) {
+            dirty_[tile] = selectionVersion_;
+        }
+        for (const core::TileId tile : pending_) {
+            dirty_[tile] = selectionVersion_;
+        }
         Refresh(false);
     }
 
@@ -419,7 +428,7 @@ namespace icd::ui {
 
     void MapCanvas::deliver(RenderStamp stamp, core::TileId tile, std::vector<core::Rgba>&& pixels) {
         if (stamp.generation != generation_) {
-            return; // Rendered for an earlier map, palette or device.
+            return; // Rendered for an earlier map or device.
         }
         arrived_.push_back(
             {tile, stamp.selection, std::move(pixels)}); // Still pending until uploaded, so it is not requested again.

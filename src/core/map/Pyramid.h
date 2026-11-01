@@ -27,6 +27,7 @@ namespace icd::core {
         const World& world; // Cell layout of the volume.
         std::span<const std::uint8_t> fileKinds{}; // Class per file; empty until classification exists (all 0).
         std::span<const std::uint8_t> fileHeat{}; // Heat bucket per file; empty means all 0.
+        std::span<const std::uint8_t> fileSizes{}; // Size value per file; empty means all 0.
         std::uint64_t maxBaseBins = std::uint64_t{1} << 25U; // Base level limit (~32 M bins); tests lower it.
     };
 

@@ -13,7 +13,7 @@ namespace icd::core {
 
     } // namespace
 
-    unsigned binUsedShift(int level) { return 2 * level > 31 ? static_cast<unsigned>(2 * level - 31) : 0U; }
+    unsigned binUsedShift(int level) { return 2 * level > 23 ? static_cast<unsigned>(2 * level - 23) : 0U; }
 
     std::vector<std::uint8_t> fragmentedFileFlags(const Snapshot& snapshot, Executor& executor,
                                                   const CancelToken& token) {
@@ -60,17 +60,27 @@ namespace icd::core {
         return out;
     }
 
+    namespace {
+
+        // A per-file value, 0 when the column is shorter (or empty).
+        std::uint8_t valueOf(std::span<const std::uint8_t> column, FileIndex file) {
+            return file < column.size() ? column[file] : 0;
+        }
+
+    } // namespace
+
     PieceOwner ownerOf(std::size_t record, const MapFileFacts& facts) {
         const std::uint8_t flags = record < facts.extentFlags.size() ? facts.extentFlags[record] : 0;
         PieceOwner owner;
         owner.fragmented = (flags & ExtentOwnerFragmented) != 0;
         owner.flags = static_cast<std::uint8_t>(((flags & ExtentOwnerUnmovable) != 0 ? BinUnmovable : 0) |
                                                 ((flags & ExtentIsDirectoryIndex) != 0 ? BinDirectoryIndex : 0));
-        // Kinds and heat are per file; looked up only when present.
-        if (!facts.kinds.empty() || !facts.heat.empty()) {
+        // Kinds, heat and sizes are per file; looked up only when present.
+        if (!facts.kinds.empty() || !facts.heat.empty() || !facts.sizes.empty()) {
             const FileIndex file = facts.snapshot.extents.records()[record].file();
-            owner.kind = file < facts.kinds.size() ? facts.kinds[file] : 0;
-            owner.heat = file < facts.heat.size() ? facts.heat[file] : 0;
+            owner.kind = valueOf(facts.kinds, file);
+            owner.heat = valueOf(facts.heat, file);
+            owner.size = valueOf(facts.sizes, file);
         }
         return owner;
     }
@@ -79,6 +89,7 @@ namespace icd::core {
         used_ += clusters;
         fragmented_ += owner.fragmented ? clusters : 0;
         heatSum_ += clusters * owner.heat;
+        sizeSum_ += clusters * owner.size;
         flags_ |= owner.flags;
         if (clusters > largestPiece_) {
             largestPiece_ = clusters;
@@ -93,6 +104,7 @@ namespace icd::core {
         bin.kind = kind_;
         bin.fragmented = ratio(static_cast<double>(fragmented_), used, 255.0);
         bin.heat = ratio(static_cast<double>(heatSum_), used, 1.0);
+        bin.size = ratio(static_cast<double>(sizeSum_), used, 1.0);
         bin.flags = flags_;
         return bin;
     }

@@ -121,6 +121,8 @@ namespace icd::ui {
         bar->Append(makeMenu(settingsItems), "&Settings");
         bar->Append(makeMenu(helpItems), "&Help");
         bar->Check(ID_SHOW_MINIMAP, true); // The map starts with its minimap.
+        bar->Check(ID_SHOW_LEGEND, true); // And its legend.
+        bar->Check(ID_COLOR_FRAGMENTATION, true); // The map's first color mode.
         return bar;
     }
 

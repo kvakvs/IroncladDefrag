@@ -13,6 +13,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
+    core/ColorModesTest.cpp
     core/DriveInfoTest.cpp
     core/FileSearchTest.cpp
     core/GridTest.cpp

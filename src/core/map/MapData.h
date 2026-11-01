@@ -2,6 +2,7 @@
 
 #include "core/exec/Executor.h"
 #include "core/job/CancelToken.h"
+#include "core/map/ColorModes.h"
 #include "core/map/Pyramid.h"
 #include "core/map/TileRasterizer.h"
 #include "core/map/World.h"
@@ -15,12 +16,13 @@
 
 namespace icd::core {
 
-    // Everything the drive map draws from, owned together: the snapshot, its fixed world, the pyramid and the
-    // per-extent map flags. Immutable once built and shared (shared_ptr) between the UI and the workers that
-    // render tiles, so a tile still rendering keeps its data alive after the map moved on.
+    // Everything the drive map draws from, owned together: the snapshot, its fixed world, the pyramid, the
+    // per-extent map flags and the per-file values of the color modes. Immutable once built and shared (shared_ptr)
+    // between the UI and the workers that render tiles, so a tile still rendering keeps its data alive after the map
+    // moved on.
     class MapData {
     public:
-        // Builds the world for a screen aspect, the pyramid and the flags.
+        // Builds the world for a screen aspect, the color-mode values, the pyramid and the flags.
         [[nodiscard]] static std::shared_ptr<const MapData> build(Snapshot snapshot, ScreenAspect aspect,
                                                                   Executor& executor, const CancelToken& token = {});
 
@@ -36,7 +38,10 @@ namespace icd::core {
         // What renderTile() needs.
         [[nodiscard]] MapSource source() const;
 
-        // Bytes of the map's own data (pyramid and flags; not the snapshot).
+        // The time file ages are measured from (newestModification()).
+        [[nodiscard]] std::int64_t ageReference() const { return ageReference_; }
+
+        // Bytes of the map's own data (pyramid, flags and per-file values; not the snapshot).
         [[nodiscard]] std::size_t memoryBytes() const;
 
     private:
@@ -47,6 +52,8 @@ namespace icd::core {
         World world_; // Cell layout, fixed for this map.
         Pyramid pyramid_; // Coarse summaries.
         std::vector<std::uint8_t> extentFlags_; // Per-record map flags.
+        FileColorValues values_; // Per-file age and size values of the color modes.
+        std::int64_t ageReference_ = 0; // What ages are measured from.
     };
 
     // Hash of a tile id, for tile caches.

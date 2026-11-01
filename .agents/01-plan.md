@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 2 - Drive map engine (§7, §13 Phase 2)
 
-### T032 - Color modes and legend
-- Depends: T025, T027
-- Owns: `src/core/map/ColorModes.*`, `src/ui/map/Legend.*`
-- Do: modes for fragmentation, age, size (class, zone fit and plan modes are added later by their
-  tasks); legend with counts for the visible area.
-- Done when: switching modes re-renders only the cache; legend counts match brute force on test data.
-
 ### T034 - Shortcut help
 - Depends: T028, T013
 - Owns: `src/ui/dialogs/ShortcutsDialog.*`; touches `src/ui/Accelerators.*`, `BottomPanel`, `DrivesPanel`,

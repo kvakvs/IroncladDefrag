@@ -19,9 +19,11 @@ namespace icd::core {
     };
 
     // Summary of a square block of map cells for drawing without touching every extent (plan.md 7.2), in 8
-    // bytes so the base level of a 30 TB volume (~28 M bins) takes about 230 MB.
+    // bytes so the base level of a 30 TB volume (~28 M bins) takes about 230 MB. The used count shares its word
+    // with the size value: 24 bits of count are far more than any palette shade needs.
     struct MapBin {
-        std::uint32_t used = 0; // Used clusters, in units of 2^binUsedShift(level).
+        std::uint32_t used : 24 = 0; // Used clusters, in units of 2^binUsedShift(level).
+        std::uint32_t size : 8 = 0; // Used-weighted average size value of the owners, 0-255 (size color mode).
         std::uint8_t kind = 0; // Dominant file class (the largest contributor at the finest summary).
         std::uint8_t fragmented = 0; // Share of used clusters owned by fragmented files, 0-255.
         std::uint8_t heat = 0; // Used-weighted average heat (age or activity) bucket of the owners, 0-255.
@@ -34,7 +36,7 @@ namespace icd::core {
     static_assert(sizeof(MapBin) == 8, "map bins must stay 8 bytes (plan.md 7.2)");
 
     // Units of MapBin::used for a bin of 2^level x 2^level cells: 2^binUsedShift(level) clusters, so a full
-    // bin always fits 31 bits.
+    // bin always fits its 24 bits.
     [[nodiscard]] unsigned binUsedShift(int level);
 
     // Owner facts of one extent record for the map, one byte per record read in record order, so drawing
@@ -61,6 +63,7 @@ namespace icd::core {
         std::span<const std::uint8_t> extentFlags; // Per record: ExtentMapFlag bits (extentMapFlags()).
         std::span<const std::uint8_t> kinds{}; // Class per file; empty means all 0.
         std::span<const std::uint8_t> heat{}; // Heat bucket per file; empty means all 0.
+        std::span<const std::uint8_t> sizes{}; // Size value per file; empty means all 0.
     };
 
     // What one extent contributes to a summary, looked up once per record.
@@ -68,6 +71,7 @@ namespace icd::core {
         bool fragmented = false; // Owner has more than one fragment.
         std::uint8_t kind = 0; // Owner's class.
         std::uint8_t heat = 0; // Owner's heat bucket.
+        std::uint8_t size = 0; // Owner's size value.
         std::uint8_t flags = 0; // MapBinFlag bits.
     };
 
@@ -87,6 +91,7 @@ namespace icd::core {
         ClusterCount used_ = 0; // Used clusters.
         ClusterCount fragmented_ = 0; // Of those, owned by fragmented files.
         std::uint64_t heatSum_ = 0; // Sum of heat times clusters.
+        std::uint64_t sizeSum_ = 0; // Sum of size value times clusters.
         ClusterCount largestPiece_ = 0; // Clusters of the largest contributing piece.
         std::uint8_t kind_ = 0; // Its owner's class.
         std::uint8_t flags_ = 0; // MapBinFlag bits.

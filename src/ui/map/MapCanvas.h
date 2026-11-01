@@ -32,8 +32,8 @@ namespace icd::ui {
 
     // What a rendered tile was drawn with, so late results for an older map or selection are recognised.
     struct RenderStamp {
-        std::uint64_t generation = 0; // MapCanvas generation: map, palette and device.
-        std::uint64_t selection = 0; // Selection version.
+        std::uint64_t generation = 0; // MapCanvas generation: map and device.
+        std::uint64_t selection = 0; // Content version: selection and palette.
     };
 
     // The drive map widget (plan.md 7.3): composes 256 x 256 tiles with Direct2D, renders missing tiles on the
@@ -42,7 +42,8 @@ namespace icd::ui {
     // fixed per map, so resizing changes how much is visible, never the layout (plan.md 7.1). Input and
     // animation live in MapNavigator, the hover tooltip in MapHover, the selected file in MapSelection. The
     // selection highlight is painted into tiles; changing it re-renders only the tiles it touches, showing the
-    // old ones until the new ones arrive.
+    // old ones until the new ones arrive. A new color mode re-renders the cached tiles the same way; the map data
+    // stays as it is.
     class MapCanvas : public wxWindow {
     public:
         // GPU memory for cached tiles (1,024 tiles of 256 KB).
@@ -60,7 +61,8 @@ namespace icd::ui {
         // Shows a map (null clears it) and fits the whole volume into the window.
         void setMap(std::shared_ptr<const core::MapData> map);
 
-        // Changes the color mode; every tile renders again.
+        // Changes the color mode: cached tiles are marked dirty and render again, shown in the old colors until
+        // then.
         void setPalette(std::shared_ptr<const core::Palette> palette);
 
         // Highlights a selection (null: none). Only cached or rendering tiles that the old or the new selection
@@ -137,7 +139,7 @@ namespace icd::ui {
         // Queues a tile on the pool unless it is cached, already rendering, or too many are in flight.
         void request(core::TileId tile);
 
-        // Forgets all tiles (new map, new palette, lost device); late results are dropped by generation.
+        // Forgets all tiles (new map, lost device); late results are dropped by generation.
         void resetTiles();
 
         // Draws the lines between cells at deep zoom, at screen resolution and faded in by cell size.
@@ -178,9 +180,10 @@ namespace icd::ui {
         std::shared_ptr<const core::MapData> map_; // What is shown; null for no map.
         std::shared_ptr<const core::Palette> palette_; // Color mode.
         std::shared_ptr<const core::SelectionOverlay> overlay_; // Highlighted file, or null.
-        // Tiles whose cached (or rendering) pixels show an older selection, with the version that made them stale.
+        // Tiles whose cached (or rendering) pixels show an older selection or palette, with the version that made
+        // them stale.
         std::unordered_map<core::TileId, std::uint64_t, core::TileIdHash> dirty_;
-        std::uint64_t selectionVersion_ = 0; // Bumped on every selection change.
+        std::uint64_t selectionVersion_ = 0; // Content version, bumped on every selection or palette change.
         core::Viewport view_; // Current view.
         Minimap minimap_; // Overview in the corner.
         std::function<void()> viewObserver_; // Called when the view or map changes.

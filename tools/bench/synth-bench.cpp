@@ -8,6 +8,7 @@
 
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
+#include "core/map/ColorModes.h"
 #include "core/map/Pyramid.h"
 #include "core/map/Selection.h"
 #include "core/map/TileRasterizer.h"
@@ -127,6 +128,18 @@ namespace {
                     level >= source.pyramid.baseLevel() ? "5 ms" : "2 ms");
     }
 
+    // Times the legend count of the whole volume (the fitted view, the slowest case) in every color mode.
+    void timeLegend(const icd::core::MapSource& source, icd::core::Executor& executor) {
+        using namespace icd::core;
+        const CellRect all{0, 0, source.world.rowWidth(), source.world.rows()};
+        for (const ColorMode mode : {ColorMode::Fragmentation, ColorMode::Age, ColorMode::Size}) {
+            const auto start = std::chrono::steady_clock::now();
+            const LegendCounts counts = countLegend(source.world, source.facts, mode, all, executor);
+            std::printf("legend mode %d   %.0f ms for the whole volume (%zu entries)\n", static_cast<int>(mode),
+                        1000.0 * since(start), counts.clusters.size());
+        }
+    }
+
     // Writes sample tiles: the whole volume and a few zoomed-in ones near the middle.
     void dumpTiles(const icd::core::MapSource& source, const std::string& directory) {
         using namespace icd::core;
@@ -216,10 +229,19 @@ int main(int argc, char** argv) {
     // The caller joins parallelFor, so a pool of N - 1 workers uses N threads.
     const unsigned all = std::max(2U, std::thread::hardware_concurrency());
     std::optional<Pyramid> pyramid;
+    FileColorValues values;
+    {
+        icd::services::ThreadPool pool(all - 1);
+        const auto valuesStart = std::chrono::steady_clock::now();
+        values = fileColorValues(snapshot, newestModification(snapshot, pool), pool);
+        std::printf("color values    %.2f s, %s\n", since(valuesStart),
+                    formatBytes(values.heat.size() + values.sizes.size()).c_str());
+    }
     for (const unsigned threads : {8U, all}) {
         icd::services::ThreadPool pool(threads - 1);
         const auto pyramidStart = std::chrono::steady_clock::now();
-        pyramid = Pyramid::build({.snapshot = snapshot, .world = world}, pool);
+        pyramid = Pyramid::build(
+            {.snapshot = snapshot, .world = world, .fileHeat = values.heat, .fileSizes = values.sizes}, pool);
         std::printf("pyramid         %.2f s on %u threads (target 5 s on 8), base level %d, %s\n", since(pyramidStart),
                     threads, pyramid->baseLevel(), formatBytes(pyramid->memoryBytes()).c_str());
     }
@@ -227,13 +249,16 @@ int main(int argc, char** argv) {
     icd::services::ThreadPool pool(all - 1);
     const auto extentFlags = extentMapFlags(snapshot, pool);
     const MapSource source{
-        .world = world, .pyramid = *pyramid, .facts = {.snapshot = snapshot, .extentFlags = extentFlags}};
+        .world = world,
+        .pyramid = *pyramid,
+        .facts = {.snapshot = snapshot, .extentFlags = extentFlags, .heat = values.heat, .sizes = values.sizes}};
     std::printf("world           %s x %s cells, levels %d..%d\n", formatCount(world.rowWidth()).c_str(),
                 formatCount(world.rows()).c_str(), World::minLevel, world.maxLevel());
     for (const int level : {world.maxLevel(), pyramid->baseLevel() + 1, pyramid->baseLevel(), pyramid->baseLevel() - 1,
                             0, -3, World::minLevel}) {
         timeTiles(source, level, 64);
     }
+    timeLegend(source, pool);
     timeSearches(snapshot, pool);
     timeSelection(snapshot, world, pyramid->baseLevel());
     if (!args.dumpDirectory.empty()) {

@@ -104,3 +104,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `runsTouch()`, `highlightRuns()`, `focusView()`), `ui/map/MapSelection.*` (click select, F3 / Shift+F3),
   `ui/dialogs/GoToFileDialog.*` (Ctrl+F, toolbar search), canvas dirty tiles by selection version; 10 tests
   incl. refreshed tiles = changed tiles at every level.
+- T032 Color modes and legend - `core/map/ColorModes.*` (fragmentation, age, size modes; six-bucket age/size values per
+  file averaged by the pyramid in a new `MapBin::size` byte (used count now 24 bits); legends, palettes, exact parallel
+  `countLegend()` for the visible cells), `ui/map/Legend.*` (strip under the map, counts after the view rests),
+  toolbar/menu mode switching (cached tiles re-render via the dirty path, no data rebuild); 7 tests incl. counts =
+  per-cluster brute force and tile colors = legend colors; 30 TB whole-volume count ~85 ms, map data ~414 MB.

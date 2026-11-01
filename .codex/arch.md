@@ -86,8 +86,9 @@ this file records what is actually built and the decisions made along the way.
   Pause and Esc (only enabled while a job runs). The plain map keys of plan.md 7.4 (+, -, 0, 1,
   arrows, PgUp/PgDn, Home/End) act only while the map has focus, so they never steal typing; zoom
   keys post the same View commands as the menu, panning is reserved for the map engine.
-- View commands are stubs until Phase 2: enabled once the map shows a pattern, they update the
-  toolbar color mode and the status line.
+- View commands are enabled once a map is shown; color modes whose features are still to come (file
+  class, zone fit, plan preview) stay disabled (`MapPanel::commandAvailable()`). The toolbar color
+  choice posts the same View command as the menu, so check marks and toolbar always agree.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
 ## Workflow
@@ -159,10 +160,11 @@ this file records what is actually built and the decisions made along the way.
   bins. (A 1-D bin of 2^k clusters cannot summarise a square pixel spanning many rows; at the
   whole-volume zoom of a 30 TB drive a pixel is about 32 x 32 cells.) The plan's "256 clusters per
   bin, ~32 M bins" at 30 TB is the 16 x 16 base level of this quadtree.
-- `MapBin` is 8 bytes: used clusters (scaled by `usedShift()` once a full bin no longer fits 31
-  bits), dominant class (largest contributor at the base; the child with most used clusters above),
-  fragmented share and heat as 0-255 averages weighted by used clusters, and flags (unmovable,
-  directory index, plan source/destination).
+- `MapBin` is 8 bytes: used clusters in 24 bits (scaled by `usedShift()` once a full bin no longer
+  fits) sharing a word with the size value, dominant class (largest contributor at the base; the child
+  with most used clusters above), fragmented share, heat and size as 0-255 averages weighted by used
+  clusters, and flags (unmovable, directory index, plan source/destination). 24 bits of count are far
+  more than any palette shade needs; the size mode needed the byte.
 - The base is filled in parallel per band of base-bin rows; each band is one contiguous LCN range,
   so it needs a single range query and one sweep. Levels above merge 2 x 2 bins. Results do not
   depend on the thread count; `update(dirty)` recomputes only the bands over a changed LCN range
@@ -176,8 +178,8 @@ this file records what is actually built and the decisions made along the way.
   levels summarise each pixel (or each cell, past one cell per pixel) from the extent index with the
   same `BinAccumulator`, so both paths give identical pixels at the base level (tested). Tiles carry no
   grid lines (see Grid lines below).
-- Color modes are `Palette` implementations over a `PixelSummary` (bin, level, capacity);
-  `OccupancyPalette` is the default until T032.
+- Color modes are `Palette` implementations over a `PixelSummary` (bin, level, capacity); see Color
+  modes and legend below.
 - Speed: per-record owner flags (`extentMapFlags()`, one byte per extent, ~55 MB at 30 TB) are read in
   record order instead of two random lookups into the 20 M-entry file tables; rows gallop forward from
   the previous row's position; neighbouring identical summaries reuse one palette call; scratch
@@ -217,7 +219,7 @@ this file records what is actually built and the decisions made along the way.
   path only draws cached GPU tiles and asks for missing ones; it never touches analysis data. Missing
   tiles render on the shared pool (`Executor::submit`) and come back through a `TileMailbox` (the
   canvas detaches it in its destructor; `CallAfter` only queues an event the window drops if
-  destroyed). A generation number drops results for an earlier map, palette or lost device.
+  destroyed). A generation number drops results for an earlier map or lost device.
 - Uploaded tiles live in a `core::LruCache` capped at 256 MB of GPU memory. Lost devices
   (`D2DERR_RECREATE_TARGET`) drop every tile and recreate the target on the next paint.
 - The view is a scale (cells per pixel) and a world center. A new map is fitted once the window has
@@ -324,6 +326,29 @@ this file records what is actually built and the decisions made along the way.
   strings). Each distinct name is tested once, then the 4-byte name column is scanned.
 - Measured on the 30 TB synthetic volume (20.5 M files, 399 K distinct names, 32 threads): name searches
   3-4 ms, a path search 19 ms; a selection change's dirty test over a full 1,024-tile cache 0.05 ms.
+
+## Color modes and legend
+
+- `core::ColorMode`: fragmentation (`OccupancyPalette`: free, contiguous, fragmented, unmovable), age
+  (time since the owning file's last change, from under a day to three years or more) and size (under
+  64 KB, then 16x steps to 4 GB or more). File class, zone fit and plan preview come with their features.
+- Age and size are six buckets each. `MapData` stores one byte per file (`fileColorValues()`, ~39 MB at
+  20 M files) as `bucket * 51`; the pyramid averages them per bin like the fragmented share, and the
+  palette shows the nearest bucket's color blended with free space by the used share. A cell of one
+  file keeps its exact bucket, so deep-zoom colors equal the legend colors (tested).
+- Ages are measured from the newest modification in the snapshot (`newestModification()`), so a
+  snapshot shows the same ages whenever it is drawn; heat is stored hot-high (new = 255) so later
+  activity signals (plan.md 8.2) can feed the same byte.
+- Switching modes changes only the palette: the canvas marks every cached and rendering tile dirty
+  (the selection-change path), keeps showing them until each re-renders, and never rebuilds map data.
+- The legend (`ui::Legend`, a strip under the map, View > Legend / Ctrl+L) counts clusters per entry
+  exactly from the extent index (`countLegend()`): the visible cell rectangle becomes one LCN range
+  for whole rows or one per row, cut into 4 M-cluster pieces summed in parallel; equal to a per-cluster
+  count (tested). It runs on the pool 150 ms after the view rests, cancelled by a newer view or mode,
+  and keeps the old numbers until the new ones arrive. Whole 30 TB volume: ~85 ms.
+- 30 TB synthetic volume with the values: pyramid 0.84 s on 8 threads, map data ~414 MB (pyramid
+  320 MB, extent flags 55 MB, values 39 MB). The per-file lookups slowed fine tiles at level 3 from
+  4.4 to 6.5 ms (target 2 ms); T033 addresses it.
 
 ## Parallel execution
 

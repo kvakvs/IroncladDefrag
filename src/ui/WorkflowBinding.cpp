@@ -164,18 +164,15 @@ namespace icd::ui {
         if (!commandEnabled(id)) {
             return; // Map keys arrive even when the menu item is disabled.
         }
-        if (widgets_.map.handleViewCommand(id)) {
-            // The panel owns the minimap state; the check mark follows it however the command arrived.
-            frame_.GetMenuBar()->Check(ID_SHOW_MINIMAP, widgets_.map.minimapShown());
-            return; // Minimap, zoom, selection commands and map keys.
+        if (!widgets_.map.handleViewCommand(id)) {
+            return;
         }
-        const wxMenuItem* item = frame_.GetMenuBar()->FindItem(id);
-        const wxString label = item != nullptr ? item->GetItemLabelText() : wxString();
-        if (id >= ID_COLOR_CLASS && id <= ID_COLOR_PLAN) {
-            widgets_.map.setColorMode(id - ID_COLOR_CLASS);
-            frame_.GetMenuBar()->Check(id, true);
-        }
-        widgets_.bottom.setStatus("View: " + label + " (arrives with color modes and legend)");
+        // The panel owns the display state; the check marks follow it however the command arrived (menu, toolbar,
+        // accelerator or map key).
+        wxMenuBar& menu = *frame_.GetMenuBar();
+        menu.Check(ID_SHOW_MINIMAP, widgets_.map.minimapShown());
+        menu.Check(ID_SHOW_LEGEND, widgets_.map.legendShown());
+        menu.Check(widgets_.map.colorModeCommand(), true);
     }
 
     void WorkflowBinding::onCommand(wxCommandEvent& event) {
@@ -214,7 +211,6 @@ namespace icd::ui {
             bottom.strategy().reset(); // Quick always uses the default preset at the Fast level.
             break;
         case WorkflowAction::Review:
-            frame_.GetMenuBar()->Check(ID_COLOR_PLAN, true);
             bottom.showTab(BottomTab::Plan);
             bottom.setStatus(wxString::FromUTF8("Reviewing the plan for " + driveLabel() + " on the map"));
             break;
@@ -519,7 +515,7 @@ namespace icd::ui {
 
     bool WorkflowBinding::commandEnabled(int id) const {
         if (isMapCommand(id)) {
-            return widgets_.map.hasMap();
+            return widgets_.map.hasMap() && MapPanel::commandAvailable(id);
         }
         const auto action = actionFor(id, workflow_.state());
         return action.has_value() && workflow_.can(*action);

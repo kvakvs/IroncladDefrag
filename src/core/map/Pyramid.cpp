@@ -43,6 +43,7 @@ namespace icd::core {
             ClusterCount total = 0;
             double fragmentedSum = 0.0;
             double heatSum = 0.0;
+            double sizeSum = 0.0;
             ClusterCount largest = 0;
             MapBin parent;
             for (const MapBin& child : children) {
@@ -50,6 +51,7 @@ namespace icd::core {
                 total += used;
                 fragmentedSum += static_cast<double>(used) * child.fragmented;
                 heatSum += static_cast<double>(used) * child.heat;
+                sizeSum += static_cast<double>(used) * child.size;
                 parent.flags |= child.flags;
                 if (used > largest) {
                     largest = used;
@@ -59,6 +61,7 @@ namespace icd::core {
             parent.used = static_cast<std::uint32_t>(total >> Pyramid::usedShift(level));
             parent.fragmented = ratio(fragmentedSum, static_cast<double>(total), 1.0);
             parent.heat = ratio(heatSum, static_cast<double>(total), 1.0);
+            parent.size = ratio(sizeSum, static_cast<double>(total), 1.0);
             return parent;
         }
 
@@ -133,7 +136,8 @@ namespace icd::core {
         const MapFileFacts facts{.snapshot = inputs.snapshot,
                                  .extentFlags = extentFlags,
                                  .kinds = inputs.fileKinds,
-                                 .heat = inputs.fileHeat};
+                                 .heat = inputs.fileHeat,
+                                 .sizes = inputs.fileSizes};
         std::vector<BinAccumulator> totals(base.across);
         for (std::uint64_t row = rows.first; row < rows.last; ++row) {
             std::ranges::fill(totals, BinAccumulator{});

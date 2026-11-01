@@ -78,8 +78,9 @@ namespace icd::core { namespace {
         EXPECT_EQ(Pyramid::baseLevelFor(World(1000, {}), 1U << 25U), 0);
         EXPECT_EQ(Pyramid::baseLevelFor(World(7'300'000'000, {.width = 16, .height = 9}), 1U << 25U), 4);
         EXPECT_EQ(Pyramid::baseLevelFor(World(1ULL << 20U, {.width = 1, .height = 1}), 64), 7); // 8 x 8 bins.
-        EXPECT_EQ(Pyramid::usedShift(15), 0u);
-        EXPECT_EQ(Pyramid::usedShift(17), 3u);
+        EXPECT_EQ(Pyramid::usedShift(11), 0u); // 2^22 clusters fit the 24-bit count.
+        EXPECT_EQ(Pyramid::usedShift(12), 1u);
+        EXPECT_EQ(Pyramid::usedShift(17), 11u);
     }
 
     // Every bin of every level matches brute force: counts and flags exactly, averages within rounding.

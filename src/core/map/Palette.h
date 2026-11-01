@@ -16,6 +16,16 @@ namespace icd::core {
         return 0xFF000000U | (std::uint32_t{red} << 16U) | (std::uint32_t{green} << 8U) | blue;
     }
 
+    // A mix of two colors: from at share 0, to at share 256.
+    struct ColorMix {
+        Rgba from = 0; // Color at share 0.
+        Rgba to = 0; // Color at share 256.
+        std::uint32_t share = 0; // 0-256.
+    };
+
+    // The mixed color, per channel (shared by the palettes).
+    [[nodiscard]] Rgba blendColors(const ColorMix& mix);
+
     // What a palette colors: a summary of a 2^level x 2^level block (level 0 or less: one cell) that holds
     // capacity clusters of the volume (never 0; blocks wholly outside the volume get Palette::outside()).
     struct PixelSummary {
@@ -26,6 +36,9 @@ namespace icd::core {
         // Summaries compare as values (color caching).
         friend constexpr bool operator==(const PixelSummary&, const PixelSummary&) = default;
     };
+
+    // The used share of a summary's clusters, 0-256: how far its data color covers the free color.
+    [[nodiscard]] std::uint32_t usedShare(const PixelSummary& summary);
 
     // Maps a map summary to a color. Each color mode of the map (file class, fragmentation, age, ...) is one
     // palette (plan.md 7.4), so switching modes re-renders tiles without touching the data.
@@ -47,8 +60,8 @@ namespace icd::core {
         [[nodiscard]] virtual Rgba selection() const { return rgb(255, 196, 0); }
     };
 
-    // Used versus free space, with fragmented and unmovable data highlighted: the map's look until the color
-    // modes exist (T032), and a stable palette for tests.
+    // Used versus free space, with fragmented and unmovable data highlighted: the fragmentation color mode
+    // (core::ColorMode::Fragmentation) and a stable palette for tests.
     class OccupancyPalette : public Palette {
     public:
         // Free cells.
