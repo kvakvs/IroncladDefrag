@@ -22,13 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 3 - Read-only analysis, API path (§10.1-10.2, §13 Phase 3)
 
-### T040 - Test volume scripts
-- Depends: -
-- Owns: `tools/testvol/make-testvol.ps1`, `tools/testvol/verify-testvol.ps1`
-- Do: create/mount/dismount a VHDX of chosen size and cluster size with `diskpart`; hash all files
-  and run `chkdsk /scan` (§12).
-- Done when: create → hash → verify round trip works on a 4 GB volume.
-
 ### T041 - Scenario generator
 - Depends: T040
 - Owns: `tools/testvol/gen-scenario/*`

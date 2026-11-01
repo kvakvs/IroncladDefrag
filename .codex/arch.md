@@ -381,6 +381,17 @@ this file records what is actually built and the decisions made along the way.
   Frames run at the display rate (Direct2D presents with vsync). 2-7% of frames show a coarser
   stand-in for some tiles while the exact ones render.
 
+## Test bed
+
+- Test volumes are dynamic VHDX files made by `tools/testvol/make-testvol.ps1` through diskpart (always
+  present; the Hyper-V cmdlets are not), GPT with one NTFS partition of the chosen cluster size. The Storage
+  cmdlets (`Get-DiskImage`, `Set-Partition`) only find the attached disk and fix its drive letter. Files live
+  outside the repository (`%LOCALAPPDATA%\IroncladDefrag\testvol` or `ICD_TESTVOL_DIR`).
+- A read-only attach (`-ReadOnly`) is how analysis proves it writes nothing: the volume refuses writes.
+- `verify-testvol.ps1` manifests hash main streams and alternate streams with .NET (ADS paths work in
+  PowerShell 7), record reparse targets instead of following them, and skip `System Volume Information`
+  and `$RECYCLE.BIN`, which change on their own. Verify adds `chkdsk /scan` (exit 0 = clean).
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

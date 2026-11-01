@@ -39,8 +39,7 @@ changes (see `AGENTS.md`).
 | `icd_services` | static lib | `src/services/**` | `icd_core`, `icd_platform` |
 | `IroncladDefrag` | GUI exe | `src/main.cpp`, `src/ui/**`, PCH `src/precompiled.h` | `icd_services`, `wx::wx`, `d2d1` |
 | `icd-cli` | console exe | `src/cli/**` | `icd_services` |
-| `map-render-spike` | console exe with a wx window | `tools/bench/map-bench.cpp` | `map-bench` target (T033): plan.md 7.5 checks on the 30 TB synthetic map: pyramid on 8 threads, map memory, tile times per level and color mode, and the real `MapCanvas` in a window through scripted zoom and pans (fps, stand-in frames); `--no-window 1` skips the window. |
-| `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
+| `map-render-spike` | console exe with a wx window | `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
 | `synth-bench` | console exe | `tools/bench/synth-bench.cpp` | `icd_services`, `psapi` |
 | `map-bench` | console exe with a wx window | `tools/bench/map-bench.cpp` plus the `src/ui/map` canvas sources, `ui/Accelerators`, `ui/Commands` | `icd_services`, `wx::wx`, `d2d1` |
 | `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `icd_services`, `GTest::gtest_main` |
@@ -166,6 +165,9 @@ changes (see `AGENTS.md`).
 | --- | --- |
 | `tools/bench/synth-bench.cpp` | `synth-bench` target: builds a synthetic snapshot (default 30 TB / 20 M files), its color values and pyramid on 8 and all threads, and times tiles per level, whole-volume legend counts, file searches and a selection change's dirty-tile check; `--dump DIR` writes sample tiles as BMP. |
 | `tools/spike/map-render-spike/main.cpp` | `map-render-spike` target (T026): times 4K tile composition with wx Direct2D, raw Direct2D and GDI during scripted zoom and pan. |
+| `tools/bench/map-bench.cpp` | `map-bench` target (T033): plan.md 7.5 checks on the 30 TB synthetic map: pyramid on 8 threads, map memory, tile times per level and color mode, and the real `MapCanvas` in a window through scripted zoom and pans (fps, stand-in frames); `--no-window 1` skips the window. |
+| `tools/testvol/make-testvol.ps1` | Test VHDX volumes through diskpart (admin): `-Action Create` (dynamic VHDX, GPT, NTFS with `-ClusterSize`, `-Letter` or a free one from T down), `Mount` (`-ReadOnly` for no-write checks), `Dismount`, `Remove`, `Info`; files in `%ICD_TESTVOL_DIR%` or `%LOCALAPPDATA%\IroncladDefrag\testvol`. |
+| `tools/testvol/verify-testvol.ps1` | `-Action Hash` writes a JSON manifest (every entry: size, attributes, SHA-256 of the main stream and each ADS, reparse targets not followed); `Verify` compares and runs `chkdsk /scan` (exit 1 on any difference); `Chkdsk` alone. |
 | `tools/fetch-wx.ps1` | Downloads the pinned wxWidgets prebuilt MSVC x64 archives (Dev, ReleaseDLL, headers), checks SHA-256, extracts to `3rdparty/wxWidgets`. No-op when the stamp matches; `-Force` redoes it. |
 
 ## Dependencies

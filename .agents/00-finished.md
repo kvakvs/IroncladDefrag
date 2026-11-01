@@ -117,3 +117,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   Fixes: per-record color values, LCN record block index for tile rows, tight whole-unit loop, reuse of identical
   unit colors. All plan.md 7.5 targets met: pyramid 0.74 s on 8 threads, map 441 MB, coarse tiles <= 0.8 ms, fine
   <= 1.5 ms (level 3), zoom 119 fps and pans 120 fps at 1920 x 1080. **Phase 2 exit.**
+- T040 Test volume scripts - `tools/testvol/make-testvol.ps1` (diskpart: create dynamic GPT/NTFS VHDX with a cluster size,
+  mount read-only or writable with a fixed or free letter, dismount, remove, info), `tools/testvol/verify-testvol.ps1`
+  (JSON manifest with SHA-256 of every stream incl. ADS, reparse targets; verify + `chkdsk /scan`). 4 GB round trip:
+  hash, verify, read-only remount verify clean; a changed file and stream are reported (exit 1).
