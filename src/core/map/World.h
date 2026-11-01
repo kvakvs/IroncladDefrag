@@ -45,6 +45,18 @@ namespace icd::core {
         friend constexpr bool operator==(const TileId&, const TileId&) = default;
     };
 
+    // How the map composes tile levels for a scale. Tiles exist per power-of-two level and are drawn scaled in
+    // between. Where a cell is smaller than a pixel, shrinking a tile with nearest-neighbour sampling drops whole
+    // texel rows and columns, so one-cluster details (and tile edges) blink in and out while zooming. There the map
+    // draws the next coarser level (whose pixels already average their clusters) and fades the finer level over it
+    // by how far the scale has moved between the two, both filtered linearly: mipmapping. Where cells are bigger
+    // than a pixel no detail is lost, so one level is drawn crisp with nearest-neighbour sampling.
+    struct LevelBlend {
+        int fine = 0; // The finer level (World::levelFor()).
+        double fineOpacity = 1.0; // 1: the fine level alone; below 1: fine + 1 drawn under it, fine at this opacity.
+        bool smooth = false; // Linear filtering (cells under a pixel) rather than nearest-neighbour.
+    };
+
     // The fixed 2-D layout of a volume for the drive map (plan.md 7.1): clusters row by row, row width chosen
     // once from the screen aspect so the whole volume fills a screen. It never re-flows on resize, zoom or a
     // move to another screen, so places stay where the user saw them. Also the zoom-level and tile math the
@@ -87,6 +99,10 @@ namespace icd::core {
         // The level to render for a continuous scale (cells per pixel): the nearest finer one, clamped to
         // [minLevel, maxLevel()], so tiles are drawn shrunk rather than blown up.
         [[nodiscard]] int levelFor(double cellsPerPixelScale) const;
+
+        // The levels to compose for a scale (see LevelBlend): from 1 cell per pixel on, the finer level fades out
+        // linearly in log scale towards the next one; at the coarsest level there is nothing to fade to.
+        [[nodiscard]] LevelBlend blendFor(double cellsPerPixelScale) const;
 
         // Tiles across and down at a level.
         [[nodiscard]] std::uint64_t tilesAcross(int level) const;

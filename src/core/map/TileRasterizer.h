@@ -13,10 +13,6 @@ namespace icd::core {
     // Pixels in one tile.
     inline constexpr std::size_t tilePixels = std::size_t{World::tileSize} * World::tileSize;
 
-    // Cells at least this many pixels wide get grid lines (plan.md 7.1 says 6 px; cell sizes are powers of two, so
-    // that is 8 px and up). Shared with the selection highlight, which leaves the grid lines alone.
-    inline constexpr std::uint64_t gridCellPixels = 8;
-
     // Everything a tile is drawn from. Read-only while tiles render, so tiles render on many workers at once.
     struct MapSource {
         const World& world; // Cell layout.
@@ -36,8 +32,9 @@ namespace icd::core {
 
     // Renders one 256 x 256 tile, row by row (plan.md 7.3). Coarse levels copy one pyramid bin per pixel; finer
     // levels summarise the extents of each pixel (or each cell, when a cell is bigger than a pixel) the same way
-    // the pyramid does. Cells of 8 px or more get 1 px grid lines (plan.md 7.1). Pixels outside the volume get
-    // the palette's outside color.
+    // the pyramid does. Pixels outside the volume get the palette's outside color. Tiles carry no grid lines: tiles
+    // are scaled between zoom levels, where 1 px lines would flicker, so the canvas draws the grid on top
+    // (core::gridLines()).
     [[nodiscard]] std::vector<Rgba> renderTile(const MapSource& source, TileId tile, const Palette& palette,
                                                TileSource from = TileSource::Auto);
 

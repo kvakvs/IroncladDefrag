@@ -65,6 +65,9 @@ namespace icd::ui {
                                                               impl_->target.GetAddressOf()))) {
                 return false;
             }
+            // Pixels belong to a shape when their center is inside: tiles meeting at a fractional position share
+            // the edge exactly, where anti-aliasing would blend both edges with the background into a light seam.
+            impl_->target->SetAntialiasMode(D2D1_ANTIALIAS_MODE_ALIASED);
             impl_->target->CreateSolidColorBrush(D2D1::ColorF(0.0F, 0.0F, 0.0F), impl_->brush.GetAddressOf());
         }
         else if (impl_->target->GetPixelSize().width != pixels.width ||
@@ -91,14 +94,15 @@ namespace icd::ui {
     }
 
     void D2DRenderer::draw(const GpuTileHandle& tile, const PixelRect& destination, const PixelRect& source,
-                           bool smooth) {
+                           const BitmapStyle& style) {
         if (tile == nullptr || tile->bitmap == nullptr) {
             return;
         }
         const D2D1_RECT_F from = rectOf(source);
-        impl_->target->DrawBitmap(
-            tile->bitmap.Get(), rectOf(destination), 1.0F,
-            smooth ? D2D1_BITMAP_INTERPOLATION_MODE_LINEAR : D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR, &from);
+        impl_->target->DrawBitmap(tile->bitmap.Get(), rectOf(destination), static_cast<float>(style.opacity),
+                                  style.smooth ? D2D1_BITMAP_INTERPOLATION_MODE_LINEAR
+                                               : D2D1_BITMAP_INTERPOLATION_MODE_NEAREST_NEIGHBOR,
+                                  &from);
     }
 
     void D2DRenderer::fillRect(const PixelRect& rect, core::Rgba color) {
@@ -107,6 +111,27 @@ namespace icd::ui {
         }
         impl_->brush->SetColor(colorOf(color));
         impl_->target->FillRectangle(rectOf(rect), impl_->brush.Get());
+    }
+
+    void D2DRenderer::fillRects(const std::vector<PixelRect>& rects, const FillStyle& fill) {
+        const double opacity = fill.opacity;
+        if (impl_->brush == nullptr || rects.empty() || opacity <= 0.0) {
+            return;
+        }
+        impl_->brush->SetColor(colorOf(fill.color));
+        const bool layered = opacity < 1.0;
+        if (layered) {
+            // Without a layer object Direct2D manages the layer's resources itself (Windows 8 and later).
+            impl_->target->PushLayer(D2D1::LayerParameters(D2D1::InfiniteRect(), nullptr, D2D1_ANTIALIAS_MODE_ALIASED,
+                                                           D2D1::IdentityMatrix(), static_cast<float>(opacity)),
+                                     nullptr);
+        }
+        for (const PixelRect& rect : rects) {
+            impl_->target->FillRectangle(rectOf(rect), impl_->brush.Get());
+        }
+        if (layered) {
+            impl_->target->PopLayer();
+        }
     }
 
     void D2DRenderer::strokeRect(const PixelRect& rect, const LineStyle& line) {

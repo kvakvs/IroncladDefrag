@@ -119,11 +119,17 @@ namespace icd::ui {
         // Map keys: zoom keys post View commands, panning keys go to the navigator.
         void onChar(wxKeyEvent& event);
 
-        // Draws the visible tiles of the current level and asks for the missing ones.
+        // Draws the visible tiles of the current level (faded over the next coarser one where cells are under a
+        // pixel, see core::LevelBlend) and asks for the missing ones.
         void drawTiles();
 
+        // Draws the visible tiles of one level in a style and asks for the missing ones; with fallback, a missing
+        // tile shows a cached coarser one scaled.
+        void drawLevel(int level, const BitmapStyle& style, bool fallback);
+
         // Draws a cached tile, and asks for a fresh one when the selection changed under it.
-        void drawCached(core::TileId tile, const GpuTileHandle& cached, const PixelRect& destination);
+        void drawCached(core::TileId tile, const GpuTileHandle& cached, const PixelRect& destination,
+                        const BitmapStyle& style);
 
         // Draws the nearest cached coarser tile scaled into a missing tile's place; false when none is cached.
         bool drawFallback(core::TileId tile, const PixelRect& destination);
@@ -133,6 +139,9 @@ namespace icd::ui {
 
         // Forgets all tiles (new map, new palette, lost device); late results are dropped by generation.
         void resetTiles();
+
+        // Draws the lines between cells at deep zoom, at screen resolution and faded in by cell size.
+        void drawGrid();
 
         // Draws the minimap, asking for its image (the coarsest tile) until it has one.
         void drawMinimap();

@@ -36,7 +36,7 @@ namespace icd::core {
         // Color of a summary.
         [[nodiscard]] virtual Rgba color(const PixelSummary& summary) const = 0;
 
-        // Grid lines between cells at deep zoom.
+        // Grid lines between cells at deep zoom; the canvas blends them over the tiles with the grid's opacity.
         [[nodiscard]] virtual Rgba gridLine() const { return rgb(255, 255, 255); }
 
         // Area past the end of the volume.

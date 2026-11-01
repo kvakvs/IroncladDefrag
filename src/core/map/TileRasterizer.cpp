@@ -132,17 +132,15 @@ namespace icd::core {
             return units;
         }
 
-        // The color of a pixel of a tile drawn from units, with grid lines at deep zoom.
+        // The color of a pixel of a tile drawn from units. Grid lines are not part of tiles: the canvas draws them
+        // at screen resolution (core::gridLines()).
         Rgba unitPixel(const Units& units, std::uint64_t px, std::uint64_t py, const Palette& palette) {
             const std::uint64_t x = px / units.cellPixels;
             const std::uint64_t y = py / units.cellPixels;
             if (x >= units.across || y >= units.down) {
                 return palette.outside();
             }
-            const std::size_t index = y * units.across + x;
-            const bool onGrid = units.cellPixels >= gridCellPixels &&
-                (px % units.cellPixels == units.cellPixels - 1 || py % units.cellPixels == units.cellPixels - 1);
-            return onGrid && units.capacity[index] != 0 ? palette.gridLine() : units.colors[index];
+            return units.colors[y * units.across + x];
         }
 
         // Paints a tile from the extent index.

@@ -2,6 +2,7 @@
 
 #include "core/exec/Executor.h"
 #include "core/log/Log.h"
+#include "core/map/Grid.h"
 #include "core/map/Selection.h"
 #include "core/map/TileRasterizer.h"
 #include "ui/Accelerators.h"
@@ -287,6 +288,7 @@ namespace icd::ui {
         renderer_->clear(background);
         if (map_ != nullptr) {
             drawTiles();
+            drawGrid();
             drawMinimap();
         }
         if (!renderer_->end()) {
@@ -300,8 +302,18 @@ namespace icd::ui {
     }
 
     void MapCanvas::drawTiles() {
+        const core::LevelBlend blend = map_->world().blendFor(view_.scale);
+        if (blend.fineOpacity < 1.0) {
+            drawLevel(blend.fine + 1, {.smooth = blend.smooth, .opacity = 1.0}, true);
+        }
+        if (blend.fineOpacity > 0.0) {
+            // Over a coarser level a missing fine tile simply lets that level show.
+            drawLevel(blend.fine, {.smooth = blend.smooth, .opacity = blend.fineOpacity}, blend.fineOpacity >= 1.0);
+        }
+    }
+
+    void MapCanvas::drawLevel(int level, const BitmapStyle& style, bool fallback) {
         const core::World& world = map_->world();
-        const int level = world.levelFor(view_.scale);
         const double span = core::World::tileSize * core::World::cellsPerPixel(level); // Cells per tile edge.
         const double tilePixels = span / view_.scale; // Window pixels per tile edge.
         const core::WorldPoint topLeft = view_.worldAt({0, 0});
@@ -319,18 +331,32 @@ namespace icd::ui {
                     view_.pixelAt({static_cast<double>(x) * span, static_cast<double>(y) * span});
                 const PixelRect destination{corner.x, corner.y, tilePixels, tilePixels};
                 if (GpuTileHandle* cached = cache_.find(tile); cached != nullptr) {
-                    drawCached(tile, *cached, destination);
+                    drawCached(tile, *cached, destination, style);
                     continue;
                 }
                 request(tile);
-                drawFallback(tile, destination);
+                if (fallback) {
+                    drawFallback(tile, destination);
+                }
             }
         }
     }
 
-    void MapCanvas::drawCached(core::TileId tile, const GpuTileHandle& cached, const PixelRect& destination) {
+    void MapCanvas::drawGrid() {
+        const core::GridOverlay grid = core::gridLines(map_->world(), view_);
+        std::vector<PixelRect> rects;
+        rects.reserve(grid.lines.size());
+        for (const core::GridLine& line : grid.lines) {
+            rects.push_back({static_cast<double>(line.x), static_cast<double>(line.y), static_cast<double>(line.width),
+                             static_cast<double>(line.height)});
+        }
+        renderer_->fillRects(rects, {.color = palette_->gridLine(), .opacity = grid.opacity});
+    }
+
+    void MapCanvas::drawCached(core::TileId tile, const GpuTileHandle& cached, const PixelRect& destination,
+                               const BitmapStyle& style) {
         const PixelRect whole{0, 0, core::World::tileSize, core::World::tileSize};
-        renderer_->draw(cached, destination, whole);
+        renderer_->draw(cached, destination, whole, style);
         if (dirty_.contains(tile)) {
             request(tile); // Shown as it is until the tile with the current selection arrives.
         }

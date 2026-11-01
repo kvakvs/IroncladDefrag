@@ -3,6 +3,7 @@
 #include <gtest/gtest.h>
 
 #include <bit>
+#include <cmath>
 #include <vector>
 
 namespace icd::core { namespace {
@@ -103,6 +104,36 @@ namespace icd::core { namespace {
         segments.clear();
         world.forEachRowSegment({5, 0}, collect);
         EXPECT_TRUE(segments.empty());
+    }
+
+    // Below one cell per pixel one level is drawn crisp; from there on the finer level fades out towards the next
+    // one in log scale, and the coarsest level stands alone.
+    TEST(World, BlendLevels) {
+        const World world(1ULL << 30U, {.width = 16, .height = 9});
+        const LevelBlend deep = world.blendFor(1.0 / 8.0);
+        EXPECT_EQ(deep.fine, -3);
+        EXPECT_EQ(deep.fineOpacity, 1.0);
+        EXPECT_FALSE(deep.smooth);
+        EXPECT_FALSE(world.blendFor(0.99).smooth);
+
+        const LevelBlend one = world.blendFor(1.0);
+        EXPECT_EQ(one.fine, 0);
+        EXPECT_DOUBLE_EQ(one.fineOpacity, 1.0);
+        EXPECT_TRUE(one.smooth);
+
+        const LevelBlend between = world.blendFor(std::sqrt(2.0) * 4.0); // Halfway from level 2 to 3.
+        EXPECT_EQ(between.fine, 2);
+        EXPECT_NEAR(between.fineOpacity, 0.5, 1e-12);
+
+        const LevelBlend almost = world.blendFor(7.99);
+        EXPECT_EQ(almost.fine, 2);
+        EXPECT_LT(almost.fineOpacity, 0.01);
+        EXPECT_EQ(world.blendFor(8.0).fine, 3);
+        EXPECT_DOUBLE_EQ(world.blendFor(8.0).fineOpacity, 1.0); // Continuous: level 3 alone at its own scale.
+
+        const LevelBlend top = world.blendFor(World::cellsPerPixel(world.maxLevel()) * 1.5);
+        EXPECT_EQ(top.fine, world.maxLevel());
+        EXPECT_EQ(top.fineOpacity, 1.0); // Nothing coarser to fade to.
     }
 
 }} // namespace icd::core

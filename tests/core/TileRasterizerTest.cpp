@@ -56,7 +56,8 @@ namespace icd::core { namespace {
         EXPECT_EQ(clustersInRect(world, {8, 0, 4, 4}), 0u);
     }
 
-    // At 32 px per cell every cell shows its own state, with grid lines, and the area past the end is outside.
+    // At 32 px per cell every cell shows its own state over its whole square (no grid lines: the canvas draws
+    // those), and the area past the end is outside.
     TEST(TileRasterizer, DeepZoomCells) {
         const Snapshot snapshot = handVolume();
         const World world(60, {.width = 1, .height = 1});
@@ -77,9 +78,9 @@ namespace icd::core { namespace {
         EXPECT_EQ(cell(6, 3), OccupancyPalette::unmovableColor); // LCN 30.
         EXPECT_EQ(cell(3, 7), OccupancyPalette::freeColor); // LCN 59, the last cluster.
         EXPECT_EQ(cell(4, 7), palette.outside()); // LCN 60 does not exist.
-        EXPECT_EQ(pixels[5 * 256 + 31], palette.gridLine()); // Right edge of cell (0, 0).
-        EXPECT_EQ(pixels[31 * 256 + 5], palette.gridLine()); // Bottom edge of cell (0, 0).
-        EXPECT_EQ(pixels[(7 * 32 + 5) * 256 + 4 * 32 + 31], palette.outside()); // No grid past the end.
+        EXPECT_EQ(pixels[5 * 256 + 31], OccupancyPalette::usedColor); // Right edge of cell (0, 0).
+        EXPECT_EQ(pixels[31 * 256 + 5], OccupancyPalette::usedColor); // Bottom edge of cell (0, 0).
+        EXPECT_EQ(pixels[(7 * 32 + 5) * 256 + 4 * 32 + 31], palette.outside()); // Past the end.
     }
 
     // At the base level, tiles from the pyramid and from the extent index are pixel for pixel the same.

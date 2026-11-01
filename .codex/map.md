@@ -77,15 +77,16 @@ changes (see `AGENTS.md`).
 | `src/core/synth/SyntheticVolume.*` | `generateSyntheticVolume()`: seeded snapshots up to 30 TB / 20 M files (class mix, fill, fragmentation, free pattern, $MFT, directory indexes). |
 | `src/core/map/BinSummary.*` | `MapBin`, `BinAccumulator`, per-record `extentMapFlags()`, `ownerOf()`: the summary rules the pyramid and the rasterizer share. |
 | `src/core/map/Palette.*` | `Rgba` (BGRA in memory), `Palette` interface over `PixelSummary`, `OccupancyPalette`. |
-| `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), grid lines at deep zoom, `clustersInRect()`. |
+| `src/core/map/TileRasterizer.*` | `renderTile()`: 256 x 256 tiles from the pyramid (coarse) or the extent index (fine), no grid lines (see `Grid`), `clustersInRect()`. |
+| `src/core/map/Grid.*` | Deep-zoom grid drawn per frame at screen resolution: `gridLines()` (each visible cell's right and bottom edge on the last pixel nearest-neighbour drawing gives it, clipped to the last cluster and the window), `gridOpacity()` (fades in from 5 to 10 px per cell), `edgePixel()`. |
 | `src/core/map/HitTest.*` | Hover lookups: `hitTest()` (pointer -> cell -> LCN -> extent or free run, fragment i/n via `fragmentOf()`, the pixel's cells and used clusters), `formatFileTime()`, `describeHit()` tooltip lines. |
-| `src/core/map/Selection.*` | Selection math: `fileFragments()` (VCN order, continuing runs joined), `SelectionOverlay` / `selectionOf()` (LCN-sorted merged runs), `shapeOf()` (a run as at most three cell rectangles), `runsTouch()` (dirty-tile test), `highlightRuns()` (paints the selection into a tile, grid kept), `focusView()`. |
+| `src/core/map/Selection.*` | Selection math: `fileFragments()` (VCN order, continuing runs joined), `SelectionOverlay` / `selectionOf()` (LCN-sorted merged runs), `shapeOf()` (a run as at most three cell rectangles), `runsTouch()` (dirty-tile test), `highlightRuns()` (paints the selection into a tile), `focusView()`. |
 | `src/core/map/MapData.*` | Shared immutable bundle of snapshot, world, pyramid and extent flags (`source()` for the rasterizer); `TileIdHash`. |
 | `src/core/map/Overview.*` | Minimap math: `placeOverview()` (world shape in the bottom-right corner, hidden in small windows), minimap pixel <-> world, view marker box (clipped, minimum size), `dragTo()`. |
 | `src/core/map/Ruler.*` | Ruler ticks: `rowTicks()` (row starts: byte offset, % of volume, % of disk when the partition is known), `columnTicks()` (offset within a row), power-of-two steps, `formatOffset()` / `formatPercent()` label precision. |
 | `src/core/map/Pyramid.*` | Map LOD pyramid: quadtree of 8-byte `MapBin`s over the world grid (level k bin = one tile pixel at zoom k), parallel build per base-bin row band, 2x2 merges, dirty-range `update()`. |
 | `src/core/map/Viewport.*` | View math: `Viewport` (scale, center, size), limits (32 px per cluster to beyond fit), fit, anchored zoom, pan, eased `ZoomMotion` and `PanInertia` by elapsed time. |
-| `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), tile cell rects, row segments of a run. |
+| `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), `blendFor()` (levels to fade between where cells are under a pixel), tile cell rects, row segments of a run. |
 | `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles); `keys()` for finding stale entries. |
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
@@ -124,7 +125,7 @@ changes (see `AGENTS.md`).
 | `src/ui/map/Minimap.*` | Minimap overlay drawn in the canvas's Direct2D frame: holds the coarsest tile as its image, frame and view marker, drag state (grab offset). |
 | `src/ui/map/Ruler.*` | Ruler windows (GDI, buffered) beside the map: vertical rows with offset and %, horizontal offsets within a row; sized for their widest label, refreshed on view changes. |
 | `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
-| `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour (or smooth) drawing, overlay rectangles, device-loss detection. |
+| `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles, rectangle sets blended as one layer (`fillRects`, the grid), device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`. |
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
@@ -133,7 +134,7 @@ changes (see `AGENTS.md`).
 | `tests/core/ViewportTest.cpp` | Pixel/world round trip, fit and limits, anchored zoom, pan clamping, eased zoom motion, durations, inertia. |
 | `tests/core/WorldTest.cpp` | Nice widths, landscape/portrait aspect, round trips and edge cells, levels, tile clipping, row segments. |
 | `tests/core/PyramidTest.cpp` | Base-level choice, every bin vs brute force, dominant class, parallel = serial, dirty-range update = rebuild. |
-| `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells and grid on a hand volume, pyramid = extents at the base level, golden checksums. |
+| `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells (no grid) on a hand volume, pyramid = extents at the base level, golden checksums. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
@@ -141,6 +142,7 @@ changes (see `AGENTS.md`).
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
 | `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
 | `tests/core/FileSearchTest.cpp` | Ranks, case, path queries (slashes, trailing backslash, mid-name start), empty queries, limit and total, brute force over built paths on a synthetic volume, pool = serial. |
+| `tests/core/GridTest.cpp` | Grid fade and edge rounding, no grid at small cells, lines exactly on the last pixel of each drawn cell at random fractional views (also at the partial last row), line count bounded by the window. |
 | `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |

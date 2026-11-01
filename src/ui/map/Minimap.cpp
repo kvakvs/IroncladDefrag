@@ -54,7 +54,7 @@ namespace icd::ui {
             const double cells = core::World::cellsPerPixel(world.maxLevel());
             const PixelRect source{0, 0, static_cast<double>(world.rowWidth()) / cells,
                                    static_cast<double>(world.rows()) / cells};
-            renderer.draw(image_, rectOf(box), source, true);
+            renderer.draw(image_, rectOf(box), source, {.smooth = true, .opacity = 1.0});
         }
         else {
             renderer.fillRect(rectOf(box), emptyColor);

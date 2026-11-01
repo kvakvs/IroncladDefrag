@@ -30,6 +30,18 @@ namespace icd::ui {
         float width = 1.0F; // Line width in pixels.
     };
 
+    // How a tile is drawn.
+    struct BitmapStyle {
+        bool smooth = false; // Linear filtering; otherwise nearest-neighbour, which keeps large cells crisp.
+        double opacity = 1.0; // 0-1: how strongly it covers what is drawn below (fading between map levels).
+    };
+
+    // How a set of rectangles is filled.
+    struct FillStyle {
+        core::Rgba color = 0xFF000000U; // Fill color.
+        double opacity = 1.0; // 0-1: how strongly the fill covers what is drawn below.
+    };
+
     // Direct2D drawing on one window, the map backend chosen by the T026 spike: one HWND render target, tiles
     // as GPU bitmaps, nearest-neighbour scaling. Units are physical pixels. Used on the UI thread only.
     class D2DRenderer {
@@ -53,12 +65,17 @@ namespace icd::ui {
         [[nodiscard]] GpuTileHandle upload(const std::vector<core::Rgba>& pixels);
 
         // Draws source (in tile pixels) of a tile into destination (in window pixels). Nearest-neighbour keeps
-        // cells crisp on the map; smooth (linear) suits small overviews such as the minimap.
+        // large cells crisp; smooth (linear) suits tiles of cells under a pixel and small overviews (the minimap).
+        // Edges are not anti-aliased, so tiles that meet at a fractional pixel leave no seam.
         void draw(const GpuTileHandle& tile, const PixelRect& destination, const PixelRect& source,
-                  bool smooth = false);
+                  const BitmapStyle& style = {});
 
         // Fills a rectangle with a color; overlays on the map.
         void fillRect(const PixelRect& rect, core::Rgba color);
+
+        // Fills rectangles with one color, blended over what is drawn at the style's opacity as one layer, so
+        // where rectangles overlap (grid line crossings) the result is no brighter than elsewhere.
+        void fillRects(const std::vector<PixelRect>& rects, const FillStyle& fill);
 
         // Outlines a rectangle with a line centered on its edges.
         void strokeRect(const PixelRect& rect, const LineStyle& line);

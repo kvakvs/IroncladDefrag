@@ -44,7 +44,7 @@ namespace icd::core {
     [[nodiscard]] bool runsTouch(const World& world, std::span<const ClusterRun> runs, CellRect rect);
 
     // Paints the selection into a rendered tile: every pixel holding at least one cluster of runs (sorted by LCN,
-    // disjoint) gets color, so even a one-cluster fragment shows at the widest zoom. Grid lines of deep zoom stay.
+    // disjoint) gets color, so even a one-cluster fragment shows at the widest zoom.
     void highlightRuns(const World& world, TileId tile, std::span<const ClusterRun> runs, Rgba color,
                        std::span<Rgba> pixels);
 

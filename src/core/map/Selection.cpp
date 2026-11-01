@@ -16,7 +16,7 @@ namespace icd::core {
         // uses, since half the width would zoom out past the whole volume.
         constexpr double rowsFill = 0.9;
 
-        // Closest zoom when focusing: 8 px per cluster, where grid lines show (plan.md 7.1).
+        // Closest zoom when focusing: 8 px per cluster, where the grid shows (plan.md 7.1).
         constexpr double focusMinScale = 1.0 / 8.0;
 
         // The overlap of two cell rectangles, or nullopt when they do not overlap.
@@ -66,18 +66,11 @@ namespace icd::core {
             return {x0 << shift, y0 << shift, x1 << shift, y1 << shift};
         }
 
-        // Fills a pixel box, skipping grid lines when cells are cellPixels wide and big enough to have them.
-        void fillBox(const PixelBox& box, Rgba color, std::span<Rgba> pixels, std::uint64_t cellPixels) {
-            const bool grid = cellPixels >= gridCellPixels;
+        // Fills a pixel box.
+        void fillBox(const PixelBox& box, Rgba color, std::span<Rgba> pixels) {
             for (std::uint64_t y = box.y0; y < box.y1; ++y) {
-                if (grid && y % cellPixels == cellPixels - 1) {
-                    continue;
-                }
-                for (std::uint64_t x = box.x0; x < box.x1; ++x) {
-                    if (!grid || x % cellPixels != cellPixels - 1) {
-                        pixels[y * World::tileSize + x] = color;
-                    }
-                }
+                std::fill(pixels.begin() + static_cast<std::ptrdiff_t>(y * World::tileSize + box.x0),
+                          pixels.begin() + static_cast<std::ptrdiff_t>(y * World::tileSize + box.x1), color);
             }
         }
 
@@ -151,12 +144,11 @@ namespace icd::core {
         if (rect.width == 0 || pixels.size() < tilePixels) {
             return;
         }
-        const std::uint64_t cellPixels = tile.level < 0 ? std::uint64_t{1} << static_cast<unsigned>(-tile.level) : 1;
         for (const ClusterRun& run : runsInRows(world, runs, rect)) {
             const RunShape shape = shapeOf(world, run);
             for (std::size_t index = 0; index < shape.count; ++index) {
                 if (const auto cells = intersect(shape.rects.at(index), rect); cells) {
-                    fillBox(pixelsOf(rect, tile.level, *cells), color, pixels, cellPixels);
+                    fillBox(pixelsOf(rect, tile.level, *cells), color, pixels);
                 }
             }
         }

@@ -125,11 +125,6 @@ namespace icd::core { namespace {
         }
         else {
             const std::uint64_t cellPixels = std::uint64_t{1} << static_cast<unsigned>(-tile.level);
-            const bool grid = cellPixels >= gridCellPixels &&
-                (px % cellPixels == cellPixels - 1 || py % cellPixels == cellPixels - 1);
-            if (grid) {
-                return false;
-            }
             cells = {rect.x + px / cellPixels, rect.y + py / cellPixels, 1, 1};
         }
         for (std::uint64_t y = cells.y; y < cells.y + cells.height; ++y) {
@@ -157,8 +152,8 @@ namespace icd::core { namespace {
         return runs;
     }
 
-    // At every level, a pixel is highlighted exactly when one of the cells it covers is selected (grid lines
-    // excepted), and runsTouch() says which tiles hold any.
+    // At every level, a pixel is highlighted exactly when one of the cells it covers is selected, and runsTouch()
+    // says which tiles hold any.
     TEST(Selection, HighlightMatchesBruteForce) {
         const World world(5'000, {.width = 16, .height = 9});
         std::mt19937 random(7);

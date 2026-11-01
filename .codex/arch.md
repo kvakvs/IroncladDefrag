@@ -174,8 +174,8 @@ this file records what is actually built and the decisions made along the way.
 
 - `renderTile()` draws 256 x 256 BGRA tiles. Levels the pyramid stores copy one bin per pixel; finer
   levels summarise each pixel (or each cell, past one cell per pixel) from the extent index with the
-  same `BinAccumulator`, so both paths give identical pixels at the base level (tested). Cells of 8 px
-  or more get 1 px grid lines.
+  same `BinAccumulator`, so both paths give identical pixels at the base level (tested). Tiles carry no
+  grid lines (see Grid lines below).
 - Color modes are `Palette` implementations over a `PixelSummary` (bin, level, capacity);
   `OccupancyPalette` is the default until T032.
 - Speed: per-record owner flags (`extentMapFlags()`, one byte per extent, ~55 MB at 30 TB) are read in
@@ -281,6 +281,27 @@ this file records what is actually built and the decisions made along the way.
   it; a press, drag, wheel, key or leaving the map hides it. It is bound after the navigator so it sees
   events first, and always passes them on. Posted mouse messages cannot drive it from a script: wx
   sends a leave event when the real cursor is not over the window.
+
+## Grid lines
+
+- Grid lines were first baked into deep-zoom tiles (1 px on cells of 8 px and more). Tiles exist only at
+  power-of-two zooms and are drawn shrunk with nearest-neighbour sampling between them, so a 1 px line
+  was dropped or kept depending on where it fell and the grid flickered while zooming and panning.
+- Now the canvas draws the grid every frame at screen resolution (`core::gridLines()`): a 1 px line on
+  the last pixel of each visible cell across and down, found with the same rounding nearest-neighbour
+  drawing uses (a cell starts at the first pixel whose center is at or past its edge), so lines always
+  sit on the drawn cell borders and are always exactly one pixel. Lines stop at the last cluster.
+- The grid fades in with the on-screen cell size (smoothstep from 5 to 10 px), so it never pops in or
+  out at a zoom step. All lines are filled in one Direct2D layer at that opacity, so crossings are not
+  brighter. At most a few hundred rectangles per frame (window size / 5 px each way).
+- The same aliasing hit details smaller than a pixel: where a cell is under a pixel, a tile shrunk with
+  nearest-neighbour sampling drops whole texel rows and columns, so single clusters blinked in and out.
+  From one cell per pixel on, the canvas draws the next coarser level (its pixels already average their
+  clusters) and fades the finer level over it by how far the scale lies between the two, both filtered
+  linearly (`World::blendFor()`, mipmapping). Where cells are a pixel or more, one level is drawn crisp
+  with nearest-neighbour sampling: nothing is lost there.
+- The render target draws without anti-aliasing (pixel-center rule): tiles meeting at a fractional
+  position share the edge exactly instead of leaving a light seam.
 
 ## Selection and go to file
 

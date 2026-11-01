@@ -49,6 +49,19 @@ namespace icd::core {
         return std::clamp(level, minLevel, maxLevel_);
     }
 
+    LevelBlend World::blendFor(double cellsPerPixelScale) const {
+        LevelBlend blend{.fine = levelFor(cellsPerPixelScale), .fineOpacity = 1.0, .smooth = false};
+        if (blend.fine < 0 || !(cellsPerPixelScale > 0.0)) {
+            return blend; // Cells of a pixel or more: crisp, nothing to lose.
+        }
+        blend.smooth = true;
+        if (blend.fine < maxLevel_) {
+            const double between = std::clamp(std::log2(cellsPerPixelScale) - blend.fine, 0.0, 1.0);
+            blend.fineOpacity = 1.0 - between;
+        }
+        return blend;
+    }
+
     std::uint64_t World::tileCellSpan(int level) {
         const auto size = static_cast<std::uint64_t>(tileSize);
         return level >= 0 ? size << static_cast<unsigned>(level)
