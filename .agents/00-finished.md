@@ -186,3 +186,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   merge folds names, sizes and segments of accepted parts into the base file; parents resolved per file in parallel
   in the merge. Access times compared as "deferred" when the record is older than memory. `special` (1,324-fragment
   file over five extension records, compressed logs) and X: now equal to the API scan; `MftSecondPassTest`.
+- T063a Scale volume generator - `tools/testvol/make-scalevol/` (split from T067: real-drive tests use only E: and X:):
+  millions of allocated, never written files (`SetEndOfFile` + `SetFileValidData`, cluster-rounded log-uniform sizes,
+  interleaved growth for a fragmented share) on ICD-TEST volumes. 1 M files in 294 s; the thin VHDX still grows by
+  about one block per file (NTFS writes where each file's data begins), 139 GB for that volume.

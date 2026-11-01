@@ -685,6 +685,18 @@ All analysis checks passed.
   `archive`, `video` every big file fragmented; `almost-full` 96.8% used; `vss` creates a shadow copy through
   `Win32_ShadowCopy.Create` and changes files after it.
 
+## Scale volumes
+
+- `make-scalevol <drive> --files N` (T063a, plan.md 12) fills an ICD-TEST volume (normally a thin VHDX made with
+  `make-testvol.ps1`) with files that are allocated with `SetEndOfFile` + `SetFileValidData` and never written:
+  log-uniform sizes from `--min-size` to `--max-size` rounded to whole clusters, 1,000 per directory under
+  `\scale\aN\bM\`, a `--fragmented` share grown in eight interleaved steps four at a time. Writers take whole
+  directories, seeded per directory, so the files are the same for any thread count (their placement is NTFS's).
+- NTFS still writes once where each new file's data begins (when it turns non-resident; buffering, valid data length
+  and reserving the allocation first make no difference), so the VHDX grows by about one block per file: small files
+  cost their full size on the host, large ones 1-2 MB each. A 1 M-file volume (sizes up to 1 MB, 150 GB allocated)
+  takes 294 s to fill and 139 GB on the host. Fills at the 30 TB scale must keep files few and large accordingly.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

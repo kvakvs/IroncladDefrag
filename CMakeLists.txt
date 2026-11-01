@@ -332,6 +332,11 @@ icd_target_defaults(map-render-spike)
 
 # --- Tests ---------------------------------------------------------------------------------------
 enable_testing()
+# --- make-scalevol: scale test volumes with allocated, never written files (plan.md section 12, T063a) ------------
+add_executable(make-scalevol tools/testvol/make-scalevol/main.cpp)
+target_link_libraries(make-scalevol PRIVATE icd_platform advapi32)
+icd_target_defaults(make-scalevol)
+
 add_subdirectory(tests)
 
 # --- Quality gate (quality.bat): Lizard everywhere, clang-tidy only with a compile database -------

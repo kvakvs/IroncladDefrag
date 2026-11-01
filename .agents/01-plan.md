@@ -52,9 +52,8 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ### T067 - Scale volume and benchmarks
 - Depends: T065, T066
-- Owns: `tools/testvol/make-scalevol/*`, `tools/bench/scan-bench.*`
-- Do: 30 TB thin VHDX filled with `SetFileValidData` files (§12); benchmarks for §6.5 scan and
-  catch-up targets.
+- Owns: `tools/bench/scan-bench.*`
+- Do: 30 TB thin VHDX filled by `make-scalevol` (T063a, §12); benchmarks for §6.5 scan and catch-up targets.
 - Done when: targets met and recorded. **Phase 4 exit check.**
 
 ---
