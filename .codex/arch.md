@@ -1022,6 +1022,11 @@ All analysis checks passed.
   that ends it (the zone's last gap the one before it), which then moves as extra. `Move::extra` marks such moves,
   parking and evictions, and the validator sums them into the plan's extra.
 
+- Pack-to-back (T087, `packToBack()`): the zone's target already ends at the volume end, so packing is fast-fill from
+  the back (holes nearest the end first, closing the holes deleted videos left) or, when the zone has an order at the
+  level (video: age at Maximum, newest first so the oldest end up last), the sorter. Videos already packed with
+  good-enough fragments are not candidates, so they never move at any level.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

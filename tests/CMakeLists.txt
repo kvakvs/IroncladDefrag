@@ -35,6 +35,7 @@ add_executable(icd_tests
     core/NtfsParserTest.cpp
     core/NtfsRecordBuilder.h
     core/OverviewTest.cpp
+    core/PackToBackTest.cpp
     core/PlannerTestUtil.h
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp

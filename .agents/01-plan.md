@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T087 - Pack-to-back planner
-
-- Depends: T084
-- Owns: `src/core/planner/PackToBack.*`
-- Do: pack zone against volume end; no order, or age order with oldest at the end (§8.6).
-- Done when: tests for both orders; already-packed videos never move.
-
 ### T088 - Move ordering and cycles
 
 - Depends: T085, T086, T087

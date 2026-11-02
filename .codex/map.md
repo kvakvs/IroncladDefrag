@@ -61,6 +61,7 @@ changes (see `AGENTS.md`).
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
 | `src/core/planner/CandidateFilter.*` | `Candidates`, `filterCandidates()`: must-move files per zone and the defragment-only ones (plan.md 9.3.3). |
 | `src/core/planner/DefragOnly.*` | `planDefragment()`: defragment-only moves to the nearest run that holds the file, or large pieces; skips with a reason; vacated space reused. |
+| `src/core/planner/PackToBack.*` | `packToBack()`: back zones filled from the end, or sorted when they have an order at the level. |
 | `src/core/planner/Placement.*` | `SpaceRequest`, `findFirst()` / `findLast()` / `findNear()` / `findPieces()` avoiding the file's own runs, `takeRuns()`, `releaseRuns()`, `sortedRuns()`; `Destination` (file, runs, reason, zone) and `appendMoves()`. |
 | `src/core/planner/FastFill.*` | `fastFill()`: holes filled from the packed end (front or back) with the largest file that fits, single runs or large pieces for the rest, overflow; `FillOptions`, `PackFrom`, `reasonFor()`. |
 | `src/core/planner/HoleSet.*` | `HoleSet`: mutable merged free runs in blocks with a max-length tree; `take()`, `add()`, `contains()`, `nextFit()` / `prevFit()` within a window, `within()`. |
@@ -251,6 +252,7 @@ changes (see `AGENTS.md`).
 | `tests/core/LowerBoundTest.cpp` | Fragment rules, must-move files on hand-made layouts, defragment-only files, slack moving zones towards files, conflicts, front zones, fitting = brute force over every slack split on random volumes. |
 | `tests/core/HoleSetTest.cpp` | HoleSet against a per-cluster model under random takes and adds across block splits; fits in both directions; merging. |
 | `tests/core/ValidatorTest.cpp` | Valid chain; broken plans for every validation rule (busy and late destinations, unmovable files, stale and reordered sources, lost clusters, zones, parking, accounting, totals). |
+| `tests/core/PackToBackTest.cpp` | Packed videos never move at any level, holes in the back zone closed, oldest at the end at Maximum (plans validate). |
 | `tests/core/PlannerTestUtil.h` | Planner test helpers: volumes drawn as pictures (one character per cluster), zones and scripts, assignment. |
 | `tests/core/TargetLayoutTest.cpp` | Axis vs brute force, zone selection and roles, layouts with obstacles everywhere, full volumes, empty zones, gaps, reserved runs, slack placement. |
 | `tests/core/ZoneScriptTest.cpp` | Zone script round trip with every field, defaults, per-level order, size specs, read errors per zone and key, every validation rule. |
