@@ -302,3 +302,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   by path with the file id checked), `freeRunsIn()`, `setBackgroundIo()`. `tests/platform/MoveFileTest.cpp`: error
   mapping (fast); `ClusterMove.MovesFilesOnTestVolumes` (slow, elevated: file, named stream and directory index moved
   in chunks, bytes read back unbuffered) - not run here: the session was not elevated.
+- T101 Revalidation before execution - `core/execute/ExecutionPlan.*` (plans by file reference with identity, regions,
+  paths), `core/execute/MovePieces.*` (`matchMove()`: a file now against a move, done and pending pieces, changed files
+  refused; `remapMove()`), `core/execute/PlanReplay.*` (`replayPlan()` on the free space and files now: gone, changed
+  and blocked moves dropped with everything that waited on them), `services/execute/Revalidate.*` (`planRefusal()`:
+  other volume, reformatted, resized, older than 24 h; `revalidatePlan()`: catch-up or full scan, then the replay).
+  `tests/services/SimVolume.h` (volume in memory), `MovePiecesTest`, `RevalidateTest` (scripted deletes, changes and
+  taken destinations detected; the kept moves still run). The scripted check on a real volume is part of T104.

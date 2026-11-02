@@ -138,6 +138,9 @@ changes (see `AGENTS.md`).
 | `src/core/map/Overview.*` | Minimap math: `placeOverview()` (world shape in the bottom-right corner, hidden in small windows), minimap pixel <-> world, view marker box (clipped, minimum size), `dragTo()`. |
 | `src/core/map/Ruler.*` | Ruler ticks: `rowTicks()` (row starts: byte offset, % of volume, % of disk when the partition is known), `columnTicks()` (offset within a row), power-of-two steps, `formatOffset()` / `formatPercent()` label precision. |
 | `src/core/map/Pyramid.*` | Map LOD pyramid: quadtree of 8-byte `MapBin`s over the world grid (level k bin = one tile pixel at zoom k), parallel build per base-bin row band, 2x2 merges, dirty-range `update()`. |
+| `src/core/execute/ExecutionPlan.*` | `ExecutionPlan` (identity, moves by file reference with sources, destinations, region and flags, paths, reserved runs), `PlanIdentity`, `PlannedMove`, `executionPlanOf()` (a planned level for execution), `plannedClusters()`. |
+| `src/core/execute/MovePieces.*` | `StreamRun`, `MovePiece`, `matchMove()` (a file's runs now against a move: pending and done pieces, nullopt when changed), `remapMove()`, `lcnRunsOf()`, `asStreamRuns()`, `allDone()`, `pendingClusters()`. |
+| `src/core/execute/PlanReplay.*` | `replayPlan()` (moves kept or dropped on the free space and files now, dependents dropped with them), `ReplayResult`, `DropReason` / `dropKey()`, `CurrentFiles`, `SnapshotFiles` (a plan's files in a later snapshot), `allMoves()`. |
 | `src/core/map/Viewport.*` | View math: `Viewport` (scale, center, size), limits (32 px per cluster to beyond fit), fit, anchored zoom, pan, eased `ZoomMotion` and `PanInertia` by elapsed time. |
 | `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), `blendFor()` (levels to fade between where cells are under a pixel), tile cell rects, row segments of a run. |
 | `src/core/util/LruCache.h` | Generic cost-limited LRU cache (map tiles); `keys()` for finding stale entries. |
@@ -167,6 +170,7 @@ changes (see `AGENTS.md`).
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
 | `src/services/plan/PlanJob.*` | `PlanRequest`, `makePlanRequest()`, `fileTimeNow()`, `planLevels()` (three levels in parallel, validated), `LevelOutcome`, `LevelOverlays`, `PlanOutcome` (with the zone assignment and per-level overlays), `levelOverlays()`, `planSummary()` (Plan tab), `PlanOutput`, `makePlanJob()` (classifies when the request has no classes, builds the overlays) |
 | `src/services/plan/PlanReport.*` | `planJson()` / `planText()` (per level figures, hot spots, notes, validity, optional move list), `PlanReportOptions`. |
+| `src/services/execute/Revalidate.*` | `planRefusal()` (other volume, reformatted, resized, too old), `revalidatePlan()` (volume read again by catch-up or scan, then the replay), `replayOnSnapshot()`, `Revalidation`, `RevalidateOptions`, `PlanAge`. |
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
 | `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
 | `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
@@ -304,6 +308,9 @@ changes (see `AGENTS.md`).
 | `tests/platform/MoveFileTest.cpp` | Move error mapping; on a writable ICD-TEST volume (slow, elevated): a file, a named stream and a directory index moved in 7-cluster chunks, runs re-read, bytes read back unbuffered unchanged, a move onto used clusters refused. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
+| `tests/core/MovePiecesTest.cpp` | Pieces at the sources, streams and VCNs, moves cut short and done, changed files refused, remap, joined LCN runs. |
+| `tests/services/RevalidateTest.cpp` | Refusals (other volume, serial, size, NTFS, age); unchanged volume keeps and runs every move; scripted deletes, changes and taken destinations dropped with reasons while the rest still runs; moves cut short kept with their rest. |
+| `tests/services/SimVolume.h` | `testing::SimVolume`: a volume in memory (owner per cluster, files as clusters in stream and VCN order) for revalidation and executor tests; `move()`, `remove()`, `occupy()`, `release()`. |
 | `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |
 | `tests/services/AnalysisJobTest.cpp` | Bitmap-only snapshot; full job on the `special` volume (stages, final map, summary); cancel during the scan. |
 | `tests/services/AnalysisReportTest.cpp` | JSON report carries the summary and USN cursor; dumped runs joined; flag names. |

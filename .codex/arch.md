@@ -1204,6 +1204,29 @@ All analysis checks passed.
   the bitmap of the target range (`freeRunsIn()`) before calling an access-denied move a stale-bitmap conflict.
 - `ClusterMove.MovesFilesOnTestVolumes` (slow, elevated, writable ICD-TEST volume) moves a file, a named stream and a
   directory index in 7-cluster chunks and reads the bytes back unbuffered.
+- Execution plans (T101, `core/execute/ExecutionPlan`): a planned level as data for execution: identity (volume GUID
+  name, NTFS serial, geometry, USN cursor, when the snapshot was taken, strategy, level), moves by NTFS file reference
+  (not snapshot index, so a plan survives a rescan, a save and a crash), sources and destinations in the file's
+  (stream, VCN) order, each move's region (its zone target's span; the whole volume without a zone) for replacement
+  destinations, and the paths for the log.
+- Matching (T101, `core/execute/MovePieces`): `matchMove()` lays a file's runs as the file system reports them now over
+  a move: cluster i of the file must lie at cluster i of the sources or of the destinations. The result is pieces with
+  stream, VCN, from, to and done, so a move cut short by cancel or a crash is recognised and only the rest is moved;
+  anything else means the file changed. `remapMove()` takes a file from wherever it lies (a parked file's return after
+  its park went to a replacement destination).
+- Revalidation (T101, `services/execute/Revalidate`, plan.md 10.3): `planRefusal()` refuses a plan for another volume,
+  a reformatted one (NTFS serial), another cluster size or count, or one older than the allowed age (24 h by default).
+  Otherwise the volume is read again with `analyzeVolume()` (the saved snapshot caught up from the USN journal where it
+  can, else a full scan; nothing saved) and `replayPlan()` replays the moves on it with a `HoleSet` of the free space
+  now: a file's first move must match its file now (gone and changed files are dropped), every destination cluster
+  still to fill must be free at that point, a kept move frees its sources and a dropped one keeps them, so whatever
+  waited on a dropped move is dropped too ("earlier move dropped" for later moves of the same file). The kept moves are
+  valid one after another from now. Without a journal (the test volumes) revalidation is a full MFT scan, seconds on
+  test volumes.
+- `RevalidateTest` uses `tests/services/SimVolume.h`, a volume in memory (an owner per cluster, each file's clusters in
+  stream and VCN order) that the later executor tests move clusters on: an unchanged volume keeps every move and runs
+  them all; a deleted file, a changed file and a destination taken by a new file are dropped with their reasons and
+  every kept move still runs; a move cut short halfway is kept with only its rest pending.
 
 ## Parallel execution
 

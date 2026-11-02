@@ -34,6 +34,7 @@ add_executable(icd_tests
     core/LevelsTest.cpp
     core/LowerBoundTest.cpp
     core/LruCacheTest.cpp
+    core/MovePiecesTest.cpp
     core/MapUpdateTest.cpp
     core/MftLayoutTest.cpp
     core/MoveOrderingTest.cpp
@@ -90,6 +91,8 @@ add_executable(icd_tests
     services/MftSecondPassTest.cpp
     services/PlanJobTest.cpp
     services/PlanReportTest.cpp
+    services/RevalidateTest.cpp
+    services/SimVolume.h
     services/SettingsTest.cpp
     services/SnapshotStoreTest.cpp
     services/ThreadPoolTest.cpp

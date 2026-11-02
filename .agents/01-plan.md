@@ -54,13 +54,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)
 
-### T101 - Revalidation before execution
-
-- Depends: T065, T082
-- Owns: `src/services/execute/Revalidate.*`
-- Do: USN delta since the snapshot; drop or re-read changed files; refuse stale snapshots (§10.3).
-- Done when: scripted changes between plan and execute are detected.
-
 ### T102 - Executor
 
 - Depends: T100, T101
