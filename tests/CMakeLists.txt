@@ -18,6 +18,7 @@ add_executable(icd_tests
     core/BudgetTest.cpp
     core/CatalogTest.cpp
     core/ColorModesTest.cpp
+    core/CycleGuardTest.cpp
     core/DefragOnlyTest.cpp
     core/DriveInfoTest.cpp
     core/FastFillTest.cpp

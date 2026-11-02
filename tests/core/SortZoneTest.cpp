@@ -136,7 +136,7 @@ namespace icd::core::planner { namespace {
         c.assignment = test::assignSnapshot(snapshot, classes, s);
         c.layout = resolveLayout(snapshot, s, c.assignment, classes, classify::builtinCatalog(), {});
         c.bound = lowerBound(snapshot, s, c.assignment, c.layout, {}, serial);
-        c.sorted = applySortBounds(snapshot, s, c.assignment, Effort::Maximum, tolerance, c.bound);
+        c.sorted = applySortBounds(snapshot, s, c.assignment, c.layout, Effort::Maximum, tolerance, c.bound);
         c.candidates = filterCandidates(c.bound, c.assignment, s.zones.size());
         HoleSet pool(snapshot.freeSpace.runs());
         for (std::size_t f = 0; f < snapshot.files.size(); ++f) {
@@ -151,13 +151,13 @@ namespace icd::core::planner { namespace {
     }
 
     TEST(SortZone, MoversGoBetweenTheirAnchorsAndTheZoneEndsSorted) {
-        //  0 1 2 3 4 5 6    names: P=b Q=a R=c S=d; zone [0,4)
-        //  . P Q R S . .    P and R stay (heaviest in order); Q goes before P, R gives way for S.
+        //  0 1 2 3 4 5 6    names: P=b Q=a R=c S=d; zone [0,4), packed order Q P R S at 0 1 2 3
+        //  . P Q R S . .    P is at its place and stays; Q and R sit behind theirs (no room), S is outside.
         const auto v = test::pictureVolume(".PQRS..", named({{'P', "b"}, {'Q', "a"}, {'R', "c"}, {'S', "d"}}));
         const SortCase c = plan(v.snapshot, v.classes, byName(), 1.0);
-        EXPECT_EQ(c.bound.clusters, 2U); // Q is out of order, S outside the zone.
+        EXPECT_EQ(c.bound.clusters, 3U);
         ASSERT_TRUE(c.sorted.front().sorted);
-        EXPECT_EQ(c.sorted.front().anchors, (std::vector<FileIndex>{v.files.at('P'), v.files.at('R')}));
+        EXPECT_EQ(c.sorted.front().anchors, (std::vector<FileIndex>{v.files.at('P')}));
         ASSERT_EQ(c.result.placed.size(), 3U);
         EXPECT_TRUE(c.result.overflow.empty());
         std::map<FileIndex, Lcn> at;
@@ -173,21 +173,21 @@ namespace icd::core::planner { namespace {
         for (const Move& m : p.moves) {
             p.extra += m.extra ? m.clusters : 0;
         }
-        EXPECT_EQ(p.extra, 1U); // R.
+        EXPECT_EQ(p.extra, 0U); // R is in the bound: it could never have stayed.
         finishTotals(p, v.snapshot);
         const Validation result = validatePlan(v.snapshot, p, {.layout = &c.layout});
         EXPECT_TRUE(result.ok()) << result.issues.front().message;
     }
 
     TEST(SortZone, ToleranceLeavesFarFromSortedZonesUnsorted) {
-        // In reverse order: the heaviest sorted subset is one file, so sorting would move three quarters.
+        // In reverse order no file is at its packed place, so sorting would move all four.
         const auto v = test::pictureVolume("DCBA..", named({{'A', "a"}, {'B', "b"}, {'C', "c"}, {'D', "d"}}));
         const SortCase loose = plan(v.snapshot, v.classes, byName(), 0.5);
         EXPECT_FALSE(loose.sorted.front().sorted);
         EXPECT_EQ(loose.bound.clusters, 0U); // Unsorted zones keep the fast-fill bound: all four are in place.
         const SortCase strict = plan(v.snapshot, v.classes, byName(), 1.0);
         EXPECT_TRUE(strict.sorted.front().sorted);
-        EXPECT_EQ(strict.bound.clusters, 3U);
+        EXPECT_EQ(strict.bound.clusters, 4U);
         EXPECT_FALSE(sortsAt(byName().zones.front(), Effort::Fast)); // Never at Fast.
         EXPECT_TRUE(sortsAt(byName().zones.front(), Effort::Moderate));
     }

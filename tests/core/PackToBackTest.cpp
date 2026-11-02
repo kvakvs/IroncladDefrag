@@ -47,7 +47,7 @@ namespace icd::core::planner { namespace {
         const TargetLayout layout = resolveLayout(v.snapshot, s, a, v.classes, classify::builtinCatalog(), {});
         Packed out;
         out.bound = lowerBound(v.snapshot, s, a, layout, {.wholeFiles = effort == Effort::Maximum}, serial);
-        const auto sorted = applySortBounds(v.snapshot, s, a, effort, 1.0, out.bound);
+        const auto sorted = applySortBounds(v.snapshot, s, a, layout, effort, 1.0, out.bound);
         const Candidates c = filterCandidates(out.bound, a, s.zones.size());
         HoleSet pool(v.snapshot.freeSpace.runs());
         for (std::size_t f = 0; f < v.snapshot.files.size(); ++f) {
@@ -106,8 +106,10 @@ namespace icd::core::planner { namespace {
             }
         }
         EXPECT_EQ(at, (std::map<char, Lcn>{{'V', 2}, {'W', 4}, {'X', 6}}));
-        EXPECT_EQ(maximum.plan.lowerBound, 2U); // X; V and W give way as extra.
-        EXPECT_EQ(maximum.plan.extra, 4U);
+        // The packed order puts V at 2 and W at 4: both sit two clusters behind their places in a zone without room,
+        // so all three must move and nothing is extra.
+        EXPECT_EQ(maximum.plan.lowerBound, 6U);
+        EXPECT_EQ(maximum.plan.extra, 0U);
     }
 
 }} // namespace icd::core::planner

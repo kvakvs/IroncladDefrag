@@ -278,3 +278,14 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T096 CLI plan - `src/cli/commands/Plan.*` (`icd-cli plan <vol> --strategy --level --json --moves --threads`, `--synthetic N` without a real volume), `services/plan/PlanReport.*` (`planJson()`, `planText()`). `PlanReportTest`: the CLI's report equals the GUI job's for the same snapshot.
 - T097 Strategy tab - `ui/panels/StrategyPage.*` (kept instead of `ui/tabs/StrategyTab`): built-in preset picker, effort level, editable zone table (classes, action, anchor, order, order at Maximum, fragment_ok, gap after, so the churn gap too) read through new zone-table text forms in `core/strategy/ZoneScript` (`gapText()`, `fragmentOkText()`, `idsText()`, `*Named()` and parsers); problems from `validateScript()` show under the table and keep Build plan disabled; remembered choices use the built-in preset ids (the Phase 1 fake preset list is gone).
 - T098 Plan tab and plan overlay - `core/map/PlanColorMode.*` (`MapOverlay` layers painted into tiles, `planOverlay()`: vacated and filled clusters) and `core/map/ZoneFitColorMode.*` (`zoneFitOverlay()`: targets and data outside its zone) as the zone-fit and plan-preview color modes (the Phase 1 overlay checkboxes are gone). The GUI plans the shown map for real (`makePlanJob()` classifies when needed and builds per-level overlays), the Plan tab shows `planSummary()` for the three levels with Fast's "run it again" note, Review switches to plan preview, and overlays clear whenever the plan is dropped. `PlanOverlayTest`: every pixel of the preview matches the plan's moves. Phase 6 exit.
+- T095b Fewer extra moves at Maximum - `core/planner/CycleGuard.*` (wait graph of chosen destinations in a Pearce-Kelly
+  topological order, bounded searches with a shared visit budget): fast-fill picks, single-run placement, eviction and
+  next-to-zone overflow avoid closing dependency cycles; one guard per round with zones placed in script order. Sorted
+  zones: anchors are the heaviest chain of files whose offset from their packed position stays within the zone's room
+  and never falls (`applySortBounds()` with the layout; `usableSpan()` public), so the bound counts files no packed
+  layout keeps and anchors are never given up; `LayoutInputs::room` (a tenth of a sorted forward zone's need from the
+  slack); the sorter skips cycle-closing positions where its group has room. Ordering at Maximum breaks components of
+  up to 2000 moves greedily (`LocalCycles`: smallest move of every cycle left). OptimalityTest at Maximum: fast-fill
+  presets <= 1.1 (free-space 1.29 -> 1.06, hot/cold-zone 1.28 -> 1.07, type-segregation 1.33 -> 1.04, archive 1.07 ->
+  1.06), whole-volume sorts 1.5-2.1 -> 1.23-1.44 (threshold 2.5 -> 1.5); the rest split off as T095c.
+  `CycleGuardTest`; SortZone and PackToBack tests count files off their packed places in the bound.

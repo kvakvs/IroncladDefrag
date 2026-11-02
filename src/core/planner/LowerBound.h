@@ -11,6 +11,7 @@
 #include <cstdint>
 #include <optional>
 #include <span>
+#include <utility>
 #include <vector>
 
 namespace icd::core::planner {
@@ -37,6 +38,11 @@ namespace icd::core::planner {
         ClusterCount clusters = 0; // Movable clusters of those files.
         std::vector<ClusterCount> perZone{}; // Per script zone, plus one last slot for files without a zone.
     };
+
+    // The span of a file's movable runs in usable cluster numbers [lo, hi), or nullopt when any run touches an
+    // obstacle (stay tests compare it with zone positions on the axis).
+    [[nodiscard]] std::optional<std::pair<std::int64_t, std::int64_t>>
+    usableSpan(const Snapshot& snapshot, FileIndex file, const AvailableAxis& axis);
 
     // The lower bound of a layout; the same for any executor.
     [[nodiscard]] LowerBound lowerBound(const Snapshot& snapshot, const strategy::ZoneScript& script,

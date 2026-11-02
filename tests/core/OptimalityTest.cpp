@@ -1,6 +1,6 @@
 // Planner optimality (T095): on tiny volumes an exhaustive search over every target-satisfying final layout confirms
 // that the Maximum plan moves the fewest bytes possible, and on synthetic volumes every preset moves at most 1.1 x what
-// its lower bound requires.
+// its lower bound requires (presets that sort large zones at Maximum: 1.5 x, T095c).
 
 #include "core/planner/levels/FastLevel.h"
 #include "core/planner/levels/MaximumLevel.h"
@@ -183,9 +183,11 @@ namespace icd::core::planner { namespace {
         EXPECT_GT(exact, 40); // About one tiny volume in ten is fully planned without parking.
     }
 
-    // The presets the test-bed scenarios are planned with, held to the plan.md 9.3.1 ratio at every level.
-    bool storagePreset(std::string_view id) {
-        return id == "mixed" || id == "archive" || id == "video" || id == "defrag-only";
+    // The presets held to the plan.md 9.3.1 ratio at every level: the storage presets the test-bed scenarios are
+    // planned with and the presets that fill zones without sorting them.
+    bool tightPreset(std::string_view id) {
+        return id == "mixed" || id == "archive" || id == "video" || id == "defrag-only" || id == "free-space" ||
+            id == "hot-zone" || id == "cold-zone" || id == "type-segregation";
     }
 
     TEST(Optimality, PresetsStayWithinATenthOfTheLowerBound) {
@@ -213,11 +215,12 @@ namespace icd::core::planner { namespace {
                     const ClusterCount reached = p.lowerBound - p.skippedClusters - p.deferredClusters;
                     const double ratio =
                         reached == 0 ? 1.0 : static_cast<double>(p.totals.clustersMoved) / static_cast<double>(reached);
-                    // Fast and Moderate never park; Maximum parks to break cycles, which costs extra moves: the storage
-                    // presets stay within a tenth, presets that sort or pack the whole volume reach up to about 2x on
-                    // these heavily fragmented volumes (T095b).
-                    const bool tight = p.effort != strategy::Effort::Maximum || storagePreset(preset.id);
-                    EXPECT_LE(ratio, tight ? 1.1 : 2.5)
+                    // Fast and Moderate never park; Maximum parks to break the dependency cycles placement could not
+                    // avoid, which costs extra moves: presets that sort large zones (whole volumes, sources, photos) or
+                    // pack many large files rewrite most of a packed region in place and reach up to about 1.45x on
+                    // these heavily fragmented volumes (T095c).
+                    const bool tight = p.effort != strategy::Effort::Maximum || tightPreset(preset.id);
+                    EXPECT_LE(ratio, tight ? 1.1 : 1.5)
                         << "seed " << seed << " " << preset.id << " " << strategy::effortKey(p.effort);
                 }
             }

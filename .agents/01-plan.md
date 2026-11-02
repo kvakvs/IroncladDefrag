@@ -34,14 +34,17 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   dominate.
 - Done when: `plan-bench --threads 8` reports 60 s or less and `--compare 1` identical plans.
 
-### T095b - Fewer extra moves at Maximum
+### T095c - Sorted zones within 1.1 x at Maximum
 
-- Depends: T095
-- Owns: `src/core/planner/FastFill.*`, `src/core/planner/SortZone.*`, `src/core/planner/MoveOrdering.*`
-- Do: at Maximum, presets that sort or pack the whole volume move 1.1-2.1 x their lower bound on heavily fragmented
-  synthetic volumes (OptimalityTest), mostly parking: fast-fill's best-fit choices form swap cycles, and sorted zones
-  give up anchors their LIS bound counts as staying. Choose destinations that avoid cycles (or prefer them with free
-  space), and tighten the sorted-zone bound where gaps cannot hold their movers.
+- Depends: T095b
+- Owns: `src/core/planner/SortZone.*`, `src/core/planner/MoveOrdering.*`, `src/core/planner/CycleGuard.*`
+- Do: after T095b, presets that sort large zones (directory-clustering, access-time, read-ahead; photos and sources in
+  photos / development) still move 1.1-1.45 x their lower bound at Maximum on the OptimalityTest volumes, nearly all of
+  it parking: a packed sorted zone's layout is forced (every mover's place is fixed by the order), so moving most of a
+  region in place leaves large dependency cycles (one component of ~1400 of ~2000 movers on directory-clustering).
+  Zone room (10%) and greedy cycle breaking help little. Ideas: stream the sort through free space outside the zone,
+  choose the zone's slack so its packed positions land on free space, or cycle-aware anchor choice. Also size-placement
+  (big files in the pack-to-back zone) reaches 1.27 on one volume.
 - Done when: every preset stays within 1.1 x at Maximum in OptimalityTest, and `check-planner.ps1 -Scenarios all`
   passes.
 

@@ -28,27 +28,6 @@ namespace icd::core::planner {
             bool front = false; // Anchored at the front: never shifted.
         };
 
-        // The span of a file's movable runs in usable cluster numbers, or nullopt when any run touches an obstacle.
-        std::optional<std::pair<std::int64_t, std::int64_t>> usableSpan(const Snapshot& snapshot, FileIndex file,
-                                                                        const AvailableAxis& axis) {
-            std::int64_t lo = std::numeric_limits<std::int64_t>::max();
-            std::int64_t hi = 0;
-            const auto records = snapshot.extents.records();
-            for (const std::uint32_t position : snapshot.extents.extentsOf(file)) {
-                const ExtentRecord& r = records[position];
-                if ((r.flags() & ExtentUnmovable) != 0) {
-                    continue;
-                }
-                const ClusterCount first = axis.indexOf(r.lcn());
-                if (axis.indexOf(r.end()) - first != r.length() || axis.lcnAt(first) != r.lcn()) {
-                    return std::nullopt;
-                }
-                lo = std::min(lo, static_cast<std::int64_t>(first));
-                hi = std::max(hi, static_cast<std::int64_t>(first + r.length()));
-            }
-            return std::pair(lo, hi);
-        }
-
         // The forward zones of a layout made without slack, and the slot of each script zone among them.
         std::vector<ForwardZone> forwardZones(const TargetLayout& layout, const strategy::ZoneScript& script,
                                               std::vector<std::size_t>& slotOfZone) {
@@ -275,6 +254,26 @@ namespace icd::core::planner {
         }
         return zone < script.zones.size() ? script.zones[zone].fragmentOk
                                           : std::optional<std::uint64_t>(strategy::Zone::defaultFragmentOk);
+    }
+
+    std::optional<std::pair<std::int64_t, std::int64_t>> usableSpan(const Snapshot& snapshot, FileIndex file,
+                                                                    const AvailableAxis& axis) {
+        std::int64_t lo = std::numeric_limits<std::int64_t>::max();
+        std::int64_t hi = 0;
+        const auto records = snapshot.extents.records();
+        for (const std::uint32_t position : snapshot.extents.extentsOf(file)) {
+            const ExtentRecord& r = records[position];
+            if ((r.flags() & ExtentUnmovable) != 0) {
+                continue;
+            }
+            const ClusterCount first = axis.indexOf(r.lcn());
+            if (axis.indexOf(r.end()) - first != r.length() || axis.lcnAt(first) != r.lcn()) {
+                return std::nullopt;
+            }
+            lo = std::min(lo, static_cast<std::int64_t>(first));
+            hi = std::max(hi, static_cast<std::int64_t>(first + r.length()));
+        }
+        return std::pair(lo, hi);
     }
 
     LowerBound lowerBound(const Snapshot& snapshot, const strategy::ZoneScript& script,

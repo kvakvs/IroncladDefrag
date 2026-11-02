@@ -60,13 +60,17 @@ namespace icd::core::planner {
     // Fast (plan.md 9.2).
     [[nodiscard]] bool sortsAt(const strategy::Zone& zone, strategy::Effort effort);
 
-    // Decides every sorted zone at a level and adds what sorting needs to the lower bound: of the zone's files that
-    // are already in place, the heaviest set in order stays (the anchors); the rest must move. A zone is sorted only
-    // when that moves at most `tolerance` of its in-place bytes (1 = always, as at Maximum); otherwise it is filled
-    // without order and the bound is unchanged.
+    // Decides every sorted zone at a level and adds what sorting needs to the lower bound. In the target every file of
+    // the zone sits at its packed position in key order (the zone's start plus the files before it) plus the free
+    // clusters before it, which never fall along the order and stay within the zone's room (length beyond need). So
+    // a file already in place can stay only at an offset from its packed position in [0, room], and the files that
+    // stay must have offsets that never fall: the heaviest such chain stays (the anchors) and the rest must move. The
+    // gaps between anchors then always hold the files whose keys fall between them. A zone is sorted only when that
+    // moves at most `tolerance` of its in-place bytes (1 = always, as at Maximum); otherwise it is filled without
+    // order and the bound is unchanged.
     [[nodiscard]] std::vector<SortedZone> applySortBounds(const Snapshot& snapshot, const strategy::ZoneScript& script,
-                                                          const ZoneAssignment& assignment, strategy::Effort effort,
-                                                          double tolerance, LowerBound& bound);
+                                                          const ZoneAssignment& assignment, const TargetLayout& layout,
+                                                          strategy::Effort effort, double tolerance, LowerBound& bound);
 
     // Destinations for a sorted zone: the movers (the zone's candidates) in key order go into the gaps between the
     // anchors that bracket their keys, packed from each gap's start. A gap without room for its movers gives up the

@@ -1,5 +1,7 @@
 #include "core/planner/FastFill.h"
 
+#include "core/planner/CycleGuard.h"
+
 #include <algorithm>
 
 namespace icd::core::planner {
@@ -86,7 +88,8 @@ namespace icd::core::planner {
             // Prepares the items.
             Filler(const Snapshot& snapshot, std::span<const FileIndex> files, HoleSet& pool,
                    const FillOptions& options) :
-                pool_(pool), options_(options), index_(itemsOf(snapshot, files)),
+                pool_(pool), options_(options), index_(itemsOf(snapshot, files)), own_(snapshot),
+                guard_(options.guard != nullptr ? *options.guard : own_),
                 bytesPerCluster_(std::max<std::uint32_t>(snapshot.geometry.bytesPerCluster, 1)) {}
 
             // Fills every hole of the region, then places what is left wherever the region still has room.
@@ -137,12 +140,14 @@ namespace icd::core::planner {
                 }
             }
 
-            // The largest item that fits what is left of a hole without overlapping its own runs, or 0.
+            // The largest item that fits what is left of a hole without overlapping its own runs or closing a
+            // dependency cycle, or 0.
             std::size_t pick(ClusterRun left) {
                 std::size_t slot = index_.largestUpTo(left.length);
                 for (std::size_t tries = 0; slot != 0 && tries < triesPerPosition; ++tries) {
                     const Item& item = index_.at(slot);
-                    if (!overlaps(spotIn(left, item.clusters, options_.from), item.own)) {
+                    const ClusterRun spot = spotIn(left, item.clusters, options_.from);
+                    if (!overlaps(spot, item.own) && !guard_.closesCycle(item.file, std::span(&spot, 1))) {
                         return slot;
                     }
                     slot = index_.largestAtMost(slot - 1);
@@ -157,15 +162,32 @@ namespace icd::core::planner {
                 }
             }
 
-            // Places a file in the first (or last) single run of the region that holds it.
+            // Places a file in the first (or last) single run of the region that holds it without closing a cycle; when
+            // every run tried closes one, in the first run found (ordering breaks that cycle).
             bool placeInOneRun(const Item& item, std::span<const ClusterRun> region) {
-                const SpaceRequest request{.clusters = item.clusters, .own = item.own, .window = spanOf(region)};
-                const auto run =
-                    options_.from == PackFrom::Front ? findFirst(pool_, request) : findLast(pool_, request);
-                if (run) {
-                    place(item, {*run});
+                const auto first = findInRegion(item, spanOf(region));
+                if (!first) {
+                    return false;
                 }
-                return run.has_value();
+                std::optional<ClusterRun> run = first;
+                ClusterRun window = spanOf(region);
+                for (std::size_t tries = 0; run && tries < triesPerPosition; ++tries) {
+                    if (!guard_.closesCycle(item.file, std::span(&*run, 1))) {
+                        place(item, {*run});
+                        return true;
+                    }
+                    window = options_.from == PackFrom::Front ? ClusterRun{run->end(), window.end() - run->end()}
+                                                              : ClusterRun{window.start, run->start - window.start};
+                    run = findInRegion(item, window);
+                }
+                place(item, {*first});
+                return true;
+            }
+
+            // The first (or last) single run of a window that holds the file.
+            [[nodiscard]] std::optional<ClusterRun> findInRegion(const Item& item, ClusterRun window) const {
+                const SpaceRequest request{.clusters = item.clusters, .own = item.own, .window = window};
+                return options_.from == PackFrom::Front ? findFirst(pool_, request) : findLast(pool_, request);
             }
 
             // Places a file in pieces of at least fragmentOk inside one piece of the region, when allowed.
@@ -191,6 +213,7 @@ namespace icd::core::planner {
             // Records a destination and takes it from the pool.
             void place(const Item& item, std::vector<ClusterRun> runs) {
                 takeRuns(pool_, runs);
+                guard_.record(item.file, runs);
                 out_.placed.push_back({.file = item.file,
                                        .runs = std::move(runs),
                                        .reason = reasonFor(item.runs, options_.home),
@@ -200,6 +223,8 @@ namespace icd::core::planner {
             HoleSet& pool_; // Space free after the plan.
             const FillOptions& options_; // How to fill.
             SizeIndex index_; // Files waiting.
+            CycleGuard own_; // The fill's own guard when the options bring none.
+            CycleGuard& guard_; // Keeps destinations from closing cycles.
             std::uint64_t bytesPerCluster_ = 1; // Cluster size, for fragmentOk in clusters.
             FillResult out_; // Result.
         };

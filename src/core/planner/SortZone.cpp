@@ -1,5 +1,6 @@
 #include "core/planner/SortZone.h"
 
+#include "core/planner/CycleGuard.h"
 #include "core/planner/Placement.h"
 
 #include <algorithm>
@@ -105,6 +106,24 @@ namespace icd::core::planner {
             Lcn at = 0; // Next position.
         };
 
+        // A group's holes with the room left from each one on, so packing knows how much it may skip.
+        struct Holes {
+            std::vector<ClusterRun> runs; // In LCN order.
+            std::vector<ClusterCount> after; // Per hole: clusters of the holes after it.
+
+            // Takes the holes.
+            explicit Holes(std::vector<ClusterRun> holes) : runs(std::move(holes)), after(runs.size(), 0) {
+                for (std::size_t i = runs.size(); i-- > 1;) {
+                    after[i - 1] = after[i] + runs[i].length;
+                }
+            }
+
+            // Free clusters from the cursor on.
+            [[nodiscard]] ClusterCount left(const PackCursor& c) const {
+                return c.hole < runs.size() ? runs[c.hole].end() - c.at + after[c.hole] : 0;
+            }
+        };
+
         // Consecutive gaps between anchors packed together after the anchors between them gave up.
         struct Group {
             std::size_t firstGap = 0; // First gap.
@@ -120,7 +139,8 @@ namespace icd::core::planner {
             // Prepares anchors, movers and gaps.
             Sorter(const Snapshot& snapshot, const ZoneTarget& target, const SortedZone& decision, HoleSet& pool,
                    const FillOptions& options) :
-                snapshot_(snapshot), target_(target), decision_(decision), pool_(pool), options_(options) {
+                snapshot_(snapshot), target_(target), decision_(decision), pool_(pool), options_(options),
+                own_(snapshot), guard_(options.guard != nullptr ? *options.guard : own_) {
                 for (const FileIndex file : decision.anchors) {
                     const auto runs = sortedRuns(movableRuns(snapshot, file));
                     anchors_.push_back({file, {runs.front().start, runs.back().end() - runs.front().start}});
@@ -242,16 +262,37 @@ namespace icd::core::planner {
             void pack(Group& group) {
                 const ClusterRun first = gapRange(group.firstGap);
                 const ClusterRun last = gapRange(group.lastGap);
-                const std::vector<ClusterRun> holes = holesIn({first.start, last.end() - first.start});
-                PackCursor cursor{.hole = 0, .at = holes.empty() ? 0 : holes.front().start};
+                const Holes holes(holesIn({first.start, last.end() - first.start}));
+                PackCursor cursor{.hole = 0, .at = holes.runs.empty() ? 0 : holes.runs.front().start};
+                ClusterCount demand = group.demand;
                 for (Mover& m : group.movers) {
-                    if (!advanceTo(m, holes, cursor)) {
-                        overflow(m);
-                        continue;
+                    if (settle(m, holes, cursor, demand)) {
+                        place(m, {cursor.at, m.clusters});
+                        cursor.at += m.clusters;
                     }
-                    place(m, {cursor.at, m.clusters});
-                    cursor.at += m.clusters;
+                    else {
+                        overflow(m);
+                    }
+                    demand -= m.clusters;
                 }
+            }
+
+            // Finds the mover's position: the next one that fits, moved past files that would close a dependency cycle
+            // while the group's spare room (free clusters left beyond the demand left) covers the skip.
+            bool settle(const Mover& m, const Holes& holes, PackCursor& c, ClusterCount demand) {
+                constexpr int skips = 16;
+                for (int i = 0; i < skips; ++i) {
+                    if (!advanceTo(m, holes.runs, c)) {
+                        return false;
+                    }
+                    const auto end = guard_.cycleEnd(m.file, {c.at, m.clusters});
+                    const ClusterCount left = holes.left(c);
+                    if (!end || left < demand || *end - c.at > left - demand) {
+                        return true;
+                    }
+                    c.at = *end;
+                }
+                return advanceTo(m, holes.runs, c);
             }
 
             // Moves the cursor to the first position at or after it where the mover fits a hole without overlapping its
@@ -277,6 +318,7 @@ namespace icd::core::planner {
             // Records a destination.
             void place(const Mover& m, ClusterRun run) {
                 (void)pool_.take(run);
+                guard_.record(m.file, std::span(&run, 1));
                 const MoveReason reason = reasonFor(m.runs, options_.home);
                 out_.placed.push_back({.file = m.file,
                                        .runs = {run},
@@ -299,6 +341,8 @@ namespace icd::core::planner {
             HoleSet& pool_; // Space free after the plan.
             const FillOptions& options_; // Zone and home.
             std::vector<AnchorSpan> anchors_; // In LCN and key order.
+            CycleGuard own_; // The zone's own guard when the options bring none.
+            CycleGuard& guard_; // Keeps destinations from closing cycles where there is room to.
             FillResult out_; // Result.
         };
 
@@ -316,65 +360,123 @@ namespace icd::core::planner {
             return a.item < b.item ? a : b;
         }
 
-        // The in-place files of every sorted zone, in LCN order of their first cluster.
-        std::vector<std::vector<FileIndex>> inPlaceFiles(const Snapshot& snapshot, const ZoneAssignment& assignment,
-                                                         const LowerBound& bound, const std::vector<bool>& sorting) {
+        // The placed files of every sorted zone (all of them end up in the zone's order).
+        std::vector<std::vector<FileIndex>> zoneFiles(const ZoneAssignment& assignment,
+                                                      const std::vector<bool>& sorting) {
             std::vector<std::vector<FileIndex>> out(sorting.size());
             for (std::size_t f = 0; f < assignment.zoneOf.size(); ++f) {
                 const ZoneIndex z = assignment.zoneOf[f];
                 if (assignment.roles[f] == FileRole::Placed && z < sorting.size() && sorting[z] &&
-                    bound.mustMove[f] == 0) {
+                    assignment.movable[f] != 0) {
                     out[z].push_back(static_cast<FileIndex>(f));
-                }
-            }
-            for (auto& files : out) {
-                std::vector<std::pair<Lcn, FileIndex>> byLcn;
-                byLcn.reserve(files.size());
-                for (const FileIndex f : files) {
-                    byLcn.emplace_back(sortedRuns(movableRuns(snapshot, f)).front().start, f);
-                }
-                std::ranges::sort(byLcn);
-                for (std::size_t i = 0; i < files.size(); ++i) {
-                    files[i] = byLcn[i].second;
                 }
             }
             return out;
         }
 
-        // Each file's rank in key order.
-        std::vector<std::uint32_t> keyRanks(const std::vector<FileIndex>& files, const SortKeys& keys) {
-            std::vector<std::size_t> order(files.size());
-            std::iota(order.begin(), order.end(), std::size_t{0});
-            std::ranges::sort(order, [&](std::size_t a, std::size_t b) { return keys.before(files[a], files[b]); });
-            std::vector<std::uint32_t> ranks(files.size());
-            for (std::size_t r = 0; r < order.size(); ++r) {
-                ranks[order[r]] = static_cast<std::uint32_t>(r);
+        // A file that is in place and may stay in a sorted zone: how far it sits behind the position the packed order
+        // gives it, at its first cluster (in) and after its last (out; larger when its span holds other clusters).
+        struct StayOffset {
+            std::size_t index = 0; // Position in the zone's key order.
+            std::int64_t in = 0; // Offset of its first cluster.
+            std::int64_t out = 0; // Offset after its last cluster.
+            ClusterCount weight = 0; // Its movable clusters.
+        };
+
+        // What deciding one sorted zone reads.
+        struct DecideContext {
+            const Snapshot& snapshot; // The volume.
+            const ZoneAssignment& assignment; // Zones and roles.
+            const ZoneTarget& target; // The zone's place.
+            const AvailableAxis& axis; // Usable cluster numbers.
+            const LowerBound& bound; // Files that must move already.
+        };
+
+        // The in-place files that can stay where the zone's order puts them, in key order: a file at offset h from its
+        // packed position (the zone's start plus every file before it in key order) stays only when 0 <= h <= room,
+        // since the zone holds at most `room` free clusters.
+        std::vector<StayOffset> stayOffsets(const DecideContext& c, const std::vector<FileIndex>& files) {
+            const auto& t = c.target;
+            const auto room = static_cast<std::int64_t>(t.length > t.need ? t.length - t.need : 0);
+            const AvailableAxis& axis = c.axis;
+            std::vector<StayOffset> out;
+            std::int64_t before = static_cast<std::int64_t>(t.start);
+            for (std::size_t i = 0; i < files.size(); ++i) {
+                const FileIndex f = files[i];
+                const auto weight = static_cast<std::int64_t>(c.assignment.movable[f]);
+                const auto span = c.bound.mustMove[f] == 0 ? usableSpan(c.snapshot, f, axis) : std::nullopt;
+                if (span && span->first >= before && span->second - before - weight <= room) {
+                    out.push_back({i, span->first - before, span->second - before - weight, c.assignment.movable[f]});
+                }
+                before += weight;
             }
-            return ranks;
+            return out;
         }
 
-        // Decides one sorted zone and extends the bound.
-        SortedZone decideZone(ZoneIndex zone, const std::vector<FileIndex>& files, std::shared_ptr<const SortKeys> keys,
-                              const ZoneAssignment& assignment, double tolerance, LowerBound& bound) {
-            std::vector<ClusterCount> weights(files.size());
-            for (std::size_t i = 0; i < files.size(); ++i) {
-                weights[i] = assignment.movable[files[i]];
+        // The heaviest chain of stay offsets in key order whose offsets never fall (each file's in at least the
+        // previous one's out), so the files keep their order and the room between them holds the files between their
+        // keys. O(n log n) with a Fenwick tree of best weights over the out offsets; ties go to earlier files.
+        LisResult heaviestChain(std::span<const StayOffset> items) {
+            std::vector<std::int64_t> outs(items.size());
+            for (std::size_t i = 0; i < items.size(); ++i) {
+                outs[i] = items[i].out;
             }
-            const LisResult lis = weightedLis(keyRanks(files, *keys), weights);
-            const ClusterCount total = std::accumulate(weights.begin(), weights.end(), ClusterCount{0});
+            std::ranges::sort(outs);
+            outs.erase(std::ranges::unique(outs).begin(), outs.end());
+            std::vector<Best> tree(outs.size() + 1);
+            std::vector<std::size_t> previous(items.size(), static_cast<std::size_t>(-1));
+            Best overall;
+            for (std::size_t i = 0; i < items.size(); ++i) {
+                Best prior;
+                const auto upTo = static_cast<std::size_t>(std::ranges::upper_bound(outs, items[i].in) - outs.begin());
+                for (std::size_t k = upTo; k > 0; k -= k & (~k + 1)) {
+                    prior = better(prior, tree[k]);
+                }
+                const Best here{prior.weight + items[i].weight, i};
+                previous[i] = prior.item;
+                const auto at = static_cast<std::size_t>(std::ranges::lower_bound(outs, items[i].out) - outs.begin());
+                for (std::size_t k = at + 1; k <= outs.size(); k += k & (~k + 1)) {
+                    tree[k] = better(tree[k], here);
+                }
+                overall = better(overall, here);
+            }
+            LisResult out{.keep = std::vector<std::uint8_t>(items.size(), 0), .weight = overall.weight};
+            for (std::size_t i = overall.item; i < items.size(); i = previous[i]) {
+                out.keep[i] = 1;
+            }
+            return out;
+        }
+
+        // Decides one sorted zone and extends the bound: the heaviest chain stays, every other file must move.
+        SortedZone decideZone(const DecideContext& c, std::vector<FileIndex> files,
+                              std::shared_ptr<const SortKeys> keys, double tolerance, LowerBound& bound) {
+            std::ranges::sort(files, [&](FileIndex a, FileIndex b) { return keys->before(a, b); });
+            const std::vector<StayOffset> offsets = stayOffsets(c, files);
+            const LisResult chain = heaviestChain(offsets);
+            ClusterCount inPlace = 0;
+            for (const FileIndex f : files) {
+                inPlace += bound.mustMove[f] == 0 ? c.assignment.movable[f] : 0;
+            }
+            const ZoneIndex zone = c.target.zone;
             SortedZone out{.zone = zone, .keys = std::move(keys)};
-            out.sorted = static_cast<double>(total - lis.weight) <= tolerance * static_cast<double>(total);
+            out.sorted = static_cast<double>(inPlace - chain.weight) <= tolerance * static_cast<double>(inPlace);
             if (!out.sorted) {
                 return out;
             }
+            std::vector<std::uint8_t> stays(files.size(), 0);
+            for (std::size_t i = 0; i < offsets.size(); ++i) {
+                stays[offsets[i].index] = chain.keep[i];
+            }
             for (std::size_t i = 0; i < files.size(); ++i) {
-                if (lis.keep[i] != 0) {
-                    out.anchors.push_back(files[i]);
-                    continue;
+                const FileIndex f = files[i];
+                if (stays[i] != 0) {
+                    out.anchors.push_back(f);
                 }
-                bound.mustMove[files[i]] = 1;
-                bound.clusters += weights[i];
-                bound.perZone[zone] += weights[i];
+                else if (bound.mustMove[f] == 0) {
+                    bound.mustMove[f] = 1;
+                    bound.clusters += c.assignment.movable[f];
+                    bound.perZone[zone] += c.assignment.movable[f];
+                }
             }
             return out;
         }
@@ -437,13 +539,13 @@ namespace icd::core::planner {
     }
 
     std::vector<SortedZone> applySortBounds(const Snapshot& snapshot, const strategy::ZoneScript& script,
-                                            const ZoneAssignment& assignment, strategy::Effort effort, double tolerance,
-                                            LowerBound& bound) {
+                                            const ZoneAssignment& assignment, const TargetLayout& layout,
+                                            strategy::Effort effort, double tolerance, LowerBound& bound) {
         std::vector<bool> sorting(script.zones.size(), false);
         for (std::size_t z = 0; z < script.zones.size(); ++z) {
-            sorting[z] = sortsAt(script.zones[z], effort);
+            sorting[z] = sortsAt(script.zones[z], effort) && layout.target(static_cast<ZoneIndex>(z)) != nullptr;
         }
-        auto files = inPlaceFiles(snapshot, assignment, bound, sorting);
+        auto files = zoneFiles(assignment, sorting);
         std::vector<SortedZone> out;
         for (std::size_t z = 0; z < script.zones.size(); ++z) {
             if (!sorting[z]) {
@@ -451,8 +553,9 @@ namespace icd::core::planner {
             }
             const ZoneOrder order = script.zones[z].orderAt(effort);
             auto keys = std::make_shared<const SortKeys>(snapshot, order);
-            SortedZone decided =
-                decideZone(static_cast<ZoneIndex>(z), files[z], std::move(keys), assignment, tolerance, bound);
+            const DecideContext context{snapshot, assignment, *layout.target(static_cast<ZoneIndex>(z)), layout.axis,
+                                        bound};
+            SortedZone decided = decideZone(context, std::move(files[z]), std::move(keys), tolerance, bound);
             decided.order = order;
             out.push_back(std::move(decided));
         }

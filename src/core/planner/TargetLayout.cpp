@@ -90,6 +90,16 @@ namespace icd::core::planner {
             return freeAfter - granted;
         }
 
+        // Lengthens zones by the room they ask for while slack lasts, in script order.
+        void grantRoom(TargetLayout& layout, std::span<const ClusterCount> room) {
+            for (ZoneTarget& t : layout.zones) {
+                const ClusterCount wanted = t.zone < room.size() ? room[t.zone] : 0;
+                const ClusterCount granted = std::min(wanted, layout.slack);
+                t.length += granted;
+                layout.slack -= granted;
+            }
+        }
+
         // Lays the forward zones from the front, each after its slack share, and records the slack pieces.
         void placeForward(TargetLayout& layout, const ZoneLists& lists, const LayoutInputs& inputs,
                           const strategy::ZoneScript& script) {
@@ -269,6 +279,7 @@ namespace icd::core::planner {
             layout.zones[lists.back.back()].gapWanted = 0; // The last zone ends at the end of the volume.
         }
         layout.slack = grantGaps(layout, freeAfter);
+        grantRoom(layout, inputs.room);
         placeForward(layout, lists, inputs, script);
         placeBack(layout, lists);
         return layout;

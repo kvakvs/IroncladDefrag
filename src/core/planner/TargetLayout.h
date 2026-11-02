@@ -77,6 +77,9 @@ namespace icd::core::planner {
         // Per forward placed zone, in script order: free clusters before it, counted from the front (non-decreasing,
         // capped to the slack). Empty: every zone packed to the front, all slack after the last forward zone.
         std::vector<ClusterCount> slackBefore{};
+        // Per script zone: clusters beyond its need it may span, taken from the slack once gaps are granted (sorted
+        // zones keep their anchors and avoid dependency cycles with it). Empty: every zone spans exactly its need.
+        std::vector<ClusterCount> room{};
     };
 
     // The target state's geometry (plan.md 9.1): each placed zone resolved to LCN runs around the obstacles, with

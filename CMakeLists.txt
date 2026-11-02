@@ -138,6 +138,8 @@ add_library(icd_core STATIC
     src/core/planner/Budget.h
     src/core/planner/CandidateFilter.cpp
     src/core/planner/CandidateFilter.h
+    src/core/planner/CycleGuard.cpp
+    src/core/planner/CycleGuard.h
     src/core/planner/DefragOnly.cpp
     src/core/planner/DefragOnly.h
     src/core/planner/FastFill.cpp

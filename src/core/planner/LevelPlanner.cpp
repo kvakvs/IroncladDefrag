@@ -1,6 +1,7 @@
 #include "core/planner/LevelPlanner.h"
 
 #include "core/planner/CandidateFilter.h"
+#include "core/planner/CycleGuard.h"
 #include "core/planner/DefragOnly.h"
 #include "core/planner/MakeRoom.h"
 #include "core/planner/MoveOrdering.h"
@@ -10,6 +11,7 @@
 #include "core/planner/VssAlign.h"
 
 #include <algorithm>
+#include <memory>
 #include <unordered_map>
 #include <unordered_set>
 
@@ -94,6 +96,10 @@ namespace icd::core::planner {
             return pool;
         }
 
+        // Files a cycle search may visit for each run tried next to a zone: overflow placement tries many runs per
+        // file.
+        constexpr std::size_t nearSearchLimit = 256;
+
         // The LCN span of a zone target.
         ClusterRun spanOf(const ZoneTarget& t) {
             const Lcn first = t.firstLcn().value_or(0);
@@ -118,33 +124,46 @@ namespace icd::core::planner {
             // Plans the level.
             PlanResult run(Executor& executor, const CancelToken& token) {
                 executor_ = &executor;
-                LayoutInputs base{.reserved = input_.reserved};
+                LayoutInputs base{.reserved = input_.reserved, .slackBefore = {}, .room = sortRoom()};
                 base = fitTarget(snapshot_, script_, assignment_, input_.classes, *input_.catalog, base,
                                  policy_.goodEnough, executor);
                 result_.layout = resolveLayout(snapshot_, script_, assignment_, input_.classes, *input_.catalog, base);
                 bound_ =
                     lowerBound(snapshot_, script_, assignment_, result_.layout, policy_.goodEnough, executor, token);
-                sorted_ =
-                    applySortBounds(snapshot_, script_, assignment_, policy_.effort, policy_.sortTolerance, bound_);
+                sorted_ = applySortBounds(snapshot_, script_, assignment_, result_.layout, policy_.effort,
+                                          policy_.sortTolerance, bound_);
                 reserved_ = result_.layout.reservedUsed ? std::span<const ClusterRun>() : input_.reserved;
-                Placed placed = placeRounds(executor, token);
+                Placed placed = placeRounds(token);
                 finish(placed);
                 return std::move(result_);
             }
 
         private:
+            // Room for sorted zones (see LayoutInputs::room): a tenth of their need.
+            [[nodiscard]] std::vector<ClusterCount> sortRoom() const {
+                std::vector<ClusterCount> room(script_.zones.size(), 0);
+                for (std::size_t z = 0; z < room.size(); ++z) {
+                    const ClusterCount need = z < assignment_.zoneClusters.size() ? assignment_.zoneClusters[z] : 0;
+                    const bool forward = script_.zones[z].anchor != strategy::Anchor::Back;
+                    room[z] = forward && sortsAt(script_.zones[z], policy_.effort) ? need / 10 : 0;
+                }
+                return room;
+            }
+
             // Rounds of placement: files that find no space at all stay where they are and the round is planned again
             // without them, so no other file is promised their clusters.
-            Placed placeRounds(Executor& executor, const CancelToken& token) {
+            Placed placeRounds(const CancelToken& token) {
                 constexpr int rounds = 8;
                 for (int round = 0;; ++round) {
                     const Candidates candidates = filterCandidates(bound_, assignment_, script_.zones.size());
                     pool_ = afterPlanPool(snapshot_, bound_, reserved_);
                     evicted_.clear();
                     noSpace_.clear();
-                    Placed placed = placeZones(candidates, executor, token);
+                    Placed placed = placeZones(candidates, token);
+                    const std::size_t zoneDestinations = placed.destinations.size();
                     const auto reserve = reserveScratch();
                     placeDefragment(candidates, placed);
+                    guardDefragment(placed, zoneDestinations);
                     reconcile(placed);
                     releaseRuns(pool_, reserve);
                     if (noSpace_.empty() || round + 1 == rounds) {
@@ -218,8 +237,9 @@ namespace icd::core::planner {
             }
 
             // Places one zone's candidates in its own slice of the pool.
-            FillResult placeZone(const ZoneTarget& t, std::span<const FileIndex> movers, HoleSet& slice) const {
-                const FillOptions options{.zone = t.zone, .home = spanOf(t), .fragmentOk = fragmentOk(t.zone)};
+            FillResult placeZone(const ZoneTarget& t, std::span<const FileIndex> movers, HoleSet& slice) {
+                const FillOptions options{
+                    .zone = t.zone, .home = spanOf(t), .fragmentOk = fragmentOk(t.zone), .guard = guard_.get()};
                 const SortedZone& decision = decisionFor(t.zone);
                 if (t.back) {
                     return packToBack(snapshot_, t, decision, movers, slice, options);
@@ -227,9 +247,10 @@ namespace icd::core::planner {
                 return sortZone(snapshot_, t, decision, movers, slice, options);
             }
 
-            // Places every zone in parallel, each on the part of the pool inside its pieces; then puts what is left
-            // of each part back into the pool.
-            Placed placeZones(const Candidates& candidates, Executor& executor, const CancelToken& token) {
+            // Places every zone in script order, each on the part of the pool inside its pieces, with one guard so no
+            // zone closes a cycle with another's destinations; then puts what is left of each part back into the pool.
+            Placed placeZones(const Candidates& candidates, const CancelToken& token) {
+                guard_ = std::make_unique<CycleGuard>(snapshot_);
                 const auto& zones = result_.layout.zones;
                 std::vector<HoleSet> slices(zones.size());
                 for (std::size_t i = 0; i < zones.size(); ++i) {
@@ -242,20 +263,29 @@ namespace icd::core::planner {
                     slices[i] = HoleSet(parts);
                 }
                 std::vector<FillResult> results(zones.size());
-                executor.parallelFor(
-                    {.count = zones.size(), .grain = 1},
-                    [&](std::size_t begin, std::size_t end) {
-                        for (std::size_t i = begin; i < end; ++i) {
-                            results[i] = placeZone(zones[i], candidates.perZone[zones[i].zone], slices[i]);
-                        }
-                    },
-                    token);
+                for (std::size_t i = 0; i < zones.size(); ++i) {
+                    token.throwIfCancelled();
+                    results[i] = placeZone(zones[i], candidates.perZone[zones[i].zone], slices[i]);
+                }
                 Placed placed;
                 for (std::size_t i = 0; i < zones.size(); ++i) {
                     releaseRuns(pool_, slices[i].runs());
                     collect(results[i], placed);
                 }
                 return placed;
+            }
+
+            // Tells the guard about the defragment-only destinations (those after the zones' first `zoned`).
+            void guardDefragment(const Placed& placed, std::size_t zoned) {
+                for (std::size_t i = zoned; i < placed.destinations.size(); ++i) {
+                    guard_->record(placed.destinations[i].file, placed.destinations[i].runs);
+                }
+            }
+
+            // Adds a destination the guard has not seen.
+            void add(Placed& placed, Destination d) {
+                guard_->record(d.file, d.runs);
+                placed.destinations.push_back(std::move(d));
             }
 
             // Adds one zone's result.
@@ -316,7 +346,7 @@ namespace icd::core::planner {
                     .clusters = clusters, .own = own, .region = t->pieces, .maxEvict = clusters / 4};
                 const auto room = findRoom(snapshot_, pool_, request,
                                            [&](FileIndex other) { return evictable(other, file, t->zone); });
-                if (!room) {
+                if (!room || guard_->closesCycle(file, std::span(&room->window, 1))) {
                     return false;
                 }
                 return applyRoom(*room,
@@ -328,8 +358,10 @@ namespace icd::core::planner {
                                  *t, placed);
             }
 
-            // Evicts the blockers of a room and gives the window to the file; undone when a blocker fits nowhere.
+            // Evicts the blockers of a room and gives the window to the file; undone when a blocker fits nowhere. The
+            // guard learns the file's destination first, so the blockers' destinations avoid cycles through it.
             bool applyRoom(const Room& room, const Destination& big, const ZoneTarget& t, Placed& placed) {
+                guard_->record(big.file, big.runs);
                 std::vector<ClusterRun> blockerRuns;
                 for (const FileIndex b : room.blockers) {
                     const auto runs = movableRuns(snapshot_, b);
@@ -358,25 +390,40 @@ namespace icd::core::planner {
                 return true;
             }
 
-            // A destination for an evicted file: inside its zone, else nearest free space.
+            // A destination for an evicted file: inside its zone, else nearest free space (without closing a cycle
+            // where possible); recorded in the guard.
             std::optional<Destination> placeBlocker(FileIndex file, const ZoneTarget& t) {
                 const auto runs = movableRuns(snapshot_, file);
                 const auto own = sortedRuns(runs);
                 const ClusterCount clusters = clustersOf(runs);
                 for (const ClusterRun& piece : t.pieces) {
-                    if (const auto run = findFirst(pool_, {.clusters = clusters, .own = own, .window = piece})) {
-                        takeRuns(pool_, std::vector<ClusterRun>{*run});
-                        return Destination{
-                            .file = file, .runs = {*run}, .reason = MoveReason::Evict, .zone = t.zone, .extra = true};
+                    if (const auto run = firstAcyclic(file, {.clusters = clusters, .own = own, .window = piece})) {
+                        return evicted(file, *run, t.zone);
                     }
                 }
-                const auto run = findNear(pool_, {.clusters = clusters, .own = own, .window = whole()}, t.endLcn());
-                if (!run) {
-                    return std::nullopt;
+                const auto run = nearAcyclic(file, {.clusters = clusters, .own = own, .window = whole()}, t.endLcn());
+                return run ? std::optional(evicted(file, *run, noZone)) : std::nullopt;
+            }
+
+            // Takes an evicted file's run from the pool and tells the guard.
+            Destination evicted(FileIndex file, ClusterRun run, ZoneIndex zone) {
+                takeRuns(pool_, std::span(&run, 1));
+                guard_->record(file, std::span(&run, 1));
+                return {.file = file, .runs = {run}, .reason = MoveReason::Evict, .zone = zone, .extra = true};
+            }
+
+            // The first free run of the request's window that holds the file without closing a dependency cycle,
+            // trying a few runs; nullopt when none does.
+            [[nodiscard]] std::optional<ClusterRun> firstAcyclic(FileIndex file, SpaceRequest request) {
+                constexpr int tries = 16;
+                for (int i = 0; i < tries; ++i) {
+                    const auto run = findFirst(pool_, request);
+                    if (!run || !guard_->closesCycle(file, std::span(&*run, 1))) {
+                        return run;
+                    }
+                    request.window = {run->end(), request.window.end() - run->end()};
                 }
-                takeRuns(pool_, std::vector<ClusterRun>{*run});
-                return Destination{
-                    .file = file, .runs = {*run}, .reason = MoveReason::Evict, .zone = noZone, .extra = true};
+                return std::nullopt;
             }
 
             // The whole volume as a window.
@@ -390,7 +437,7 @@ namespace icd::core::planner {
                 const SpaceRequest request{.clusters = clustersOf(runs), .own = own, .window = whole()};
                 const Lcn near = t != nullptr ? t->endLcn() : runs.front().start;
                 std::vector<ClusterRun> destination;
-                if (const auto run = findNear(pool_, request, near)) {
+                if (const auto run = nearAcyclic(file, request, near)) {
                     destination.push_back(*run);
                 }
                 else if (const auto ok = fragmentOk(assignment_.zoneOf[file]); ok && !runs.empty()) {
@@ -403,9 +450,26 @@ namespace icd::core::planner {
                 takeRuns(pool_, destination);
                 const MoveReason reason =
                     fragmentsOf(runs) > fragmentsOf(destination) ? MoveReason::Defragment : MoveReason::Relocate;
-                placed.destinations.push_back(
+                add(placed,
                     {.file = file, .runs = std::move(destination), .reason = reason, .zone = noZone, .extra = extra});
                 return true;
+            }
+
+            // The free run nearest `near` that holds the file without closing a dependency cycle, searching outwards
+            // from the nearest one a few times; else the nearest one.
+            [[nodiscard]] std::optional<ClusterRun> nearAcyclic(FileIndex file, const SpaceRequest& request, Lcn near) {
+                constexpr int tries = 16;
+                const auto first = findNear(pool_, request, near);
+                std::optional<ClusterRun> run = first;
+                SpaceRequest after = request;
+                for (int i = 0; run && i < tries; ++i) {
+                    if (!guard_->closesCycle(file, std::span(&*run, 1), nearSearchLimit)) {
+                        return run;
+                    }
+                    after.window = {run->end(), whole().end() - run->end()};
+                    run = findFirst(pool_, after);
+                }
+                return first;
             }
 
             // Records a file that cannot move.
@@ -444,6 +508,7 @@ namespace icd::core::planner {
             std::vector<SortedZone> sorted_; // Sorted zones at this level.
             HoleSet pool_; // After-plan free space not yet given out.
             std::unordered_set<FileIndex> evicted_; // Files moved out of the way.
+            std::unique_ptr<CycleGuard> guard_; // The round's destinations so far: placement avoids closing cycles.
             std::span<const ClusterRun> reserved_; // Reserved runs kept out of the pool.
             std::vector<FileIndex> noSpace_; // Files this round could not place.
             std::vector<FileIndex> stuck_; // Files earlier rounds could not place; they stay (in the order found).

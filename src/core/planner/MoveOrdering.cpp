@@ -23,6 +23,14 @@ namespace icd::core::planner {
         // "No component".
         constexpr std::uint32_t none = static_cast<std::uint32_t>(-1);
 
+        // Components up to this many waiting moves are broken a move at a time (LocalCycles); larger ones a batch
+        // per round, so huge plans need few rounds over the whole graph.
+        constexpr std::size_t greedyLimit = 2'000;
+
+        // A large component with at most this many back-edge moves parks them all in one round (that removes every
+        // cycle in it); with more, the smallest quarter parks per round.
+        constexpr std::size_t allTails = 16;
+
         // Strongly connected components of the waiting moves (Tarjan, iterative so deep chains cannot overflow the
         // stack).
         class Components {
@@ -123,6 +131,116 @@ namespace icd::core::planner {
             std::uint32_t count_ = 0; // Components found.
         };
 
+        // The cycles left among some moves: their strongly connected components of two or more moves (Tarjan over
+        // local numbers, iterative), so one component can be broken a move at a time without walking the whole graph.
+        class LocalCycles {
+        public:
+            // Finds the components among the members, following only edges between live members. `localOf` is a
+            // per-move scratch array of `none`, left as it was found.
+            LocalCycles(const std::vector<std::vector<std::uint32_t>>& out, const std::vector<std::uint32_t>& members,
+                        std::vector<std::uint32_t>& localOf, const std::function<bool(std::uint32_t)>& live) :
+                out_(out), members_(members), localOf_(localOf), live_(live), index_(members.size(), none),
+                low_(members.size(), 0), onStack_(members.size(), 0) {
+                for (std::uint32_t i = 0; i < members.size(); ++i) {
+                    localOf_[members[i]] = i;
+                }
+                for (std::uint32_t i = 0; i < members.size(); ++i) {
+                    if (index_[i] == none && live_(members[i])) {
+                        visit(i);
+                    }
+                }
+                for (const std::uint32_t v : members) {
+                    localOf_[v] = none;
+                }
+            }
+
+            // The components with two or more moves (global move numbers).
+            [[nodiscard]] std::vector<std::vector<std::uint32_t>>& cycles() { return cycles_; }
+
+        private:
+            // The local number of a live member reached by an edge, or none.
+            [[nodiscard]] std::uint32_t target(std::uint32_t global) const {
+                const std::uint32_t i = localOf_[global];
+                return i != none && live_(global) ? i : none;
+            }
+
+            // One depth-first walk from a root.
+            void visit(std::uint32_t root) {
+                std::vector<std::pair<std::uint32_t, std::size_t>> frames{{root, 0}};
+                open(root);
+                while (!frames.empty()) {
+                    auto& [v, edge] = frames.back();
+                    const auto& edges = out_[members_[v]];
+                    if (edge < edges.size()) {
+                        const std::uint32_t from = v;
+                        const std::uint32_t w = target(edges[edge++]);
+                        if (step(from, w)) {
+                            frames.emplace_back(w, 0);
+                        }
+                        continue;
+                    }
+                    const std::uint32_t done = v;
+                    frames.pop_back();
+                    if (!frames.empty()) {
+                        low_[frames.back().first] = std::min(low_[frames.back().first], low_[done]);
+                    }
+                    close(done);
+                }
+            }
+
+            // Follows edge v -> w (w may be none); true when w is new and the walk descends into it.
+            bool step(std::uint32_t v, std::uint32_t w) {
+                if (w == none) {
+                    return false;
+                }
+                if (index_[w] == none) {
+                    open(w);
+                    return true;
+                }
+                if (onStack_[w] != 0) {
+                    low_[v] = std::min(low_[v], index_[w]);
+                }
+                return false;
+            }
+
+            // Numbers a member and pushes it.
+            void open(std::uint32_t v) {
+                index_[v] = low_[v] = next_++;
+                stack_.push_back(v);
+                onStack_[v] = 1;
+            }
+
+            // Pops a component when v is its root; keeps it when it holds a cycle.
+            void close(std::uint32_t v) {
+                if (low_[v] != index_[v]) {
+                    return;
+                }
+                std::vector<std::uint32_t> component;
+                std::uint32_t w = none;
+                do {
+                    w = stack_.back();
+                    stack_.pop_back();
+                    onStack_[w] = 0;
+                    component.push_back(members_[w]);
+                }
+                while (w != v);
+                if (component.size() > 1) {
+                    cycles_.push_back(std::move(component));
+                }
+            }
+
+            const std::vector<std::vector<std::uint32_t>>& out_; // Edges.
+            const std::vector<std::uint32_t>& members_; // Local number -> move.
+            std::vector<std::uint32_t>& localOf_; // Move -> local number while finding.
+            const std::function<bool(std::uint32_t)>& live_; // Whether a move takes part.
+            std::vector<std::uint32_t> index_; // Visit order.
+            std::vector<std::uint32_t> low_; // Lowest reachable visit order.
+            std::vector<std::uint8_t> onStack_; // On the Tarjan stack.
+            std::vector<std::uint32_t> stack_; // Tarjan stack.
+            std::uint32_t next_ = 0; // Next visit number.
+            std::vector<std::vector<std::uint32_t>> cycles_; // Result.
+        };
+
         // The ordering of one plan.
         class Orderer {
         public:
@@ -131,7 +249,8 @@ namespace icd::core::planner {
                     Plan& plan) :
                 snapshot_(snapshot), destinations_(destinations), options_(options), plan_(plan),
                 state_(destinations.size(), State::Waiting), out_(destinations.size()),
-                indegree_(destinations.size(), 0), scratchRuns_(destinations.size()) {
+                localOf_(destinations.size(), none), indegree_(destinations.size(), 0),
+                scratchRuns_(destinations.size()) {
                 sources_.resize(destinations.size());
                 forEach(destinations.size(),
                         [&](std::size_t i) { sources_[i] = movableRuns(snapshot, destinations[i].file); });
@@ -375,11 +494,40 @@ namespace icd::core::planner {
                     return false;
                 }
                 ++report_.cycles;
-                if (options_.allowParking) {
-                    moves.tails.resize(std::max<std::size_t>(1, (moves.tails.size() + 3) / 4));
+                if (options_.allowParking && moves.waiting.size() <= greedyLimit) {
+                    breakGreedily(moves);
+                    return true;
+                }
+                if (options_.allowParking && moves.tails.size() > allTails) {
+                    moves.tails.resize((moves.tails.size() + 3) / 4);
                 }
                 breakTails(moves);
                 return true;
+            }
+
+            // Parks the smallest move of every cycle left in a component, finds the cycles left among the rest, and
+            // so on until none is left: a parked file breaks every cycle through it, so later rounds see only the
+            // cycles it did not break and few large files park.
+            void breakGreedily(const CycleMoves& moves) {
+                const std::function<bool(std::uint32_t)> live = [&](std::uint32_t v) {
+                    return state_[v] == State::Waiting;
+                };
+                std::vector<std::uint32_t> members = moves.waiting;
+                bool broken = false;
+                while (!members.empty()) {
+                    LocalCycles local(out_, members, localOf_, live);
+                    members.clear();
+                    for (auto& cycle : local.cycles()) {
+                        const auto smallest = std::ranges::min_element(
+                            cycle, [&](std::uint32_t a, std::uint32_t b) { return smaller(a, b); });
+                        if (!breakOne(*smallest)) {
+                            outOfScratch(moves, broken);
+                            return;
+                        }
+                        broken = true;
+                        members.insert(members.end(), cycle.begin(), cycle.end());
+                    }
+                }
             }
 
             // Parks (Maximum) or redirects one move; false without scratch space for it.
@@ -581,6 +729,7 @@ namespace icd::core::planner {
             std::vector<State> state_; // Per move.
             std::vector<std::vector<ClusterRun>> sources_; // Per move: the file's movable runs.
             std::vector<std::vector<std::uint32_t>> out_; // Per move: the moves waiting for it.
+            std::vector<std::uint32_t> localOf_; // Scratch for LocalCycles: per move, its local number or none.
             std::vector<std::uint32_t> indegree_; // Per move: moves it still waits for.
             std::vector<std::vector<ClusterRun>> scratchRuns_; // Per parked move: where its file sits.
             std::priority_queue<std::uint32_t, std::vector<std::uint32_t>, std::greater<>> ready_; // Ready moves.

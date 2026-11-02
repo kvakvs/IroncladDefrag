@@ -11,6 +11,8 @@
 
 namespace icd::core::planner {
 
+    class CycleGuard;
+
     // Which end of a region is packed.
     enum class PackFrom : std::uint8_t {
         Front, // Holes nearest the region's start are filled first; free space gathers at its end.
@@ -25,6 +27,8 @@ namespace icd::core::planner {
         // compaction (or defragmentation), others relocations.
         ClusterRun home{};
         std::optional<std::uint64_t> fragmentOk{}; // Allows large pieces for files no single hole holds.
+        // Shared with the level's other placements so destinations avoid cycles across zones; null: one per fill.
+        CycleGuard* guard = nullptr;
     };
 
     // Destinations of the files that fit, and the files that did not.

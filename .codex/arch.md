@@ -1035,13 +1035,32 @@ All analysis checks passed.
 
 - Sorted zones (T086, `SortZone`): `SortKeys` gives every file one 64-bit key per order with the file index as tie-break
   (directory+name: the parent's rank in a depth-first walk with children in name order, then the name's rank; names
-  compare ASCII case-insensitively). `applySortBounds()` takes a sorted zone's files that are already in place, finds
-  the byte-heaviest subsequence already in key order (`weightedLis()`, Fenwick tree, O(n log n), equal to brute force)
-  and adds the rest to the lower bound; at Moderate a zone is sorted only when that moves at most the tolerance share of
-  its in-place bytes, otherwise it is fast-filled. Never at Fast. `sortZone()` puts each mover into the gap between the
-  anchors that bracket its key and packs every gap in key order; a gap that cannot hold its movers gives up the anchor
-  that ends it (the zone's last gap the one before it), which then moves as extra. `Move::extra` marks such moves,
-  parking and evictions, and the validator sums them into the plan's extra.
+  compare ASCII case-insensitively). In the target every file of a sorted zone sits at its packed position (the zone's
+  start plus all files before it in key order, on the usable-cluster axis) plus the free clusters before it, which
+  never fall along the order and never exceed the zone's room (its length beyond its need; `planZones()` asks for a
+  tenth of the need at Moderate and Maximum, granted from the slack, `LayoutInputs::room`). So a file in place can stay
+  only at an offset in [0, room] from its packed position, and the files that stay need offsets that never fall:
+  `applySortBounds()` keeps the byte-heaviest such chain (Fenwick tree over offsets, O(n log n)) and adds every other
+  file to the lower bound (T095b; the earlier weighted LIS over key order alone counted files as staying that no
+  packed layout could keep, and the sorter then had to give them up as extra). At Moderate a zone is sorted only when
+  that moves at most the tolerance share of its in-place bytes, otherwise it is fast-filled. Never at Fast.
+  `sortZone()` puts each mover into the gap between the anchors that bracket its key and packs every gap in key order;
+  the gaps always hold their movers. Where a group has spare room, a mover whose position would close a dependency
+  cycle starts after the file that closes it. `Move::extra` marks parking, evictions and anchors given up (still
+  possible when a mover's own runs are in the way), and the validator sums them into the plan's extra.
+
+- Cycle guard (T095b, `CycleGuard`): every parking move at Maximum costs a file's clusters once more, and nearly all of
+  Maximum's extra came from cycles that placement itself created (a fragmented file's hole taken by a file whose own
+  hole the first one then takes; overflow placed next to a zone on the space a big file vacates; evicted files). The
+  guard records, as destinations are chosen, which files each placed file waits for (the owners of the clusters it
+  covers) and keeps them in a topological order repaired on each new wait (Pearce-Kelly: only the files between the
+  two positions are searched). Fast-fill rejects a candidate whose position would close a cycle (the next largest
+  fitting file is tried), single-run, eviction and next-to-zone placements try further runs, and the sorter skips
+  ahead where it has room. One guard serves a level's whole round, so zones are placed in script order (one zone
+  holds most files anyway). Searches are capped (4096 files, 256 for the many runs tried next to a zone) and share a
+  budget of visits (4 M plus 64 per recorded destination), so small volumes are searched in full and huge ones stay
+  near-linear; past a cap the destination is let through and ordering breaks what is left. Cost: zone placement takes
+  about twice as long as without the guard on large volumes.
 
 - Pack-to-back (T087, `packToBack()`): the zone's target already ends at the volume end, so packing is fast-fill from
   the back (holes nearest the end first, closing the holes deleted videos left) or, when the zone has an order at the
@@ -1051,9 +1070,11 @@ All analysis checks passed.
 - Move ordering (T088, `orderMoves()`): move j depends on move i when j's destination overlaps i's sources. Kahn's
   algorithm emits ready moves in destination order (a min-heap of indexes), so the plan is deterministic. When only
   cycles remain, Tarjan (iterative) finds the components; every component nothing else feeds is a cycle to break. At
-  Maximum its smallest file is parked first in scratch space (free runs no destination touches), which frees its
-  sources at once; its return waits for the move's own dependencies (a parked file's edges are ignored from then
-  on). Elsewhere, or without scratch space, the cycle is dropped with every move that waited on it (skipped as Cycle
+  Maximum a component of up to 2000 waiting moves is broken greedily: the smallest move of every cycle left is parked
+  in scratch space (free runs no destination touches), which frees its sources at once, and `LocalCycles` finds the
+  cycles left among the component's moves until none is; larger components park all their back-edge moves when
+  there are at most 16 (that removes every cycle in them), else the smallest quarter of them per round. A parked file's return waits for the move's own dependencies (its edges are ignored from
+  then on). Elsewhere, or without scratch space, the cycle is dropped with every move that waited on it (skipped as Cycle
   or Dependency; extra moves are dropped without a skip entry, they were never in the bound).
 - Move the smaller thing (T088, `findRoom()`): for a file no free run holds, the window of its size inside the region
   whose clusters are free after the plan or belong to files that may move, evicting the fewest clusters within a
