@@ -1,7 +1,9 @@
 #include "services/plan/PlanJob.h"
 
 #include "core/classify/Catalog.h"
+#include "core/classify/RuleEngine.h"
 #include "core/format/Count.h"
+#include "core/map/ZoneFitColorMode.h"
 #include "core/planner/Validator.h"
 #include "core/planner/levels/FastLevel.h"
 #include "core/planner/levels/MaximumLevel.h"
@@ -123,8 +125,9 @@ namespace icd::services {
             }
         };
         report(0);
-        const core::planner::ZoneAssignment assignment = core::planner::assignInput(input, executor, token);
         PlanOutcome outcome;
+        outcome.assignment = core::planner::assignInput(input, executor, token);
+        const core::planner::ZoneAssignment& assignment = outcome.assignment;
         outcome.bytesPerCluster = snapshot.geometry.bytesPerCluster;
         executor.parallelFor(
             {.count = 3, .grain = request.parallelLevels ? 1U : 3U},
@@ -156,10 +159,27 @@ namespace icd::services {
         return out;
     }
 
+    std::array<LevelOverlays, 3> levelOverlays(const PlanOutcome& outcome, const core::Snapshot& snapshot) {
+        std::array<LevelOverlays, 3> out;
+        for (std::size_t level = 0; level < out.size(); ++level) {
+            const auto& result = outcome.levels.at(level).result;
+            out.at(level) = {.zoneFit = core::zoneFitOverlay(snapshot, outcome.assignment, result.layout),
+                             .preview = core::planOverlay(result.plan)};
+        }
+        return out;
+    }
+
     JobFunction makePlanJob(PlanRequest request, std::shared_ptr<PlanOutput> output) {
-        return [request = std::move(request), output = std::move(output)](JobContext& context) {
+        return [request = std::move(request), output = std::move(output)](JobContext& context) mutable {
+            const core::Snapshot& snapshot = *request.snapshot;
+            if (request.classes.size() != snapshot.files.size()) {
+                const core::classify::RuleEngine engine(core::classify::builtinCatalog().rules);
+                request.classes =
+                    engine.classify(snapshot, {.now = request.now, .churn = {}}, context.executor, context.token);
+            }
             auto outcome =
                 std::make_shared<PlanOutcome>(planLevels(request, context.executor, context.token, &context.progress));
+            outcome->overlays = levelOverlays(*outcome, snapshot);
             output->set(std::move(outcome));
         };
     }

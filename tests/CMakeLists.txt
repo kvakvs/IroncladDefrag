@@ -41,6 +41,7 @@ add_executable(icd_tests
     core/OptimalityTest.cpp
     core/OverviewTest.cpp
     core/PackToBackTest.cpp
+    core/PlanOverlayTest.cpp
     core/PlannerTestUtil.h
     core/presets/PresetsTest.cpp
     core/presets/PresetsTest.cpp

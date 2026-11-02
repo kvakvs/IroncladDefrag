@@ -45,14 +45,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Done when: every preset stays within 1.1 x at Maximum in OptimalityTest, and `check-planner.ps1 -Scenarios all`
   passes.
 
-### T098 - Plan tab and plan overlay
-
-- Depends: T093, T097
-- Owns: `src/ui/tabs/PlanTab.*`, `src/core/map/PlanColorMode.*`, `src/core/map/ZoneFitColorMode.*`
-- Do: three levels side by side; details for the chosen level; zone-fit and plan-preview map modes
-  (§7.4). Fast plans show the "run again to keep improving" note.
-- Done when: plan preview on the map matches the plan's moves. **Phase 6 exit check.**
-
 ---
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)

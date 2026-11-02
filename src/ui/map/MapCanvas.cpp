@@ -4,6 +4,7 @@
 #include "core/log/Log.h"
 #include "core/map/ColorModes.h"
 #include "core/map/Grid.h"
+#include "core/map/PlanColorMode.h"
 #include "core/map/Selection.h"
 #include "core/map/TileRasterizer.h"
 #include "ui/Accelerators.h"
@@ -135,6 +136,11 @@ namespace icd::ui {
         map_ = std::move(map);
         markAllDirty();
         notifyView();
+    }
+
+    void MapCanvas::setOverlay(std::shared_ptr<const core::MapOverlay> overlay) {
+        mapOverlay_ = std::move(overlay);
+        markAllDirty();
     }
 
     void MapCanvas::setPalette(std::shared_ptr<const core::Palette> palette) {
@@ -433,18 +439,22 @@ namespace icd::ui {
         }
         pending_.insert(tile);
         const RenderStamp stamp{.generation = generation_, .selection = selectionVersion_};
-        executor_.submit([map = map_, palette = palette_, overlay = overlay_, mailbox = mailbox_, stamp, tile] {
-            try {
-                std::vector<core::Rgba> pixels = core::renderTile(map->source(), tile, *palette);
-                if (overlay != nullptr) {
-                    core::highlightRuns(map->world(), tile, overlay->runs, palette->selection(), pixels);
+        executor_.submit(
+            [map = map_, palette = palette_, overlay = overlay_, plan = mapOverlay_, mailbox = mailbox_, stamp, tile] {
+                try {
+                    std::vector<core::Rgba> pixels = core::renderTile(map->source(), tile, *palette);
+                    if (plan != nullptr) {
+                        core::paintOverlay(map->world(), tile, *plan, pixels);
+                    }
+                    if (overlay != nullptr) {
+                        core::highlightRuns(map->world(), tile, overlay->runs, palette->selection(), pixels);
+                    }
+                    post(mailbox, stamp, tile, std::move(pixels));
                 }
-                post(mailbox, stamp, tile, std::move(pixels));
-            }
-            catch (const std::exception& error) {
-                core::logging::error("tile render failed", {{"level", tile.level}, {"what", error.what()}});
-            }
-        });
+                catch (const std::exception& error) {
+                    core::logging::error("tile render failed", {{"level", tile.level}, {"what", error.what()}});
+                }
+            });
     }
 
     void MapCanvas::deliver(RenderStamp stamp, core::TileId tile, std::vector<core::Rgba>&& pixels) {

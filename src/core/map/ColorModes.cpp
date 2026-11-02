@@ -261,14 +261,16 @@ namespace icd::core {
         case ColorMode::FileClass:
             return classLegend();
         case ColorMode::Fragmentation:
-            break;
+        case ColorMode::ZoneFit:
+        case ColorMode::PlanPreview:
+            break; // The overlay modes draw over the fragmentation colors and count them.
         }
         return fragmentationLegend;
     }
 
     std::shared_ptr<const Palette> paletteFor(ColorMode mode) {
-        if (mode == ColorMode::Fragmentation) {
-            return std::make_shared<OccupancyPalette>();
+        if (mode == ColorMode::Fragmentation || mode == ColorMode::ZoneFit || mode == ColorMode::PlanPreview) {
+            return std::make_shared<OccupancyPalette>(); // Overlay modes paint their runs over this base.
         }
         if (mode == ColorMode::FileClass) {
             return std::make_shared<ClassPalette>();
@@ -285,6 +287,8 @@ namespace icd::core {
         case ColorMode::FileClass:
             return entryOfClass(owner.kind);
         case ColorMode::Fragmentation:
+        case ColorMode::ZoneFit:
+        case ColorMode::PlanPreview:
             break;
         }
         // The same precedence as the occupancy palette: unmovable over fragmented over contiguous.

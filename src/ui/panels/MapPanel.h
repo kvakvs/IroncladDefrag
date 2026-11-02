@@ -15,6 +15,7 @@ class wxStaticText;
 namespace icd::core {
     class Executor;
     class MapData;
+    struct MapOverlay;
 } // namespace icd::core
 
 namespace icd::ui {
@@ -40,8 +41,13 @@ namespace icd::ui {
         // Text in the toolbar, e.g. which drive is shown and what state it is in.
         void setCaption(const wxString& caption);
 
-        // Whether a View command exists yet: color modes whose features are still to come are not.
-        [[nodiscard]] static bool commandAvailable(int id);
+        // Whether a View command can run: zone fit and plan preview need a plan's overlays.
+        [[nodiscard]] bool commandAvailable(int id) const;
+
+        // The overlays of the plan under review (null: none); in those color modes the map shows them. Clearing them
+        // while one is shown goes back to the fragmentation mode.
+        void setPlanOverlays(std::shared_ptr<const core::MapOverlay> zoneFit,
+                             std::shared_ptr<const core::MapOverlay> preview);
 
         // Colors the map and the legend by a mode and shows it in the toolbar.
         void setColorMode(core::ColorMode mode);
@@ -99,6 +105,8 @@ namespace icd::ui {
         Legend* legend_ = nullptr; // Colors and counts of the view; child window owned by wx.
         Ruler* rows_ = nullptr; // Row ruler left of the map; child window owned by wx.
         core::ColorMode mode_ = core::ColorMode::Fragmentation; // Current color mode.
+        std::shared_ptr<const core::MapOverlay> zoneFit_; // Zone-fit overlay of the plan, or null.
+        std::shared_ptr<const core::MapOverlay> preview_; // Plan-preview overlay of the plan, or null.
         wxChoice* colorMode_ = nullptr; // Toolbar color mode; child window owned by wx.
         wxStaticText* caption_ = nullptr; // Drive and state; child window owned by wx.
         wxStaticText* selectionLabel_ = nullptr; // Selected file and fragment; child window owned by wx.

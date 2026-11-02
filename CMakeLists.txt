@@ -102,6 +102,8 @@ add_library(icd_core STATIC
     src/core/map/Overview.h
     src/core/map/Palette.cpp
     src/core/map/Palette.h
+    src/core/map/PlanColorMode.cpp
+    src/core/map/PlanColorMode.h
     src/core/map/Pyramid.cpp
     src/core/map/Pyramid.h
     src/core/map/Ruler.cpp
@@ -114,6 +116,8 @@ add_library(icd_core STATIC
     src/core/map/Viewport.h
     src/core/map/World.cpp
     src/core/map/World.h
+    src/core/map/ZoneFitColorMode.cpp
+    src/core/map/ZoneFitColorMode.h
     src/core/model/DriveInfo.cpp
     src/core/model/DriveInfo.h
     src/core/model/VolumeLayout.h

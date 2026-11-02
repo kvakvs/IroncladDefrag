@@ -21,6 +21,7 @@
 namespace icd::core {
     class Executor;
     struct SelectionOverlay;
+    struct MapOverlay;
 } // namespace icd::core
 
 namespace icd::ui {
@@ -72,6 +73,9 @@ namespace icd::ui {
         // Highlights a selection (null: none). Only cached or rendering tiles that the old or the new selection
         // touches are marked dirty and render again.
         void setSelection(std::shared_ptr<const core::SelectionOverlay> overlay);
+
+        // Paints a plan-preview or zone-fit overlay over every tile (null: none); every tile renders again.
+        void setOverlay(std::shared_ptr<const core::MapOverlay> overlay);
 
         // The selected file and fragment navigation.
         [[nodiscard]] MapSelection& selection() { return *selection_; }
@@ -194,6 +198,7 @@ namespace icd::ui {
         std::shared_ptr<const core::MapData> map_; // What is shown; null for no map.
         std::shared_ptr<const core::Palette> palette_; // Color mode.
         std::shared_ptr<const core::SelectionOverlay> overlay_; // Highlighted file, or null.
+        std::shared_ptr<const core::MapOverlay> mapOverlay_; // Plan preview or zone fit painted under the selection.
         // Tiles whose cached (or rendering) pixels show an older selection or palette, with the version that made
         // them stale.
         std::unordered_map<core::TileId, std::uint64_t, core::TileIdHash> dirty_;

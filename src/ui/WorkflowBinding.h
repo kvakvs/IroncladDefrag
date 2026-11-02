@@ -23,6 +23,7 @@ namespace icd::core {
 namespace icd::services {
     class AppServices;
     struct AnalysisOutput;
+    struct PlanOutput;
 } // namespace icd::services
 
 namespace icd::ui {
@@ -100,11 +101,17 @@ namespace icd::ui {
         // Fills the Summary tab and the drive row after an analysis.
         void showAnalysis(core::DriveInfo& drive);
 
-        // Fills the Plan tab after planning.
+        // Fills the Plan tab and the map overlays after planning.
         void showPlan(const core::DriveInfo& drive);
+
+        // Forgets the plan under review and its map overlays, with a hint for the Plan tab.
+        void dropPlan(const char* hint);
 
         // Whether an action can run now: the workflow allows it, and a plan needs a strategy without problems.
         [[nodiscard]] bool allowed(services::WorkflowAction action) const;
+
+        // A job that plans the shown map with the Strategy tab's script, or null without a map to plan.
+        [[nodiscard]] services::JobFunction makePlanJob(const core::DriveInfo& drive);
 
         // Fills the Log tab and the drive row after an execution; the old figures are now stale.
         void showExecution(core::DriveInfo& drive);
@@ -169,6 +176,7 @@ namespace icd::ui {
         std::optional<core::DriveInfo> drive_; // Selected drive, copied so a refresh cannot change it mid-job.
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
+        std::shared_ptr<services::PlanOutput> planOutput_; // Where the running plan job leaves its outcome.
         std::shared_ptr<services::AnalysisOutput> analysisOutput_; // Where the running analysis leaves its map.
         std::shared_ptr<services::TrimOutput> trimOutput_; // Output lines of the running TRIM.
     };

@@ -3,6 +3,7 @@
 #include "core/exec/Executor.h"
 #include "core/job/CancelToken.h"
 #include "core/job/Progress.h"
+#include "core/map/PlanColorMode.h"
 #include "core/model/DriveInfo.h"
 #include "core/planner/LevelPlanner.h"
 #include "core/snapshot/Snapshot.h"
@@ -50,9 +51,17 @@ namespace icd::services {
         double seconds = 0.0; // Wall time spent planning (and validating) this level.
     };
 
+    // What the map shows of one planned level in the zone-fit and plan-preview color modes (plan.md 11).
+    struct LevelOverlays {
+        std::shared_ptr<const core::MapOverlay> zoneFit; // Zone targets and the data still outside its zone.
+        std::shared_ptr<const core::MapOverlay> preview; // Clusters the plan vacates and fills.
+    };
+
     // The three levels of one plan request (plan.md 9.2.2): Fast, Moderate, Maximum.
     struct PlanOutcome {
         std::array<LevelOutcome, 3> levels; // By core::strategy::Effort.
+        core::planner::ZoneAssignment assignment; // Shared by the levels; the zone-fit overlay needs it.
+        std::array<LevelOverlays, 3> overlays; // By Effort; filled by the GUI's plan job only (null otherwise).
         double seconds = 0.0; // Wall time of the whole request.
         std::uint32_t bytesPerCluster = 4096; // Of the planned volume, for byte figures.
     };
@@ -66,6 +75,10 @@ namespace icd::services {
     // The Plan tab's figures of an outcome: per level files and bytes to move, lower bound, estimate, fragmentation and
     // zone fit after; warnings for skipped files, unreached goals and validation problems.
     [[nodiscard]] PlanSummary planSummary(const PlanOutcome& outcome);
+
+    // The overlays of every level of an outcome for its snapshot.
+    [[nodiscard]] std::array<LevelOverlays, 3> levelOverlays(const PlanOutcome& outcome,
+                                                             const core::Snapshot& snapshot);
 
     // Hands a finished plan from the job to the UI.
     struct PlanOutput {
@@ -85,7 +98,8 @@ namespace icd::services {
         std::shared_ptr<const PlanOutcome> outcome; // The newest outcome.
     };
 
-    // A job that plans a request and stores the outcome in `output`.
+    // A job that plans a request and stores the outcome, with its map overlays, in `output`. Files are classified
+    // first when the request carries no classes for them.
     [[nodiscard]] JobFunction makePlanJob(PlanRequest request, std::shared_ptr<PlanOutput> output);
 
 } // namespace icd::services

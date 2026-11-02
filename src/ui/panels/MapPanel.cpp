@@ -10,7 +10,6 @@
 #include "ui/map/MapSelection.h"
 #include "ui/map/Ruler.h"
 
-#include <wx/checkbox.h>
 #include <wx/choice.h>
 #include <wx/sizer.h>
 #include <wx/srchctrl.h>
@@ -33,13 +32,14 @@ namespace icd::ui {
             const char* label; // Its toolbar name.
         };
 
-        // The color modes that exist so far, in View > Color mode order (file class, zone fit and plan preview come
-        // with classification, zones and the planner).
+        // The color modes in View > Color mode order; zone fit and plan preview need a plan.
         constexpr std::array modeItems{
             ModeItem{core::ColorMode::FileClass, ID_COLOR_CLASS, "File class"},
             ModeItem{core::ColorMode::Fragmentation, ID_COLOR_FRAGMENTATION, "Fragmentation"},
             ModeItem{core::ColorMode::Age, ID_COLOR_AGE, "Age"},
             ModeItem{core::ColorMode::Size, ID_COLOR_SIZE, "Size"},
+            ModeItem{core::ColorMode::ZoneFit, ID_COLOR_ZONE_FIT, "Zone fit"},
+            ModeItem{core::ColorMode::PlanPreview, ID_COLOR_PLAN, "Plan preview"},
         };
 
         // The color choice's tooltip: every mode with its shortcut, from the shortcut table.
@@ -122,8 +122,6 @@ namespace icd::ui {
                 wxPostEvent(frame, command);
             }
         });
-        auto* zones = new wxCheckBox(this, wxID_ANY, "Zones");
-        auto* plan = new wxCheckBox(this, wxID_ANY, "Plan overlay");
         search_ = new wxSearchCtrl(this, wxID_ANY, "", wxDefaultPosition, FromDIP(wxSize(220, -1)), wxTE_PROCESS_ENTER);
         search_->SetDescriptiveText("Find file");
         search_->SetToolTip(commandTip(ID_GOTO_FILE));
@@ -137,26 +135,39 @@ namespace icd::ui {
 
         bar->Add(new wxStaticText(this, wxID_ANY, "Color:"), wxSizerFlags().CenterVertical());
         bar->Add(colorMode_, wxSizerFlags().CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(6)));
-        bar->Add(zones, wxSizerFlags().CenterVertical().Border(wxRIGHT, FromDIP(6)));
-        bar->Add(plan, wxSizerFlags().CenterVertical());
         bar->Add(caption_, wxSizerFlags(1).CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(12)));
         bar->Add(selectionLabel_, wxSizerFlags(1).CenterVertical().Border(wxRIGHT, FromDIP(12)));
         bar->Add(search_, wxSizerFlags().CenterVertical());
-        for (wxWindow* control : {static_cast<wxWindow*>(zones), static_cast<wxWindow*>(plan)}) {
-            control->Disable(); // Zones and the planner bring these to life.
-        }
         return bar;
     }
 
     void MapPanel::setCaption(const wxString& caption) { caption_->SetLabelText(caption); }
 
-    bool MapPanel::commandAvailable(int id) { return id != ID_COLOR_ZONE_FIT && id != ID_COLOR_PLAN; }
+    bool MapPanel::commandAvailable(int id) const {
+        if (id == ID_COLOR_ZONE_FIT) {
+            return zoneFit_ != nullptr;
+        }
+        return id != ID_COLOR_PLAN || preview_ != nullptr;
+    }
 
     void MapPanel::setColorMode(core::ColorMode mode) {
+        if (!commandAvailable(modeItems.at(static_cast<std::size_t>(modeIndex(mode))).command)) {
+            mode = core::ColorMode::Fragmentation; // No plan yet: the overlay modes have nothing to show.
+        }
         mode_ = mode;
         colorMode_->SetSelection(modeIndex(mode));
         canvas_->setPalette(core::paletteFor(mode));
+        canvas_->setOverlay(mode == core::ColorMode::ZoneFit           ? zoneFit_
+                                : mode == core::ColorMode::PlanPreview ? preview_
+                                                                       : nullptr);
         legend_->setMode(mode);
+    }
+
+    void MapPanel::setPlanOverlays(std::shared_ptr<const core::MapOverlay> zoneFit,
+                                   std::shared_ptr<const core::MapOverlay> preview) {
+        zoneFit_ = std::move(zoneFit);
+        preview_ = std::move(preview);
+        setColorMode(mode_); // Shows the new overlays, or leaves an overlay mode that lost its plan.
     }
 
     int MapPanel::colorModeCommand() const { return modeItems.at(static_cast<std::size_t>(modeIndex(mode_))).command; }

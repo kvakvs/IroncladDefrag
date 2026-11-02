@@ -92,8 +92,8 @@ this file records what is actually built and the decisions made along the way.
   generated from it (`commandTip()`: "Analyze the selected drive (F5)"), so there is no second list to
   drift. The TRIM button is drawn in a list cell, so the list's rows window shows its tooltip while the
   pointer is over it.
-- View commands are enabled once a map is shown; color modes whose features are still to come (zone
-  fit, plan preview) stay disabled (`MapPanel::commandAvailable()`). The toolbar color
+- View commands are enabled once a map is shown; the zone-fit and plan-preview color modes only while a plan is
+  under review (`MapPanel::commandAvailable()`). The toolbar color
   choice posts the same View command as the menu, so check marks and toolbar always agree.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
@@ -754,8 +754,8 @@ All analysis checks passed.
 
 - `core::ColorMode`: fragmentation (`OccupancyPalette`: free, contiguous, fragmented, unmovable), age
   (time since the owning file's last change, from under a day to three years or more), size (under
-  64 KB, then 16x steps to 4 GB or more) and file class (see Classification). Zone fit and plan preview come with the
-  planner.
+  64 KB, then 16x steps to 4 GB or more), file class (see Classification), zone fit and plan preview (see Plan
+  overlays).
 - Age and size are six buckets each, one byte per file (`fileColorValues()`) as `bucket * 51`; the pyramid averages them per bin like the fragmented share, and the
   palette shows the nearest bucket's color blended with free space by the used share. A cell of one
   file keeps its exact bucket, so deep-zoom colors equal the legend colors (tested).
@@ -1110,6 +1110,19 @@ All analysis checks passed.
   plan; the plans equal the single-threaded ones move for move (`PlanJobTest`). `makePlanRequest()` builds a request
   from a drive (MFT zone reserved, shadow-copy badge, ages from now); `makePlanJob()` wraps it as a job with a
   `PlanOutput`; `planSummary()` gives the Plan tab's figures.
+- Plan overlays (T098, `core/map/PlanColorMode`, `core/map/ZoneFitColorMode`): a `MapOverlay` is layers of merged
+  cluster runs with one color each, painted into every tile after the base palette and before the selection
+  (`paintOverlay()`, cells partly covered are colored too). Plan preview: the clusters a plan vacates (light orange)
+  under the clusters it fills (blue); zone fit: every zone target (green) under the movable runs of placed files that
+  lie outside their target (red). Both modes keep the fragmentation palette below. The GUI plan job
+  (`makePlanJob()`) classifies the files when the map carries no classes, keeps the shared `ZoneAssignment` in
+  `PlanOutcome` and builds both overlays for each level on the worker (`levelOverlays()`); `WorkflowBinding` plans the
+  shown map's snapshot (an aliasing pointer keeps the map alive), shows `planSummary()`, hands the chosen level's
+  overlays to `MapPanel::setPlanOverlays()`, switches to plan preview on Review, and clears them whenever the plan is
+  dropped (new analysis or plan, strategy change, drive change, execution). Without an analysed map (UI shell) the
+  fake plan stays. Fast plans carry the "run it again" note in the Plan tab's warnings. The Zones and Plan overlay
+  checkboxes of the Phase 1 toolbar are gone: the two color modes replace them. `PlanOverlayTest` checks at one pixel
+  per cluster that every pixel of every tile matches the plan's moves (and the misplaced data).
 - Scale (T093, `plan-bench`, 8 workers, validation off): 800 K files 7 s, 2 M files 11.6 s, 6 M files 42 s for all three
   levels; Maximum moves 1.02-1.05 x its lower bound. 30 TB / 20 M files: 199 s (Fast 131 s, Moderate 172 s, Maximum
   199 s, every plan valid, Maximum 1.039 x its bound), so the plan.md 6.5 target of 60 s is not met yet (T093b). Found on the way and fixed: one strongly connected component holding thousands of cycles broke one file per

@@ -51,6 +51,9 @@ namespace icd::core {
         // What renderTile() needs.
         [[nodiscard]] MapSource source() const;
 
+        // Per file: its class as the map was built with (empty without classes), so a plan can start from the map.
+        [[nodiscard]] std::span<const std::uint8_t> fileClasses() const { return fileClasses_; }
+
         // The time file ages are measured from (newestModification()).
         [[nodiscard]] std::int64_t ageReference() const { return ageReference_; }
 
@@ -72,6 +75,7 @@ namespace icd::core {
         std::vector<std::uint8_t> extentFlags_; // Per-record map flags.
         std::vector<std::uint8_t> extentValues_; // Per-record age and size values of the color modes.
         std::vector<std::uint8_t> extentKinds_; // Per-record class of the owner (class color mode).
+        std::vector<std::uint8_t> fileClasses_; // Per-file class (planning from the shown map).
         std::vector<std::uint32_t> recordBlocks_; // LCN block -> first extent record, for fine tiles.
         std::int64_t ageReference_ = 0; // What ages are measured from.
     };

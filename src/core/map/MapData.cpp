@@ -125,6 +125,7 @@ namespace icd::core {
                                  Executor& executor, const CancelToken& token) {
         extentValues_ = extentColorValues(snapshot_, values, executor, token);
         extentKinds_ = extentClasses(snapshot_, classes, executor, token);
+        fileClasses_.assign(classes.begin(), classes.end());
         extentFlags_ = extentMapFlags(snapshot_, executor, token);
         recordBlocks_ = recordBlocks(snapshot_, executor, token);
     }

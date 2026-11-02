@@ -123,9 +123,35 @@ namespace icd::services { namespace {
         job(context);
         const auto outcome = output->take();
         ASSERT_TRUE(outcome);
+        for (const LevelOverlays& o : outcome->overlays) { // The map's zone-fit and plan-preview modes need them.
+            ASSERT_TRUE(o.zoneFit && o.preview);
+            EXPECT_EQ(o.zoneFit->layers.size(), 2U);
+        }
+        EXPECT_FALSE(outcome->overlays[2].preview->layers.empty());
         EXPECT_EQ(sink.last.stage, "Planning");
         EXPECT_EQ(sink.last.done, 3U);
         EXPECT_FALSE(output->take());
+    }
+
+    TEST(PlanJob, JobClassifiesFilesWhenTheRequestHasNoClasses) {
+        const PlanRequest classified = request(75);
+        PlanRequest bare = classified;
+        bare.classes.clear(); // A map built without classes.
+        auto output = std::make_shared<PlanOutput>();
+        JobFunction job = makePlanJob(bare, output);
+        struct Sink : core::ProgressSink {
+            void report(const core::Progress&) override {}
+        } sink;
+        core::InlineExecutor serial;
+        JobContext context{.token = {}, .progress = sink, .executor = serial};
+        job(context);
+        const auto outcome = output->take();
+        ASSERT_TRUE(outcome);
+        const PlanOutcome direct = planLevels(classified, serial);
+        for (std::size_t level = 0; level < 3; ++level) {
+            SCOPED_TRACE(level);
+            expectSamePlans(outcome->levels[level].result.plan, direct.levels[level].result.plan);
+        }
     }
 
 }} // namespace icd::services

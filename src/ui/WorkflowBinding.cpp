@@ -6,9 +6,11 @@
 #include "core/format/Duration.h"
 #include "core/job/PauseGate.h"
 #include "core/log/Log.h"
+#include "core/map/MapData.h"
 #include "core/strategy/Presets.h"
 #include "services/AppServices.h"
 #include "services/job/FakeJob.h"
+#include "services/plan/PlanJob.h"
 #include "services/scan/AnalysisJob.h"
 #include "services/settings/Settings.h"
 #include "services/workflow/SyntheticAnalysis.h"
@@ -214,6 +216,8 @@ namespace icd::ui {
             bottom.strategy().reset(); // Quick always uses the default preset at the Fast level.
             break;
         case WorkflowAction::Review:
+            widgets_.map.setColorMode(core::ColorMode::PlanPreview);
+            frame_.GetMenuBar()->Check(widgets_.map.colorModeCommand(), true);
             bottom.showTab(BottomTab::Plan);
             bottom.setStatus(wxString::FromUTF8("Reviewing the plan for " + driveLabel() + " on the map"));
             break;
@@ -279,8 +283,7 @@ namespace icd::ui {
             bottom.summary().clear("Analysis running...");
         }
         if (job == WorkflowJob::Analyze || job == WorkflowJob::Plan) {
-            plan_.reset();
-            bottom.plan().clear(job == WorkflowJob::Plan ? "Building the plan..." : "Build a plan after the analysis.");
+            dropPlan(job == WorkflowJob::Plan ? "Building the plan..." : "Build a plan after the analysis.");
         }
         if (job == WorkflowJob::Execute) {
             bottom.clearLog();
@@ -305,6 +308,11 @@ namespace icd::ui {
             trimOutput_ = std::make_shared<services::TrimOutput>();
             return services::makeTrimJob(drive.root, trimOutput_);
         }
+        if (job == WorkflowJob::Plan) {
+            if (auto plan = makePlanJob(drive); plan) {
+                return plan;
+            }
+        }
         const StepText& text = textOf(job);
         services::FakeJobOptions options;
         options.chunks = text.chunksPerWorker * services_.caps().workerThreads;
@@ -320,6 +328,21 @@ namespace icd::ui {
             options.pause = pause_;
         }
         return services::makeFakeParallelJob(std::move(options));
+    }
+
+    services::JobFunction WorkflowBinding::makePlanJob(const core::DriveInfo& drive) {
+        const std::shared_ptr<const core::MapData> map = widgets_.map.currentMap();
+        if (map == nullptr) {
+            return {}; // The UI shell without an analysed map plans nothing real.
+        }
+        // The snapshot shares the map's lifetime, so the job keeps the analysed volume alive without a copy.
+        std::shared_ptr<const core::Snapshot> snapshot(map, &map->snapshot());
+        const auto classes = map->fileClasses();
+        planOutput_ = std::make_shared<services::PlanOutput>();
+        return services::makePlanJob(services::makePlanRequest(drive, std::move(snapshot),
+                                                               {classes.begin(), classes.end()},
+                                                               widgets_.bottom.strategy().script()),
+                                     planOutput_);
     }
 
     void WorkflowBinding::onJobProgress(wxThreadEvent& event) {
@@ -445,10 +468,24 @@ namespace icd::ui {
             return;
         }
         BottomPanel& bottom = widgets_.bottom;
-        const services::PlanSummary plan = services::fakePlan(drive, *analysis_, bottom.strategy().preset());
+        const auto outcome = planOutput_ ? planOutput_->take() : nullptr;
+        planOutput_.reset();
+        const services::PlanSummary plan = outcome ? services::planSummary(*outcome)
+                                                   : services::fakePlan(drive, *analysis_, bottom.strategy().preset());
         bottom.plan().show(plan, bottom.strategy().effort());
         bottom.showTab(BottomTab::Plan);
         plan_ = plan;
+        if (outcome) {
+            const auto& overlays = outcome->overlays.at(static_cast<std::size_t>(bottom.strategy().effort()));
+            widgets_.map.setPlanOverlays(overlays.zoneFit, overlays.preview);
+        }
+    }
+
+    void WorkflowBinding::dropPlan(const char* hint) {
+        plan_.reset();
+        planOutput_.reset();
+        widgets_.map.setPlanOverlays(nullptr, nullptr);
+        widgets_.bottom.plan().clear(hint);
     }
 
     bool WorkflowBinding::allowed(WorkflowAction action) const {
@@ -468,7 +505,7 @@ namespace icd::ui {
             drive.fragmentationPercent = plan_->levels.at(effort).fragmentationAfter;
         }
         bottom.summary().clear("The layout changed: analyze again to refresh these figures.");
-        bottom.plan().clear("The plan was executed. Analyze again before building a new one.");
+        dropPlan("The plan was executed. Analyze again before building a new one.");
         bottom.showTab(BottomTab::Log);
     }
 
@@ -528,10 +565,9 @@ namespace icd::ui {
                    : std::nullopt);
         core::logging::info("drive selected", {{"root", root}});
         analysis_.reset();
-        plan_.reset();
+        dropPlan("Build a plan after the analysis.");
         BottomPanel& bottom = widgets_.bottom;
         bottom.summary().clear(summaryHint(kind));
-        bottom.plan().clear("Build a plan after the analysis.");
         restoreStrategy();
         refresh();
     }
@@ -565,8 +601,7 @@ namespace icd::ui {
         const bool hadPlan = workflow_.state() == WorkflowState::Reviewing;
         workflow_.apply(WorkflowAction::ChooseStrategy);
         if (hadPlan) {
-            plan_.reset();
-            widgets_.bottom.plan().clear("The strategy changed: build the plan again.");
+            dropPlan("The strategy changed: build the plan again.");
             widgets_.bottom.setStatus("Strategy changed; the previous plan was dropped");
         }
         refresh();
@@ -602,7 +637,7 @@ namespace icd::ui {
 
     bool WorkflowBinding::commandEnabled(int id) const {
         if (isMapCommand(id)) {
-            return widgets_.map.hasMap() && MapPanel::commandAvailable(id);
+            return widgets_.map.hasMap() && widgets_.map.commandAvailable(id);
         }
         const auto action = actionFor(id, workflow_.state());
         return action.has_value() && allowed(*action);

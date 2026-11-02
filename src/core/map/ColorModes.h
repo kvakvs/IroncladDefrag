@@ -19,12 +19,14 @@
 namespace icd::core {
 
     // What the map colors by (plan.md 7.4). Each mode is a palette over the same pyramid, so switching modes
-    // renders tiles again but never rebuilds map data. Zone fit and plan preview arrive with the planner.
+    // renders tiles again but never rebuilds map data. Zone fit and plan preview add an overlay from the plan.
     enum class ColorMode : std::uint8_t {
         Fragmentation, // Free, contiguous, fragmented and unmovable data.
         Age, // Time since the last change of the owning file, newest to oldest.
         Size, // Size of the owning file, smallest to largest.
         FileClass, // Class of the owning file (plan.md 8.2), in the built-in catalog's colors.
+        ZoneFit, // Zone targets and misplaced data over the fragmentation colors (an overlay, PlanColorMode.h).
+        PlanPreview, // A plan's sources (hollow) and destinations (solid) over the fragmentation colors (an overlay).
     };
 
     // Buckets of the age and size modes. Per-file values are bucket * bucketStep, so a bin holding one file

@@ -100,6 +100,8 @@ namespace icd::core { namespace {
         case ColorMode::FileClass:
             return std::size_t{smallClasses()[file]} + 1;
         case ColorMode::Fragmentation:
+        case ColorMode::ZoneFit:
+        case ColorMode::PlanPreview:
             break;
         }
         if ((record.flags() & ExtentUnmovable) != 0 || snapshot.files.has(file, FileUnmovable)) {
