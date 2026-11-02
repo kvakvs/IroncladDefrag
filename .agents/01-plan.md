@@ -54,13 +54,17 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)
 
-### T104 - CLI execute and integration suite
+### T104b - Phase 7 exit run on the test bed (elevated)
 
-- Depends: T103, T096
-- Owns: `src/cli/commands/Execute.*`, `tests/integration/execute/*`
-- Do: `icd-cli execute`; per-scenario test: analyse, plan, execute, hash check, `chkdsk`, predicted
-  layout = rescan; record NTFS allocation behaviour into the churn gap (§8.3).
-- Done when: every scenario passes. **Phase 7 exit check.**
+- Depends: T104
+- Owns: results in `.codex/arch.md` (Execution), the churn-gap decision in `plan.md` 8.3 and the default gap in
+  `data/strategies/development.json` if it changes
+- Do: in an elevated shell, `test.bat Release slow` (`ClusterMove.MovesFilesOnTestVolumes` needs a writable ICD-TEST
+  volume mounted) and `pwsh -File tests/integration/execute/check-execute.ps1 -Scenarios all -SizeGB 4`; fix what they
+  find (unverified on NTFS so far: whole-unit calls for compressed files, the access-denied-as-taken bitmap probe, named
+  streams and directory indexes through the executor, the snapshot saved after execution against a rescan). Record the
+  churn-gap measurement; if NTFS does not allocate new files into the gap, shrink the default to 1% (plan.md 8.3).
+- Done when: both pass, the results and the churn-gap decision are recorded. **Phase 7 exit check.**
 
 ---
 
@@ -68,7 +72,7 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ### T110 - Execute controls and Progress tab
 
-- Depends: T104, T098
+- Depends: T104b, T098
 - Owns: `src/ui/tabs/ProgressTab.*`, `src/ui/dialogs/ConfirmExecuteDialog.*`
 - Do: Execute / Pause / Cancel; confirmation with plan summary; stage, throughput, worker
   utilisation, ETA, current file, active resource caps.

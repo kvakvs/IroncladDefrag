@@ -1,5 +1,6 @@
 #include "cli/commands/CliCommon.h"
 
+#include "core/strategy/Presets.h"
 #include "platform/win/TextConvert.h"
 #include "platform/win/Volumes.h"
 #include "services/exec/ThreadPool.h"
@@ -66,6 +67,32 @@ namespace icd::cli {
             return std::make_unique<core::InlineExecutor>();
         }
         return std::make_unique<services::ThreadPool>(threads);
+    }
+
+    std::optional<core::strategy::Effort> effortNamed(std::wstring_view name) {
+        if (name == L"fast") {
+            return core::strategy::Effort::Fast;
+        }
+        if (name == L"moderate") {
+            return core::strategy::Effort::Moderate;
+        }
+        if (name == L"max" || name == L"maximum") {
+            return core::strategy::Effort::Maximum;
+        }
+        return std::nullopt;
+    }
+
+    const core::strategy::ZoneScript* presetNamed(const std::string& id) {
+        const auto index = core::strategy::builtinPresetIndex(id);
+        return index ? &core::strategy::builtinPresets()[*index] : nullptr;
+    }
+
+    std::string presetIds() {
+        std::string ids;
+        for (const auto& p : core::strategy::builtinPresets()) {
+            ids += (ids.empty() ? "" : ", ") + p.id;
+        }
+        return ids;
     }
 
     std::optional<services::ScannerKind> scannerNamed(std::wstring_view name) {

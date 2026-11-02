@@ -7,6 +7,7 @@
 #include "services/snapshot/SnapshotStore.h"
 
 #include <format>
+#include <functional>
 #include <optional>
 
 namespace icd::services {
@@ -44,7 +45,49 @@ namespace icd::services {
             return "the saved snapshot now includes the moves";
         }
 
+        // Two sets of hooks to call one after the other.
+        struct HookPair {
+            ExecutionHooks first; // Called first (the log).
+            ExecutionHooks then; // Called next (observers).
+        };
+
+        // A callback that calls the pair's two callbacks in order, each only when it is set.
+        template <typename... Args>
+        std::function<void(Args...)> inOrder(std::function<void(Args...)> first, std::function<void(Args...)> then) {
+            return [first = std::move(first), then = std::move(then)](Args... args) {
+                if (first) {
+                    first(args...);
+                }
+                if (then) {
+                    then(args...);
+                }
+            };
+        }
+
+        // Hooks that call the pair's first, then its second, for each callback either has.
+        ExecutionHooks chained(const HookPair& pair) {
+            ExecutionHooks out;
+            out.onBegin = inOrder(pair.first.onBegin, pair.then.onBegin);
+            out.onRecord = inOrder(pair.first.onRecord, pair.then.onRecord);
+            out.onEvent = inOrder(pair.first.onEvent, pair.then.onEvent);
+            return out;
+        }
+
     } // namespace
+
+    core::execute::ExecutionPlan executionPlanFor(const PlanOutcome& outcome, const PlanRequest& request,
+                                                  const core::DriveInfo& drive, core::strategy::Effort level) {
+        core::execute::PlanIdentity id;
+        id.volumeName = drive.layout.volumeName;
+        id.volumeSerial = drive.layout.ntfs ? drive.layout.ntfs->serialNumber : 0;
+        id.geometry = request.snapshot->geometry;
+        id.usn = request.snapshot->usn;
+        id.madeAt = request.now;
+        id.strategy = request.script.id;
+        id.effort = level;
+        return core::execute::executionPlanOf(outcome.levels.at(static_cast<std::size_t>(level)).result,
+                                              *request.snapshot, std::move(id), request.reserved);
+    }
 
     ExecutionRequest freshExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan) {
         ExecutionRequest r;
@@ -73,7 +116,8 @@ namespace icd::services {
         for (const core::execute::DroppedMove& d : replay.dropped) {
             log.dropped(d);
         }
-        ExecutionControls c{controls.token, controls.pause, controls.progress, log.hooks()};
+        ExecutionControls c{controls.token, controls.pause, controls.progress,
+                            chained({log.hooks(), controls.observers})};
         ExecutionReport report = executePlan(plan, replay.kept, device, controls.options, c);
         log.end(report);
         return report;
@@ -96,7 +140,7 @@ namespace icd::services {
         storeOf(request).remove(request.drive.layout.volumeName);
         VolumeMover device(platform::fromUtf8(request.drive.layout.volumeName));
         out.report = executeLogged(request.plan, out.revalidation.replay, device, *log,
-                                   {request.options, context.token, pause, &context.progress});
+                                   {request.options, context.token, pause, &context.progress, request.observers});
         out.snapshotNote = saveAfter(request, out, context.executor);
         const auto& t = out.report.totals;
         core::logging::info("execution finished",

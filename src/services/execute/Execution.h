@@ -7,6 +7,7 @@
 #include "services/execute/Executor.h"
 #include "services/execute/Revalidate.h"
 #include "services/job/JobRunner.h"
+#include "services/plan/PlanJob.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -26,6 +27,7 @@ namespace icd::services {
         std::filesystem::path log; // The execution log: created for a fresh run, appended to for a resume.
         bool resume = false; // Append to `log` instead of starting it.
         std::filesystem::path snapshotDirectory; // Saved snapshots; empty: SnapshotStore::defaultDirectory().
+        ExecutionHooks observers; // Called after the log's own hooks (scripted pause, cancel and conflicts in tests).
     };
 
     // What an execution did.
@@ -36,6 +38,12 @@ namespace icd::services {
         bool snapshotSaved = false; // The saved snapshot now describes the volume after the moves.
         std::string snapshotNote; // What happened to the saved snapshot, in words.
     };
+
+    // The execution plan of one planned level of a request for a drive: identity from the drive and the snapshot
+    // (volume GUID name, NTFS serial, geometry, USN cursor, planning time, strategy, level), the MFT zone reserved.
+    [[nodiscard]] core::execute::ExecutionPlan executionPlanFor(const PlanOutcome& outcome, const PlanRequest& request,
+                                                                const core::DriveInfo& drive,
+                                                                core::strategy::Effort level);
 
     // A request for a whole plan, logged to a new file in the default log directory.
     [[nodiscard]] ExecutionRequest freshExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan);
@@ -56,6 +64,7 @@ namespace icd::services {
         core::CancelToken token; // Cancel.
         core::PauseGate* pause = nullptr; // Pause, if any.
         core::ProgressSink* progress = nullptr; // Progress, if any.
+        ExecutionHooks observers; // Called after the log's own hooks.
     };
 
     // The middle of runExecution() on a given device, for tests: log the drops, execute the kept moves, close the log,

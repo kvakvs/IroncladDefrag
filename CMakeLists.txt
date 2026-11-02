@@ -293,6 +293,8 @@ add_library(icd_services STATIC
     src/services/drives/SystemDriveProvider.h
     src/services/exec/ThreadPool.cpp
     src/services/exec/ThreadPool.h
+    src/services/execute/ExecuteReport.cpp
+    src/services/execute/ExecuteReport.h
     src/services/execute/ExecutedSnapshot.cpp
     src/services/execute/ExecutedSnapshot.h
     src/services/execute/Execution.cpp
@@ -440,6 +442,8 @@ add_executable(icd-cli
     src/cli/commands/CliCommon.h
     src/cli/commands/CompareScanners.cpp
     src/cli/commands/CompareScanners.h
+    src/cli/commands/Execute.cpp
+    src/cli/commands/Execute.h
     src/cli/commands/Plan.cpp
     src/cli/commands/Plan.h
     src/cli/main.cpp

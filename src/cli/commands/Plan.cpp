@@ -9,6 +9,8 @@
 #include "platform/win/Console.h"
 #include "platform/win/TextConvert.h"
 #include "services/AppServices.h"
+#include "services/execute/Execution.h"
+#include "services/execute/ExecutionLog.h"
 #include "services/plan/PlanJob.h"
 #include "services/plan/PlanReport.h"
 #include "services/scan/AnalysisJob.h"
@@ -16,6 +18,7 @@
 #include <algorithm>
 #include <cstdio>
 #include <cwchar>
+#include <filesystem>
 #include <memory>
 #include <optional>
 #include <string>
@@ -33,21 +36,8 @@ namespace icd::cli {
             bool moves = false; // Every move.
             std::size_t threads = 0; // Own pool of N workers; 0 uses the app's pool.
             std::uint32_t synthetic = 0; // Files of a synthetic volume instead of a real one; 0: real.
+            std::wstring save; // Where to save the chosen level's plan for icd-cli execute --plan; empty: nowhere.
         };
-
-        // The level named on the command line.
-        std::optional<core::strategy::Effort> levelNamed(std::wstring_view name) {
-            if (name == L"fast") {
-                return core::strategy::Effort::Fast;
-            }
-            if (name == L"moderate") {
-                return core::strategy::Effort::Moderate;
-            }
-            if (name == L"max" || name == L"maximum") {
-                return core::strategy::Effort::Maximum;
-            }
-            return std::nullopt;
-        }
 
         // An option and its value on the command line.
         struct OptionValue {
@@ -65,8 +55,12 @@ namespace icd::cli {
                 return true;
             }
             if (option == L"--level") {
-                out.level = levelNamed(value);
+                out.level = effortNamed(value);
                 return out.level.has_value();
+            }
+            if (option == L"--save") {
+                out.save = value;
+                return true;
             }
             if (option == L"--threads") {
                 out.threads = static_cast<std::size_t>(number);
@@ -91,7 +85,14 @@ namespace icd::cli {
 
         // Whether an option takes a value.
         bool takesValue(std::wstring_view arg) {
-            return arg == L"--strategy" || arg == L"--level" || arg == L"--threads" || arg == L"--synthetic";
+            return arg == L"--strategy" || arg == L"--level" || arg == L"--threads" || arg == L"--synthetic" ||
+                arg == L"--save";
+        }
+
+        // Whether parsed arguments name something to plan, and --save comes with --level for a real volume.
+        bool complete(const PlanArgs& out) {
+            const bool saveable = out.save.empty() || (out.level && out.synthetic == 0);
+            return (!out.volume.empty() || out.synthetic != 0) && saveable;
         }
 
         // Reads the arguments; nullopt on unknown options or a missing volume.
@@ -106,13 +107,7 @@ namespace icd::cli {
                 }
                 i += withValue ? 1 : 0;
             }
-            return out.volume.empty() && out.synthetic == 0 ? std::nullopt : std::optional(out);
-        }
-
-        // The built-in preset named by the arguments, or null.
-        const core::strategy::ZoneScript* presetNamed(const std::string& id) {
-            const auto index = core::strategy::builtinPresetIndex(id);
-            return index ? &core::strategy::builtinPresets()[*index] : nullptr;
+            return complete(out) ? std::optional(out) : std::nullopt;
         }
 
         // A request for a seeded synthetic volume.
@@ -151,6 +146,14 @@ namespace icd::cli {
             return valid ? 0 : 1;
         }
 
+        // Saves the chosen level for icd-cli execute --plan (the plan part of an execution log).
+        void save(const PlanArgs& args, const services::PlanOutcome& outcome, const services::PlanRequest& request,
+                  const core::DriveInfo& drive) {
+            const services::ExecutionLogWriter file(std::filesystem::path(args.save),
+                                                    services::executionPlanFor(outcome, request, drive, *args.level));
+            std::fprintf(stderr, "plan saved to %ls\n", args.save.c_str());
+        }
+
         // Plans and prints; throws on failure.
         int plan(const PlanArgs& args, const core::strategy::ZoneScript& script) {
             services::AppServices app(args.synthetic != 0 ? services::DriveSource::Fake
@@ -165,11 +168,12 @@ namespace icd::cli {
                 ~EndLine() { ConsoleProgress::finish(); }
             } endLine;
             std::optional<services::PlanRequest> request;
+            std::optional<core::DriveInfo> drive;
             if (args.synthetic != 0) {
                 request = syntheticRequest(args.synthetic, script, executor);
             }
             else {
-                const auto drive = findDrive(app, normalizeRoot(args.volume));
+                drive = findDrive(app, normalizeRoot(args.volume));
                 if (const char* why = refusal(drive)) {
                     std::fprintf(stderr, "icd-cli plan: %s\n", why);
                     return 1;
@@ -178,6 +182,9 @@ namespace icd::cli {
             }
             const services::PlanOutcome outcome = services::planLevels(*request, executor, cancel.token(), &progress);
             ConsoleProgress::finish();
+            if (!args.save.empty()) {
+                save(args, outcome, *request, *drive);
+            }
             return print(outcome, *request, args);
         }
 
@@ -185,7 +192,7 @@ namespace icd::cli {
 
     const char* planUsage() {
         return "icd-cli plan <volume> [--strategy ID] [--level fast|moderate|max] [--json] [--moves] [--threads N] "
-               "[--synthetic FILES]";
+               "[--synthetic FILES] [--save FILE (with --level)]";
     }
 
     int runPlan(std::span<const std::wstring_view> args) {
@@ -196,12 +203,8 @@ namespace icd::cli {
         }
         const core::strategy::ZoneScript* script = presetNamed(parsed->strategy);
         if (script == nullptr) {
-            std::string ids;
-            for (const auto& p : core::strategy::builtinPresets()) {
-                ids += (ids.empty() ? "" : ", ") + p.id;
-            }
             std::fprintf(stderr, "icd-cli plan: unknown strategy \"%s\" (use %s)\n", parsed->strategy.c_str(),
-                         ids.c_str());
+                         presetIds().c_str());
             return 2;
         }
         try {

@@ -3,6 +3,7 @@
 #include "core/exec/Executor.h"
 #include "core/job/Progress.h"
 #include "core/model/DriveInfo.h"
+#include "core/strategy/ZoneScript.h"
 #include "services/AppServices.h"
 #include "services/scan/ScanStats.h"
 
@@ -36,6 +37,15 @@ namespace icd::cli {
 
     // The executor --threads asks for: none for 0 (use the app's pool), inline for 1, else an own pool.
     [[nodiscard]] std::unique_ptr<core::Executor> ownExecutor(std::size_t threads);
+
+    // The effort level named "fast", "moderate", "max" or "maximum", or nullopt.
+    [[nodiscard]] std::optional<core::strategy::Effort> effortNamed(std::wstring_view name);
+
+    // The built-in preset with this id, or null.
+    [[nodiscard]] const core::strategy::ZoneScript* presetNamed(const std::string& id);
+
+    // The ids of the built-in presets, comma separated, for messages.
+    [[nodiscard]] std::string presetIds();
 
     // The scanner named "api" or "mft", or nullopt.
     [[nodiscard]] std::optional<services::ScannerKind> scannerNamed(std::wstring_view name);

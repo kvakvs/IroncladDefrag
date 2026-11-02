@@ -322,3 +322,11 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   snapshot, execute on the volume, save the snapshot after; `freshExecution()`, `resumedExecution()`), one-line mode in
   `core/format/Json`. `ExecutionLogTest`: a crash mid-move (simulated) resumes from the log and completes the plan; the
   real kill-and-resume run is part of T104's integration script.
+- T104 CLI execute and integration suite - `cli/commands/Execute.*` (`icd-cli execute`: plan now, `--plan FILE`,
+  `--resume [--log FILE]`; chunk, priority, throughput, age and prefetch options; `--check-rescan`; test hooks
+  `--pause-after`, `--cancel-after`, `--take-destination` for a real stale-bitmap conflict), `icd-cli plan --save FILE`,
+  `services/execute/ExecuteReport.*` (`checkAgainstRescan()`: moved files where predicted after a full rescan, saved
+  snapshot vs rescan; JSON and text reports with drops, problems, zones), shared CLI helpers (`effortNamed()`,
+  `presetNamed()`), `tests/integration/execute/check-execute.ps1` (per scenario: changes between plan and execute,
+  main run with a stale bitmap, pause/cancel/resume, kill/resume, churn-gap measurement on `dev`; hashes, chkdsk and
+  rescan after each run), `ExecuteReportTest`. Not run here (session not elevated): the exit run is T104b.

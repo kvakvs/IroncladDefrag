@@ -444,6 +444,8 @@ this file records what is actually built and the decisions made along the way.
   it, extra, skipped and deferred bytes, metrics before and after, time estimate, hot spots, notes, validity; `--moves`
   adds each move's file, reason, zone, sources and destinations as `moveList`). `--synthetic N` plans a seeded synthetic
   volume instead (no administrator rights), for scripts. Exit code 1 when a plan fails validation.
+- `--save FILE` (with `--level`, T104) writes that level as the plan part of an execution log (`executionPlanFor()`), for
+  `icd-cli execute --plan FILE`.
 - `PlanReportTest` checks the CLI's report equals the one made from the GUI job's outcome for the same snapshot (the
   wall-clock planning time left out).
 
@@ -1278,6 +1280,28 @@ All analysis checks passed.
   dies in the middle of a move (`SimulatedCrash` from the device hook) is resumed from its log and the volume and
   completes the plan, the interrupted move being the only one partly done; the crashed log is found as unfinished and
   the completed one is not.
+- `icd-cli execute` (T104, `cli/commands/Execute`): plans now (analysis, the three levels, the chosen one must
+  validate), or runs a plan saved by `icd-cli plan --save FILE` (the plan part of an execution log), or resumes the
+  newest unfinished log of the volume (`--resume`, or `--resume --log FILE`); then `runExecution()`. Options for chunk
+  size, low priority, a throughput limit, the plan age and prefetch; `--check-rescan` scans the volume in full
+  afterwards and compares every moved file with its prediction (the planned destination when its last move completed
+  there, else where the executor read it back) and the saved snapshot with the rescan (`services/execute/ExecuteReport`,
+  which also writes the JSON and text reports: plan, revalidation with every drop, totals with every move that did not
+  complete, snapshot note, zones with their gaps, records with `--moves`). Test hooks for the integration script:
+  `--pause-after N --pause-ms M`, `--cancel-after N`, and `--take-destination MOVE`, which writes a probe file and moves
+  its first cluster onto that move's first destination cluster just before it starts (a real stale-bitmap conflict made
+  by another file). Exit codes: 0 done, 1 refused or failed, 2 bad arguments, 3 cancelled.
+- `tests/integration/execute/check-execute.ps1` (Phase 7 exit; elevated, Release): per scenario on a fresh volume with a
+  USN journal: (1) `plan --save` at Moderate, one planned file deleted and one grown by 2 MB, `execute --plan` must drop
+  them as file-gone and file-changed; (2) the main run at Maximum with the scenario's preset and `--take-destination 3`
+  (the move must be replaced and verified); (3) a directory-clustering run paused after 3 moves and cancelled after 12,
+  then `--resume`; (4) a size-placement run slowed to 8 MB/s and killed with `Stop-Process` after 15 outcome lines, then
+  `--resume`; (5) on `dev`, 200 new 256 KB files after the development layout and the share of their clusters inside the
+  churn gap. After every execution: `--check-rescan` (no moved file elsewhere than predicted), file hashes against the
+  manifest taken before it and `chkdsk /scan`.
+- Not run yet: this session was not elevated (and Windows sudo is off), so neither the slow move tests nor the script
+  have run on a real volume. Until they have (T104b), the compressed-file unit rule, the access-denied-as-taken probe
+  and NTFS allocation into the churn gap (plan.md 8.3) are unverified on NTFS itself.
 
 ## Parallel execution
 
