@@ -1,0 +1,52 @@
+{
+  "version": 1,
+  "id": "size-placement",
+  "name": "Size-based placement",
+  "description": "Plan.md 8.8: small files first (many reads, little data), then medium ones, large files packed against the end.",
+  "zones": [
+    {
+      "name": "Directories",
+      "select": {
+        "classes": [
+          "directories"
+        ]
+      },
+      "action": "sort",
+      "anchor": "front",
+      "order": "directory+name"
+    },
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Small files",
+      "select": {
+        "maxSize": "1 MB"
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Medium files",
+      "select": {
+        "minSize": "1 MB",
+        "maxSize": "256 MB"
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Large files",
+      "select": {
+        "minSize": "256 MB"
+      },
+      "action": "pack-to-back",
+      "anchor": "back"
+    }
+  ]
+}

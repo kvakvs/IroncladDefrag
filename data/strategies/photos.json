@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "id": "photos",
+  "name": "Photo storage",
+  "description": "Plan.md 8.5: catalogs and thumbnail caches in the fast zone, photos sorted by folder and name so a folder reads as one run and each RAW file sits next to its sidecar, packed without holes and followed by a small gap for new imports.",
+  "zones": [
+    { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
+      "order": "directory+name" },
+    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Catalogs", "select": { "classes": ["catalogs"] }, "action": "fast-fill" },
+    { "name": "Photos", "select": { "classes": ["photos"] }, "action": "sort", "order": "directory+name",
+      "gapAfter": { "freePercent": 2 } },
+    { "name": "Rest", "action": "fast-fill" }
+  ]
+}

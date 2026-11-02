@@ -1,0 +1,44 @@
+{
+  "version": 1,
+  "id": "cold-zone",
+  "name": "Cold zone at the back",
+  "description": "Plan.md 8.8: files unchanged for a year or more packed against the end of the volume (slow inner tracks); everything else packed at the front.",
+  "zones": [
+    {
+      "name": "Directories",
+      "select": {
+        "classes": [
+          "directories"
+        ]
+      },
+      "action": "sort",
+      "anchor": "front",
+      "order": "directory+name"
+    },
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Warm files",
+      "select": {
+        "maxAgeDays": 365
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Cold files",
+      "select": {
+        "minAgeDays": 365
+      },
+      "action": "pack-to-back",
+      "anchor": "back"
+    }
+  ]
+}

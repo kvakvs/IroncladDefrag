@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "id": "read-ahead",
+  "name": "Read-ahead packing",
+  "description": "Plan.md 8.8: files sorted by folder and name without holes, so reading a folder streams through the drive's read-ahead cache.",
+  "zones": [
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Everything",
+      "action": "sort",
+      "anchor": "front",
+      "order": "directory+name",
+      "fragmentOk": "whole"
+    }
+  ]
+}

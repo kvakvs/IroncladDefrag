@@ -8,6 +8,7 @@ changes (see `AGENTS.md`).
 | Path | What it is |
 | --- | --- |
 | `plan.md` | Development plan (phases, design decisions). |
+| `data/strategies/*.json` | Built-in strategy presets as zone scripts (plan.md 8.3-8.8), embedded into `icd_core` (`ICD_PRESETS` in CMakeLists.txt). |
 | `data/classes.json` | Built-in file classes and classification rules (plan.md 8.2-8.6), embedded into `icd_core`. |
 | `cmake/EmbedText.cmake` | Script mode: writes a C++ source returning a text file as a char array (`builtinCatalogJson()`). |
 | `.agents/01-plan.md`, `.agents/00-finished.md` | Open tasks and the log of finished ones. |
@@ -79,6 +80,7 @@ changes (see `AGENTS.md`).
 | `src/core/planner/ZoneAssignment.*` | `assignZones()`: per file the first matching zone, its `FileRole` (Fixed, InPlace, Defragment, Placed) and movable clusters; per-zone need; `fixedFile()`. |
 | `src/core/planner/SortZone.*` | `SortKeys` (per-order keys, directory+name ranks), `weightedLis()`, `SortedZone`, `sortsAt()`, `applySortBounds()` (anchors and the sort part of the lower bound, tolerance), `sortZone()` (movers between anchors, anchors given up as extra). |
 | `src/core/planner/TargetLayout.*` | `AvailableAxis` (usable clusters numbered around obstacles), `layoutObstacles()`, `gapClusters()`, `resolveLayout()`: placed zones as LCN runs (forward from the front, back zones at the end), gaps, slack, notes; `LayoutInputs` (reserved runs, slack before each forward zone). |
+| `src/core/strategy/Presets.*` | `builtinPresets()` (14 zone scripts parsed once, default first), `builtinPresetIndex()`, `builtinPresetJson()` (generated sources). |
 | `src/core/strategy/ZoneScript.*` | Zone scripts (plan.md 8.1): `ZoneScript`, `Zone` (selector, anchor, order and per-level overrides, action, `fragmentOk`, `GapSpec`), `Effort`, `validateScript()` (issues with their zone), `parseZoneScript()` (strict, `ZoneScriptError` with every issue), `zoneScriptJson()` (round trip, defaults left out), enum keys. |
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
 | `src/core/format/Json.*` | `JsonWriter` (streaming, indented, RFC 8259 escaping), `jsonQuote()`. |
@@ -270,6 +272,7 @@ changes (see `AGENTS.md`).
 | `tests/core/PackToBackTest.cpp` | Packed videos never move at any level, holes in the back zone closed, oldest at the end at Maximum (plans validate). |
 | `tests/core/PlannerTestUtil.h` | Planner test helpers: volumes drawn as pictures (one character per cluster), zones and scripts, assignment. |
 | `tests/core/TargetLayoutTest.cpp` | Axis vs brute force, zone selection and roles, layouts with obstacles everywhere, full volumes, empty zones, gaps, reserved runs, slack placement. |
+| `tests/core/presets/PresetsTest.cpp` | Every preset parses, validates and round-trips; plan.md details of video and development; every preset at every level on random synthetic volumes validates. |
 | `tests/core/ZoneScriptTest.cpp` | Zone script round trip with every field, defaults, per-level order, size specs, read errors per zone and key, every validation rule. |
 | `tests/core/JsonReaderTest.cpp` | Values, escapes and surrogates, writer round trip, malformed input, error positions, kind checks. |
 | `tests/core/RuleEngineTest.cpp` | Globs (anchored, `**`, `?`, case), rule order, size/age/flag/churn conditions, overrides (deepest, directories untouched), bad rule sets, snapshot classes = path classes on a dev tree and a synthetic volume, any executor. |

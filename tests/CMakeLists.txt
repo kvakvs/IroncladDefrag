@@ -42,6 +42,7 @@ add_executable(icd_tests
     core/PackToBackTest.cpp
     core/PlannerTestUtil.h
     core/presets/PresetsTest.cpp
+    core/presets/PresetsTest.cpp
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
     core/RuleEngineTest.cpp

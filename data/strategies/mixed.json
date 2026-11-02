@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "id": "mixed",
+  "name": "Mixed data drive",
+  "description": "The default (plan.md 8.7): directories and frequently read files first, a churn gap for new and temporary files, photos sorted by folder, archives and images in the middle, video packed against the end. Unknown files are only defragmented where they are.",
+  "zones": [
+    { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
+      "order": "directory+name" },
+    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Hot files", "select": { "classes": ["source", "repository", "dependencies", "catalogs"] },
+      "action": "sort", "order": "directory+name",
+      "gapAfter": { "volumePercent": 1, "classMultiple": 2, "classes": ["build", "temp"] } },
+    { "name": "Photos", "select": { "classes": ["photos"] }, "action": "sort", "order": "directory+name",
+      "gapAfter": { "freePercent": 2 } },
+    { "name": "Archives and images", "select": { "classes": ["archives", "disc-images", "vm-disks", "backups"] },
+      "action": "fast-fill" },
+    { "name": "Unknown", "select": { "classes": ["unknown"] }, "action": "defragment-only" },
+    { "name": "Video", "select": { "classes": ["video"] }, "action": "pack-to-back", "anchor": "back",
+      "orderByLevel": { "maximum": "age" } }
+  ]
+}

@@ -1090,8 +1090,8 @@ All analysis checks passed.
   from a drive (MFT zone reserved, shadow-copy badge, ages from now); `makePlanJob()` wraps it as a job with a
   `PlanOutput`; `planSummary()` gives the Plan tab's figures.
 - Scale (T093, `plan-bench`, 8 workers, validation off): 800 K files 7 s, 2 M files 11.6 s, 6 M files 42 s for all three
-  levels; Maximum moves 1.02-1.05 x its lower bound. The 30 TB / 20 M-file target of plan.md 6.5 (60 s) is not met yet
-  (T093b). Found on the way and fixed: one strongly connected component holding thousands of cycles broke one file per
+  levels; Maximum moves 1.02-1.05 x its lower bound. 30 TB / 20 M files: 199 s (Fast 131 s, Moderate 172 s, Maximum
+  199 s, every plan valid, Maximum 1.039 x its bound), so the plan.md 6.5 target of 60 s is not met yet (T093b). Found on the way and fixed: one strongly connected component holding thousands of cycles broke one file per
   round (now every move with an edge back into the Tarjan walk is a candidate: the smallest quarter is parked per round,
   all are redirected at once below Maximum); leftover placement searched every zone piece per file (fast-fill now works
   on its own slice and searches the region's span once; room finding walks holes lazily); pools are built in one sorted
@@ -1100,6 +1100,15 @@ All analysis checks passed.
 - Placement keeps re-planning (up to eight rounds) until no file fails for lack of space, and Maximum holds back a
   scratch reserve (the largest free run outside every zone, 1% of the volume or the largest must-move file) before
   overflow and defragment-only files take free space, so parking has room.
+
+- Presets (T094, `core/strategy/Presets`, `data/strategies/*.json`): 14 built-in zone scripts embedded at build time (one
+  generated source each through `cmake/EmbedText.cmake`) and parsed once against the built-in catalog: the storage
+  presets of plan.md 8.3-8.7 (mixed first as the default, development with the churn gap, archive, photos, video) and the
+  general strategies of 8.8 (defragment only, hot zone, cold zone, directory clustering, type segregation, size placement,
+  access-time sort, free-space consolidation, read-ahead packing). Ids are stable settings keys; the six ids of the Phase 1
+  picker stay. Property tests plan every preset at every level on six random synthetic volumes (4 KB and 16 KB clusters,
+  40-85% full, every free pattern, an MFT zone): every plan validates and never leaves more fragmented files; below
+  two-thirds full Moderate never moves more than Maximum (above, Maximum can leave cycles it cannot park, plan.md 9.3.9).
 
 ## Parallel execution
 

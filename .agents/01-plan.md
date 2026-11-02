@@ -29,16 +29,10 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Depends: T093
 - Owns: performance of `src/core/planner/*` and `src/services/plan/PlanJob.*`
 - Do: bring `plan-bench` (30 TB / 20 M files, 8 workers) to 60 s or less for all three levels (plan.md 6.5), at least
-  5x faster than on one worker. Measured after T093: 6 M files 42 s, slightly superlinear; Fast's single huge hot spot
-  and the serial parts of ordering and metrics dominate.
+  5x faster than on one worker. Measured after T093: 6 M files 42 s; 30 TB / 20 M files 199 s (Fast 131 s, Moderate
+  172 s, Maximum 199 s), slightly superlinear; Fast's single huge hot spot and the serial parts of ordering and metrics
+  dominate.
 - Done when: `plan-bench --threads 8` reports 60 s or less and `--compare 1` identical plans.
-
-### T094 - Strategy presets
-
-- Depends: T080, T071
-- Owns: `data/strategies/*.json`, `tests/core/presets/*`
-- Do: dev, archive/images, photos, video, mixed and the general strategies (§8.3-8.8) as zone scripts.
-- Done when: property tests on random synthetic volumes pass for every preset at every level.
 
 ### T095 - Planner optimality checks
 

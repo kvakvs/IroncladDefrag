@@ -1,0 +1,34 @@
+{
+  "version": 1,
+  "id": "directory-clustering",
+  "name": "Directory clustering",
+  "description": "Plan.md 8.8: every file sorted by folder and name, so the files of one folder sit together.",
+  "zones": [
+    {
+      "name": "Directories",
+      "select": {
+        "classes": [
+          "directories"
+        ]
+      },
+      "action": "sort",
+      "anchor": "front",
+      "order": "directory+name"
+    },
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Files",
+      "action": "sort",
+      "order": "directory+name"
+    }
+  ]
+}

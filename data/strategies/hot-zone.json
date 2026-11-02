@@ -1,0 +1,43 @@
+{
+  "version": 1,
+  "id": "hot-zone",
+  "name": "Hot zone at the front",
+  "description": "Plan.md 8.8: files changed in the last 30 days (the ones most likely to be read again) packed right after the directories on the fast outer tracks; everything else after them.",
+  "zones": [
+    {
+      "name": "Directories",
+      "select": {
+        "classes": [
+          "directories"
+        ]
+      },
+      "action": "sort",
+      "anchor": "front",
+      "order": "directory+name"
+    },
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Recently changed",
+      "select": {
+        "maxAgeDays": 30
+      },
+      "action": "fast-fill",
+      "gapAfter": {
+        "freePercent": 2
+      }
+    },
+    {
+      "name": "Rest",
+      "action": "fast-fill"
+    }
+  ]
+}

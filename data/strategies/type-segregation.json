@@ -1,0 +1,89 @@
+{
+  "version": 1,
+  "id": "type-segregation",
+  "name": "File type segregation",
+  "description": "Plan.md 8.8: one packed zone per kind of file (sources, documents, photos, archives and images), video at the back.",
+  "zones": [
+    {
+      "name": "Directories",
+      "select": {
+        "classes": [
+          "directories"
+        ]
+      },
+      "action": "sort",
+      "anchor": "front",
+      "order": "directory+name"
+    },
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Sources",
+      "select": {
+        "classes": [
+          "source",
+          "repository",
+          "dependencies"
+        ]
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Catalogs",
+      "select": {
+        "classes": [
+          "catalogs"
+        ]
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Photos",
+      "select": {
+        "classes": [
+          "photos"
+        ]
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Unknown",
+      "select": {
+        "classes": [
+          "unknown"
+        ]
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Archives and images",
+      "select": {
+        "classes": [
+          "archives",
+          "disc-images",
+          "vm-disks",
+          "backups"
+        ]
+      },
+      "action": "fast-fill"
+    },
+    {
+      "name": "Video",
+      "select": {
+        "classes": [
+          "video"
+        ]
+      },
+      "action": "pack-to-back",
+      "anchor": "back"
+    }
+  ]
+}

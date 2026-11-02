@@ -283,8 +283,6 @@ add_library(icd_services STATIC
     src/services/job/JobRunner.h
     src/services/plan/PlanJob.cpp
     src/services/plan/PlanJob.h
-    src/services/plan/PlanReport.cpp
-    src/services/plan/PlanReport.h
     src/services/scan/AnalysisJob.cpp
     src/services/scan/AnalysisJob.h
     src/services/scan/AnalysisReport.cpp
@@ -411,8 +409,6 @@ add_executable(icd-cli
     src/cli/commands/CliCommon.h
     src/cli/commands/CompareScanners.cpp
     src/cli/commands/CompareScanners.h
-    src/cli/commands/Plan.cpp
-    src/cli/commands/Plan.h
     src/cli/main.cpp
 )
 target_link_libraries(icd-cli PRIVATE icd_services)

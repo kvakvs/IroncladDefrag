@@ -1,0 +1,17 @@
+{
+  "version": 1,
+  "id": "video",
+  "name": "Video storage",
+  "description": "Plan.md 8.6: videos packed contiguously against the end of the volume. At Fast and Moderate only packing (already packed videos never move); at Maximum the oldest video goes to the very end. Everything else is packed at the front.",
+  "zones": [
+    { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
+      "order": "directory+name" },
+    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Projects and other files",
+      "select": { "classes": ["unknown", "source", "repository", "dependencies", "archives", "disc-images", "vm-disks",
+                              "backups", "photos", "catalogs"] },
+      "action": "fast-fill" },
+    { "name": "Video", "select": { "classes": ["video"] }, "action": "pack-to-back", "anchor": "back",
+      "orderByLevel": { "maximum": "age" } }
+  ]
+}

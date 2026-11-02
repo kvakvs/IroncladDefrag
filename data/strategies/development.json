@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "id": "development",
+  "name": "Development storage",
+  "description": "Plan.md 8.3: directories first, sources and Git packs sorted by folder and name so builds and searches read them close to sequentially, dependencies packed, then a churn gap where new build output lands. Build output and temporary files stay where they are.",
+  "zones": [
+    { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
+      "order": "directory+name" },
+    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Sources and packs", "select": { "classes": ["source", "repository"] }, "action": "sort",
+      "order": "directory+name" },
+    { "name": "Dependencies", "select": { "classes": ["dependencies"] }, "action": "fast-fill",
+      "gapAfter": { "volumePercent": 5, "classMultiple": 2, "classes": ["build", "temp"] } },
+    { "name": "Rest", "action": "fast-fill" }
+  ]
+}

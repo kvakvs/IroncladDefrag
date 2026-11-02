@@ -1,0 +1,22 @@
+{
+  "version": 1,
+  "id": "free-space",
+  "name": "Free space consolidation",
+  "description": "Plan.md 8.8: every movable file packed towards the front, so free space becomes one large run at the end.",
+  "zones": [
+    {
+      "name": "Churn",
+      "select": {
+        "classes": [
+          "build",
+          "temp"
+        ]
+      },
+      "action": "keep-in-place"
+    },
+    {
+      "name": "Everything",
+      "action": "fast-fill"
+    }
+  ]
+}

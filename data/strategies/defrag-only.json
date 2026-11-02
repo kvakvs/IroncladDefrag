@@ -1,0 +1,9 @@
+{
+  "version": 1,
+  "id": "defrag-only",
+  "name": "Defragment files only",
+  "description": "Joins every fragmented file near where it is and relocates nothing (plan.md 8.8, single-file and subtree defragmentation over the whole volume).",
+  "zones": [
+    { "name": "Everything", "action": "defragment-only" }
+  ]
+}
