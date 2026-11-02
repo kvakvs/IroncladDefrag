@@ -54,14 +54,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)
 
-### T100 - Move primitive
-
-- Depends: T047
-- Owns: `src/platform/win/MoveFile.*`
-- Do: `FSCTL_MOVE_FILE` wrapper in chunks (default 16 MB), stream selection, error mapping
-  (destination in use, locked, unsupported).
-- Done when: integration test moves files on a test volume; hashes unchanged.
-
 ### T101 - Revalidation before execution
 
 - Depends: T065, T082

@@ -1190,6 +1190,21 @@ All analysis checks passed.
 - `tests/integration/planner/check-planner.ps1` plans every test-bed scenario through `icd-cli plan --json --moves`
   (read-only volume) and checks validity, the 1.1 ratio per level, and Fast's budget and hot spots.
 
+## Execution
+
+- Move primitive (T100, `platform/win/MoveFile`): `FSCTL_MOVE_FILE` on a volume handle opened for reading (sharing
+  read and write); the file handle needs only `FILE_READ_ATTRIBUTES`, so files open by id like on the API scan path.
+  Streams use the scanners' ordinals: 0 is the main data stream (a directory's `$I30` index through the directory
+  handle), 1..n the named data streams in `FileStreamInfo` order, opened by path (`GetFinalPathNameByHandleW` +
+  `:name`) and checked to be the same file id, so a rename between the two opens cannot redirect a move.
+  `moveClustersChunked()` cuts a range into calls (16 MB in the executor) so cancel and pause act between calls; each
+  call is atomic in NTFS (data copied, then the run switched), so stopping between calls leaves a valid file.
+- Errors map to what execution does with them (`MoveError`): destination in use, locked, unsupported, file gone,
+  retry, failed. NTFS reports target clusters in use (`STATUS_ALREADY_COMMITTED`) as access denied, so callers probe
+  the bitmap of the target range (`freeRunsIn()`) before calling an access-denied move a stale-bitmap conflict.
+- `ClusterMove.MovesFilesOnTestVolumes` (slow, elevated, writable ICD-TEST volume) moves a file, a named stream and a
+  directory index in 7-cluster chunks and reads the bytes back unbuffered.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

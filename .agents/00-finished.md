@@ -296,3 +296,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `core/exec/Executor.h`, `HoleSet` skips sorting sorted input, validator per-file arrays instead of hash maps.
   30 TB / 20 M files: 369 s with validation (T095b's guard costs zone placement time); the 60 s target split off as
   T093c. `FastLevelTest` hot-volume pieces; mixed moved to OptimalityTest's 1.5 group (it now completes its bound).
+- T100 Move primitive - `platform/win/MoveFile.*`: `moveClusters()` (one `FSCTL_MOVE_FILE`), `moveClustersChunked()`
+  (calls of N clusters, `keepGoing` between them), `MoveError` mapping (destination in use via a bitmap probe, locked,
+  unsupported, file gone, retry), `openVolumeForMoves()`, `openStreamForMove()` (scanner stream ordinals, named streams
+  by path with the file id checked), `freeRunsIn()`, `setBackgroundIo()`. `tests/platform/MoveFileTest.cpp`: error
+  mapping (fast); `ClusterMove.MovesFilesOnTestVolumes` (slow, elevated: file, named stream and directory index moved
+  in chunks, bytes read back unbuffered) - not run here: the session was not elevated.

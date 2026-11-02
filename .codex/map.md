@@ -172,6 +172,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
 | `src/platform/win/MappedMemory.*` | `MappedFileResource`: large allocations in mapped, delete-on-close temporary files. |
 | `src/platform/win/MftReader.*` | `MftReader` (overlapped unbuffered volume reads: `read()`, `stream()` with N in flight), `BufferPool`/`PooledBuffer` (bounded, page-aligned), `ReadStats` (busy time, device busy % from `IOCTL_DISK_PERFORMANCE`, starvation). |
+| `src/platform/win/MoveFile.*` | `moveClusters()` (one `FSCTL_MOVE_FILE`), `moveClustersChunked()` (calls of at most N clusters, `keepGoing` between them), `classifyMoveError()` / `MoveError` / `moveErrorKey()`, `openVolumeForMoves()`, `openStreamForMove()` (stream ordinal: 0 main or directory index, 1..n named streams by path, same file id checked), `fileReferenceOf()`, `finalPathOf()`, `freeRunsIn()` (bitmap of one range), `setBackgroundIo()`. |
 | `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, the saved snapshot patched or, when the patch refuses, every file finished again; dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult` (with `patched`). |
 | `src/services/snapshot/MappedStorage.*` | `storageFor()` (mapped files on the last memory rung), `MemoryGovernor` (low-memory signal steps the plan down), `defaultCacheDirectory()`. |
 | `src/services/settings/Settings.*` | `Settings` (per-drive `DriveStrategy`: preset id and effort), `settingsJson()`, `parseSettings()` (versioned, `SettingsError`, bad drive entries skipped), `driveSettingsKey()` (volume GUID, else root), `effortId()` / `effortFromId()`. |
@@ -300,6 +301,7 @@ changes (see `AGENTS.md`).
 | `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
 | `tests/platform/LastAccessSettingTest.cpp` | Every NtfsDisableLastAccessUpdate value decoded; the registry reading equals `fsutil behavior query disablelastaccess`. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
+| `tests/platform/MoveFileTest.cpp` | Move error mapping; on a writable ICD-TEST volume (slow, elevated): a file, a named stream and a directory index moved in 7-cluster chunks, runs re-read, bytes read back unbuffered unchanged, a move onto used clusters refused. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |
 | `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |

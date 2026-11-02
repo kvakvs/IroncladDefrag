@@ -242,6 +242,8 @@ add_library(icd_platform STATIC
     src/platform/win/MappedMemory.h
     src/platform/win/MftReader.cpp
     src/platform/win/MftReader.h
+    src/platform/win/MoveFile.cpp
+    src/platform/win/MoveFile.h
     src/platform/win/SystemResources.cpp
     src/platform/win/SystemResources.h
     src/platform/win/Privileges.cpp
