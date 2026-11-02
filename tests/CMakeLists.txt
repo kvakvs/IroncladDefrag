@@ -38,6 +38,7 @@ add_executable(icd_tests
     core/MoveOrderingTest.cpp
     core/NtfsParserTest.cpp
     core/NtfsRecordBuilder.h
+    core/OptimalityTest.cpp
     core/OverviewTest.cpp
     core/PackToBackTest.cpp
     core/PlannerTestUtil.h

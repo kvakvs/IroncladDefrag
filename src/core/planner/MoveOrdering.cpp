@@ -383,7 +383,12 @@ namespace icd::core::planner {
             }
 
             // Parks (Maximum) or redirects one move; false without scratch space for it.
-            bool breakOne(std::uint32_t v) { return options_.allowParking ? park(v) : redirect(v); }
+            bool breakOne(std::uint32_t v) {
+                // A move without a zone only needs its file in one piece somewhere: free space reaches that in one
+                // move, so it is redirected even when parking is allowed.
+                const bool anywhere = destinations_[v].zone == noZone;
+                return options_.allowParking && !anywhere ? park(v) : redirect(v);
+            }
 
             // What happens when scratch space runs out while breaking a component: wait for parked files to return
             // (when this round parked any, or one smaller member still fits), else drop the component.
@@ -417,7 +422,7 @@ namespace icd::core::planner {
                     if (clustersOf(sources_[v]) > room) {
                         return false; // Sorted by size: nothing later fits either.
                     }
-                    if (options_.allowParking ? park(v) : redirect(v)) {
+                    if (breakOne(v)) {
                         return true;
                     }
                 }
@@ -447,7 +452,7 @@ namespace icd::core::planner {
             void breakCycle(const std::vector<std::uint32_t>& cycle) {
                 const auto smallest =
                     std::ranges::min_element(cycle, [&](std::uint32_t a, std::uint32_t b) { return smaller(a, b); });
-                if (options_.allowParking ? park(*smallest) : redirect(*smallest)) {
+                if (breakOne(*smallest)) {
                     return;
                 }
                 drop(cycle, SkipReason::Cycle);

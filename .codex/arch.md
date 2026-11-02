@@ -1110,6 +1110,19 @@ All analysis checks passed.
   40-85% full, every free pattern, an MFT zone): every plan validates and never leaves more fragmented files; below
   two-thirds full Moderate never moves more than Maximum (above, Maximum can leave cycles it cannot park, plan.md 9.3.9).
 
+- Optimality (T095, `OptimalityTest`): on 600 random tiny volumes (7-11 clusters, two shiftable zones, obstacles,
+  fragmented files) an exhaustive search over every slack split and every placement finds the least clusters any
+  target-reaching layout moves. The lower bound never exceeds it, no plan that reaches the whole target (every placed
+  file in its zone and in one piece) moves less, and plans that needed no parking or eviction move exactly that minimum.
+  "Nothing skipped" is not "target reached": overflow placed next to its zone moves without reaching it, which the
+  check had to account for. On synthetic volumes (45-65% full, 30% fragmented) Fast and Moderate stay within 1.1 x the
+  lower bound for every preset and Maximum for the storage presets; presets that sort or pack the whole volume reach up
+  to about 2x at Maximum, where fast-fill's best-fit choices form swap cycles that cost a parking move each (T095b).
+  Cycles among moves without a zone (defragmentation) are redirected even at Maximum: free space anywhere already
+  reaches their goal in one move.
+- `tests/integration/planner/check-planner.ps1` plans every test-bed scenario through `icd-cli plan --json --moves`
+  (read-only volume) and checks validity, the 1.1 ratio per level, and Fast's budget and hot spots.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

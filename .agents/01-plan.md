@@ -34,13 +34,16 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   dominate.
 - Done when: `plan-bench --threads 8` reports 60 s or less and `--compare 1` identical plans.
 
-### T095 - Planner optimality checks
+### T095b - Fewer extra moves at Maximum
 
-- Depends: T093, T094, T041
-- Owns: `tests/integration/planner/*`
-- Do: exhaustive search on tiny volumes confirms minimal bytes; `planned / lower bound ≤ 1.1` on the
-  scenarios.
-- Done when: both checks pass.
+- Depends: T095
+- Owns: `src/core/planner/FastFill.*`, `src/core/planner/SortZone.*`, `src/core/planner/MoveOrdering.*`
+- Do: at Maximum, presets that sort or pack the whole volume move 1.1-2.1 x their lower bound on heavily fragmented
+  synthetic volumes (OptimalityTest), mostly parking: fast-fill's best-fit choices form swap cycles, and sorted zones
+  give up anchors their LIS bound counts as staying. Choose destinations that avoid cycles (or prefer them with free
+  space), and tighten the sorted-zone bound where gaps cannot hold their movers.
+- Done when: every preset stays within 1.1 x at Maximum in OptimalityTest, and `check-planner.ps1 -Scenarios all`
+  passes.
 
 ### T096 - CLI plan
 

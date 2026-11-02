@@ -12,9 +12,9 @@
 
 namespace icd::core::planner { namespace {
 
-    // A destination of one file.
+    // A destination of one file into zone 0 (a zone target: cycles among these park at Maximum).
     Destination to(FileIndex file, std::vector<ClusterRun> runs) {
-        return {.file = file, .runs = std::move(runs), .reason = MoveReason::Relocate, .zone = noZone};
+        return {.file = file, .runs = std::move(runs), .reason = MoveReason::Relocate, .zone = 0};
     }
 
     // Orders destinations into a plan with a lower bound and validates it.
@@ -69,6 +69,20 @@ namespace icd::core::planner { namespace {
         EXPECT_EQ(redirected.plan.destinations(redirected.plan.moves[0]).front(), (ClusterRun{2, 1}));
         EXPECT_EQ(redirected.plan.extra, 0U);
         EXPECT_TRUE(redirected.plan.skipped.empty());
+    }
+
+    TEST(MoveOrdering, CyclesWithoutAZoneAreRedirectedEvenAtMaximum) {
+        // Defragmenting needs the file in one piece anywhere: free space reaches that in one move, no parking.
+        const auto v = test::pictureVolume("AB..");
+        auto d = std::vector<Destination>{to(v.files.at('A'), {{1, 1}}), to(v.files.at('B'), {{0, 1}})};
+        for (Destination& x : d) {
+            x.zone = noZone;
+        }
+        const Ordered o = order(v, d, true);
+        ASSERT_TRUE(o.validation.ok()) << o.validation.issues.front().message;
+        EXPECT_EQ(o.report.parked, 0U);
+        EXPECT_EQ(o.report.redirected, 1U);
+        EXPECT_EQ(o.plan.extra, 0U);
     }
 
     TEST(MoveOrdering, CyclesParkTheSmallestFileAndDropTheirDependents) {

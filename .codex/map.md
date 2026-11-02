@@ -220,6 +220,7 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`. |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `tests/integration/planner/check-planner.ps1` | T095: per scenario a read-only test volume planned with its preset through `icd-cli plan --json --moves`; validity, ratio <= 1.1 per level, Fast within 2% and inside hot spots. |
 | `tests/integration/classes/check-classes.ps1` | T074 / Phase 5 exit: read-only `mixed` volume, every file's class against the scenario layout, summary bytes per class = dumped clusters, counts cover every file. |
 | `tests/integration/churn/check-churn.ps1` | T073: journal first, then the dev scenario; every build output and temp directory is churn, no source, dependency or repository directory. |
 | `tests/integration/catchup/check-catchup.ps1` | T065: a test volume with a journal, rounds of scripted changes, `check-catchup` after each, up-to-date and recreated-journal cases. |
@@ -261,6 +262,7 @@ changes (see `AGENTS.md`).
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
 | `tests/services/TrimJobTest.cpp` | Line splitting across chunks (CR, CRLF), retrim percentages, output queue. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
+| `tests/core/OptimalityTest.cpp` | Exhaustive minimum on tiny volumes against Maximum plans and the lower bound; plan / lower-bound ratios of every preset and level on synthetic volumes. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/CatalogTest.cpp` | One test per built-in class with typical and edge-case paths; every class reachable and colored; bad catalogs refused. |
 | `tests/core/DefragOnlyTest.cpp` | Fits that avoid own runs, large pieces, defragmenting near the file, skips, and on synthetic volumes: plans validate and the untouched files are exactly the good-enough set. |
