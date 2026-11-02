@@ -231,6 +231,32 @@ namespace icd::core::strategy { namespace {
         EXPECT_TRUE(has(error.what(), "zone 2: unknown class \"a\"\n  zone 2: unknown class \"b\""));
     }
 
+    TEST(ZoneScript, TableTextsRoundTrip) {
+        const GapSpec churn{.volumePercent = 5, .classMultiple = 2, .classes = {"build", "temp"}};
+        EXPECT_EQ(gapText(churn), "5% volume, 2x build+temp");
+        EXPECT_EQ(parseGapText(gapText(churn)), churn);
+        EXPECT_EQ(gapText({.freePercent = 1.5, .bytes = 1ULL << 30U}), "1.5% free, 1 GB");
+        EXPECT_EQ(parseGapText("1.5% free, 1 GB"), (GapSpec{.freePercent = 1.5, .bytes = 1ULL << 30U}));
+        EXPECT_EQ(gapText({}), "none");
+        EXPECT_EQ(parseGapText("none"), GapSpec{});
+        EXPECT_FALSE(parseGapText("lots of room"));
+        EXPECT_FALSE(parseGapText("2x "));
+        EXPECT_EQ(fragmentOkText(std::nullopt), "whole");
+        const auto whole = parseFragmentOkText("whole");
+        ASSERT_TRUE(whole.has_value());
+        EXPECT_FALSE(whole->has_value());
+        const auto size = parseFragmentOkText(" 64 MB ");
+        ASSERT_TRUE(size.has_value());
+        EXPECT_EQ(*size, std::optional<std::uint64_t>(64ULL << 20U));
+        EXPECT_FALSE(parseFragmentOkText("big"));
+        EXPECT_EQ(parseIdsText(" photos, ,video "), (std::vector<std::string>{"photos", "video"}));
+        EXPECT_EQ(idsText({"photos", "video"}), "photos, video");
+        EXPECT_EQ(actionNamed("pack-to-back"), ZoneAction::PackToBack);
+        EXPECT_EQ(orderNamed("age"), ZoneOrder::Age);
+        EXPECT_EQ(anchorNamed("back"), Anchor::Back);
+        EXPECT_FALSE(actionNamed("shuffle"));
+    }
+
     TEST(ZoneScript, EnumKeysAreStable) {
         EXPECT_EQ(effortKey(Effort::Maximum), "maximum");
         EXPECT_EQ(anchorKey(Anchor::AfterPrevious), "after-previous");

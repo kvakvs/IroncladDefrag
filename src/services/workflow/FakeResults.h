@@ -60,21 +60,6 @@ namespace icd::services {
         std::optional<ScanFigures> scan; // Present after a real analysis.
     };
 
-    // One zone of a strategy preset (plan.md 8.1), in disk order.
-    struct StrategyZone {
-        std::string name; // Zone name, e.g. "Hot files".
-        std::string classes; // File classes placed there.
-        int startPercent = 0; // Start as a share of the volume.
-        int endPercent = 0; // End as a share of the volume.
-    };
-
-    // A strategy preset for the Strategy tab picker.
-    struct StrategyPreset {
-        std::string id; // Stable key in the settings file, so renaming a preset keeps remembered choices.
-        std::string name; // Shown in the picker.
-        std::vector<StrategyZone> zones; // Zone list.
-    };
-
     // Result of one effort level (Plan tab columns, plan.md 9.2.2).
     struct PlanLevel {
         EffortLevel level = EffortLevel::Fast; // Which level.
@@ -92,16 +77,10 @@ namespace icd::services {
         std::vector<std::string> warnings; // VSS, low free space, skipped files.
     };
 
-    // The presets, default (Mixed data drive) first.
-    [[nodiscard]] const std::vector<StrategyPreset>& strategyPresets();
-
-    // Index of the preset with an id in strategyPresets(), to restore a remembered choice; nullopt when unknown.
-    [[nodiscard]] std::optional<std::size_t> presetIndex(std::string_view id);
-
     // Fake analysis of a drive.
     [[nodiscard]] AnalysisSummary fakeAnalysis(const core::DriveInfo& drive);
 
-    // Fake plan for a drive, its analysis and a preset index.
+    // Fake plan for a drive, its analysis and a preset index (the UI shell without an analysed map).
     [[nodiscard]] PlanSummary fakePlan(const core::DriveInfo& drive, const AnalysisSummary& analysis,
                                        std::size_t preset);
 

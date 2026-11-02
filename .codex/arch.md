@@ -191,7 +191,7 @@ this file records what is actually built and the decisions made along the way.
 - `services::Settings` is plain data with `settingsJson()` / `parseSettings()`, testable without files. It holds the
   per-drive strategy choice (preset id and effort level) keyed by `driveSettingsKey()`: the volume GUID name, so a
   letter change keeps the choice, or the root for drives without one (fake drives). Presets are stored by their
-  stable `StrategyPreset::id`, never by display name.
+  stable `ZoneScript::id` (a built-in preset, `builtinPresetIndex()`), never by display name.
 - `WorkflowBinding` restores the remembered choice when a drive is selected (unknown preset -> default preset, effort
   kept) and remembers the Strategy tab after each user change. Quick still runs the default preset at Fast without
   touching the remembered choice. T130/T131 extend the same file (budget multiplier, caps, custom strategies).
@@ -961,6 +961,15 @@ All analysis checks passed.
   for an edited script (Strategy tab). `zoneScriptJson()` leaves defaults out and reads back to an equal script; sizes
   are written as "64 MB" (`core/format/ByteSize`: `parseSizeSpec()`, `sizeSpecText()`).
 - `core::strategy::Effort` is core's copy of the effort level, so the planner needs no services types.
+- Strategy tab (T097, `ui/panels/StrategyPage`; plan.md names it `ui/tabs/StrategyTab`, the existing panels file was
+  kept): preset picker over `builtinPresets()`, effort level, and the preset's zones as an editable `wxGrid` (name,
+  classes, action, anchor, order, order at Maximum, fragment_ok, gap after; enum columns use choice editors whose
+  lists come from the script key functions). Cells are read with the zone-table text forms of `ZoneScript`
+  (`idsText()`, `fragmentOkText()`, `gapText()` and their parsers, `actionNamed()` / `anchorNamed()` /
+  `orderNamed()`), so the churn gap is edited like "5% volume, 2x build+temp". Every edit re-runs `validateScript()`;
+  unreadable cells and issues show in red under the table, and `WorkflowBinding::allowed()` keeps Build plan disabled
+  until there are none. `script()` is what the next plan runs; edits drop a built plan like a preset change. Choosing
+  another preset discards edits (custom strategies are T131).
 
 ## Planner
 

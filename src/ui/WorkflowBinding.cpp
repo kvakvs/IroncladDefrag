@@ -6,6 +6,7 @@
 #include "core/format/Duration.h"
 #include "core/job/PauseGate.h"
 #include "core/log/Log.h"
+#include "core/strategy/Presets.h"
 #include "services/AppServices.h"
 #include "services/job/FakeJob.h"
 #include "services/scan/AnalysisJob.h"
@@ -195,7 +196,7 @@ namespace icd::ui {
             widgets_.bottom.showTab(BottomTab::Strategy); // The change itself happens on the tab.
             return;
         }
-        if (!workflow_.can(action) || (action == WorkflowAction::Execute && !confirmExecute())) {
+        if (!allowed(action) || (action == WorkflowAction::Execute && !confirmExecute())) {
             return;
         }
         core::logging::info("workflow action",
@@ -450,6 +451,13 @@ namespace icd::ui {
         plan_ = plan;
     }
 
+    bool WorkflowBinding::allowed(WorkflowAction action) const {
+        if (action == WorkflowAction::BuildPlan && !widgets_.bottom.strategy().problems().empty()) {
+            return false; // The Strategy tab lists what to fix first.
+        }
+        return workflow_.can(action);
+    }
+
     void WorkflowBinding::showExecution(core::DriveInfo& drive) {
         BottomPanel& bottom = widgets_.bottom;
         for (const auto& [file, reason] : services::fakeSkippedFiles(drive)) {
@@ -537,7 +545,7 @@ namespace icd::ui {
             return;
         }
         // A preset that no longer exists falls back to the default; the effort level still applies.
-        page.select(services::presetIndex(saved->preset).value_or(0), saved->effort);
+        page.select(core::strategy::builtinPresetIndex(saved->preset).value_or(0), saved->effort);
     }
 
     void WorkflowBinding::rememberStrategy() {
@@ -545,7 +553,7 @@ namespace icd::ui {
             return;
         }
         const StrategyPage& page = widgets_.bottom.strategy();
-        const services::DriveStrategy choice{services::strategyPresets().at(page.preset()).id, page.effort()};
+        const services::DriveStrategy choice{core::strategy::builtinPresets().at(page.preset()).id, page.effort()};
         services_.settings().rememberDriveStrategy(services::driveSettingsKey(*drive_), choice);
     }
 
@@ -597,7 +605,7 @@ namespace icd::ui {
             return widgets_.map.hasMap() && MapPanel::commandAvailable(id);
         }
         const auto action = actionFor(id, workflow_.state());
-        return action.has_value() && workflow_.can(*action);
+        return action.has_value() && allowed(*action);
     }
 
     void WorkflowBinding::refreshMap() {

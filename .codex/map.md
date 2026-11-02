@@ -186,7 +186,7 @@ changes (see `AGENTS.md`).
 | `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Analysis of fake drives: synthetic snapshot shaped like the drive, then `MapData` on the job's executor, handed over through `AnalysisOutput`. |
-| `src/services/workflow/FakeResults.*` | `AnalysisSummary` (with `ScanFigures` from a real scan), fake analysis for fake drives, strategy presets (stable ids, `presetIndex()`), three-level plan and skipped files. |
+| `src/services/workflow/FakeResults.*` | `AnalysisSummary` (with `ScanFigures` from a real scan), `PlanSummary`, fake analysis for fake drives, fake three-level plan (UI shell without a map) and skipped files. |
 | `src/ui/bridge/JobEvents.*` | `JobEventBridge` (job callbacks to `wxQueueEvent`), `jobProgressEvent()`, `jobFinishedEvent()`, payloads. |
 | `src/services/AppLogging.*` | `initAppLogging()`/`shutdownAppLogging()`: installs the sinks, writes startup/shutdown lines. |
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
@@ -202,7 +202,7 @@ changes (see `AGENTS.md`).
 | `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators; later ids appended so values stay stable), `isMapCommand()`, `enableCommand()` for menu item + button. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons (tooltips with action and shortcut), the single status line and gauge. |
 | `src/ui/panels/SummaryPage.*` | Summary tab: volume figures (plus directories, fragmented data, large free runs, unmovable, unreadable and changed files after a real scan) and per-class table. |
-| `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list; `select()` restores a remembered choice without reporting a change. |
+| `src/ui/panels/StrategyPage.*` | Strategy tab: built-in preset picker, effort level, editable zone table (classes, action, anchor, orders, fragment_ok, gap), validation problems under it; `script()` for the next plan, `problems()`; `select()` restores a remembered choice without reporting a change. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers (tooltip on the drawn TRIM button), selection callback. |
 | `src/ui/panels/MapPanel.*` | Map area (`updateMap()`, `setDisk()` for the rulers): toolbar (color mode, overlays still disabled, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above and the legend below; forwards the canvas's view changes to the rulers and the legend; View > Color mode, Minimap, Legend, Go to file, next/previous fragment. |
@@ -233,7 +233,7 @@ changes (see `AGENTS.md`).
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
 | `tests/services/PlanJobTest.cpp` | Parallel plans = serial plans move for move (levels in parallel and one after another), summary figures, the job's output and progress. |
 | `tests/services/PlanReportTest.cpp` | CLI report = GUI job's report for the same snapshot; levels, figures and move list in the JSON; text report. |
-| `tests/services/SettingsTest.cpp` | Settings JSON round trip, refused documents, skipped drive entries, effort spellings, drive keys, preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file. |
+| `tests/services/SettingsTest.cpp` | Settings JSON round trip, refused documents, skipped drive entries, effort spellings, drive keys, built-in preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/ChurnStatsTest.cpp` | Sessions from close records, deletes where the file lived (POSIX delete into $Deleted) and before their close record, directory churn rule, small folders with churning siblings, flags below churning directories. |
 | `tests/services/ClassificationTest.cpp` | Class rows add up to the volume (files, bytes), catalog order, any executor; churn turns content into temp. |
@@ -278,7 +278,7 @@ changes (see `AGENTS.md`).
 | `tests/core/PlannerTestUtil.h` | Planner test helpers: volumes drawn as pictures (one character per cluster), zones and scripts, assignment. |
 | `tests/core/TargetLayoutTest.cpp` | Axis vs brute force, zone selection and roles, layouts with obstacles everywhere, full volumes, empty zones, gaps, reserved runs, slack placement. |
 | `tests/core/presets/PresetsTest.cpp` | Every preset parses, validates and round-trips; plan.md details of video and development; every preset at every level on random synthetic volumes validates. |
-| `tests/core/ZoneScriptTest.cpp` | Zone script round trip with every field, defaults, per-level order, size specs, read errors per zone and key, every validation rule. |
+| `tests/core/ZoneScriptTest.cpp` | Zone script round trip with every field, defaults, per-level order, size specs, read errors per zone and key, every validation rule, zone-table texts (gap, fragment_ok, ids, enum names) round trip. |
 | `tests/core/JsonReaderTest.cpp` | Values, escapes and surrogates, writer round trip, malformed input, error positions, kind checks. |
 | `tests/core/RuleEngineTest.cpp` | Globs (anchored, `**`, `?`, case), rule order, size/age/flag/churn conditions, overrides (deepest, directories untouched), bad rule sets, snapshot classes = path classes on a dev tree and a synthetic volume, any executor. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |

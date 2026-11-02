@@ -103,6 +103,9 @@ namespace icd::ui {
         // Fills the Plan tab after planning.
         void showPlan(const core::DriveInfo& drive);
 
+        // Whether an action can run now: the workflow allows it, and a plan needs a strategy without problems.
+        [[nodiscard]] bool allowed(services::WorkflowAction action) const;
+
         // Fills the Log tab and the drive row after an execution; the old figures are now stale.
         void showExecution(core::DriveInfo& drive);
 

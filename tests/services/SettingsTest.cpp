@@ -1,6 +1,7 @@
 // Settings file (per-drive strategy memory): JSON round trip, refused documents, lenient drive entries, drive keys,
 // and the store's load / save / damaged-file behaviour in a temporary directory.
 
+#include "core/strategy/Presets.h"
 #include "services/settings/Settings.h"
 #include "services/settings/SettingsStore.h"
 #include "services/workflow/FakeResults.h"
@@ -90,12 +91,12 @@ namespace icd::services { namespace {
     }
 
     TEST(Settings, PresetIdsAreUniqueAndFound) {
-        const auto& presets = strategyPresets();
+        const auto& presets = core::strategy::builtinPresets();
         for (std::size_t index = 0; index < presets.size(); ++index) {
             EXPECT_FALSE(presets.at(index).id.empty());
-            EXPECT_EQ(presetIndex(presets.at(index).id), index);
+            EXPECT_EQ(core::strategy::builtinPresetIndex(presets.at(index).id), index);
         }
-        EXPECT_FALSE(presetIndex("no-such-preset"));
+        EXPECT_FALSE(core::strategy::builtinPresetIndex("no-such-preset"));
     }
 
     TEST(SettingsStore, MissingFileGivesDefaults) {

@@ -45,13 +45,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Done when: every preset stays within 1.1 x at Maximum in OptimalityTest, and `check-planner.ps1 -Scenarios all`
   passes.
 
-### T097 - Strategy tab
-
-- Depends: T094, T012
-- Owns: `src/ui/tabs/StrategyTab.*`
-- Do: preset picker, effort level, editable zone table including churn gap size (§11).
-- Done when: edits change the next plan; invalid edits show validation errors.
-
 ### T098 - Plan tab and plan overlay
 
 - Depends: T093, T097

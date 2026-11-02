@@ -5,6 +5,7 @@
 #include "core/format/JsonReader.h"
 
 #include <algorithm>
+#include <cstdlib>
 #include <format>
 #include <initializer_list>
 #include <set>
@@ -481,6 +482,155 @@ namespace icd::core::strategy {
     std::string_view anchorKey(Anchor anchor) { return keyOf(anchorNames, anchor); }
     std::string_view orderKey(ZoneOrder order) { return keyOf(orderNames, order); }
     std::string_view actionKey(ZoneAction action) { return keyOf(actionNames, action); }
+
+    namespace {
+
+        // Trims spaces at both ends.
+        std::string_view trimmed(std::string_view text) {
+            const auto first = text.find_first_not_of(' ');
+            if (first == std::string_view::npos) {
+                return {};
+            }
+            return text.substr(first, text.find_last_not_of(' ') - first + 1);
+        }
+
+        // Splits on a separator, trimming each item and dropping empty ones.
+        std::vector<std::string> splitTrimmed(std::string_view text, char separator) {
+            std::vector<std::string> out;
+            while (!text.empty()) {
+                const auto at = text.find(separator);
+                const std::string_view item = trimmed(text.substr(0, at));
+                if (!item.empty()) {
+                    out.emplace_back(item);
+                }
+                text = at == std::string_view::npos ? std::string_view() : text.substr(at + 1);
+            }
+            return out;
+        }
+
+        // The number before a suffix ("2" in "2% free" with suffix "% free"), or nullopt.
+        std::optional<double> numberBefore(std::string_view term, std::string_view suffix) {
+            if (!term.ends_with(suffix)) {
+                return std::nullopt;
+            }
+            const std::string number(trimmed(term.substr(0, term.size() - suffix.size())));
+            char* end = nullptr;
+            const double value = std::strtod(number.c_str(), &end);
+            return !number.empty() && end == number.c_str() + number.size() ? std::optional(value) : std::nullopt;
+        }
+
+        // Reads a class-multiple term ("2x build+temp") into the spec; false when it is not one.
+        bool readMultiple(std::string_view term, GapSpec& gap) {
+            const auto x = term.find("x ");
+            if (x == std::string_view::npos) {
+                return false;
+            }
+            const auto multiple = numberBefore(term.substr(0, x + 1), "x");
+            gap.classMultiple = multiple.value_or(0.0);
+            gap.classes = splitTrimmed(term.substr(x + 2), '+');
+            return multiple.has_value() && !gap.classes.empty();
+        }
+
+        // Reads one gap term into the spec; false when it is not a gap term.
+        bool readGapTerm(std::string_view term, GapSpec& gap) {
+            if (const auto free = numberBefore(term, "% free")) {
+                gap.freePercent = *free;
+                return true;
+            }
+            if (const auto volume = numberBefore(term, "% volume")) {
+                gap.volumePercent = *volume;
+                return true;
+            }
+            if (term.find("x ") != std::string_view::npos) {
+                return readMultiple(term, gap);
+            }
+            const auto bytes = parseSizeSpec(term);
+            gap.bytes = bytes.value_or(0);
+            return bytes.has_value();
+        }
+
+        // A number without trailing zeros.
+        std::string shortNumber(double value) {
+            std::string text = std::format("{:.3f}", value);
+            text.erase(text.find_last_not_of('0') + 1);
+            if (text.ends_with('.')) {
+                text.pop_back();
+            }
+            return text;
+        }
+
+        // Items joined by a separator.
+        std::string joined(const std::vector<std::string>& items, std::string_view separator) {
+            std::string out;
+            for (const std::string& item : items) {
+                out += (out.empty() ? std::string() : std::string(separator)) + item;
+            }
+            return out;
+        }
+
+    } // namespace
+
+    std::string gapText(const GapSpec& gap) {
+        std::vector<std::string> terms;
+        if (gap.freePercent > 0.0) {
+            terms.push_back(shortNumber(gap.freePercent) + "% free");
+        }
+        if (gap.volumePercent > 0.0) {
+            terms.push_back(shortNumber(gap.volumePercent) + "% volume");
+        }
+        if (gap.bytes != 0) {
+            terms.push_back(sizeSpecText(gap.bytes));
+        }
+        if (gap.classMultiple > 0.0) {
+            terms.push_back(shortNumber(gap.classMultiple) + "x " + joined(gap.classes, "+"));
+        }
+        return terms.empty() ? "none" : joined(terms, ", ");
+    }
+
+    std::optional<GapSpec> parseGapText(std::string_view text) {
+        GapSpec gap;
+        if (trimmed(text) == "none" || trimmed(text).empty()) {
+            return gap;
+        }
+        for (const std::string& term : splitTrimmed(text, ',')) {
+            if (!readGapTerm(term, gap)) {
+                return std::nullopt;
+            }
+        }
+        return gap;
+    }
+
+    std::string fragmentOkText(std::optional<std::uint64_t> fragmentOk) {
+        return fragmentOk ? sizeSpecText(*fragmentOk) : "whole";
+    }
+
+    std::optional<std::optional<std::uint64_t>> parseFragmentOkText(std::string_view text) {
+        using Result = std::optional<std::optional<std::uint64_t>>;
+        if (trimmed(text) == "whole") {
+            return Result(std::in_place, std::nullopt);
+        }
+        const auto size = parseSizeSpec(trimmed(text));
+        return size ? Result(std::in_place, *size) : Result();
+    }
+
+    std::string idsText(const std::vector<std::string>& ids) { return joined(ids, ", "); }
+
+    std::vector<std::string> parseIdsText(std::string_view text) { return splitTrimmed(text, ','); }
+
+    std::optional<Anchor> anchorNamed(std::string_view key) {
+        const auto it = std::ranges::find(anchorNames, key, &Named<Anchor>::first);
+        return it == anchorNames.end() ? std::nullopt : std::optional(it->second);
+    }
+
+    std::optional<ZoneOrder> orderNamed(std::string_view key) {
+        const auto it = std::ranges::find(orderNames, key, &Named<ZoneOrder>::first);
+        return it == orderNames.end() ? std::nullopt : std::optional(it->second);
+    }
+
+    std::optional<ZoneAction> actionNamed(std::string_view key) {
+        const auto it = std::ranges::find(actionNames, key, &Named<ZoneAction>::first);
+        return it == actionNames.end() ? std::nullopt : std::optional(it->second);
+    }
 
     ZoneOrder Zone::orderAt(Effort effort) const {
         return orderByLevel.at(static_cast<std::size_t>(effort)).value_or(order);

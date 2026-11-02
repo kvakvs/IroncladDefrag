@@ -15,7 +15,7 @@ namespace icd::services {
     // A strategy choice remembered for one drive, so selecting the drive again (also after a restart) shows the
     // preset and effort level the user last picked for it.
     struct DriveStrategy {
-        std::string preset; // StrategyPreset::id; an id no longer known falls back to the default preset.
+        std::string preset; // core::strategy::ZoneScript::id of a built-in preset; an id no longer known falls back to the default preset.
         EffortLevel effort = EffortLevel::Fast; // Last chosen effort level.
 
         // Field-wise equality, so an unchanged choice is not written again.

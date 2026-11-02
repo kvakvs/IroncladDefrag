@@ -75,44 +75,6 @@ namespace icd::services {
         return names.at(static_cast<std::size_t>(level));
     }
 
-    const std::vector<StrategyPreset>& strategyPresets() {
-        static const std::vector<StrategyPreset> presets{
-            {"mixed",
-             "Mixed data drive (default)",
-             {{"Metadata and hot files", "System, programs, recent documents", 0, 8},
-              {"Working set", "Documents, development, photos", 8, 45},
-              {"Large media", "Video, archives", 45, 90},
-              {"Cold", "Rarely used files", 90, 100}}},
-            {"development",
-             "Development storage",
-             {{"Hot sources", "Sources, .git packs", 0, 15},
-              {"Build output", "Objects, caches (kept apart)", 15, 40},
-              {"Packages", "node_modules, SDKs", 40, 80},
-              {"Cold", "Old branches, archives", 80, 100}}},
-            {"archive",
-             "Archive and disk images",
-             {{"Indexes", "Catalogs, small files", 0, 5}, {"Images", "ISO, VHDX, zips (sequential)", 5, 100}}},
-            {"photos",
-             "Photo storage",
-             {{"Sidecars", "XMP, catalogs", 0, 5}, {"Photos by date", "RAW and JPEG, dated folders", 5, 100}}},
-            {"video",
-             "Video storage",
-             {{"Projects", "Edit files, proxies", 0, 10}, {"Footage", "Large video files", 10, 100}}},
-            {"defrag-only", "Defragment files only", {{"Whole volume", "Every class, in place", 0, 100}}},
-        };
-        return presets;
-    }
-
-    std::optional<std::size_t> presetIndex(std::string_view id) {
-        const auto& presets = strategyPresets();
-        for (std::size_t index = 0; index < presets.size(); ++index) {
-            if (presets.at(index).id == id) {
-                return index;
-            }
-        }
-        return std::nullopt;
-    }
-
     AnalysisSummary fakeAnalysis(const core::DriveInfo& drive) {
         const std::uint64_t used = drive.usedBytes();
         AnalysisSummary summary;

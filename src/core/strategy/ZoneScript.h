@@ -166,6 +166,34 @@ namespace icd::core::strategy {
     // Text of an issue: "zone 2 \"Photos\": unknown class \"fotos\"".
     [[nodiscard]] std::string describeIssue(const ScriptIssue& issue, const ZoneScript& script);
 
+    // A gap as one line for the zone table: terms joined by ", ", e.g. "2% free", "5% volume, 2x build+temp",
+    // "1 GB"; "none" for no gap.
+    [[nodiscard]] std::string gapText(const GapSpec& gap);
+
+    // Reads gapText()'s form back; nullopt for text it cannot read.
+    [[nodiscard]] std::optional<GapSpec> parseGapText(std::string_view text);
+
+    // A fragment_ok for the zone table: "64 MB" or "whole".
+    [[nodiscard]] std::string fragmentOkText(std::optional<std::uint64_t> fragmentOk);
+
+    // Reads fragmentOkText()'s form back: an empty inner optional for "whole"; nullopt outright for bad text.
+    [[nodiscard]] std::optional<std::optional<std::uint64_t>> parseFragmentOkText(std::string_view text);
+
+    // Class ids as one line ("photos, video").
+    [[nodiscard]] std::string idsText(const std::vector<std::string>& ids);
+
+    // Class ids from idsText()'s form (empty items dropped).
+    [[nodiscard]] std::vector<std::string> parseIdsText(std::string_view text);
+
+    // The anchor with this script name, or nullopt.
+    [[nodiscard]] std::optional<Anchor> anchorNamed(std::string_view key);
+
+    // The order with this script name, or nullopt.
+    [[nodiscard]] std::optional<ZoneOrder> orderNamed(std::string_view key);
+
+    // The action with this script name, or nullopt.
+    [[nodiscard]] std::optional<ZoneAction> actionNamed(std::string_view key);
+
     // Script names of the enums (as JSON writes them).
     [[nodiscard]] std::string_view anchorKey(Anchor anchor); // "front", "after-previous", "back".
     [[nodiscard]] std::string_view orderKey(ZoneOrder order); // "none", "directory+name", ...
