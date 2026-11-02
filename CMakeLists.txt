@@ -141,6 +141,8 @@ add_library(icd_core STATIC
     src/core/planner/ZoneAssignment.cpp
     src/core/planner/Validator.cpp
     src/core/planner/Validator.h
+    src/core/planner/VssAlign.cpp
+    src/core/planner/VssAlign.h
     src/core/planner/ZoneAssignment.h
     src/core/resources/MemoryPlanner.cpp
     src/core/resources/MemoryPlanner.h
@@ -211,6 +213,8 @@ add_library(icd_platform STATIC
     src/platform/win/Privileges.h
     src/platform/win/RetrievalPointers.cpp
     src/platform/win/RetrievalPointers.h
+    src/platform/win/ShadowCopies.cpp
+    src/platform/win/ShadowCopies.h
     src/platform/win/StorageProperties.cpp
     src/platform/win/StorageProperties.h
     src/platform/win/TextConvert.cpp

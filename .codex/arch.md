@@ -1047,6 +1047,15 @@ All analysis checks passed.
 - `orderMoves()` also drops, before ordering, any destination that lands on a file that does not move (a zone planner
   could not place a candidate whose clusters were offered to others), with everything that waits on it.
 
+- VSS (T090, plan.md 9.4): `platform::countShadowCopies()` runs Windows' own listing (`vssadmin list shadows`, the
+  fallback the plan names; the VSS API would start the writer machinery for a read-only question) and counts the
+  volume's GUID path, which does not depend on the display language; exit codes above 1 (no rights) give "unknown".
+  `core::planner::VssAlign`: the copy-on-write unit is 16 KB / cluster size (4 at 4 KB, 1 from 16 KB, where every move
+  is aligned); a move is aligned when every piece keeps its offset in the unit and it moves at least 16 KB.
+  `alignDestinations()` shifts an unaligned single-run destination by up to unit - 1 clusters into after-plan free
+  space when it stays in its zone and off the file's own runs; `vssReport()` counts unaligned moves and estimates
+  shadow storage growth as the bytes they rewrite.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

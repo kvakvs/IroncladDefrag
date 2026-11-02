@@ -55,12 +55,14 @@ add_executable(icd_tests
     core/TargetLayoutTest.cpp
     core/TileRasterizerTest.cpp
     core/ValidatorTest.cpp
+    core/VssAlignTest.cpp
     core/ViewportTest.cpp
     core/WorldTest.cpp
     core/ZoneScriptTest.cpp
     platform/ChildProcessTest.cpp
     platform/LastAccessSettingTest.cpp
     platform/LogSinksTest.cpp
+    platform/ShadowCopiesTest.cpp
     platform/StoragePropertiesTest.cpp
     platform/SystemResourcesTest.cpp
     platform/UsnJournalTest.cpp
@@ -98,7 +100,7 @@ set(ICD_SLOW_TESTS
     "UsnJournal.EnumeratesEveryFileOnTestVolumes:UsnJournal.ReadsTheWindowsDriveJournal"
     ":ApiScanner.*:MftScanner.*:AnalysisJob.AnalysesTheSpecialVolume:AnalysisJob.CancelStopsTheScan"
     ":VolumeBitmap.*:Volumes.ListsTheWindowsDriveWithItsDisk:Volumes.NtfsDataMatchesFsutil"
-    ":StorageProperties.MatchesGetPhysicalDisk:UsnCatchUp.SnapshotDraftsFinishIntoTheSameSnapshot")
+    ":StorageProperties.MatchesGetPhysicalDisk:ShadowCopies.DetectsTheVssScenario:UsnCatchUp.SnapshotDraftsFinishIntoTheSameSnapshot")
 string(JOIN "" ICD_SLOW_TESTS ${ICD_SLOW_TESTS})
 # Runs the exe at test time to list tests, so building never depends on running it.
 gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST TEST_FILTER "-${ICD_SLOW_TESTS}" PROPERTIES LABELS fast)

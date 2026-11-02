@@ -71,6 +71,7 @@ changes (see `AGENTS.md`).
 | `src/core/planner/LowerBound.*` | `GoodEnough`, `fragmentsOk()`, `fragmentOkFor()`, `lowerBound()` (must-move files per zone, parallel), `fitTarget()` (slack before each forward zone by a dynamic programme over stay intervals, plan.md 9.3.2). |
 | `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `clustersOf()`, `fragmentsOf()`, `finishTotals()`. |
 | `src/core/planner/Validator.*` | `validatePlan()`: replays a plan on copies of free space and extents and checks plan.md 9.5 (free destinations, current sources, kept clusters, zones, one move per file, parking, accounting, totals). |
+| `src/core/planner/VssAlign.*` | `vssUnit()`, `VssGeometry`, `movesAligned()`, `VssReport` / `vssReport()`, `alignDestinations()` (shift onto 16 KB-aligned positions). |
 | `src/core/planner/ZoneAssignment.*` | `assignZones()`: per file the first matching zone, its `FileRole` (Fixed, InPlace, Defragment, Placed) and movable clusters; per-zone need; `fixedFile()`. |
 | `src/core/planner/SortZone.*` | `SortKeys` (per-order keys, directory+name ranks), `weightedLis()`, `SortedZone`, `sortsAt()`, `applySortBounds()` (anchors and the sort part of the lower bound, tolerance), `sortZone()` (movers between anchors, anchors given up as extra). |
 | `src/core/planner/TargetLayout.*` | `AvailableAxis` (usable clusters numbered around obstacles), `layoutObstacles()`, `gapClusters()`, `resolveLayout()`: placed zones as LCN runs (forward from the front, back zones at the end), gaps, slack, notes; `LayoutInputs` (reserved runs, slack before each forward zone). |
@@ -138,6 +139,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
 | `src/platform/win/Privileges.*` | `enablePrivilege()` (e.g. `SE_BACKUP_NAME` for files only SYSTEM may open). |
 | `src/platform/win/RetrievalPointers.*` | `readRetrievalPointers()` (all runs of a stream, holes as LCN -1), `readFileFacts()` (times, attributes, size, links, named streams), `openFileById()`, `openForQuery()`. |
+| `src/platform/win/ShadowCopies.*` | `countShadowCopies()` (vssadmin listing, GUID path count, nullopt without rights), `countShadowsInListing()`. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
 | `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
 | `src/platform/win/UsnJournal.*` | `queryUsnJournal()` (ID and USN cursor, none when inactive), `enumerateUsnFiles()` (`FSCTL_ENUM_USN_DATA`: reference, parent, attributes, name per MFT record), `mftRecordOf()`. |
@@ -256,6 +258,7 @@ changes (see `AGENTS.md`).
 | `tests/core/DefragOnlyTest.cpp` | Fits that avoid own runs, large pieces, defragmenting near the file, skips, and on synthetic volumes: plans validate and the untouched files are exactly the good-enough set. |
 | `tests/core/LowerBoundTest.cpp` | Fragment rules, must-move files on hand-made layouts, defragment-only files, slack moving zones towards files, conflicts, front zones, fitting = brute force over every slack split on random volumes. |
 | `tests/core/HoleSetTest.cpp` | HoleSet against a per-cluster model under random takes and adds across block splits; fits in both directions; merging. |
+| `tests/core/VssAlignTest.cpp` | Units for 512 B-64 KB clusters, aligned moves, shifting destinations, no room, the report. |
 | `tests/core/ValidatorTest.cpp` | Valid chain; broken plans for every validation rule (busy and late destinations, unmovable files, stale and reordered sources, lost clusters, zones, parking, accounting, totals). |
 | `tests/core/PackToBackTest.cpp` | Packed videos never move at any level, holes in the back zone closed, oldest at the end at Maximum (plans validate). |
 | `tests/core/PlannerTestUtil.h` | Planner test helpers: volumes drawn as pictures (one character per cluster), zones and scripts, assignment. |
@@ -284,6 +287,7 @@ changes (see `AGENTS.md`).
 | `tests/services/ApiScannerTest.cpp` | On the `special` test volume: every special case flagged, extent kinds, every cluster accounted for, extents = `fsutil file queryextents` for sampled files. |
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
+| `tests/platform/ShadowCopiesTest.cpp` | Listing parse; the `vss` scenario volume shows a copy (slow, elevated). |
 | `tests/platform/StoragePropertiesTest.cpp` | Media and bus of every physical disk vs `Get-PhysicalDisk`; bus names. |
 | `tests/platform/UsnJournalTest.cpp` | Enumeration = directory walk (reference, name, parent) on ICD-TEST volumes; Windows drive journal state; record numbers. |
 | `tests/platform/VolumeBitmapTest.cpp` | Free runs = NTFS free clusters and diskfree (minus reserved) on ICD-TEST volumes, small pieces = large pieces; Windows drive within 1%. |

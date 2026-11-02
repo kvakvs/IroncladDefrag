@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T090 - VSS detection and alignment
-
-- Depends: T088, T042
-- Owns: `src/platform/win/ShadowCopies.*`, `src/core/planner/VssAlign.*`
-- Do: detect shadow copies; prefer 16 KB-aligned destinations; count unaligned moves (§9.4).
-- Done when: alignment tests for 4 KB and 16 KB clusters; detection works on the `vss` scenario.
-
 ### T091 - Fast level
 
 - Depends: T089, T073
