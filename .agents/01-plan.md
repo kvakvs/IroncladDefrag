@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T083 - Lower bound and target fitting
-
-- Depends: T082
-- Owns: `src/core/planner/LowerBound.*`
-- Do: lower bound (§9.3.1); choose among target candidates by lowest lower bound (§9.3.2).
-- Done when: tests on hand-made layouts with known minimum bytes.
-
 ### T084 - Good-enough filter and defragment-only
 
 - Depends: T083

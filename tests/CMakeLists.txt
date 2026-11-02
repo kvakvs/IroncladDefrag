@@ -26,6 +26,7 @@ add_executable(icd_tests
     core/JsonReaderTest.cpp
     core/JsonTest.cpp
     core/LogTest.cpp
+    core/LowerBoundTest.cpp
     core/LruCacheTest.cpp
     core/MapUpdateTest.cpp
     core/MftLayoutTest.cpp

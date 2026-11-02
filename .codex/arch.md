@@ -982,6 +982,16 @@ All analysis checks passed.
   zone land inside it (given a layout), each file moves once (a parked file returns exactly once), the accounting
   above holds exactly, and the plan's totals equal the replay's. Tests break a plan for every rule.
 
+- Lower bound (T083, `LowerBound`): a Placed file must move unless all its movable runs lie in its zone's pieces and its
+  fragments are good enough (one fragment, or every fragment at least the zone's `fragmentOk`; at Maximum the whole
+  file must be one fragment); a defragment-only file (or one without a zone) only when its fragments are not; fixed and
+  in-place files never. Their clusters are the lower bound every plan reports against.
+- Target fitting (T083, `fitTarget()`, plan.md 9.3.2): a forward zone's position is its slack-free start plus the slack
+  before it, so a file in that zone stays for one interval of slack values. The slack per zone must not decrease from
+  zone to zone; a dynamic programme over candidate values (0 and every interval's low end, which provably contain an
+  optimum; thinned to 1,024 evenly spread ones on large volumes) picks the split that keeps the most clusters in place.
+  Front zones never shift. On random small volumes it equals brute force over every split.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one
