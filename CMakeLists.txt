@@ -148,6 +148,10 @@ add_library(icd_core STATIC
     src/core/planner/ZoneAssignment.h
     src/core/planner/levels/FastLevel.cpp
     src/core/planner/levels/FastLevel.h
+    src/core/planner/levels/MaximumLevel.cpp
+    src/core/planner/levels/MaximumLevel.h
+    src/core/planner/levels/ModerateLevel.cpp
+    src/core/planner/levels/ModerateLevel.h
     src/core/resources/MemoryPlanner.cpp
     src/core/resources/MemoryPlanner.h
     src/core/resources/ResourceCaps.cpp

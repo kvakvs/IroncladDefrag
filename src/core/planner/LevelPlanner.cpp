@@ -123,18 +123,46 @@ namespace icd::core::planner {
                     lowerBound(snapshot_, script_, assignment_, result_.layout, policy_.goodEnough, executor, token);
                 sorted_ =
                     applySortBounds(snapshot_, script_, assignment_, policy_.effort, policy_.sortTolerance, bound_);
-                const Candidates candidates = filterCandidates(bound_, assignment_, script_.zones.size());
-                const std::span<const ClusterRun> reserved =
-                    result_.layout.reservedUsed ? std::span<const ClusterRun>() : input_.reserved;
-                pool_ = afterPlanPool(snapshot_, bound_, reserved);
-                Placed placed = placeZones(candidates, executor, token);
-                placeDefragment(candidates, placed);
-                reconcile(placed);
+                reserved_ = result_.layout.reservedUsed ? std::span<const ClusterRun>() : input_.reserved;
+                Placed placed = placeRounds(executor, token);
                 finish(placed);
                 return std::move(result_);
             }
 
         private:
+            // Rounds of placement: files that find no space at all stay where they are and the round is planned again
+            // without them, so no other file is promised their clusters.
+            Placed placeRounds(Executor& executor, const CancelToken& token) {
+                constexpr int rounds = 3;
+                for (int round = 0;; ++round) {
+                    const Candidates candidates = filterCandidates(bound_, assignment_, script_.zones.size());
+                    pool_ = afterPlanPool(snapshot_, bound_, reserved_);
+                    evicted_.clear();
+                    noSpace_.clear();
+                    Placed placed = placeZones(candidates, executor, token);
+                    placeDefragment(candidates, placed);
+                    reconcile(placed);
+                    if (noSpace_.empty() || round + 1 == rounds) {
+                        recordStuck();
+                        return placed;
+                    }
+                    for (const FileIndex f : noSpace_) {
+                        bound_.mustMove[f] = 0;
+                        stuck_.push_back(f);
+                    }
+                }
+            }
+
+            // Files that found no space in any round, as skipped.
+            void recordStuck() {
+                stuck_.insert(stuck_.end(), noSpace_.begin(), noSpace_.end());
+                for (const FileIndex f : stuck_) {
+                    result_.plan.skipped.push_back(
+                        {.file = f, .reason = SkipReason::NoSpace, .clusters = assignment_.movable[f]});
+                    result_.plan.skippedClusters += assignment_.movable[f];
+                }
+            }
+
             // The sort decision of a zone, or an unsorted one.
             [[nodiscard]] const SortedZone& decisionFor(ZoneIndex zone) const {
                 static const SortedZone unsorted;
@@ -230,6 +258,7 @@ namespace icd::core::planner {
             [[nodiscard]] bool evictable(FileIndex file, FileIndex big, ZoneIndex zone) const {
                 return file != big && assignment_.roles[file] == FileRole::Placed && assignment_.zoneOf[file] == zone &&
                     bound_.mustMove[file] == 0 && evicted_.count(file) == 0 &&
+                    std::ranges::find(stuck_, file) == stuck_.end() &&
                     assignment_.movable[file] * 4 <= assignment_.movable[big];
             }
 
@@ -340,12 +369,9 @@ namespace icd::core::planner {
 
             // Records a file that cannot move.
             void skip(FileIndex file, bool extra) {
-                if (extra) {
-                    return; // Was only going to move to make room; it simply stays.
+                if (!extra) {
+                    noSpace_.push_back(file); // An extra mover was only going to make room; it simply stays.
                 }
-                result_.plan.skipped.push_back(
-                    {.file = file, .reason = SkipReason::NoSpace, .clusters = assignment_.movable[file]});
-                result_.plan.skippedClusters += assignment_.movable[file];
             }
 
             // Aligns, orders, budgets and measures.
@@ -376,6 +402,9 @@ namespace icd::core::planner {
             std::vector<SortedZone> sorted_; // Sorted zones at this level.
             HoleSet pool_; // After-plan free space not yet given out.
             std::unordered_set<FileIndex> evicted_; // Files moved out of the way.
+            std::span<const ClusterRun> reserved_; // Reserved runs kept out of the pool.
+            std::vector<FileIndex> noSpace_; // Files this round could not place.
+            std::vector<FileIndex> stuck_; // Files earlier rounds could not place; they stay.
             PlanResult result_; // Output.
         };
 

@@ -70,6 +70,7 @@ changes (see `AGENTS.md`).
 | `src/core/planner/HoleSet.*` | `HoleSet`: mutable merged free runs in blocks with a max-length tree; `take()`, `add()`, `contains()`, `nextFit()` / `prevFit()` within a window, `within()`. |
 | `src/core/planner/LevelPlanner.*` | `PlanInput`, `LevelPolicy`, `PlanMetrics`, `PlanResult`, `assignInput()`, `planZones()` (Moderate/Maximum pipeline, zones in parallel on pool slices, eviction and overflow), `measurePlan()`, `usedClusters()`. |
 | `src/core/planner/levels/FastLevel.*` | `HotSpotOptions`, `StripeScore`, `scoreStripes()`, `findHotSpots()`, `fastPolicy()`, `planFast()` (hot-spot compaction, big long-lived files to their zone, budget). |
+| `src/core/planner/levels/ModerateLevel.*`, `levels/MaximumLevel.*` | `moderatePolicy()` / `planModerate()`, `maximumPolicy()` / `planMaximum()`: the plan.md 9.2 table as policies over `planZones()`. |
 | `src/core/planner/LowerBound.*` | `GoodEnough`, `fragmentsOk()`, `fragmentOkFor()`, `lowerBound()` (must-move files per zone, parallel), `fitTarget()` (slack before each forward zone by a dynamic programme over stay intervals, plan.md 9.3.2). |
 | `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `clustersOf()`, `fragmentsOf()`, `finishTotals()`. |
 | `src/core/planner/Validator.*` | `validatePlan()`: replays a plan on copies of free space and extents and checks plan.md 9.5 (free destinations, current sources, kept clusters, zones, one move per file, parking, accounting, totals). |
@@ -258,6 +259,7 @@ changes (see `AGENTS.md`).
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/CatalogTest.cpp` | One test per built-in class with typical and edge-case paths; every class reachable and colored; bad catalogs refused. |
 | `tests/core/DefragOnlyTest.cpp` | Fits that avoid own runs, large pieces, defragmenting near the file, skips, and on synthetic volumes: plans validate and the untouched files are exactly the good-enough set. |
+| `tests/core/LevelsTest.cpp` | All three levels validate on synthetic volumes; Moderate within Maximum's bytes and goals; Maximum parks where Moderate leaves an unsorted zone; policy table. |
 | `tests/core/LowerBoundTest.cpp` | Fragment rules, must-move files on hand-made layouts, defragment-only files, slack moving zones towards files, conflicts, front zones, fitting = brute force over every slack split on random volumes. |
 | `tests/core/HoleSetTest.cpp` | HoleSet against a per-cluster model under random takes and adds across block splits; fits in both directions; merging. |
 | `tests/core/VssAlignTest.cpp` | Units for 512 B-64 KB clusters, aligned moves, shifting destinations, no room, the report. |

@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T092 - Moderate and Maximum levels
-
-- Depends: T089
-- Owns: `src/core/planner/levels/ModerateLevel.*`, `src/core/planner/levels/MaximumLevel.*`
-- Do: thresholds, tolerances and budgets from the §9.2 table; parking allowed only at Maximum.
-- Done when: tests show Moderate ⊆ Maximum in reached goals and bytes ≤ Maximum.
-
 ### T093 - Parallel planning orchestration
 
 - Depends: T091, T092, T090

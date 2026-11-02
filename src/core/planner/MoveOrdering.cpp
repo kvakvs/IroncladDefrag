@@ -1,8 +1,11 @@
 #include "core/planner/MoveOrdering.h"
 
+#include "core/strategy/ZoneScript.h"
+
 #include <algorithm>
 #include <functional>
 #include <queue>
+#include <unordered_map>
 
 namespace icd::core::planner {
 
@@ -327,14 +330,14 @@ namespace icd::core::planner {
                     const ClusterCount cb = clustersOf(sources_[b]);
                     return ca != cb ? ca < cb : a < b;
                 });
-                if (options_.allowParking && park(*smallest)) {
+                if (options_.allowParking ? park(*smallest) : redirect(*smallest)) {
                     return;
                 }
                 drop(cycle, SkipReason::Cycle);
             }
 
-            // Moves a file to scratch space now; its return waits for the move's own dependencies.
-            bool park(std::uint32_t v) {
+            // Scratch space for a move's file: one run, else pieces; taken out of the scratch pool. Empty when none.
+            std::vector<ClusterRun> takeScratch(std::uint32_t v, bool onePiece) {
                 const ClusterCount clusters = clustersOf(sources_[v]);
                 const SpaceRequest request{
                     .clusters = clusters, .own = {}, .window = {0, snapshot_.geometry.totalClusters}};
@@ -342,14 +345,56 @@ namespace icd::core::planner {
                 if (const auto run = findFirst(scratch_, request)) {
                     runs.push_back(*run);
                 }
-                else if (auto pieces = findPieces(scratch_, request, 1)) {
+                else if (auto pieces = onePiece ? std::nullopt : findPieces(scratch_, request, 1)) {
                     runs = std::move(*pieces);
+                }
+                takeRuns(scratch_, runs);
+                return runs;
+            }
+
+            // Scratch pieces of at least 64 MB each (never worse than "good enough"), or nothing.
+            std::vector<ClusterRun> takeLargePieces(std::uint32_t v) {
+                const ClusterCount cluster = std::max<std::uint32_t>(snapshot_.geometry.bytesPerCluster, 1);
+                const ClusterCount minPiece = (strategy::Zone::defaultFragmentOk + cluster - 1) / cluster;
+                const SpaceRequest request{
+                    .clusters = clustersOf(sources_[v]), .own = {}, .window = {0, snapshot_.geometry.totalClusters}};
+                auto pieces = findPieces(scratch_, request, minPiece);
+                if (!pieces) {
+                    return {};
+                }
+                takeRuns(scratch_, *pieces);
+                return std::move(*pieces);
+            }
+
+            // Levels that may not park break a cycle by sending its smallest file to free space nothing else uses: it
+            // still moves once (no extra cost) and its fragments are joined, but it ends outside its target.
+            bool redirect(std::uint32_t v) {
+                std::vector<ClusterRun> runs = takeScratch(v, true);
+                if (runs.empty()) {
+                    runs = takeLargePieces(v);
                 }
                 if (runs.empty()) {
                     return false;
                 }
-                takeRuns(scratch_, runs);
                 const Destination& d = destinations_[v];
+                const MoveReason reason =
+                    fragmentsOf(sources_[v]) > fragmentsOf(runs) ? MoveReason::Defragment : MoveReason::Relocate;
+                plan_.add({.file = d.file, .reason = reason, .zone = noZone, .extra = d.extra}, sources_[v], runs);
+                state_[v] = State::Done;
+                ++report_.redirected;
+                release(v);
+                return true;
+            }
+
+            // Moves a file to scratch space now; its return waits for the move's own dependencies.
+            bool park(std::uint32_t v) {
+                const ClusterCount clusters = clustersOf(sources_[v]);
+                std::vector<ClusterRun> runs = takeScratch(v, false);
+                if (runs.empty()) {
+                    return false;
+                }
+                const Destination& d = destinations_[v];
+                parkMove_[v] = plan_.moves.size();
                 plan_.add({.file = d.file, .reason = MoveReason::Park, .zone = noZone, .extra = true}, sources_[v],
                           runs);
                 plan_.extra += clusters;
@@ -370,6 +415,9 @@ namespace icd::core::planner {
                 while (!work.empty()) {
                     const std::uint32_t v = work.back();
                     work.pop_back();
+                    if (state_[v] == State::Parked) {
+                        settle(v);
+                    }
                     if (state_[v] != State::Waiting) {
                         continue;
                     }
@@ -377,6 +425,22 @@ namespace icd::core::planner {
                     skip(v, inCycle[v] != 0 ? reason : SkipReason::Dependency);
                     work.insert(work.end(), out_[v].begin(), out_[v].end());
                 }
+            }
+
+            // A parked file whose return can no longer happen stays in its scratch space: its park becomes its one
+            // real move (outside its target), so it moves once and nothing is extra about it.
+            void settle(std::uint32_t v) {
+                Move& park = plan_.moves[parkMove_[v]];
+                const MoveReason reason = fragmentsOf(sources_[v]) > fragmentsOf(plan_.destinations(park))
+                    ? MoveReason::Defragment
+                    : MoveReason::Relocate;
+                park.reason = reason;
+                park.extra = destinations_[v].extra;
+                plan_.extra -= park.clusters;
+                plan_.extra += park.extra ? park.clusters : 0;
+                state_[v] = State::Done;
+                --report_.parked;
+                ++report_.redirected;
             }
 
             // Records a dropped move.
@@ -402,6 +466,7 @@ namespace icd::core::planner {
             std::vector<std::vector<ClusterRun>> scratchRuns_; // Per parked move: where its file sits.
             std::priority_queue<std::uint32_t, std::vector<std::uint32_t>, std::greater<>> ready_; // Ready moves.
             HoleSet scratch_; // Free runs no destination touches.
+            std::unordered_map<std::uint32_t, std::size_t> parkMove_; // Per parked move: its park move in the plan.
             OrderReport report_; // Counts.
         };
 

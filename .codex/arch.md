@@ -1072,6 +1072,18 @@ All analysis checks passed.
   its zone. No overflow handling (that would touch other areas); budget 2% of used space or 15 minutes times the
   multiplier; the plan carries the "run again" note.
 
+- Moderate and Maximum (T092, `levels/ModerateLevel`, `levels/MaximumLevel`): policies over `planZones()`. Moderate:
+  zones' fragment_ok, sorted zones only within a 20% tolerance, small files evicted for large ones, no parking, budget
+  20% of used space. Maximum: whole files, exact order, eviction, parking, no budget. On synthetic volumes (50-80%
+  full) both validate, Moderate moves no more than Maximum and reaches no more zone fit; Maximum reaches about 90% zone
+  fit and no fragmented files at 50-65% fill, with about 1.0-1.09 x the lower bound moved (the rest is parking and
+  evictions).
+- Placement runs in up to three rounds: a candidate that finds no space at all stays where it is and the round is
+  planned again without it, so no other file is promised its clusters (at 80% fill this stopped cascades of dropped
+  dependents). At levels that may not park, a cycle is broken by sending its smallest file to scratch space for good
+  (one move, outside its target; pieces of 64 MB or more when no single run holds it); a parked file whose return can
+  no longer happen stays in scratch space, its park becoming its one move.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

@@ -21,6 +21,7 @@ namespace icd::core::planner {
     struct OrderReport {
         std::size_t cycles = 0; // Cycles found.
         std::size_t parked = 0; // Files parked to break them.
+        std::size_t redirected = 0; // Files sent to free space instead of their target to break them (no parking).
         std::size_t dropped = 0; // Moves dropped (cycles at levels that may not park, and what waited on them).
     };
 
@@ -28,7 +29,8 @@ namespace icd::core::planner {
     // overlaps, the graph is ordered topologically (ties in destination order, so the result is deterministic), and
     // each file moves exactly once. When only cycles are left, every cycle that waits on nothing else is broken: at
     // Maximum its smallest file is parked in scratch space first (one extra move, marked extra) and returns later;
-    // otherwise the cycle is dropped together with every move that waited on it (skipped, Cycle or Dependency).
+    // otherwise its smallest file goes to scratch space for good (one move, outside its target). Without scratch space
+    // the cycle is dropped together with every move that waited on it (skipped, Cycle or Dependency).
     // Moves are appended to the plan; skipped files are recorded in it.
     OrderReport orderMoves(const Snapshot& snapshot, std::span<const Destination> destinations,
                            const OrderOptions& options, Plan& plan);

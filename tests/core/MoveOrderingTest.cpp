@@ -62,11 +62,13 @@ namespace icd::core::planner { namespace {
         EXPECT_EQ(parked.plan.moves[0].file, f.at('A')); // Equal sizes: the first one.
         EXPECT_TRUE(parked.plan.moves[2].fromParking);
         EXPECT_EQ(parked.plan.extra, 1U);
-        const Ordered dropped = order(v, d, false);
-        ASSERT_TRUE(dropped.validation.ok()) << dropped.validation.issues.front().message;
-        EXPECT_TRUE(dropped.plan.moves.empty());
-        EXPECT_EQ(dropped.plan.skippedClusters, 2U);
-        EXPECT_EQ(dropped.plan.skipped.front().reason, SkipReason::Cycle);
+        const Ordered redirected = order(v, d, false);
+        ASSERT_TRUE(redirected.validation.ok()) << redirected.validation.issues.front().message;
+        EXPECT_EQ(redirected.report.redirected, 1U); // A goes to free space for good; B then takes A's place.
+        ASSERT_EQ(redirected.plan.moves.size(), 2U);
+        EXPECT_EQ(redirected.plan.destinations(redirected.plan.moves[0]).front(), (ClusterRun{2, 1}));
+        EXPECT_EQ(redirected.plan.extra, 0U);
+        EXPECT_TRUE(redirected.plan.skipped.empty());
     }
 
     TEST(MoveOrdering, CyclesParkTheSmallestFileAndDropTheirDependents) {
@@ -81,15 +83,11 @@ namespace icd::core::planner { namespace {
         EXPECT_EQ(parked.plan.moves[0].reason, MoveReason::Park);
         EXPECT_EQ(parked.plan.extra, 1U);
         EXPECT_EQ(parked.plan.moves.size(), 4U);
-        const Ordered dropped = order(v, d, false);
-        ASSERT_TRUE(dropped.validation.ok()) << dropped.validation.issues.front().message;
-        EXPECT_EQ(dropped.report.dropped, 3U);
-        EXPECT_EQ(dropped.plan.skippedClusters, 4U);
-        const auto reasonOf = [&](char letter) {
-            return std::ranges::find(dropped.plan.skipped, f.at(letter), &SkippedFile::file)->reason;
-        };
-        EXPECT_EQ(reasonOf('A'), SkipReason::Cycle);
-        EXPECT_EQ(reasonOf('F'), SkipReason::Dependency);
+        const Ordered redirected = order(v, d, false);
+        ASSERT_TRUE(redirected.validation.ok()) << redirected.validation.issues.front().message;
+        EXPECT_EQ(redirected.report.redirected, 1U);
+        EXPECT_EQ(redirected.plan.moves.size(), 3U); // B to free space, then A and F as planned.
+        EXPECT_TRUE(redirected.plan.skipped.empty());
     }
 
     TEST(MoveOrdering, ThreeCycleWithIndependentChain) {
@@ -102,20 +100,31 @@ namespace icd::core::planner { namespace {
         ASSERT_TRUE(parked.validation.ok()) << parked.validation.issues.front().message;
         EXPECT_EQ(parked.report.cycles, 1U);
         EXPECT_EQ(parked.plan.moves.size(), 6U);
-        const Ordered dropped = order(v, d, false);
-        ASSERT_TRUE(dropped.validation.ok()) << dropped.validation.issues.front().message;
-        EXPECT_EQ(dropped.plan.moves.size(), 2U); // The chain still runs.
-        EXPECT_EQ(dropped.plan.skippedClusters, 3U);
+        const Ordered redirected = order(v, d, false);
+        ASSERT_TRUE(redirected.validation.ok()) << redirected.validation.issues.front().message;
+        EXPECT_EQ(redirected.plan.moves.size(), 5U); // No extra move: one file of the cycle ends in free space.
+        EXPECT_EQ(redirected.report.redirected, 1U);
     }
 
-    TEST(MoveOrdering, ParkingWithoutScratchSpaceDrops) {
+    TEST(MoveOrdering, WithoutScratchSpaceCyclesAreDroppedWithTheirDependents) {
         const auto v = test::pictureVolume("AB");
         const auto& f = v.files;
         const std::vector<Destination> d{to(f.at('A'), {{1, 1}}), to(f.at('B'), {{0, 1}})};
-        const Ordered o = order(v, d, true);
+        for (const bool parking : {true, false}) {
+            const Ordered o = order(v, d, parking);
+            EXPECT_TRUE(o.validation.ok());
+            EXPECT_EQ(o.report.parked + o.report.redirected, 0U);
+            EXPECT_EQ(o.plan.skippedClusters, 2U);
+            EXPECT_EQ(o.plan.skipped.front().reason, SkipReason::Cycle);
+        }
+        //  A A B F    A -> [2,4) waits for B and F, B -> [0,1), F -> [1,2): no free cluster at all.
+        const auto w = test::pictureVolume("AABF");
+        const std::vector<Destination> e{to(w.files.at('A'), {{2, 2}}), to(w.files.at('B'), {{0, 1}}),
+                                         to(w.files.at('F'), {{1, 1}})};
+        const Ordered o = order(w, e, false);
         EXPECT_TRUE(o.validation.ok());
-        EXPECT_EQ(o.report.parked, 0U);
-        EXPECT_EQ(o.plan.skippedClusters, 2U);
+        EXPECT_EQ(o.report.dropped, 3U);
+        EXPECT_EQ(o.plan.skippedClusters, 4U);
     }
 
     TEST(MakeRoom, EvictsTheFewestClusters) {
