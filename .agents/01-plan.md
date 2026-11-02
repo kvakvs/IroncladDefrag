@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 5 - Classification and activity (§8.2, §13 Phase 5)
 
-### T071 - Built-in class catalog
-
-- Depends: T070
-- Owns: `src/core/classify/Catalog.*`, `data/classes.json`
-- Do: every class from §8.3-8.6 (source, repo packs, dependencies, build output, temp, archives,
-  disc images, VM disks, backups, photos, catalogs, video, unknown) as data.
-- Done when: one test per class with typical and edge-case paths.
-
 ### T072 - Last-access reliability
 
 - Depends: T070, T042

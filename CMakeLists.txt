@@ -26,9 +26,21 @@ include(IcdWxWidgets)
 # Version header generated from project(VERSION), shared by code and resource scripts.
 configure_file(src/core/Version.h.in "${CMAKE_BINARY_DIR}/generated/core/Version.h" @ONLY)
 
+# The built-in class catalog (data/classes.json) compiled into icd_core, so no data file is looked up at run time.
+set(ICD_CATALOG_SOURCE "${CMAKE_BINARY_DIR}/generated/core/classify/BuiltinCatalog.cpp")
+add_custom_command(
+    OUTPUT "${ICD_CATALOG_SOURCE}"
+    COMMAND "${CMAKE_COMMAND}" -DINPUT=${CMAKE_SOURCE_DIR}/data/classes.json -DOUTPUT=${ICD_CATALOG_SOURCE}
+            -DNAMESPACE=icd::core::classify -DFUNCTION=builtinCatalogJson -P ${CMAKE_SOURCE_DIR}/cmake/EmbedText.cmake
+    DEPENDS data/classes.json cmake/EmbedText.cmake
+    COMMENT "Embedding data/classes.json"
+    VERBATIM)
+
 # --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
 add_library(icd_core STATIC
     src/core/Version.h.in
+    src/core/classify/Catalog.cpp
+    src/core/classify/Catalog.h
     src/core/classify/RuleEngine.cpp
     src/core/classify/RuleEngine.h
     src/core/exec/Executor.cpp
@@ -41,6 +53,8 @@ add_library(icd_core STATIC
     src/core/format/DriveText.h
     src/core/format/Json.cpp
     src/core/format/Json.h
+    src/core/format/JsonReader.cpp
+    src/core/format/JsonReader.h
     src/core/format/Duration.cpp
     src/core/format/Duration.h
     src/core/job/CancelToken.cpp
@@ -134,6 +148,8 @@ add_library(icd_core STATIC
     src/core/util/LruCache.h
     src/core/synth/SyntheticVolume.cpp
     src/core/synth/SyntheticVolume.h
+    data/classes.json
+    "${ICD_CATALOG_SOURCE}"
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)

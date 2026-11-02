@@ -14,12 +14,14 @@ FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
     core/BitmapToRunsTest.cpp
+    core/CatalogTest.cpp
     core/ColorModesTest.cpp
     core/DriveInfoTest.cpp
     core/FileSearchTest.cpp
     core/GridTest.cpp
     core/HitTestTest.cpp
     core/JobTypesTest.cpp
+    core/JsonReaderTest.cpp
     core/JsonTest.cpp
     core/LogTest.cpp
     core/LruCacheTest.cpp

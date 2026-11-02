@@ -859,6 +859,19 @@ All analysis checks passed.
   Overrides are found by walking names from the roots and inherited down the same level pass.
 - `classifyPath()` classifies one path with facts, by the same automaton and override rules; tests require it to give
   every file of a snapshot exactly what `classify()` gives (hand-made dev tree and a 20 K-file synthetic volume).
+- The classes are data (T071): `data/classes.json` lists the classes of plan.md 8.3-8.6 (source and config, repository
+  data, dependencies, build output, temp, archives, disc images, VM disks, backups, photos, catalogs and thumbnails,
+  video, unknown) plus NTFS metadata and directories, each with an id, display name, color and description, and the
+  ordered rules (paths, extensions, sizes as bytes or "100 MB", flags, churn). CMake embeds the file into `icd_core`
+  (`cmake/EmbedText.cmake` writes a char array, so no data file is looked up at run time and an edit rebuilds it);
+  `classify::builtinCatalog()` parses it once. `parseCatalog()` refuses unknown keys, classes, flags, bad sizes, colors
+  and patterns and other format versions with a message saying where.
+- Notable rule decisions: loose `.git/objects/xx/*` files are temp (churn), packs repository data; a `bin` folder is
+  build output but a `.bin` file elsewhere is a disc image; videos count as video from 100 MB, smaller ones stay
+  unknown; a large `.ts` is video, a small one TypeScript; anything the journal shows as churn is temp, unless an
+  earlier rule (packs, build output) already matched. `CatalogTest` has one test per class with typical and edge cases.
+- `core/format/JsonReader` is the JSON reader the data files need (a small value tree with members in file order,
+  RFC 8259 numbers and escapes, line and column in errors, 64 levels deep at most).
 
 ## Parallel execution
 

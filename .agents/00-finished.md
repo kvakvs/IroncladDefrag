@@ -233,3 +233,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   anchored or not, case-insensitive), extensions, size and age ranges, file flags and churn; per-directory overrides
   (deepest wins, regular files only); all globs as one automaton stepped once per directory level (parallel) and once
   per file name, extensions looked up once per distinct name; `classifyPath()` equals `classify()`. `RuleEngineTest`.
+- T071 Built-in class catalog - `data/classes.json` (every class of plan.md 8.3-8.6 plus NTFS metadata and
+  directories, colors, descriptions, ordered rules), embedded by `cmake/EmbedText.cmake`; `core/classify/Catalog.*`
+  (strict `parseCatalog()`, `builtinCatalog()`), `core/format/JsonReader.*` (JSON reader for data files).
+  `CatalogTest` (one test per class, typical and edge cases), `JsonReaderTest`.

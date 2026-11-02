@@ -8,6 +8,8 @@ changes (see `AGENTS.md`).
 | Path | What it is |
 | --- | --- |
 | `plan.md` | Development plan (phases, design decisions). |
+| `data/classes.json` | Built-in file classes and classification rules (plan.md 8.2-8.6), embedded into `icd_core`. |
+| `cmake/EmbedText.cmake` | Script mode: writes a C++ source returning a text file as a char array (`builtinCatalogJson()`). |
 | `.agents/01-plan.md`, `.agents/00-finished.md` | Open tasks and the log of finished ones. |
 | `.codex/arch.md`, `.codex/map.md` | Architecture notes and this map. |
 | `story/` | Notes from earlier attempts (read-only history). |
@@ -54,6 +56,8 @@ changes (see `AGENTS.md`).
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
 | `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
+| `src/core/classify/Catalog.*` | `Catalog`, `ClassInfo` (id, name, color, description), `parseCatalog()` (strict: unknown keys, classes, flags, bad sizes and colors refused), `builtinCatalog()` (data/classes.json embedded at build time), `builtinCatalogJson()` (generated). |
+| `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
 | `src/core/format/Json.*` | `JsonWriter` (streaming, indented, RFC 8259 escaping), `jsonQuote()`. |
 | `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
@@ -216,6 +220,8 @@ changes (see `AGENTS.md`).
 | `tests/services/TrimJobTest.cpp` | Line splitting across chunks (CR, CRLF), retrim percentages, output queue. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
+| `tests/core/CatalogTest.cpp` | One test per built-in class with typical and edge-case paths; every class reachable and colored; bad catalogs refused. |
+| `tests/core/JsonReaderTest.cpp` | Values, escapes and surrogates, writer round trip, malformed input, error positions, kind checks. |
 | `tests/core/RuleEngineTest.cpp` | Globs (anchored, `**`, `?`, case), rule order, size/age/flag/churn conditions, overrides (deepest, directories untouched), bad rule sets, snapshot classes = path classes on a dev tree and a synthetic volume, any executor. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
 | `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
@@ -269,7 +275,7 @@ changes (see `AGENTS.md`).
 
 | Path | Contents |
 | --- | --- |
-| `build/` | clang-cl Ninja Multi-Config build with `compile_commands.json`; `build/bin/<Config>/` holds the exes and the wx DLLs of that config. |
+| `build/` | clang-cl Ninja Multi-Config build with `compile_commands.json`; `build/bin/<Config>/` holds the exes and the wx DLLs of that config; `build/generated/` the version header and the embedded catalog source. |
 | `build-msvc/` | Optional MSVC (VS 2026) build, same layout. |
 | `build/quality/` | Ninja + clang-cl configure for the quality gate; `quality/` holds scope lists and the selected database. |
 | `.venv-quality/` | Python venv with the pinned analyzers. |
