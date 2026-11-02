@@ -15,6 +15,7 @@ FetchContent_MakeAvailable(googletest)
 add_executable(icd_tests
     core/AccessTimeHeuristicTest.cpp
     core/BitmapToRunsTest.cpp
+    core/BudgetTest.cpp
     core/CatalogTest.cpp
     core/ColorModesTest.cpp
     core/DefragOnlyTest.cpp

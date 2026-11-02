@@ -59,6 +59,7 @@ changes (see `AGENTS.md`).
 | `src/core/classify/AccessTimeHeuristic.*` | `gatherAccessEvidence()` (files read more than an hour after creation and last change, recent ones), `assessAccessTimes()` (setting plus evidence: reliable, unreliable, unknown with a reason), `verdictName()`. |
 | `src/core/classify/Catalog.*` | `Catalog`, `ClassInfo` (id, name, color, description), `parseCatalog()` (strict: unknown keys, classes, flags, bad sizes and colors refused), `builtinCatalog()` (data/classes.json embedded at build time), `builtinCatalogJson()` (generated), `fileFlagNamed()` / `fileFlagNames()`. |
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
+| `src/core/planner/Budget.*` | `TimeModel`, `BudgetOptions`, `moveBenefit()`, `planSeconds()`, `applyBudget()` (benefit-per-byte selection with dependencies, most valuable first, deferred clusters). |
 | `src/core/planner/CandidateFilter.*` | `Candidates`, `filterCandidates()`: must-move files per zone and the defragment-only ones (plan.md 9.3.3). |
 | `src/core/planner/DefragOnly.*` | `planDefragment()`: defragment-only moves to the nearest run that holds the file, or large pieces; skips with a reason; vacated space reused. |
 | `src/core/planner/MakeRoom.*` | `findRoom()`: window for a large file whose occupants are small evictable files (plan.md 9.3.6), fewest clusters evicted. |
@@ -241,6 +242,7 @@ changes (see `AGENTS.md`).
 | `tests/core/ViewportTest.cpp` | Pixel/world round trip, fit and limits, anchored zoom, pan clamping, eased zoom motion, durations, inertia. |
 | `tests/core/WorldTest.cpp` | Nice widths, landscape/portrait aspect, round trips and edge cells, levels, tile clipping, row segments. |
 | `tests/core/AccessTimeHeuristicTest.cpp` | Which files count as read after writing (hour of slack, copies), parallel = serial, setting and evidence combined. |
+| `tests/core/BudgetTest.cpp` | Cut plans within cluster and time budgets and valid, valuable moves kept, dependencies kept together, every prefix validates with fewer fragments. |
 | `tests/core/BitmapToRunsTest.cpp` | Edge cases, random bitmaps vs per-bit brute force, random chunk cuts stitched = whole, parallel = serial for several grains. |
 | `tests/core/ColorModesTest.cpp` | Age and size bucket edges, bucket values, legend counts vs per-cluster brute force (all modes, random rectangles, pool = serial), tile colors = legend colors, visible cells. |
 | `tests/core/PyramidTest.cpp` | Base-level choice, every bin vs brute force, dominant class, parallel = serial, dirty-range update = rebuild. |

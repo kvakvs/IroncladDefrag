@@ -133,7 +133,11 @@ namespace icd::core::planner {
 
             // Emits every move, breaking cycles as needed.
             OrderReport run() {
+                dropUnbacked();
                 for (std::uint32_t v = 0; v < indegree_.size(); ++v) {
+                    if (state_[v] != State::Waiting) {
+                        continue;
+                    }
                     if (indegree_[v] == 0) {
                         ready_.push(v);
                     }
@@ -147,8 +151,8 @@ namespace icd::core::planner {
             }
 
         private:
-            // Edges: move i -> move j when j's destination overlaps i's sources (i must go first).
-            void buildEdges() {
+            // Every move's sources sorted by LCN, with the move.
+            [[nodiscard]] std::vector<std::pair<ClusterRun, std::uint32_t>> sourceIndex() const {
                 std::vector<std::pair<ClusterRun, std::uint32_t>> index;
                 for (std::uint32_t i = 0; i < sources_.size(); ++i) {
                     for (const ClusterRun& r : sources_[i]) {
@@ -156,6 +160,12 @@ namespace icd::core::planner {
                     }
                 }
                 std::ranges::sort(index, {}, [](const auto& e) { return e.first.start; });
+                return index;
+            }
+
+            // Edges: move i -> move j when j's destination overlaps i's sources (i must go first).
+            void buildEdges() {
+                const auto index = sourceIndex();
                 for (std::uint32_t j = 0; j < destinations_.size(); ++j) {
                     for (const std::uint32_t i : predecessors(index, j)) {
                         out_[i].push_back(j);
@@ -178,6 +188,45 @@ namespace icd::core::planner {
                 preds.erase(std::ranges::unique(preds).begin(), preds.end());
                 std::erase(preds, j);
                 return preds;
+            }
+
+            // Whether every cluster of a destination is free now or vacated by some move.
+            [[nodiscard]] bool backed(const Destination& d,
+                                      const std::vector<std::pair<ClusterRun, std::uint32_t>>& index) const {
+                for (const ClusterRun& r : d.runs) {
+                    ClusterCount covered = 0;
+                    for (const ClusterRun& f : snapshot_.freeSpace.overlapping(r)) {
+                        covered += overlap(f, r);
+                    }
+                    auto it = std::ranges::upper_bound(index, r.start, {}, [](const auto& e) { return e.first.end(); });
+                    for (; it != index.end() && it->first.start < r.end(); ++it) {
+                        covered += overlap(it->first, r);
+                    }
+                    if (covered != r.length) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
+            // Clusters two runs share.
+            static ClusterCount overlap(ClusterRun a, ClusterRun b) {
+                const Lcn start = std::max(a.start, b.start);
+                const Lcn end = std::min(a.end(), b.end());
+                return end > start ? end - start : 0;
+            }
+
+            // Drops moves whose destination lands on a file that does not move (a planner left it in place), with
+            // everything that waits on them.
+            void dropUnbacked() {
+                const auto index = sourceIndex();
+                std::vector<std::uint32_t> bad;
+                for (std::uint32_t v = 0; v < destinations_.size(); ++v) {
+                    if (!backed(destinations_[v], index)) {
+                        bad.push_back(v);
+                    }
+                }
+                drop(bad, SkipReason::Dependency);
             }
 
             // Scratch space: free runs no destination touches.
@@ -281,7 +330,7 @@ namespace icd::core::planner {
                 if (options_.allowParking && park(*smallest)) {
                     return;
                 }
-                drop(cycle);
+                drop(cycle, SkipReason::Cycle);
             }
 
             // Moves a file to scratch space now; its return waits for the move's own dependencies.
@@ -311,8 +360,8 @@ namespace icd::core::planner {
                 return true;
             }
 
-            // Drops a cycle and every waiting move that depends on it.
-            void drop(const std::vector<std::uint32_t>& cycle) {
+            // Drops moves (skipped with `reason`) and every waiting move that depends on them (Dependency).
+            void drop(const std::vector<std::uint32_t>& cycle, SkipReason reason) {
                 std::vector<std::uint32_t> work = cycle;
                 std::vector<std::uint8_t> inCycle(out_.size(), 0);
                 for (const std::uint32_t v : cycle) {
@@ -325,7 +374,7 @@ namespace icd::core::planner {
                         continue;
                     }
                     state_[v] = State::Dropped;
-                    skip(v, inCycle[v] != 0 ? SkipReason::Cycle : SkipReason::Dependency);
+                    skip(v, inCycle[v] != 0 ? reason : SkipReason::Dependency);
                     work.insert(work.end(), out_[v].begin(), out_[v].end());
                 }
             }

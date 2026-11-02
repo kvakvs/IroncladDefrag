@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T089 - Budgets and benefit ranking
-
-- Depends: T088
-- Owns: `src/core/planner/Budget.*`
-- Do: benefit-per-byte ranking, dependency-closed prefixes, budget cut; any prefix improves the volume
-  (§9.3.8, §9.2.1 step 5).
-- Done when: tests that every prefix validates and improves the metrics.
-
 ### T090 - VSS detection and alignment
 
 - Depends: T088, T042

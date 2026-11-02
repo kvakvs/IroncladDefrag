@@ -1038,6 +1038,15 @@ All analysis checks passed.
   whose clusters are free after the plan or belong to files that may move, evicting the fewest clusters within a
   limit; windows start at holes and at evictable files, a bounded number per piece.
 
+- Budgets (T089, `applyBudget()`): each move gets a benefit (4 per fragment removed, 2 for reaching its zone, 1 for
+  any hole it closes; extra moves 0). Moves are taken by benefit per cluster, each together with the earlier moves it
+  depends on, while the cluster and time budgets last (time = 2 x bytes / throughput + a seek per move, `TimeModel`);
+  extra moves come only with the moves that need them. The kept moves are reordered with the most valuable ready one
+  first, so every prefix is valid and leaves the volume better. Deferred clusters are reported; plans with parking
+  (Maximum, unbudgeted) are left whole.
+- `orderMoves()` also drops, before ordering, any destination that lands on a file that does not move (a zone planner
+  could not place a candidate whose clusters were offered to others), with everything that waits on it.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

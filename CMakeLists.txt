@@ -112,6 +112,8 @@ add_library(icd_core STATIC
     src/core/ntfs/NtfsText.h
     src/core/ntfs/RunList.cpp
     src/core/ntfs/RunList.h
+    src/core/planner/Budget.cpp
+    src/core/planner/Budget.h
     src/core/planner/CandidateFilter.cpp
     src/core/planner/CandidateFilter.h
     src/core/planner/DefragOnly.cpp
