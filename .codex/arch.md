@@ -950,6 +950,24 @@ All analysis checks passed.
   are written as "64 MB" (`core/format/ByteSize`: `parseSizeSpec()`, `sizeSpecText()`).
 - `core::strategy::Effort` is core's copy of the effort level, so the planner needs no services types.
 
+## Planner
+
+- `core/planner` (Phase 6, plan.md 9) builds plans from a snapshot, its classes and a zone script. It never touches
+  the disk; services run it on the pool (6.4) and the executor (Phase 7) carries a plan out.
+- Zone assignment (T081, `ZoneAssignment`): every file goes to the first zone whose selector matches (class table,
+  size, age, flags, churn; globs and extensions through one rule engine per zone that has them) and gets a role:
+  Fixed (unmovable, metadata, resident, encrypted or no movable clusters; encrypted files move only after they pass
+  on the test bed, plan.md 10.2), InPlace (keep-in-place zones), Defragment (defragment-only zones and files no zone
+  takes) or Placed. Movable clusters exclude unmovable extents, so a file with a pinned attribute still moves its data.
+- Target layout (T081, `TargetLayout`): obstacles are unmovable extents, every file that is not Placed (in-place and
+  defragment-only files stay near where they are) and reserved runs (the MFT zone). `AvailableAxis` numbers the
+  remaining clusters 0..N in LCN order, so a zone of N clusters gets exactly N usable ones and zones flow around
+  obstacles. Forward zones fill from the front in script order, each followed by its gap; back zones end at the end
+  of the volume (the last one exactly there, its gap dropped). What is left is slack; `LayoutInputs::slackBefore`
+  decides how much of it precedes each forward zone (plan.md 9.3.2, chosen by the lower bound), by default all of it
+  follows the last forward zone. Gaps shrink in proportion when free space is short, and the MFT zone is given up
+  when the files only fit with it; both leave a note.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

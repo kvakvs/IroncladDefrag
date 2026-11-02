@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T081 - Target layout resolver
-
-- Depends: T080, T021
-- Owns: `src/core/planner/TargetLayout.*`
-- Do: resolve zones to LCN ranges around fixed obstacles (`$MFT`, MFT zone, unmovable), anchors,
-  gaps (§8.1).
-- Done when: tests with obstacles at every position, full volumes, empty zones.
-
 ### T082 - Plan model, simulator and validator
 
 - Depends: T081

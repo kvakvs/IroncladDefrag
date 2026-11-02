@@ -31,6 +31,7 @@ add_executable(icd_tests
     core/NtfsParserTest.cpp
     core/NtfsRecordBuilder.h
     core/OverviewTest.cpp
+    core/PlannerTestUtil.h
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
     core/RuleEngineTest.cpp
@@ -43,6 +44,7 @@ add_executable(icd_tests
     core/SnapshotTest.cpp
     core/StripesTest.cpp
     core/SyntheticVolumeTest.cpp
+    core/TargetLayoutTest.cpp
     core/TileRasterizerTest.cpp
     core/ViewportTest.cpp
     core/WorldTest.cpp
