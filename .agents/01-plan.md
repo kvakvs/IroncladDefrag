@@ -22,17 +22,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ---
 
-## Phase 5 - Classification and activity (§8.2, §13 Phase 5)
-
-### T074 - Class map mode and summary
-
-- Depends: T071, T032
-- Owns: `src/core/map/ClassColorMode.*`, Summary tab class section
-- Do: class color mode, per-class counts and bytes.
-- Done when: class colors and counts are correct on the `mixed` scenario. **Phase 5 exit check.**
-
----
-
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
 ### T080 - Zone script model

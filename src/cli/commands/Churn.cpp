@@ -12,6 +12,7 @@
 
 #include <cstdio>
 #include <numeric>
+#include <optional>
 #include <stdexcept>
 #include <string>
 
@@ -64,14 +65,53 @@ namespace icd::cli {
             }
         }
 
+        // What the command prints.
+        enum class Output : std::uint8_t {
+            Text, // Journal figures and churning directories.
+            Json, // The same as JSON.
+            All, // Text plus every directory's counts.
+        };
+
+        // Scans the volume, reads its journal and prints the statistics.
+        void churnOf(const core::DriveInfo& drive, services::AppServices& app, Output output) {
+            core::CancelSource cancel;
+            const platform::ConsoleCancel ctrlC(cancel);
+            const platform::VolumeRecord v = platform::queryVolume(platform::fromUtf8(drive.layout.volumeName));
+            if (!v.layout.ntfs) {
+                throw std::runtime_error("no NTFS data for the volume");
+            }
+            const platform::UniqueHandle volume = platform::openVolume(v.volumeName, GENERIC_READ);
+            const core::Snapshot snapshot = scan(volume.get(), v, app.pool(), cancel.token());
+            const services::ChurnStats stats = services::collectChurn(volume.get(), cancel.token());
+            const auto flags = services::churnFlags(snapshot, stats, {}, app.pool(), cancel.token());
+            const auto flagged = std::accumulate(flags.begin(), flags.end(), std::uint64_t{0});
+            report(stats, services::churnDirectories(snapshot, stats, {}), flagged, output == Output::Json);
+            if (output == Output::All) {
+                listAll(snapshot, stats);
+            }
+        }
+
+        // The output an argument list asks for, or nullopt for bad arguments.
+        std::optional<Output> outputOf(std::span<const std::wstring_view> args) {
+            if (args.empty() || args[0].starts_with(L"--") || args.size() > 2) {
+                return std::nullopt;
+            }
+            if (args.size() == 1) {
+                return Output::Text;
+            }
+            if (args[1] == L"--json" || args[1] == L"--all") {
+                return args[1] == L"--json" ? Output::Json : Output::All;
+            }
+            return std::nullopt;
+        }
+
     } // namespace
 
     const char* churnUsage() { return "icd-cli churn <volume> [--json | --all]"; }
 
     int runChurn(std::span<const std::wstring_view> args) {
-        const bool json = args.size() == 2 && args[1] == L"--json";
-        const bool all = args.size() == 2 && args[1] == L"--all";
-        if ((args.size() != 1 && !json && !all) || args[0].starts_with(L"--")) {
+        const auto output = outputOf(args);
+        if (!output) {
             std::fprintf(stderr, "Usage: %s\n", churnUsage());
             return 2;
         }
@@ -83,21 +123,7 @@ namespace icd::cli {
             return 1;
         }
         try {
-            core::CancelSource cancel;
-            const platform::ConsoleCancel ctrlC(cancel);
-            const platform::VolumeRecord v = platform::queryVolume(platform::fromUtf8(drive->layout.volumeName));
-            if (!v.layout.ntfs) {
-                throw std::runtime_error("no NTFS data for the volume");
-            }
-            const platform::UniqueHandle volume = platform::openVolume(v.volumeName, GENERIC_READ);
-            const core::Snapshot snapshot = scan(volume.get(), v, app.pool(), cancel.token());
-            const services::ChurnStats stats = services::collectChurn(volume.get(), cancel.token());
-            const auto flags = services::churnFlags(snapshot, stats, {}, app.pool(), cancel.token());
-            const auto flagged = std::accumulate(flags.begin(), flags.end(), std::uint64_t{0});
-            report(stats, services::churnDirectories(snapshot, stats, {}), flagged, json);
-            if (all) {
-                listAll(snapshot, stats);
-            }
+            churnOf(*drive, app, *output);
             return 0;
         }
         catch (const std::exception& e) {

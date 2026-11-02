@@ -76,6 +76,8 @@ namespace icd::services {
         std::string catchUp; // What happened to the saved snapshot ("caught up ...", or why it was rescanned).
         std::vector<core::ClusterRun> dirty; // After a catch-up: the LCN ranges whose map may have changed.
         std::string memoryPlan; // The memory mode of a full scan, in words; empty after a catch-up.
+        std::vector<std::uint8_t> classes; // Per file: its class under the built-in catalog (class color mode).
+        std::uint64_t churnFiles = 0; // Files the USN journal shows as churn (0 without a journal).
     };
 
     // How an analysis reads the files.

@@ -10,12 +10,16 @@
 #include "platform/win/VolumeBitmap.h"
 #include "platform/win/Volumes.h"
 #include "platform/win/WinError.h"
+#include "services/activity/ChurnStats.h"
+#include "services/scan/Classification.h"
 #include "services/snapshot/MappedStorage.h"
 #include "services/snapshot/SnapshotStore.h"
 #include "services/snapshot/UsnCatchUp.h"
 
+#include <algorithm>
 #include <chrono>
 #include <format>
+#include <span>
 #include <stdexcept>
 
 namespace icd::services {
@@ -109,6 +113,7 @@ namespace icd::services {
                 result.stats = core::summarize(result.snapshot, context_.executor);
                 result.summary = summaryOf(result.stats, geometry.bytesPerCluster, result.scan);
                 describeLastAccess(result);
+                classify(volume.get(), scanTime, result);
                 result.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
                 result.scanSeconds = std::chrono::duration<double>(scanEnd - scanStart).count();
                 save(result, layout, scanTime);
@@ -117,6 +122,27 @@ namespace icd::services {
             }
 
         private:
+            // The classes of the files (plan.md 8.2) with churn from the journal when the volume keeps one; a journal
+            // that cannot be read only costs the churn signal.
+            void classify(HANDLE volume, std::int64_t scanTime, AnalysisResult& result) const {
+                context_.progress.report({.stage = "Classifying", .done = 0, .total = 1, .message = name_});
+                std::vector<std::uint8_t> churn;
+                try {
+                    const ChurnStats stats = collectChurn(volume, context_.token);
+                    churn = churnFlags(result.snapshot, stats, {}, context_.executor, context_.token);
+                }
+                catch (const core::OperationCancelled&) {
+                    throw;
+                }
+                catch (const std::exception& e) {
+                    core::logging::warning("churn statistics unavailable", {{"reason", e.what()}});
+                }
+                result.churnFiles = static_cast<std::uint64_t>(std::ranges::count(churn, std::uint8_t{1}));
+                Classification c = classifyVolume(result.snapshot, churn, scanTime, context_.executor, context_.token);
+                result.classes = std::move(c.classes);
+                result.summary.classes = std::move(c.summary);
+            }
+
             // Whether last-access times can be trusted on this volume: the system setting and the snapshot's evidence.
             void describeLastAccess(AnalysisResult& result) const {
                 if (!result.summary.scan) {
@@ -346,21 +372,22 @@ namespace icd::services {
             // A drive analysed before keeps its world layout (plan.md 7.1).
             const auto saved = savedSnapshotMeta(drive);
             const core::ScreenAspect world = saved ? saved->aspect : aspect;
-            const auto publish = [&](core::Snapshot snapshot) {
-                output->set(core::MapData::build(std::move(snapshot), world, context.executor, context.token));
+            const auto publish = [&](core::Snapshot snapshot, std::span<const std::uint8_t> classes = {}) {
+                output->set(core::MapData::build(std::move(snapshot), world, context.executor, context.token, classes));
             };
             AnalysisOptions options;
             options.aspect = world;
             options.memoryBudgetBytes = memoryBudget;
-            AnalysisResult result = analyzeVolume(drive, context, publish, options);
+            AnalysisResult result =
+                analyzeVolume(drive, context, [&](core::Snapshot partial) { publish(std::move(partial)); }, options);
             context.progress.report({.stage = "Building map", .done = 0, .total = 1, .message = {}});
             output->setSummary(std::move(result.summary));
             if (result.caughtUp && sameVolume(output->previous.get(), result.snapshot)) {
                 output->set(core::MapData::update(*output->previous, std::move(result.snapshot), result.dirty,
-                                                  context.executor, context.token));
+                                                  context.executor, context.token, result.classes));
             }
             else {
-                publish(std::move(result.snapshot));
+                publish(std::move(result.snapshot), result.classes);
             }
             context.progress.report({.stage = "Building map", .done = 1, .total = 1, .message = {}});
         };

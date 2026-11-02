@@ -2,6 +2,7 @@
 
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
+#include "core/map/ColorModes.h"
 #include "core/map/TileRasterizer.h"
 
 #include <algorithm>
@@ -109,6 +110,19 @@ namespace icd::core {
                                         formatFileTime(times.created, zone), formatFileTime(times.accessed, zone)));
         }
 
+        // "Class: Photos" after the type line, when classes are known.
+        void addClassLine(const MapHit& hit, std::span<const std::uint8_t> extentKinds,
+                          std::vector<std::string>& lines) {
+            if (!hit.record || *hit.record >= extentKinds.size()) {
+                return;
+            }
+            const PieceOwner owner{.kind = extentKinds[*hit.record]};
+            const auto legend = legendOf(ColorMode::FileClass);
+            const std::string line =
+                std::format("Class: {}", legend[legendCategory(ColorMode::FileClass, owner)].label);
+            lines.insert(lines.end() - 1, line); // Before the times line.
+        }
+
         // The line about the free run holding the cluster.
         std::string freeLine(const Snapshot& snapshot, const MapHit& hit) {
             if (!hit.freeRun) {
@@ -213,12 +227,14 @@ namespace icd::core {
     }
 
     std::vector<std::string> describeHit(const Snapshot& snapshot, const MapHit& hit,
-                                         const std::chrono::time_zone* zone) {
+                                         const std::chrono::time_zone* zone,
+                                         std::span<const std::uint8_t> extentKinds) {
         std::vector<std::string> lines;
         lines.push_back(
             std::format("LCN {}; byte offset {}", formatCount(hit.lcn), formatCount(bytesOf(snapshot, hit.lcn))));
         if (hit.record) {
             describeOwner(snapshot, hit, zone, lines);
+            addClassLine(hit, extentKinds, lines);
         }
         else {
             lines.push_back(freeLine(snapshot, hit));

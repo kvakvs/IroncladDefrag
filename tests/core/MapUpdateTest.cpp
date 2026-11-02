@@ -70,6 +70,37 @@ namespace icd::core { namespace {
         EXPECT_EQ(updated->memoryBytes(), rebuilt->memoryBytes());
     }
 
+    // Classes that change for files whose extents stay put (a renamed folder reclassifies what is below it) reach the
+    // pyramid even though the catch-up's dirty ranges do not cover them.
+    TEST(MapUpdate, ClassChangesWithoutMovesGiveTheFullBuild) {
+        SynthOptions options;
+        options.files = 4000;
+        const Snapshot before = generateSyntheticVolume(options);
+        std::vector<std::uint8_t> classes(before.files.size());
+        for (std::size_t f = 0; f < classes.size(); ++f) {
+            classes[f] = static_cast<std::uint8_t>(f % 7);
+        }
+        InlineExecutor serial;
+        const ScreenAspect aspect{16, 9};
+        const auto previous = MapData::build(before, aspect, serial, {}, classes);
+        std::set<FileIndex> dropped{25, 400};
+        std::vector<ClusterRun> dirty;
+        const Snapshot after = withoutFiles(before, dropped, dirty);
+        std::vector<std::uint8_t> reclassified = classes;
+        for (std::size_t f = 1000; f < 1400; ++f) {
+            reclassified[f] = 12; // Not in the dirty ranges.
+        }
+        const auto updated = MapData::update(*previous, after, dirty, serial, {}, reclassified);
+        const auto rebuilt = MapData::build(after, aspect, serial, {}, reclassified);
+        expectSamePyramid(updated->pyramid(), rebuilt->pyramid());
+        const auto stale = MapData::update(*previous, after, dirty, serial, {}, classes);
+        bool differs = false; // The test changes something visible: the old classes give another pyramid.
+        for (int level = rebuilt->pyramid().baseLevel(); level <= rebuilt->pyramid().topLevel(); ++level) {
+            differs = differs || !std::ranges::equal(stale->pyramid().level(level), rebuilt->pyramid().level(level));
+        }
+        EXPECT_TRUE(differs);
+    }
+
     TEST(MapUpdate, RefusesAnotherVolumeSize) {
         SynthOptions options;
         options.files = 500;

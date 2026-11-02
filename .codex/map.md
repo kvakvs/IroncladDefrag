@@ -146,6 +146,7 @@ changes (see `AGENTS.md`).
 | `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, the saved snapshot patched or, when the patch refuses, every file finished again; dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult` (with `patched`). |
 | `src/services/snapshot/MappedStorage.*` | `storageFor()` (mapped files on the last memory rung), `MemoryGovernor` (low-memory signal steps the plan down), `defaultCacheDirectory()`. |
 | `src/services/snapshot/SnapshotStore.*` | `SnapshotStore`: per-volume snapshot files under `%LOCALAPPDATA%\IroncladDefrag\snapshots`, atomic save, `peek()`, `load()` with a reason when rejected, `remove()`. |
+| `src/services/scan/Classification.*` | `classifyVolume()` (built-in catalog plus churn flags: classes per file and per-class rows), `classSummary()` (files and bytes on disk per class, parallel). |
 | `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
 | `src/services/scan/MftRows.*` | Parser output per chunk (`ChunkRows`: record, name, segment rows, provisional extents), `parseChunk()`, `appendRecord()`. |
 | `src/services/scan/MftMerge.*` | `RowIndex` (rows in record order, lookup by record), `mergeRows()` (files, names, parents, metadata, stream ordinals, flags, extents, reconcile), drafts (`draftFiles()`, `finishDrafts()`, `draftsOfSnapshot()`, `combineDrafts()`), `finishCatchUp()` (catch-up finish as a patch: new parents and flags for kept files, fresh drafts in full), `ExtensionMap`, `extraStreamBase`. |
@@ -192,6 +193,7 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`. |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `tests/integration/classes/check-classes.ps1` | T074 / Phase 5 exit: read-only `mixed` volume, every file's class against the scenario layout, summary bytes per class = dumped clusters, counts cover every file. |
 | `tests/integration/churn/check-churn.ps1` | T073: journal first, then the dev scenario; every build output and temp directory is churn, no source, dependency or repository directory. |
 | `tests/integration/catchup/check-catchup.ps1` | T065: a test volume with a journal, rounds of scripted changes, `check-catchup` after each, up-to-date and recreated-journal cases. |
 | `tests/integration/scanner-equivalence/check-scanners.ps1` | T063 cross-check: per scenario a fresh read-only volume through `icd-cli compare-scanners --threads 1,2,0`; `-RealDrives E,X`; `-ScaleDrive S` with the 10x speed-up check. |
@@ -201,6 +203,7 @@ changes (see `AGENTS.md`).
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/ChurnStatsTest.cpp` | Sessions from close records, deletes where the file lived (POSIX delete into $Deleted) and before their close record, directory churn rule, small folders with churning siblings, flags below churning directories. |
+| `tests/services/ClassificationTest.cpp` | Class rows add up to the volume (files, bytes), catalog order, any executor; churn turns content into temp. |
 | `tests/services/CatchUpPatchTest.cpp` | Catch-up patch = full finish on random volumes and changes (deletes, moves into free and unclaimed space, renames, new files between records), serial = parallel over four rounds, refusals (fresh over kept extents, kept files turning metadata) leave the saved snapshot untouched. |
 | `tests/core/SnapshotPatchTest.cpp` | `patchSnapshot()` on a hand-made volume: released clusters freed, placeholder remainder, new extent placement; invalid patches refused with the base untouched. |
 | `tests/services/UsnCatchUpTest.cpp` | Rescan rules, `combineDrafts()` order and replacement, snapshot drafts and re-read records finish into the scanned snapshot (ICD-TEST volume). |

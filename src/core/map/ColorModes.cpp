@@ -1,5 +1,7 @@
 #include "core/map/ColorModes.h"
 
+#include "core/classify/Catalog.h"
+
 #include <algorithm>
 #include <cmath>
 #include <limits>
@@ -78,6 +80,40 @@ namespace icd::core {
         private:
             ColorMode mode_; // Age or size.
             std::span<const LegendEntry> legend_; // Its colors.
+        };
+
+        // Legend of the class mode: free space, then every class of the built-in catalog in its color.
+        std::span<const LegendEntry> classLegend() {
+            static const std::vector<LegendEntry> legend = [] {
+                std::vector<LegendEntry> out{LegendEntry{"Free", OccupancyPalette::freeColor}};
+                for (const classify::ClassInfo& info : classify::builtinCatalog().classes) {
+                    const auto channel = [&](unsigned shift) { return static_cast<std::uint8_t>(info.color >> shift); };
+                    out.push_back({info.name, rgb(channel(16), channel(8), channel(0))});
+                }
+                return out;
+            }();
+            return legend;
+        }
+
+        // The legend entry of a class (classes past the legend fall back to the first class, "Unknown").
+        std::size_t entryOfClass(std::uint8_t kind) {
+            const std::size_t entry = std::size_t{kind} + 1;
+            return entry < classLegend().size() ? entry : 1;
+        }
+
+        // Colors a bin by the class of its largest contributor, blended with free space by how full it is.
+        class ClassPalette : public Palette {
+        public:
+            // The class color of the bin's dominant class.
+            [[nodiscard]] Rgba color(const PixelSummary& summary) const override {
+                const auto legend = classLegend();
+                if (summary.bin.used == 0) {
+                    return legend.front().color;
+                }
+                return blendColors({.from = legend.front().color,
+                                    .to = legend[entryOfClass(summary.bin.kind)].color,
+                                    .share = usedShare(summary)});
+            }
         };
 
         // The LCN ranges of the clusters inside a cell rectangle, cut into pieces of at most legendPieceClusters.
@@ -222,6 +258,8 @@ namespace icd::core {
             return ageLegend;
         case ColorMode::Size:
             return sizeLegend;
+        case ColorMode::FileClass:
+            return classLegend();
         case ColorMode::Fragmentation:
             break;
         }
@@ -232,6 +270,9 @@ namespace icd::core {
         if (mode == ColorMode::Fragmentation) {
             return std::make_shared<OccupancyPalette>();
         }
+        if (mode == ColorMode::FileClass) {
+            return std::make_shared<ClassPalette>();
+        }
         return std::make_shared<BucketPalette>(mode);
     }
 
@@ -241,6 +282,8 @@ namespace icd::core {
             return entryOfValue(mode, owner.heat);
         case ColorMode::Size:
             return entryOfValue(mode, owner.size);
+        case ColorMode::FileClass:
+            return entryOfClass(owner.kind);
         case ColorMode::Fragmentation:
             break;
         }

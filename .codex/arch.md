@@ -92,8 +92,8 @@ this file records what is actually built and the decisions made along the way.
   generated from it (`commandTip()`: "Analyze the selected drive (F5)"), so there is no second list to
   drift. The TRIM button is drawn in a list cell, so the list's rows window shows its tooltip while the
   pointer is over it.
-- View commands are enabled once a map is shown; color modes whose features are still to come (file
-  class, zone fit, plan preview) stay disabled (`MapPanel::commandAvailable()`). The toolbar color
+- View commands are enabled once a map is shown; color modes whose features are still to come (zone
+  fit, plan preview) stay disabled (`MapPanel::commandAvailable()`). The toolbar color
   choice posts the same View command as the menu, so check marks and toolbar always agree.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 
@@ -673,7 +673,7 @@ All analysis checks passed.
   clusters, so the tooltip also says how many and how much of them is used (one range query per covered
   row). `describeHit()` makes the lines, so the wording is tested; file times use the local zone from
   `std::chrono::current_zone()` (UTC if the zone database is unavailable).
-- Until classification (Phase 5) the tooltip's type line comes from file flags (file, directory, NTFS
+- The tooltip's type line comes from file flags (file, directory, NTFS
   metadata, plus compressed, sparse, unmovable, ...).
 - `ui::MapHover` shows a `wxPopupWindow` (never takes focus) after the pointer rests 350 ms, then follows
   it; a press, drag, wheel, key or leaving the map hides it. It is bound after the navigator so it sees
@@ -726,8 +726,9 @@ All analysis checks passed.
 ## Color modes and legend
 
 - `core::ColorMode`: fragmentation (`OccupancyPalette`: free, contiguous, fragmented, unmovable), age
-  (time since the owning file's last change, from under a day to three years or more) and size (under
-  64 KB, then 16x steps to 4 GB or more). File class, zone fit and plan preview come with their features.
+  (time since the owning file's last change, from under a day to three years or more), size (under
+  64 KB, then 16x steps to 4 GB or more) and file class (see Classification). Zone fit and plan preview come with the
+  planner.
 - Age and size are six buckets each, one byte per file (`fileColorValues()`) as `bucket * 51`; the pyramid averages them per bin like the fragmented share, and the
   palette shows the nearest bucket's color blended with free space by the used share. A cell of one
   file keeps its exact bucket, so deep-zoom colors equal the legend colors (tested).
@@ -899,6 +900,23 @@ All analysis checks passed.
   scans a volume and lists its churning directories; `tests/integration/churn/check-churn.ps1` creates the journal
   before writing the dev scenario and requires every build output and temp directory, and no source, dependency or
   repository directory, to be churn.
+- Classes in the analysis and on the map (T074): after the summary, `analyzeVolume()` reads the journal's churn (when
+  the volume keeps a journal; a failure only drops the churn signal), classifies every file with the built-in catalog
+  (`services::classifyVolume()`, ages from the scan time) and fills the Summary tab's class table (files and bytes on
+  disk per class in catalog order, "In target zone" shown as "-" until a strategy exists) and the JSON report
+  (`summary.classes`; each dumped file's `class`). The final map is built with the classes; partial maps during the
+  scan have none. Fake drives classify their synthetic volume for the map too.
+- The class color mode (`ColorMode::FileClass`, View > Color mode > File class, Alt+1) colors a bin by the class of its
+  largest contributor (the pyramid's `kind`), blended with free space by its fill, in the catalog's colors; the legend
+  lists the classes and counts them exactly like the other modes. Tiles read a per-record class byte
+  (`MapFileFacts::extentKinds`) in record order. `MapData::update()` takes the new classes and adds the ranges whose
+  class changed on extents that did not move (a renamed folder reclassifies what is below it, though the catch-up only
+  re-read the folder), so an updated map still equals a fresh build. The hover tooltip adds a "Class:" line.
+- `tests/integration/classes/check-classes.ps1` (Phase 5 exit): on a read-only `mixed` volume every file below `\mixed`
+  has the class the scenario's layout calls for (written out independently of the rule engine), the summary's bytes
+  per class equal the dumped files' clusters, and the class counts cover every file. On 2 GB volumes the scenario's
+  videos stay under 100 MB and are rightly unknown; 4 GB volumes have video. Tile colors equal legend colors in the
+  class mode (`ColorModesTest`).
 
 ## Parallel execution
 

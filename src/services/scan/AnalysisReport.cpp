@@ -1,5 +1,6 @@
 #include "services/scan/AnalysisReport.h"
 
+#include "core/classify/Catalog.h"
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
 #include "core/format/DriveText.h"
@@ -138,6 +139,16 @@ namespace icd::services {
             json.endObject();
         }
 
+        // The per-class rows of the Summary tab.
+        void writeClasses(JsonWriter& json, const AnalysisSummary& summary) {
+            json.key("classes").beginArray();
+            for (const ClassSummary& c : summary.classes) {
+                json.beginObject().key("id").value(c.id).key("name").value(c.name);
+                json.key("files").value(c.files).key("bytes").value(c.bytes).endObject();
+            }
+            json.endArray();
+        }
+
         // The summary object: exactly the figures of the GUI's Summary tab.
         void writeSummary(JsonWriter& json, const AnalysisSummary& summary) {
             json.key("summary").beginObject();
@@ -156,6 +167,7 @@ namespace icd::services {
                 json.key("unmovableBytes").value(scan.unmovableBytes);
                 json.key("lastAccess").value(scan.lastAccess);
             }
+            writeClasses(json, summary);
             json.endObject();
         }
 
@@ -181,8 +193,9 @@ namespace icd::services {
             json.endArray();
         }
 
-        // Every file that owns clusters, with path, size, flags and runs.
-        void writeExtents(JsonWriter& json, const core::Snapshot& snapshot) {
+        // Every file that owns clusters, with path, size, class, flags and runs.
+        void writeExtents(JsonWriter& json, const core::Snapshot& snapshot, std::span<const std::uint8_t> classes) {
+            const auto& catalog = core::classify::builtinCatalog().classes;
             json.key("files").beginArray();
             for (core::FileIndex file = 0; file < snapshot.files.size(); ++file) {
                 if (snapshot.extents.extentsOf(file).empty()) {
@@ -191,6 +204,9 @@ namespace icd::services {
                 json.beginObject();
                 json.key("path").value(snapshot.path(file));
                 json.key("size").value(snapshot.files.sizeBytes(file));
+                if (file < classes.size() && classes[file] < catalog.size()) {
+                    json.key("class").value(catalog[classes[file]].id);
+                }
                 json.key("flags").beginArray();
                 for (const std::string& name : fileFlagNames(snapshot.files.flags(file))) {
                     json.value(name);
@@ -221,7 +237,7 @@ namespace icd::services {
         writeScan(json, result);
         writeSummary(json, result.summary);
         if (dumpExtents) {
-            writeExtents(json, result.snapshot);
+            writeExtents(json, result.snapshot, result.classes);
         }
         json.endObject();
         return json.str() + "\n";

@@ -1,5 +1,6 @@
 #include "core/map/ColorModes.h"
 
+#include "core/classify/Catalog.h"
 #include "core/map/MapData.h"
 #include "core/map/TileRasterizer.h"
 #include "core/synth/SyntheticVolume.h"
@@ -16,8 +17,8 @@ namespace icd::core { namespace {
     // FILETIME ticks in a day.
     constexpr std::int64_t day = 864'000'000'000LL;
 
-    // The three color modes of this task.
-    constexpr std::array modes{ColorMode::Fragmentation, ColorMode::Age, ColorMode::Size};
+    // The color modes drawn from file facts.
+    constexpr std::array modes{ColorMode::Fragmentation, ColorMode::Age, ColorMode::Size, ColorMode::FileClass};
 
     // Ages fall into buckets at a day, a week, a month, a year and three years; future times count as new.
     TEST(ColorModes, AgeBuckets) {
@@ -59,16 +60,32 @@ namespace icd::core { namespace {
         for (const ColorMode mode : modes) {
             EXPECT_EQ(legendOf(mode).front().label, "Free");
         }
+        EXPECT_EQ(legendOf(ColorMode::FileClass).size(), classify::builtinCatalog().classes.size() + 1);
+        EXPECT_EQ(legendOf(ColorMode::FileClass)[13].label, "Photos"); // ClassId 12, after free space.
     }
 
-    // A small synthetic volume with a wide spread of sizes and ages, mapped.
-    std::shared_ptr<const MapData> smallMap(Executor& executor) {
+    // A small synthetic volume with a wide spread of sizes, ages and classes.
+    Snapshot smallVolume() {
         SynthOptions options;
         options.seed = 11;
         options.geometry = {.bytesPerCluster = 4096, .totalClusters = 50'000};
         options.files = 400;
         options.fillPercent = 70.0;
-        return MapData::build(generateSyntheticVolume(options), {.width = 16, .height = 9}, executor);
+        return generateSyntheticVolume(options);
+    }
+
+    // The classes of the small volume's files under the built-in catalog.
+    const std::vector<std::uint8_t>& smallClasses() {
+        static const std::vector<std::uint8_t> classes = [] {
+            InlineExecutor serial;
+            return classify::RuleEngine(classify::builtinCatalog().rules).classify(smallVolume(), {}, serial);
+        }();
+        return classes;
+    }
+
+    // The small volume, mapped with its classes.
+    std::shared_ptr<const MapData> smallMap(Executor& executor) {
+        return MapData::build(smallVolume(), {.width = 16, .height = 9}, executor, {}, smallClasses());
     }
 
     // The legend entry of a used cluster, worked out from the file table alone (independent of the map code).
@@ -80,6 +97,8 @@ namespace icd::core { namespace {
             return ageBucket(snapshot.files.times(file).modified, map.ageReference()) + 1;
         case ColorMode::Size:
             return sizeBucket(snapshot.files.sizeBytes(file)) + 1;
+        case ColorMode::FileClass:
+            return std::size_t{smallClasses()[file]} + 1;
         case ColorMode::Fragmentation:
             break;
         }

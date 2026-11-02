@@ -95,12 +95,13 @@ namespace icd::core {
         // Fills the owner's per-file facts (class, and heat and size unless they come per record).
         void addFileFacts(std::size_t record, const MapFileFacts& facts, PieceOwner& owner) {
             const bool perRecord = !facts.extentValues.empty();
-            const bool perFile = !facts.kinds.empty() || (!perRecord && (!facts.heat.empty() || !facts.sizes.empty()));
+            const bool kindPerFile = !facts.kinds.empty() && facts.extentKinds.empty();
+            const bool perFile = kindPerFile || (!perRecord && (!facts.heat.empty() || !facts.sizes.empty()));
             if (!perFile) {
                 return; // Looked up only when present: the file columns are far apart in memory.
             }
             const FileIndex file = facts.snapshot.extents.records()[record].file();
-            owner.kind = valueOf(facts.kinds, file);
+            owner.kind = kindPerFile ? valueOf(facts.kinds, file) : owner.kind;
             if (!perRecord) {
                 owner.heat = valueOf(facts.heat, file);
                 owner.size = valueOf(facts.sizes, file);
@@ -109,6 +110,7 @@ namespace icd::core {
 
         // Fills the owner's heat and size from the per-record values, when there are any.
         void addRecordValues(std::size_t record, const MapFileFacts& facts, PieceOwner& owner) {
+            owner.kind = record < facts.extentKinds.size() ? facts.extentKinds[record] : owner.kind;
             if (record >= facts.extentValues.size()) {
                 return;
             }

@@ -248,6 +248,11 @@ namespace icd::core { namespace {
         EXPECT_EQ(lines[4], "Size 97.7 KB; allocated 140 KB");
         EXPECT_EQ(lines[5], "Type: file, compressed");
         EXPECT_EQ(lines[6], "Modified 2026-01-01 00:00 UTC; created -; accessed -");
+        // With classes the class follows the type (12 is "Photos" in the built-in catalog).
+        const std::vector<std::uint8_t> kinds(v.snapshot.extents.size(), 12);
+        const std::vector<std::string> classed = describeHit(v.snapshot, *used, nullptr, kinds);
+        ASSERT_EQ(classed.size(), 8U);
+        EXPECT_EQ(classed[6], "Class: Photos");
 
         const CellPoint freeCell = v.world.cellOf(300);
         const Viewport freeView = viewAt(1.0 / 8.0, {static_cast<double>(freeCell.x), static_cast<double>(freeCell.y)});

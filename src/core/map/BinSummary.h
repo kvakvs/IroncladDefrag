@@ -85,6 +85,8 @@ namespace icd::core {
         // Per record: heat and size steps (packExtentValues()); when present it replaces heat and sizes, read in
         // record order like extentFlags instead of jumping into the file columns.
         std::span<const std::uint8_t> extentValues{};
+        // Per record: the owner's class; when present it replaces kinds, read in record order like extentFlags.
+        std::span<const std::uint8_t> extentKinds{};
         std::span<const std::uint32_t> recordBlocks{}; // recordBlocks() of the snapshot; empty: search per row.
     };
 

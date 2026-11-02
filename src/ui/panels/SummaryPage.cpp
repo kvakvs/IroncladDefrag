@@ -74,7 +74,8 @@ namespace icd::ui {
         }
         for (const services::ClassSummary& row : summary.classes) {
             addRow(*classes_,
-                   {row.name, core::formatCount(row.files), core::formatBytes(row.bytes), percent(row.inZonePercent)});
+                   {row.name, core::formatCount(row.files), core::formatBytes(row.bytes),
+                    row.inZonePercent ? percent(*row.inZonePercent) : std::string("-")});
         }
         hint_->Hide();
         Layout();

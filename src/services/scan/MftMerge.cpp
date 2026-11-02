@@ -462,12 +462,20 @@ namespace icd::services::mft {
 
     } // namespace
 
+    namespace {
+
+        // Chunks by their first row, not the first record read: two reads of one stretch with other records in use
+        // share the first record.
+        void sortChunks(std::vector<std::shared_ptr<const ChunkRows>>& chunks) {
+            std::ranges::stable_sort(chunks, {}, [](const auto& c) {
+                return c->records.empty() ? c->firstRecord : c->records.front().record();
+            });
+        }
+
+    } // namespace
+
     RowIndex::RowIndex(std::vector<std::shared_ptr<const ChunkRows>> chunks) : chunks_(std::move(chunks)) {
-        // By the first row, not the first record read: a catch-up's second round (extension records) can read the
-        // stretch of a first-round chunk again with other records in use.
-        std::ranges::stable_sort(chunks_, {}, [](const auto& c) {
-            return c->records.empty() ? c->firstRecord : c->records.front().record();
-        });
+        sortChunks(chunks_);
         segmentBase_.push_back(0);
         for (std::size_t c = 0; c < chunks_.size(); ++c) {
             rowBase_.push_back(refs_.size());

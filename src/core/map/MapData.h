@@ -23,17 +23,21 @@ namespace icd::core {
     // moved on.
     class MapData {
     public:
-        // Builds the world for a screen aspect, the color-mode values, the pyramid and the flags.
+        // Builds the world for a screen aspect, the color-mode values, the pyramid and the flags. `classes` (one per
+        // file, from classification; empty: every file class 0) feed the class color mode.
         [[nodiscard]] static std::shared_ptr<const MapData> build(Snapshot snapshot, ScreenAspect aspect,
-                                                                  Executor& executor, const CancelToken& token = {});
+                                                                  Executor& executor, const CancelToken& token = {},
+                                                                  std::span<const std::uint8_t> classes = {});
 
         // The map of a newer snapshot of the same volume (USN catch-up): the same world, and only the pyramid bins over
         // `dirty` recomputed, where every range whose summaries may have changed is listed (old and new extents of
-        // changed files). Falls back to a full pyramid when file ages shift (the newest modification changed). The
-        // result equals build() with the previous map's aspect. Throws SnapshotError for another volume size.
+        // changed files); extents whose class changed without moving (a renamed folder) are found here and added.
+        // Falls back to a full pyramid when file ages shift (the newest modification changed). The result equals
+        // build() with the previous map's aspect and the same classes. Throws SnapshotError for another volume size.
         [[nodiscard]] static std::shared_ptr<const MapData> update(const MapData& previous, Snapshot snapshot,
                                                                    std::span<const ClusterRun> dirty,
-                                                                   Executor& executor, const CancelToken& token = {});
+                                                                   Executor& executor, const CancelToken& token = {},
+                                                                   std::span<const std::uint8_t> classes = {});
 
         // The snapshot.
         [[nodiscard]] const Snapshot& snapshot() const { return snapshot_; }
@@ -57,14 +61,17 @@ namespace icd::core {
         // Takes the parts.
         MapData(Snapshot snapshot, World world);
 
-        // The per-record arrays of the snapshot (color values, map flags, block index), shared by build() and update().
-        void fillRecordData(const FileColorValues& values, Executor& executor, const CancelToken& token);
+        // The per-record arrays of the snapshot (color values, classes, map flags, block index), shared by build() and
+        // update().
+        void fillRecordData(const FileColorValues& values, std::span<const std::uint8_t> classes, Executor& executor,
+                            const CancelToken& token);
 
         Snapshot snapshot_; // Layout of the volume.
         World world_; // Cell layout, fixed for this map.
         Pyramid pyramid_; // Coarse summaries.
         std::vector<std::uint8_t> extentFlags_; // Per-record map flags.
         std::vector<std::uint8_t> extentValues_; // Per-record age and size values of the color modes.
+        std::vector<std::uint8_t> extentKinds_; // Per-record class of the owner (class color mode).
         std::vector<std::uint32_t> recordBlocks_; // LCN block -> first extent record, for fine tiles.
         std::int64_t ageReference_ = 0; // What ages are measured from.
     };

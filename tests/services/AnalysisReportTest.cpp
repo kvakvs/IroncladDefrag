@@ -29,6 +29,9 @@ namespace {
         result.summary.freeBytes = 900 * 4096;
         result.summary.scan = services::AnalysisSummary::ScanFigures{};
         result.summary.scan->directories = 1;
+        result.summary.classes = {
+            {.id = "photos", .name = "Photos", .files = 1, .bytes = 7 * 4096, .inZonePercent = {}}};
+        result.classes = std::vector<std::uint8_t>(result.snapshot.files.size(), 12); // 12: "photos".
         result.snapshot.usn = core::UsnCursor{0xABC, 77};
         return result;
     }
@@ -46,6 +49,10 @@ namespace {
         EXPECT_NE(json.find("\"journalId\": \"0x0000000000000abc\""), std::string::npos);
         EXPECT_NE(json.find("\"nextUsn\": 77"), std::string::npos);
         EXPECT_EQ(json.find("\"runs\""), std::string::npos); // No extents without --dump-extents.
+        std::string compact = json;
+        std::erase_if(compact, [](char c) { return c == ' ' || c == '\n'; });
+        EXPECT_NE(compact.find("\"classes\":[{\"id\":\"photos\",\"name\":\"Photos\",\"files\":1,\"bytes\":28672}]"),
+                  std::string::npos);
     }
 
     TEST(AnalysisReport, DumpJoinsContinuingRuns) {
@@ -56,6 +63,7 @@ namespace {
         std::string compact = json;
         std::erase_if(compact, [](char c) { return c == ' ' || c == '\n'; });
         EXPECT_NE(compact.find("\"runs\":[[10,3,0],[50,4,0]]"), std::string::npos);
+        EXPECT_NE(compact.find("\"class\":\"photos\""), std::string::npos);
     }
 
     TEST(AnalysisReport, FlagNames) {

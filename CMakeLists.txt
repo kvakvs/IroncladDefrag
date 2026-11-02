@@ -220,6 +220,8 @@ add_library(icd_services STATIC
     src/services/scan/AnalysisJob.h
     src/services/scan/AnalysisReport.cpp
     src/services/scan/AnalysisReport.h
+    src/services/scan/Classification.cpp
+    src/services/scan/Classification.h
     src/services/scan/ApiScanner.cpp
     src/services/scan/ApiScanner.h
     src/services/scan/MftMerge.cpp

@@ -8,6 +8,7 @@
 #include <cstddef>
 #include <cstdint>
 #include <optional>
+#include <span>
 #include <string>
 #include <vector>
 
@@ -58,8 +59,10 @@ namespace icd::core {
 
     // The tooltip of a hit, one line per fact: cluster and byte offset, then the owning file (path, stream,
     // fragment i/n, size, type and flags, times) or the free run, then the pixel's coverage at coarse zoom.
-    // Times are shown in zone (null: UTC).
+    // Times are shown in zone (null: UTC). With per-record classes (MapFileFacts::extentKinds) a "Class:" line follows
+    // the type.
     [[nodiscard]] std::vector<std::string> describeHit(const Snapshot& snapshot, const MapHit& hit,
-                                                       const std::chrono::time_zone* zone);
+                                                       const std::chrono::time_zone* zone,
+                                                       std::span<const std::uint8_t> extentKinds = {});
 
 } // namespace icd::core

@@ -248,3 +248,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   quarter of its creations, or with some deletes when most siblings churn; flags spread below churning directories.
   `icd-cli churn`, dev scenario with repeated rebuilds of the same objects and temp churn in `.cache`,
   `tests/integration/churn/check-churn.ps1` (all 69 build and 3 temp directories, nothing else). `ChurnStatsTest`.
+- T074 Class map mode and summary - analysis classifies every file (built-in catalog, churn from the journal) into
+  `AnalysisResult::classes` and the Summary tab's class table (files, bytes on disk; JSON `summary.classes`, dumped files'
+  `class`); `services/scan/Classification.*`; `ColorMode::FileClass` (catalog colors, legend, per-record class bytes for
+  tiles, `MapData::update()` follows class changes on unmoved extents), File class enabled in the View menu and toolbar,
+  "Class:" in the tooltip. `tests/integration/classes/check-classes.ps1` on `mixed` (2 and 4 GB): every class right,
+  bytes and counts add up. `ClassificationTest`, class cases in `ColorModesTest`, `MapUpdateTest`, `HitTestTest`.
+  `quality.bat all` passes. **Phase 5 exit.**

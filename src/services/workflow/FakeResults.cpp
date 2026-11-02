@@ -107,7 +107,8 @@ namespace icd::services {
         for (const ClassShape& shape : classShapes) {
             const std::uint64_t bytes = scaled(used, shape.share);
             const std::uint64_t files = std::max<std::uint64_t>(1, bytes / shape.averageSize);
-            summary.classes.push_back({shape.name, files, bytes, shape.inZone});
+            summary.classes.push_back(
+                {.id = shape.name, .name = shape.name, .files = files, .bytes = bytes, .inZonePercent = shape.inZone});
             summary.files += files;
         }
         summary.fragmentedFiles = scaled(summary.files, summary.fragmentationPercent / 100.0);

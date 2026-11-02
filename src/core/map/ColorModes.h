@@ -19,12 +19,12 @@
 namespace icd::core {
 
     // What the map colors by (plan.md 7.4). Each mode is a palette over the same pyramid, so switching modes
-    // renders tiles again but never rebuilds map data. File class, zone fit and plan preview arrive with their
-    // features (classification, zones, the planner).
+    // renders tiles again but never rebuilds map data. Zone fit and plan preview arrive with the planner.
     enum class ColorMode : std::uint8_t {
         Fragmentation, // Free, contiguous, fragmented and unmovable data.
         Age, // Time since the last change of the owning file, newest to oldest.
         Size, // Size of the owning file, smallest to largest.
+        FileClass, // Class of the owning file (plan.md 8.2), in the built-in catalog's colors.
     };
 
     // Buckets of the age and size modes. Per-file values are bucket * bucketStep, so a bin holding one file
@@ -79,7 +79,8 @@ namespace icd::core {
         Rgba color = 0; // The color, as tiles draw it for a block fully used by that category.
     };
 
-    // The legend of a mode; entry 0 is always free space.
+    // The legend of a mode; entry 0 is always free space. The class mode lists the built-in catalog's classes in
+    // ClassId order after it (its labels point into the catalog, which lives for the whole program).
     [[nodiscard]] std::span<const LegendEntry> legendOf(ColorMode mode);
 
     // The palette that draws a mode; its colors are the legend's.

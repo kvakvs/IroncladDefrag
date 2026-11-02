@@ -98,7 +98,7 @@ namespace icd::ui {
             return;
         }
         createPopup();
-        const wxString text = joined(core::describeHit(map->snapshot(), *hit, zone_));
+        const wxString text = joined(core::describeHit(map->snapshot(), *hit, zone_, map->source().facts.extentKinds));
         if (text != shownText_) {
             shownText_ = text;
             text_->SetLabelText(text);

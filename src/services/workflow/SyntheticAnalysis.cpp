@@ -2,6 +2,7 @@
 
 #include "core/format/DriveText.h"
 #include "core/log/Log.h"
+#include "services/scan/Classification.h"
 
 #include <algorithm>
 #include <utility>
@@ -36,7 +37,10 @@ namespace icd::services {
             core::Snapshot snapshot = core::generateSyntheticVolume(options);
             context.token.throwIfCancelled();
             context.progress.report({"Building map", 1, 2, name});
-            auto map = core::MapData::build(std::move(snapshot), aspect, context.executor, context.token);
+            const auto classes = classifyVolume(snapshot, {}, core::newestModification(snapshot, context.executor),
+                                                context.executor, context.token)
+                                     .classes;
+            auto map = core::MapData::build(std::move(snapshot), aspect, context.executor, context.token, classes);
             core::logging::info("synthetic analysis",
                                 {{"drive", name},
                                  {"files", map->snapshot().files.size()},

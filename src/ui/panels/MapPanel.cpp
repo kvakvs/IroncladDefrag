@@ -36,6 +36,7 @@ namespace icd::ui {
         // The color modes that exist so far, in View > Color mode order (file class, zone fit and plan preview come
         // with classification, zones and the planner).
         constexpr std::array modeItems{
+            ModeItem{core::ColorMode::FileClass, ID_COLOR_CLASS, "File class"},
             ModeItem{core::ColorMode::Fragmentation, ID_COLOR_FRAGMENTATION, "Fragmentation"},
             ModeItem{core::ColorMode::Age, ID_COLOR_AGE, "Age"},
             ModeItem{core::ColorMode::Size, ID_COLOR_SIZE, "Size"},
@@ -149,9 +150,7 @@ namespace icd::ui {
 
     void MapPanel::setCaption(const wxString& caption) { caption_->SetLabelText(caption); }
 
-    bool MapPanel::commandAvailable(int id) {
-        return id != ID_COLOR_CLASS && id != ID_COLOR_ZONE_FIT && id != ID_COLOR_PLAN;
-    }
+    bool MapPanel::commandAvailable(int id) { return id != ID_COLOR_ZONE_FIT && id != ID_COLOR_PLAN; }
 
     void MapPanel::setColorMode(core::ColorMode mode) {
         mode_ = mode;

@@ -58,6 +58,7 @@ add_executable(icd_tests
     services/AnalysisReportTest.cpp
     services/CatchUpPatchTest.cpp
     services/ChurnStatsTest.cpp
+    services/ClassificationTest.cpp
     services/ApiScannerTest.cpp
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp

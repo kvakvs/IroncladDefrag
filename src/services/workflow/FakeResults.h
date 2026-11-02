@@ -25,10 +25,11 @@ namespace icd::services {
 
     // One file class on the Summary tab (plan.md 8.2 classes).
     struct ClassSummary {
+        std::string id; // Catalog id, e.g. "photos" (reports, checks).
         std::string name; // Class name, e.g. "Photos".
         std::uint64_t files = 0; // Files in the class.
-        std::uint64_t bytes = 0; // Bytes in the class.
-        double inZonePercent = 0.0; // Share of the class already in its target zone.
+        std::uint64_t bytes = 0; // Bytes on disk in the class.
+        std::optional<double> inZonePercent; // Share already in its target zone; empty until a strategy exists.
     };
 
     // What an analysis reports (Summary tab).
