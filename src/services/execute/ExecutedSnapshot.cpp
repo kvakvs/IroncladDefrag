@@ -1,6 +1,7 @@
 #include "services/execute/ExecutedSnapshot.h"
 
 #include "core/execute/PlanReplay.h"
+#include "core/log/Log.h"
 #include "core/snapshot/SnapshotPatch.h"
 
 #include <algorithm>
@@ -34,6 +35,9 @@ namespace icd::services {
                 }
                 const auto file = files.indexOf(plan.moves[r.move].fileReference);
                 if (!file || r.runsAfter.empty()) {
+                    core::logging::warning(
+                        "no snapshot after execution",
+                        {{"file", plan.paths[r.move]}, {"why", file ? "runs not read back" : "not in the snapshot"}});
                     return std::nullopt;
                 }
                 out[*file] = &r.runsAfter;
@@ -76,6 +80,23 @@ namespace icd::services {
             }
         }
 
+        // Logs the first new extent that lands on a file the snapshot keeps (why the patch refused).
+        void logOverlap(const Snapshot& base, const MovedRuns& moved, std::span<const ExtentEntry> extents) {
+            for (const ExtentEntry& e : extents) {
+                for (const core::ExtentRecord& r : base.extents.overlapping(e.run)) {
+                    if (!moved.contains(r.file())) {
+                        core::logging::warning("no snapshot after execution",
+                                               {{"moved", base.path(e.file)},
+                                                {"lcn", e.run.start},
+                                                {"clusters", e.run.length},
+                                                {"overlaps", base.path(r.file())}});
+                        return;
+                    }
+                }
+            }
+            core::logging::warning("no snapshot after execution", {{"why", "the patch was refused"}});
+        }
+
     } // namespace
 
     std::optional<core::Snapshot> snapshotAfter(core::Snapshot& base, const core::execute::ExecutionPlan& plan,
@@ -110,7 +131,12 @@ namespace icd::services {
         patch.baseOf = baseOf;
         patch.parents = parents;
         patch.flags = flags;
-        return core::patchSnapshot(base, std::move(patch), executor);
+        const std::vector<ExtentEntry> extents = patch.extents; // Kept for the diagnosis below.
+        auto out = core::patchSnapshot(base, std::move(patch), executor);
+        if (!out) {
+            logOverlap(base, *moved, extents);
+        }
+        return out;
     }
 
 } // namespace icd::services

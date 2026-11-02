@@ -7,8 +7,10 @@
 #include "services/scan/ScanRules.h"
 
 #include <algorithm>
+#include <cctype>
 #include <format>
 #include <ranges>
+#include <string_view>
 
 namespace icd::services {
 
@@ -49,7 +51,41 @@ namespace icd::services {
             return out;
         }
 
-        // The records to read again: the journaled ones, records 0-15 and every metadata file of the snapshot.
+        // Whether a name is "System Volume Information" (any case).
+        bool isSystemVolumeInformation(std::string_view name) {
+            constexpr std::string_view svi = "system volume information";
+            return name.size() == svi.size() && std::ranges::equal(name, svi, [](char a, char b) {
+                       return std::tolower(static_cast<unsigned char>(a)) == b;
+                   });
+        }
+
+        // "\System Volume Information" in a snapshot, or noFile.
+        core::FileIndex systemVolumeInformation(const core::Snapshot& saved) {
+            const auto& files = saved.files;
+            for (core::FileIndex f = 0; f < files.size(); ++f) {
+                const core::FileIndex parent = files.parent(f);
+                const bool underRoot = parent != core::noFile && files.parent(parent) == core::noFile;
+                if (underRoot && isSystemVolumeInformation(saved.names.name(files.name(f)))) {
+                    return f;
+                }
+            }
+            return core::noFile;
+        }
+
+        // The records of "\System Volume Information" and the files directly in it: shadow copy storage grows there
+        // without journal records (copy-on-write during moves), so they are always read again.
+        void addShadowStorage(const core::Snapshot& saved, std::vector<std::uint64_t>& records) {
+            const auto& files = saved.files;
+            const core::FileIndex svi = systemVolumeInformation(saved);
+            for (core::FileIndex f = 0; f < files.size() && svi != core::noFile; ++f) {
+                if ((f == svi || files.parent(f) == svi) && files.fileReference(f) != 0) {
+                    records.push_back(core::ntfs::recordOf(files.fileReference(f)));
+                }
+            }
+        }
+
+        // The records to read again: the journaled ones, records 0-15, every metadata file of the snapshot and the
+        // shadow copy storage.
         std::vector<std::uint64_t> recordsToRead(std::vector<std::uint64_t> journaled, const core::Snapshot& saved) {
             for (std::uint64_t r = 0; r < alwaysReadRecords; ++r) {
                 journaled.push_back(r);
@@ -59,6 +95,7 @@ namespace icd::services {
                     journaled.push_back(core::ntfs::recordOf(saved.files.fileReference(f)));
                 }
             }
+            addShadowStorage(saved, journaled);
             std::ranges::sort(journaled);
             journaled.erase(std::ranges::unique(journaled).begin(), journaled.end());
             return journaled;
@@ -87,10 +124,16 @@ namespace icd::services {
                 CatchUpResult out;
                 const std::vector<core::ClusterRun> old = oldRuns(records);
                 out.dirty = dirtyRanges(old, drafts);
+                // Nothing journaled and the files read anyway (metadata, shadow copy storage) on the same clusters as
+                // before: the snapshot stood as it was, so nothing on the map changed either.
+                const bool unchanged = journal.journalRecords == 0 && sameClusters(old, drafts);
                 auto patched = mft::finishCatchUp(saved_, drafts, records, executor_, token_);
                 out.patched = patched.has_value();
                 out.snapshot = patched ? std::move(*patched) : fullFinish(records, old, std::move(drafts));
-                out.outcome = CatchUpOutcome::CaughtUp;
+                out.outcome = unchanged ? CatchUpOutcome::UpToDate : CatchUpOutcome::CaughtUp;
+                if (unchanged) {
+                    out.dirty.clear();
+                }
                 out.snapshot.usn = cursor;
                 out.journalRecords = journal.journalRecords;
                 out.changedRecords = journal.records.size();
@@ -137,6 +180,17 @@ namespace icd::services {
                     }
                 }
                 return runs;
+            }
+
+            // Whether the re-read files hold exactly the clusters they held in the saved snapshot.
+            [[nodiscard]] bool sameClusters(const std::vector<core::ClusterRun>& old,
+                                            const mft::DraftSet& drafts) const {
+                std::vector<core::ClusterRun> now;
+                now.reserve(drafts.extents.size());
+                for (const core::ExtentEntry& e : drafts.extents) {
+                    now.push_back(e.run);
+                }
+                return merged(old, geometry_.totalClusters) == merged(std::move(now), geometry_.totalClusters);
             }
 
             // Old and new clusters of the re-read files: where the map may have changed.
@@ -195,12 +249,10 @@ namespace icd::services {
         }
         const core::UsnCursor cursor{journal->journalId, journal->nextUsn};
         const std::int64_t savedUsn = saved.usn->nextUsn;
-        if (savedUsn == cursor.nextUsn) {
-            out.outcome = CatchUpOutcome::UpToDate;
-            out.snapshot = std::move(saved);
-            return out;
-        }
-        const JournalReading reading = readJournal(volume, {cursor.journalId, savedUsn, cursor.nextUsn}, token);
+        // Even with nothing journaled the unjournaled records (metadata, shadow copy storage) are read again.
+        const JournalReading reading = savedUsn == cursor.nextUsn
+            ? JournalReading{}
+            : readJournal(volume, {cursor.journalId, savedUsn, cursor.nextUsn}, token);
         if (reading.status != platform::UsnReadStatus::Complete) {
             out.reason = reading.status == platform::UsnReadStatus::RecordsLost
                 ? "the change journal no longer reaches back to the snapshot"

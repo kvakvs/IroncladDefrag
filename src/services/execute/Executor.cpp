@@ -8,6 +8,7 @@
 #include <array>
 #include <chrono>
 #include <condition_variable>
+#include <format>
 #include <mutex>
 #include <optional>
 #include <stop_token>
@@ -159,11 +160,38 @@ namespace icd::services {
             // Issues the calls; stops at a failure or cancel.
             void issueCalls();
 
+            // What issueCalls() does after a refused call.
+            enum class Refusal : std::uint8_t {
+                NextCall, // The call landed after all: go on with the next one.
+                RetryCall, // The call has a replacement target: issue it again.
+                Stop, // The move ends here (the record says why).
+            };
+
+            // Keeps what a refused call moved anyway, then finds a replacement target or ends the move.
+            Refusal afterRefusal(std::size_t k, const platform::MoveCallResult& result);
+
+            // Records clusters that reached their target.
+            void landed(const Landing& landing, ClusterCount clusters);
+
+            // After a refused call: keeps what NTFS moved anyway (it moves large calls in pieces and keeps the pieces
+            // done before refusing) and shrinks the call to the rest; true when nothing is left of it.
+            bool keepLandedPrefix(std::size_t k);
+
             // One call with retries for transient refusals.
             platform::MoveCallResult callWithRetries(const MoveCall& call);
 
+            // What became of a refused call's target.
+            enum class Replacement : std::uint8_t {
+                Done, // Taken now; the rest of the move goes to a replacement destination.
+                NoRoom, // Taken now, and no free run in the move's region holds the rest.
+                NotTried, // Not a stale bitmap (target free, other error), or replacements off or used up.
+            };
+
             // After a refused call: whether its target is taken now and a replacement was found for the rest.
-            bool replaceTarget(std::size_t from, const platform::MoveCallResult& result);
+            Replacement replaceTarget(std::size_t from, const platform::MoveCallResult& result);
+
+            // Logs a refused call with what it tried, whether its target is free and where the file is now.
+            void logRefusal(const MoveCall& call, const platform::MoveCallResult& result) const;
 
             // Reads the runs back and settles the outcome.
             void finish();
@@ -202,7 +230,9 @@ namespace icd::services {
             ExecutionReport run() {
                 const auto start = Clock::now();
                 start_ = start;
+                lastLog_ = start;
                 const bool background = options_.lowPriority && platform::setBackgroundIo(true);
+                core::logging::info("moving files", {{"moves", order_.size()}, {"clusters", plannedClusters()}});
                 for (std::size_t p = 0; p < order_.size() && !report_.cancelled; ++p) {
                     runOne(p);
                 }
@@ -210,6 +240,7 @@ namespace icd::services {
                     platform::setBackgroundIo(false);
                 }
                 report_.seconds = std::chrono::duration<double>(Clock::now() - start).count();
+                logTotals();
                 if (report_.cancelled && controls_.hooks.onEvent) {
                     controls_.hooks.onEvent("cancelled");
                 }
@@ -315,6 +346,8 @@ namespace icd::services {
                     deviated_.insert(moveAt(position).fileReference);
                 }
                 count(r);
+                logRecord(r);
+                logRate(position + 1);
                 if (controls_.hooks.onRecord) {
                     controls_.hooks.onRecord(r);
                 }
@@ -332,6 +365,67 @@ namespace icd::services {
                 t.replaced += r.replaced ? 1 : 0;
                 t.unverified += r.outcome != MoveOutcome::Skipped && !r.verified ? 1 : 0;
                 t.clustersMoved += r.clustersMoved;
+            }
+
+            // Clusters of the moves to run.
+            [[nodiscard]] ClusterCount plannedClusters() const {
+                ClusterCount sum = 0;
+                for (std::size_t p = 0; p < order_.size(); ++p) {
+                    sum += moveAt(p).clusters;
+                }
+                return sum;
+            }
+
+            // Logs a move that did not complete, or was not verified, with its reason (the Log tab reads the same).
+            void logRecord(const MoveRecord& r) const {
+                const bool fine =
+                    r.verified && (r.outcome == MoveOutcome::Moved || r.outcome == MoveOutcome::AlreadyDone);
+                if (!fine) {
+                    core::logging::warning("move not completed",
+                                           {{"file", plan_.paths[r.move]},
+                                            {"outcome", outcomeKey(r.outcome)},
+                                            {"reason", r.reason},
+                                            {"verified", r.verified},
+                                            {"error", std::uint64_t{r.win32Error}}});
+                }
+            }
+
+            // Megabytes per second moved since the start.
+            [[nodiscard]] double rate() const {
+                const double seconds = std::chrono::duration<double>(Clock::now() - start_).count();
+                const double bytes = static_cast<double>(report_.totals.clustersMoved) *
+                    static_cast<double>(plan_.identity.geometry.bytesPerCluster);
+                return seconds > 0 ? bytes / seconds / 1e6 : 0.0;
+            }
+
+            // Every 10 seconds: moves done, clusters moved and throughput, so a long run can be followed in the log.
+            void logRate(std::size_t done) {
+                const auto now = Clock::now();
+                if (now - lastLog_ < std::chrono::seconds(10)) {
+                    return;
+                }
+                lastLog_ = now;
+                core::logging::info("moving files",
+                                    {{"done", done},
+                                     {"of", order_.size()},
+                                     {"clusters", report_.totals.clustersMoved},
+                                     {"mb_per_s", rate()}});
+            }
+
+            // The summary line at the end of a run.
+            void logTotals() const {
+                const ExecutionTotals& t = report_.totals;
+                core::logging::info("moves done",
+                                    {{"moved", t.moved},
+                                     {"already_done", t.alreadyDone},
+                                     {"partial", t.partial},
+                                     {"skipped", t.skipped},
+                                     {"replaced", t.replaced},
+                                     {"unverified", t.unverified},
+                                     {"clusters", t.clustersMoved},
+                                     {"seconds", report_.seconds},
+                                     {"mb_per_s", rate()},
+                                     {"cancelled", report_.cancelled}});
             }
 
             // Every destination run with the position of its move, for replacement searches.
@@ -361,6 +455,7 @@ namespace icd::services {
             std::unordered_set<std::uint64_t> deviated_; // Files whose earlier move went elsewhere or stopped.
             std::uint64_t bytes_ = 0; // Bytes moved, for the throughput limit.
             Clock::time_point start_; // When the run started.
+            Clock::time_point lastLog_; // When the last progress line was logged.
             ExecutionReport report_; // Output.
         };
 
@@ -424,17 +519,54 @@ namespace icd::services {
                 }
                 const platform::MoveCallResult result = callWithRetries(calls_[k]);
                 if (result.error == MoveError::None) {
-                    landings_.push_back(core::execute::landingOf(calls_[k]));
-                    record_.clustersMoved += calls_[k].allocated;
-                    runner_.moved(calls_[k].allocated);
+                    landed(core::execute::landingOf(calls_[k]), calls_[k].allocated);
                     ++k;
                     continue;
                 }
-                if (!replaceTarget(k, result)) {
-                    stop(std::string(platform::moveErrorKey(result.error)), result.win32Error);
+                const Refusal next = afterRefusal(k, result);
+                if (next == Refusal::Stop) {
                     return;
                 }
+                k += next == Refusal::NextCall ? 1 : 0;
             }
+        }
+
+        MoveAttempt::Refusal MoveAttempt::afterRefusal(std::size_t k, const platform::MoveCallResult& result) {
+            if (keepLandedPrefix(k)) {
+                return Refusal::NextCall; // The whole call landed although NTFS refused it.
+            }
+            const Replacement replaced = replaceTarget(k, result);
+            if (replaced == Replacement::Done) {
+                return Refusal::RetryCall;
+            }
+            logRefusal(calls_[k], result);
+            const bool taken = replaced == Replacement::NoRoom;
+            stop(taken ? "destination-in-use" : std::string(platform::moveErrorKey(result.error)), result.win32Error);
+            return Refusal::Stop;
+        }
+
+        void MoveAttempt::landed(const Landing& landing, ClusterCount clusters) {
+            landings_.push_back(landing);
+            record_.clustersMoved += clusters;
+            runner_.moved(clusters);
+        }
+
+        bool MoveAttempt::keepLandedPrefix(std::size_t k) {
+            std::vector<StreamRun> now;
+            if (!file_->readRuns(now)) {
+                return false;
+            }
+            MoveCall& call = calls_[k];
+            const core::execute::LandedPrefix prefix = core::execute::landedPrefix(now, call);
+            if (prefix.allocated == 0) {
+                return false;
+            }
+            core::logging::info(
+                "refused call moved part",
+                {{"file", runner_.plan().paths[record_.move]}, {"clusters", prefix.allocated}, {"of", call.allocated}});
+            landed({call.stream, call.vcn, prefix.vcnEnd - call.vcn, call.to, prefix.allocated}, prefix.allocated);
+            call = core::execute::remainderOf(call, prefix);
+            return call.allocated == 0;
         }
 
         platform::MoveCallResult MoveAttempt::callWithRetries(const MoveCall& call) {
@@ -447,27 +579,48 @@ namespace icd::services {
             return result;
         }
 
-        bool MoveAttempt::replaceTarget(std::size_t from, const platform::MoveCallResult& result) {
+        MoveAttempt::Replacement MoveAttempt::replaceTarget(std::size_t from, const platform::MoveCallResult& result) {
             const bool maybeTaken =
                 result.error == MoveError::AccessDenied || result.error == MoveError::DestinationInUse;
             if (!maybeTaken || !runner_.options().replaceTakenDestinations || replacements_ >= 2) {
-                return false;
+                return Replacement::NotTried;
             }
             const MoveCall& call = calls_[from];
             if (core::planner::clustersOf(runner_.device().freeRunsIn({call.to, call.allocated})) == call.allocated) {
-                return false; // The target is free: the refusal had another cause.
+                return Replacement::NotTried; // The target is free: the refusal had another cause.
             }
             const auto rest = std::span(calls_).subspan(from);
             const auto start = runner_.replacement(position_, rest);
             if (!start) {
-                return false;
+                return Replacement::NoRoom;
             }
             core::execute::retarget(rest, *start);
             ++replacements_;
             record_.replaced = true;
             core::logging::info("destination taken, moved elsewhere",
-                                {{"file", runner_.plan().paths[record_.move]}, {"lcn", *start}});
-            return true;
+                                {{"file", runner_.plan().paths[record_.move]}, {"from", call.to}, {"to", *start}});
+            return Replacement::Done;
+        }
+
+        void MoveAttempt::logRefusal(const MoveCall& call, const platform::MoveCallResult& result) const {
+            const auto free = core::planner::clustersOf(runner_.device().freeRunsIn({call.to, call.allocated}));
+            std::string runs;
+            if (std::vector<StreamRun> now; file_->readRuns(now)) {
+                for (std::size_t i = 0; i < now.size() && i < 8; ++i) {
+                    runs +=
+                        std::format("{}{}:{}+{}", runs.empty() ? "" : " ", now[i].stream, now[i].lcn, now[i].length);
+                }
+            }
+            core::logging::warning("move call refused",
+                                   {{"file", runner_.plan().paths[record_.move]},
+                                    {"error", std::uint64_t{result.win32Error}},
+                                    {"stream", call.stream},
+                                    {"vcn", call.vcn},
+                                    {"to", call.to},
+                                    {"clusters", call.allocated},
+                                    {"free_at_target", free},
+                                    {"replacements", replacements_},
+                                    {"runs_now", runs}});
         }
 
         void MoveAttempt::finish() {

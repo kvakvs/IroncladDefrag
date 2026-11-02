@@ -54,18 +54,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)
 
-### T104b - Phase 7 exit run on the test bed (elevated)
-
-- Depends: T104
-- Owns: results in `.codex/arch.md` (Execution), the churn-gap decision in `plan.md` 8.3 and the default gap in
-  `data/strategies/development.json` if it changes
-- Do: in an elevated shell, `test.bat Release slow` (`ClusterMove.MovesFilesOnTestVolumes` needs a writable ICD-TEST
-  volume mounted) and `pwsh -File tests/integration/execute/check-execute.ps1 -Scenarios all -SizeGB 4`; fix what they
-  find (unverified on NTFS so far: whole-unit calls for compressed files, the access-denied-as-taken bitmap probe, named
-  streams and directory indexes through the executor, the snapshot saved after execution against a rescan). Record the
-  churn-gap measurement; if NTFS does not allocate new files into the gap, shrink the default to 1% (plan.md 8.3).
-- Done when: both pass, the results and the churn-gap decision are recorded. **Phase 7 exit check.**
-
 ---
 
 ## Phase 8 - GUI execution and live map (§13 Phase 8)
@@ -144,3 +132,28 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Owns: `installer/*.nsi`, `make-installer.bat`
 - Do: NSIS installer with `YYYY.MM.N` + short git hash, all DLLs, output in `dist/`.
 - Done when: install, start from the install folder and uninstall all work. **Phase 11 exit check.**
+
+---
+
+## Deferred (look at later)
+
+### T150 - Churn gap size after measuring NTFS allocation (TODO)
+
+- Depends: T104b
+- Owns: the `gapAfter` of the dependencies zone in `data/strategies/development.json`, plan.md 8.3
+- Why: plan.md 8.3 reserves a churn gap of `max(5% of volume, 2 x build + temp)` after the dev zones so new build
+  output lands in fast, contiguous space, and says to shrink it to 1% if NTFS does not allocate new files into it. The
+  Phase 7 measurement (2026-11-02, `dev` scenario on 4 GB, full Maximum development layout, 200 new 256 KB files):
+  67% of their clusters landed in the gap while the gap held 87% of the free space, so NTFS does not favour the gap;
+  a third of the new data went to the other 13% of free space. The gap mostly works as plain consolidated free space.
+- What shrinking would improve: less data moved to open the gap (Moderate and Maximum move files out of the gap's
+  range to make it; on `dev` that is part of the ~40 K moves of a Maximum run), a lower lower-bound and fewer evictions
+  and parking moves, and the free space it held stays available as zone room and slack for the zones after it. What
+  it may cost: new build output less often contiguous next to the sources.
+- How to observe the effect: with the default and with 1%, (1) `pwsh -File tests/integration/execute/check-execute.ps1
+  -Scenarios dev -ChurnGap -SizeGB 4` prints the share of new build files' clusters in the gap against the gap's share
+  of free space; (2) `icd-cli plan T: --strategy development --json` on the same `dev` volume gives `bytesMoved`,
+  `lowerBound` and the ratio per level; (3) after a few build/clean cycles (write and delete build folders, as
+  gen-scenario's `dev` does), `icd-cli analyze T: --json` shows fragmented files and free runs; compare build output
+  fragmentation and the largest free run between the two settings.
+- Done when: the measurements for both settings are recorded in `.codex/arch.md` and the default is chosen.

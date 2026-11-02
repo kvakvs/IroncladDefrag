@@ -13,18 +13,16 @@
 namespace icd::services {
 
     // The moved files read again by a full rescan after execution (plan.md 12: the plan's predicted layout must match
-    // a rescan), and the saved snapshot against the same rescan.
+    // a rescan). The saved snapshot is checked by icd-cli check-catchup, which catches it up first.
     struct RescanCheck {
         std::uint64_t filesChecked = 0; // Moved files compared.
         std::uint64_t mismatches = 0; // Files the rescan finds elsewhere than predicted.
         std::vector<std::string> samples; // The first mismatches.
-        std::optional<std::uint64_t> snapshotDifferences; // Saved snapshot vs rescan (access times left out), if saved.
-        std::vector<std::string> snapshotSamples; // The first of those differences.
     };
 
     // Scans the volume in full (nothing saved) and compares every moved file's runs with its prediction: a file whose
     // last move completed at its planned destination must lie exactly there, any other moved file where the executor
-    // read it back. Then compares the saved snapshot, if execution saved one, with the rescan.
+    // read it back.
     [[nodiscard]] RescanCheck checkAgainstRescan(const ExecutionRequest& request, const ExecutionOutcome& outcome,
                                                  JobContext& context);
 

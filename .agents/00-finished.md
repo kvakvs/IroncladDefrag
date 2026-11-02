@@ -330,3 +330,14 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `presetNamed()`), `tests/integration/execute/check-execute.ps1` (per scenario: changes between plan and execute,
   main run with a stale bitmap, pause/cancel/resume, kill/resume, churn-gap measurement on `dev`; hashes, chkdsk and
   rescan after each run), `ExecuteReportTest`. Not run here (session not elevated): the exit run is T104b.
+- T104b Phase 7 exit run on the test bed - elevated runs: `ClusterMove.*` and the slow suite pass; `check-execute.ps1
+  -Scenarios all` passes every check (first on 4 GB volumes with whole plans, up to 52 K moves per run; then the
+  bounded version). Found and fixed: cancelled runs resumable (`resumable()`); catch-up always re-reads records 0-15,
+  metadata and `\System Volume Information` (shadow storage grows unjournaled) and reports "up to date" only when they
+  kept their clusters; analysis rescans when a catch-up disagrees with the bitmap; `\System Volume Information` pinned
+  in the planner; a refused `FSCTL_MOVE_FILE` keeps the prefix before the taken cluster (`landedPrefix()`, recorded
+  and verified; `ClusterMove.RefusedCallKeepsAPrefix`); "destination-in-use" when no replacement fits; `compareExact()`
+  compares records, not positions; executor log lines (progress, refusals with details, totals). The integration
+  script now runs about 12 min for all scenarios (1 GB volumes, `icd-cli execute --max-moves`, hashes and chkdsk once
+  per scenario, resume and kill on `mixed`, `-ChurnGap` opt-in). Churn gap measured (67% of new build output in a gap
+  holding 87% of free space); the decision is T150. **Phase 7 exit check.**

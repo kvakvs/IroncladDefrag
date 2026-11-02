@@ -3,8 +3,10 @@
 #include "core/classify/RuleEngine.h"
 
 #include <algorithm>
+#include <cctype>
 #include <memory>
 #include <optional>
+#include <string_view>
 
 namespace icd::core::planner {
 
@@ -111,10 +113,33 @@ namespace icd::core::planner {
             return sum;
         }
 
+        // Whether a name is "System Volume Information" (any case).
+        bool isSystemVolumeInformation(std::string_view name) {
+            constexpr std::string_view svi = "system volume information";
+            return name.size() == svi.size() && std::ranges::equal(name, svi, [](char a, char b) {
+                       return std::tolower(static_cast<unsigned char>(a)) == b;
+                   });
+        }
+
+        // Whether a file is "\System Volume Information" or directly in it. Windows owns those files (shadow copy
+        // storage grows there during every move on a volume with shadow copies), so they stay where they are.
+        bool inSystemVolumeInformation(const Snapshot& snapshot, FileIndex file) {
+            const auto& files = snapshot.files;
+            const FileIndex parent = files.parent(file);
+            if (parent == noFile) {
+                return false;
+            }
+            const FileIndex grandparent = files.parent(parent);
+            const FileIndex dir = grandparent == noFile ? file : parent;
+            const bool dirAtRoot = files.parent(dir) != noFile && files.parent(files.parent(dir)) == noFile;
+            return dirAtRoot && isSystemVolumeInformation(snapshot.names.name(files.name(dir)));
+        }
+
     } // namespace
 
     bool fixedFile(const Snapshot& snapshot, FileIndex file, ClusterCount movable) {
-        return movable == 0 || (snapshot.files.flags(file) & pinningFlags) != 0;
+        return movable == 0 || (snapshot.files.flags(file) & pinningFlags) != 0 ||
+            inSystemVolumeInformation(snapshot, file);
     }
 
     ZoneAssignment assignZones(const Snapshot& snapshot, const strategy::ZoneScript& script,

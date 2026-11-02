@@ -42,6 +42,23 @@ namespace icd::core::execute { namespace {
         EXPECT_EQ(calls[1].to, 704U);
     }
 
+    TEST(MoveCalls, LandedPrefixOfARefusedCall) {
+        // A call of 40 clusters from VCN 10 to LCN 500; NTFS moved the first 16 before refusing.
+        const MoveCall call{0, 10, 40, 500, 40};
+        const std::vector<StreamRun> now{{0, 0, 100, 10}, {0, 10, 500, 16}, {0, 26, 126, 24}};
+        const LandedPrefix prefix = landedPrefix(now, call);
+        EXPECT_EQ(prefix.allocated, 16U);
+        EXPECT_EQ(prefix.vcnEnd, 26U);
+        EXPECT_EQ(remainderOf(call, prefix), (MoveCall{0, 26, 24, 516, 24}));
+        // Nothing moved: the remainder is the call.
+        const std::vector<StreamRun> unmoved{{0, 0, 100, 50}};
+        EXPECT_EQ(landedPrefix(unmoved, call).allocated, 0U);
+        EXPECT_EQ(remainderOf(call, landedPrefix(unmoved, call)), call);
+        // All of it: nothing left.
+        const std::vector<StreamRun> all{{0, 0, 100, 10}, {0, 10, 500, 40}};
+        EXPECT_EQ(landedPrefix(all, call).allocated, 40U);
+    }
+
     TEST(MoveCalls, LandedChecksEveryStretch) {
         const std::vector<StreamRun> after{{0, 0, 100, 6}, {0, 16, 300, 10}, {1, 0, 50, 2}};
         EXPECT_TRUE(landed(after, std::vector<Landing>{{0, 0, 4, 100, 4}, {0, 4, 2, 104, 2}}));

@@ -177,8 +177,8 @@ namespace icd::services {
                 result.aspect = saved->meta.aspect;
                 CatchUpResult caught = catchUpSnapshot(volume, volumeName_, std::move(saved->snapshot), *layout.ntfs,
                                                        geometry, context_.executor, context_.token, &context_.progress);
-                if (caught.outcome == CatchUpOutcome::RescanNeeded) {
-                    result.catchUp = "rescanned: " + caught.reason;
+                if (const auto why = rescanReason(volume, geometry, caught)) {
+                    result.catchUp = "rescanned: " + *why;
                     return {};
                 }
                 result.caughtUp = true;
@@ -189,6 +189,27 @@ namespace icd::services {
                                   caught.recordsRead);
                 ScanStats stats = caughtUpStats(caught.snapshot);
                 return {std::move(caught.snapshot), std::move(stats)};
+            }
+
+            // Why a catch-up cannot stand and the volume must be scanned in full, or nullopt when it can.
+            std::optional<std::string> rescanReason(HANDLE volume, core::VolumeGeometry geometry,
+                                                    const CatchUpResult& caught) {
+                if (caught.outcome == CatchUpOutcome::RescanNeeded) {
+                    return caught.reason;
+                }
+                if (!matchesBitmap(volume, geometry, caught.snapshot)) {
+                    return std::string("the caught-up free space differs from the volume bitmap (clusters changed "
+                                       "without journal records, such as another defragmenter's moves)");
+                }
+                return std::nullopt;
+            }
+
+            // Whether a caught-up snapshot's free space equals the volume bitmap now. Moves by other defragmenters and
+            // similar changes leave no journal records; when anything like that happened, the snapshot cannot be
+            // trusted and the volume is scanned in full.
+            bool matchesBitmap(HANDLE volume, core::VolumeGeometry geometry, const core::Snapshot& caught) {
+                const std::vector<core::ClusterRun> bitmap = readBitmap(volume, geometry);
+                return std::ranges::equal(bitmap, caught.freeSpace.runs());
             }
 
             // Saves the snapshot for the next run; a failure is logged, never fatal.

@@ -242,6 +242,17 @@ this file records what is actually built and the decisions made along the way.
 - Raw reads see what is on disk: a change still in the cache when the cursor is taken is read stale and, with the
   cursor already past it, not re-read next time. The tests flush the volume first (`Write-VolumeCache`); in the app
   this is the same window a full raw scan has and it closes with the next change to those files.
+- Changes that leave no journal records (T104b, found by the Phase 7 exit run): shadow copy storage in
+  `\System Volume Information` grows by copy-on-write while files move (32 MB -> 288 MB on the `vss` scenario after one
+  Moderate run), and moves by any defragmenter, ours included, are not journaled. So every catch-up re-reads records
+  0-15, the metadata files and `\System Volume Information` with the files directly in it, even when the journal holds
+  nothing new (before, an empty journal meant "up to date" without reading anything); it is "up to date" only when
+  nothing was journaled and those files kept their clusters. And `analyzeVolume()` compares a caught-up snapshot's free
+  space with the volume bitmap (read anyway on a full scan; 0.16 s at 30 TB on the SSD) and scans in full when they
+  differ, so whatever else changes the volume without the journal (Windows' Optimize Drives) cannot leave a wrong
+  snapshot in use. On a busy volume this can turn a catch-up into a full scan when files change between the two reads.
+- `compareExact()` compares each file's extent records, not their positions in the record array (T104b): after any
+  change, positions shift and every later file looked different.
 - Analysis (`analyzeVolume()`) now tries the saved snapshot first: same volume GUID and NTFS serial, made by the MFT
   scanner, caught up when the journal allows; otherwise the full path. Every analysis saves its snapshot
   (`AnalysisOptions::saveSnapshot`), and the map keeps the saved world aspect (`savedSnapshotMeta()`); the report says
@@ -982,6 +993,8 @@ All analysis checks passed.
   Fixed (unmovable, metadata, resident, encrypted or no movable clusters; encrypted files move only after they pass
   on the test bed, plan.md 10.2), InPlace (keep-in-place zones), Defragment (defragment-only zones and files no zone
   takes) or Placed. Movable clusters exclude unmovable extents, so a file with a pinned attribute still moves its data.
+  `\System Volume Information` and the files directly in it are Fixed too (T104b): Windows owns them, and on the `vss`
+  scenario a Maximum plan had planned the shadow copy storage file itself.
 - Target layout (T081, `TargetLayout`): obstacles are unmovable extents, every file that is not Placed (in-place and
   defragment-only files stay near where they are) and reserved runs (the MFT zone). `AvailableAxis` numbers the
   remaining clusters 0..N in LCN order, so a zone of N clusters gets exactly N usable ones and zones flow around
@@ -1241,8 +1254,19 @@ All analysis checks passed.
 - Stale bitmap: a call refused as access denied whose target the bitmap shows taken gets a replacement destination for
   the rest of the move: a single free run in the move's region (its zone target's span) that avoids the MFT zone and
   every destination of the moves after it, so nothing later is disturbed; at most two per move, else the move stops
-  with "destination-in-use". Transient refusals are retried three times; locked, unsupported and gone files are
-  skipped with the `MoveError` key as reason; execution never stops for one file.
+  with "destination-in-use" (also when no free run in the region holds the rest, common on nearly full volumes).
+  Transient refusals are retried three times; locked, unsupported and gone files are skipped with the `MoveError` key
+  as reason; execution never stops for one file.
+- A refused call is not all or nothing (found by the Phase 7 exit run, `ClusterMove.RefusedCallKeepsAPrefix`): NTFS
+  moves a large call up to the first taken target cluster and keeps that part (2,048 of 4,096 clusters with the
+  2,049th taken; a 64-cluster call inside one internal piece moves nothing). So after every refusal the executor reads
+  the runs back, keeps the prefix that landed (`landedPrefix()`, `remainderOf()`) as moved and verified, and goes on
+  with only the rest. Before this, such a move was recorded as skipped with nothing moved, and the snapshot after
+  execution could not be patched.
+- Logging: "moving files" at the start and every 10 s (moves done, clusters, MB/s), "move call refused" with the call,
+  the free clusters at its target and the file's runs then, "refused call moved part", "destination taken, moved
+  elsewhere" with old and new target, "move not completed" with the outcome and reason, "moves done" with the totals,
+  and "no snapshot after execution" with the moved file and the file it would overlap.
 - After each move the runs are read back and checked against every landing (done pieces and calls that went through:
   the allocated clusters of the stream in the call's VCN window form one run at its target). Options: chunk size, low
   I/O priority (`THREAD_MODE_BACKGROUND_BEGIN` on the mover thread), a throughput limit (waits in 50 ms slices),
@@ -1285,23 +1309,34 @@ All analysis checks passed.
   newest unfinished log of the volume (`--resume`, or `--resume --log FILE`); then `runExecution()`. Options for chunk
   size, low priority, a throughput limit, the plan age and prefetch; `--check-rescan` scans the volume in full
   afterwards and compares every moved file with its prediction (the planned destination when its last move completed
-  there, else where the executor read it back) and the saved snapshot with the rescan (`services/execute/ExecuteReport`,
-  which also writes the JSON and text reports: plan, revalidation with every drop, totals with every move that did not
-  complete, snapshot note, zones with their gaps, records with `--moves`). Test hooks for the integration script:
-  `--pause-after N --pause-ms M`, `--cancel-after N`, and `--take-destination MOVE`, which writes a probe file and moves
-  its first cluster onto that move's first destination cluster just before it starts (a real stale-bitmap conflict made
-  by another file). Exit codes: 0 done, 1 refused or failed, 2 bad arguments, 3 cancelled.
-- `tests/integration/execute/check-execute.ps1` (Phase 7 exit; elevated, Release): per scenario on a fresh volume with a
-  USN journal: (1) `plan --save` at Moderate, one planned file deleted and one grown by 2 MB, `execute --plan` must drop
-  them as file-gone and file-changed; (2) the main run at Maximum with the scenario's preset and `--take-destination 3`
-  (the move must be replaced and verified); (3) a directory-clustering run paused after 3 moves and cancelled after 12,
-  then `--resume`; (4) a size-placement run slowed to 8 MB/s and killed with `Stop-Process` after 15 outcome lines, then
-  `--resume`; (5) on `dev`, 200 new 256 KB files after the development layout and the share of their clusters inside the
-  churn gap. After every execution: `--check-rescan` (no moved file elsewhere than predicted), file hashes against the
-  manifest taken before it and `chkdsk /scan`.
-- Not run yet: this session was not elevated (and Windows sudo is off), so neither the slow move tests nor the script
-  have run on a real volume. Until they have (T104b), the compressed-file unit rule, the access-denied-as-taken probe
-  and NTFS allocation into the churn gap (plan.md 8.3) are unverified on NTFS itself.
+  there, else where the executor read it back; `services/execute/ExecuteReport`, which also writes the JSON and text
+  reports: plan, revalidation with every drop, totals with every move that did not complete, snapshot note, zones with
+  their gaps, records with `--moves`). `--max-moves N` runs only the first N moves left (a prefix of a plan is a valid
+  plan; the rest stays in the log). Test hooks for the integration script: `--pause-after N --pause-ms M`,
+  `--cancel-after N`, and `--take-destination MOVE`, which writes a probe file and moves its first cluster onto that
+  move's first destination cluster just before it starts (a real stale-bitmap conflict made by another file; the
+  probe's other clusters land wherever NTFS puts them, often on later destinations, which exercises replacement too).
+  Exit codes: 0 done, 1 refused or failed, 2 bad arguments, 3 cancelled. A cancelled run is resumable like a crashed
+  one (`resumable()`: no end line, or a cancelled end, with moves left).
+- `tests/integration/execute/check-execute.ps1` (Phase 7 exit; elevated, Release; about 12 minutes for all eight
+  scenarios, 3 for the quick pair): per scenario on a fresh 1 GB volume with a USN journal, every execution capped at
+  `-MaxMoves` (400): (1) `plan --save` at Moderate, then a file among its first moves deleted and another grown by
+  2 MB; (2) `execute --plan` must drop them as file-gone and file-changed; (3) the main run at Maximum with the
+  scenario's preset and `--take-destination 3`; (4) on `mixed` only (`-ResumeScenarios`): pause after 3 and cancel
+  after 12, then `--resume`; a run slowed to 8 MB/s and killed with `Stop-Process` after 15 outcome lines, then
+  `--resume`. After every execution: the report's checks (exit code, every completed move verified, `--check-rescan`)
+  and `icd-cli check-catchup` (the snapshot saved after execution, caught up, equals a full scan); at the end of the
+  scenario file hashes and `chkdsk /scan` once. `-ChurnGap` (dev) runs the whole development plan and measures where
+  NTFS puts 200 new build files (slow; T150). Every step prints its time.
+- Phase 7 exit run (2026-11-02, elevated; volumes on the E: HDD): first full sweep on 4 GB volumes, whole plans (up to
+  52,000 moves per run on `dev`): 7 of 8 scenarios passed every check; compressed files (whole units), the sparse file,
+  named streams, hard links, the 1,324-fragment file and directory indexes moved and verified; killed and cancelled
+  runs resumed to completion with the interrupted move found already done. Found and fixed: cancelled runs were not
+  resumable; catch-up missed shadow copy storage growth (see USN catch-up) and the planner moved the storage file; a
+  refused call's moved prefix was lost; raw snapshot comparisons compared positions. On the `vss` scenario a single
+  Maximum run grows shadow storage past its limit and Windows deletes the shadow copy (restore points lost) - the case
+  Phase 9's VSS alignment and warnings are for. Churn gap: NTFS put 67% of new build output into a gap holding 87% of
+  the free space, so it does not favour the gap (decision deferred, T150).
 
 ## Parallel execution
 

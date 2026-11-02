@@ -132,6 +132,27 @@ namespace icd::core::execute {
         });
     }
 
+    LandedPrefix landedPrefix(std::span<const StreamRun> now, const MoveCall& call) {
+        LandedPrefix out{0, call.vcn};
+        const Landing window{call.stream, call.vcn, call.span, call.to, call.allocated};
+        const auto first = std::ranges::partition_point(now, [&](const StreamRun& r) { return endsBefore(r, window); });
+        for (auto r = first; r != now.end() && r->stream == call.stream && r->vcn < call.vcn + call.span; ++r) {
+            const std::uint64_t from = std::max(r->vcn, call.vcn);
+            const std::uint64_t to = std::min(r->vcn + r->length, call.vcn + call.span);
+            if (r->lcn + (from - r->vcn) != call.to + out.allocated) {
+                break; // The rest still lies elsewhere.
+            }
+            out.allocated += to - from;
+            out.vcnEnd = to;
+        }
+        return out;
+    }
+
+    MoveCall remainderOf(const MoveCall& call, LandedPrefix landed) {
+        return {call.stream, landed.vcnEnd, call.vcn + call.span - landed.vcnEnd, call.to + landed.allocated,
+                call.allocated - landed.allocated};
+    }
+
     ClusterCount allocatedOf(std::span<const MoveCall> calls) {
         ClusterCount sum = 0;
         for (const MoveCall& c : calls) {

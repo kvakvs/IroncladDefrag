@@ -114,7 +114,10 @@ namespace icd::services {
     [[nodiscard]] std::filesystem::path newExecutionLogPath(const std::filesystem::path& directory,
                                                             const std::string& volumeName);
 
-    // The newest log of a volume in `directory` that has no end line (a run that crashed), if any.
+    // Whether a log describes a run that can be resumed: it crashed (no end line) or was cancelled, and moves are left.
+    [[nodiscard]] bool resumable(const ExecutionLogContents& log);
+
+    // The newest resumable log of a volume in `directory` (a run that crashed or was cancelled), if any.
     [[nodiscard]] std::optional<std::filesystem::path> unfinishedExecutionLog(const std::filesystem::path& directory,
                                                                               const std::string& volumeName);
 

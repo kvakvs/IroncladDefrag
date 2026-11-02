@@ -9,6 +9,7 @@
 
 #include "SimDevice.h"
 #include "core/classify/RuleEngine.h"
+#include "core/snapshot/FreeRunList.h"
 #include "core/strategy/Presets.h"
 #include "core/synth/SyntheticVolume.h"
 #include "services/plan/PlanJob.h"
@@ -195,6 +196,47 @@ namespace icd::services { namespace {
         EXPECT_EQ(b.volume->ownerOf(taken.start), SimVolume::systemOwner);
         EXPECT_EQ(report.totals.skipped, 0U); // The replacement avoided every later destination.
         EXPECT_EQ(report.totals.replaced, 1U);
+    }
+
+    TEST(Executor, RefusedCallKeepsWhatNtfsMovedBeforeIt) {
+        // NTFS moves a large call in pieces and keeps those done before it refuses (T104b): the executor must count
+        // them, move only the rest elsewhere, and leave a snapshot that matches the volume.
+        Bed b = bed(18, core::strategy::Effort::Moderate);
+        SimDevice device(*b.volume);
+        device.pieceClusters = 8;
+        std::uint32_t victim = 0;
+        while (victim < b.plan.moves.size() &&
+               (b.plan.moves[victim].clusters < 40 || b.plan.destinations(b.plan.moves[victim]).front().length < 40)) {
+            ++victim;
+        }
+        ASSERT_LT(victim, b.plan.moves.size());
+        const ClusterRun blocked{b.plan.destinations(b.plan.moves[victim]).front().start + 20, 1};
+        ExecutionControls c;
+        c.hooks.onBegin = [&](std::uint32_t move) {
+            if (move == victim && b.volume->isFree(blocked)) {
+                b.volume->occupy(blocked);
+            }
+        };
+        ExecuteOptions o;
+        o.prefetch = false; // 16 MB calls: the move is one call, refused part way through.
+        const auto order = core::execute::allMoves(b.plan);
+        const auto report = executePlan(b.plan, order, device, o, c);
+        const MoveRecord& r = report.records.at(victim);
+        EXPECT_TRUE(r.verified);
+        EXPECT_GE(r.clustersMoved, 16U); // The two pieces before the blocked cluster.
+        EXPECT_EQ(r.outcome == MoveOutcome::Moved, r.clustersMoved == b.plan.moves[victim].clusters);
+        EXPECT_EQ(report.totals.unverified, 0U);
+        core::Snapshot base = *b.snapshot;
+        core::InlineExecutor serial;
+        const auto volumeFree = b.volume->freeRuns();
+        const auto after = snapshotAfter(base, b.plan, report.records, serial);
+        ASSERT_TRUE(after.has_value());
+        // The probe cluster is not a file of the snapshot: count it as free there.
+        std::vector<ClusterRun> expected = volumeFree;
+        expected.push_back(blocked);
+        const core::FreeRunList merged(std::move(expected), b.snapshot->geometry.totalClusters);
+        EXPECT_EQ(std::vector(after->freeSpace.runs().begin(), after->freeSpace.runs().end()),
+                  std::vector(merged.runs().begin(), merged.runs().end()));
     }
 
     TEST(Executor, LockedAndChangedFilesAreSkippedWithReasons) {

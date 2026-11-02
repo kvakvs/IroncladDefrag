@@ -2,6 +2,7 @@
 // gaps, back zones, reserved runs and slack placement.
 
 #include "core/planner/TargetLayout.h"
+#include "core/snapshot/SnapshotBuilder.h"
 #include "core/synth/SynthRandom.h"
 
 #include "core/PlannerTestUtil.h"
@@ -119,6 +120,33 @@ namespace icd::core::planner { namespace {
         EXPECT_EQ(a.zoneOf[v.files.at('C')], 3); // One cluster: small.
         EXPECT_EQ(a.zoneOf[0], 3); // The root (size 0) is small, but without clusters it stays Fixed.
         EXPECT_EQ(a.roles[0], FileRole::Fixed);
+    }
+
+    TEST(ZoneAssignment, SystemVolumeInformationStaysWhereItIs) {
+        // Shadow copy storage grows in "\System Volume Information" while files move; nothing there is ever moved.
+        SnapshotBuilder b({4096, 64});
+        std::uint64_t reference = 100;
+        const auto add = [&](std::string_view name, FileIndex parent, std::uint16_t flags) {
+            return b.addFile({name, parent, 0, flags, {}, reference++});
+        };
+        const FileIndex root = add("", noFile, FileDirectory);
+        const FileIndex svi = add("System Volume Information", root, FileDirectory);
+        const FileIndex storage = add("{a}{3808876b-c176-4e48-b7ae-04046e6cc752}", svi, 0);
+        const FileIndex lower = add("system volume information", root, FileDirectory);
+        const FileIndex inLower = add("x", lower, 0);
+        const FileIndex deep = add("deep", storage, 0);
+        const FileIndex plain = add("plain.bin", root, 0);
+        for (const FileIndex f : {svi, storage, lower, inLower, deep, plain}) {
+            b.addExtent({.run = {f * 4ULL, 4}, .vcn = 0, .file = f, .stream = 0, .flags = 0});
+        }
+        b.addFreeRun({40, 24});
+        const Snapshot s = std::move(b).build();
+        EXPECT_TRUE(fixedFile(s, svi, 4));
+        EXPECT_TRUE(fixedFile(s, storage, 4));
+        EXPECT_TRUE(fixedFile(s, lower, 4)); // Names compare without case, as NTFS does.
+        EXPECT_TRUE(fixedFile(s, inLower, 4));
+        EXPECT_FALSE(fixedFile(s, deep, 4)); // Only the folder and the files directly in it.
+        EXPECT_FALSE(fixedFile(s, plain, 4));
     }
 
     TEST(TargetLayout, ZonesFlowAroundObstaclesAndBackZonesEndAtTheEnd) {

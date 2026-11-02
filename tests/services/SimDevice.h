@@ -61,6 +61,10 @@ namespace icd::testing {
         // After this many successful calls the next one throws SimulatedCrash (0: never).
         std::uint64_t crashAfterCalls = 0;
 
+        // Like NTFS, move a call in pieces of this many clusters and keep the pieces done before a refusal (0: whole
+        // calls, all or nothing).
+        std::uint64_t pieceClusters = 0;
+
         // Successful calls so far.
         std::uint64_t calls = 0;
 
@@ -94,7 +98,7 @@ namespace icd::testing {
                 if (!device_.volume_.has(reference_)) {
                     return {platform::MoveError::FileGone, ERROR_FILE_NOT_FOUND};
                 }
-                if (!device_.volume_.move(reference_, call.stream, call.vcn, call.to, call.allocated)) {
+                if (!movePieces(call)) {
                     return {platform::MoveError::AccessDenied, ERROR_ACCESS_DENIED}; // As NTFS reports a taken target.
                 }
                 ++device_.calls;
@@ -102,6 +106,19 @@ namespace icd::testing {
             }
 
         private:
+            // Moves a call whole, or piece by piece when the device says so; false at the first piece refused (the
+            // pieces before it stay moved, as on NTFS).
+            bool movePieces(const core::execute::MoveCall& call) {
+                const std::uint64_t piece = device_.pieceClusters == 0 ? call.allocated : device_.pieceClusters;
+                for (std::uint64_t done = 0; done < call.allocated; done += piece) {
+                    const std::uint64_t n = std::min(piece, call.allocated - done);
+                    if (!device_.volume_.move(reference_, call.stream, call.vcn + done, call.to + done, n)) {
+                        return false;
+                    }
+                }
+                return true;
+            }
+
             SimDevice& device_; // Owner.
             std::uint64_t reference_; // The file.
         };

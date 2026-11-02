@@ -60,6 +60,19 @@ namespace icd::core::execute {
     // Whether the file's runs after a move (re-read) put every landing where it should be.
     [[nodiscard]] bool landed(std::span<const StreamRun> after, std::span<const Landing> landings);
 
+    // How much of a refused call landed anyway: NTFS moves a large call in internal pieces and keeps the pieces it
+    // moved before refusing (seen on the test bed: 512 and 1024 of 833 and 2738 clusters).
+    struct LandedPrefix {
+        ClusterCount allocated = 0; // Clusters of the call now at its target, from the start.
+        std::uint64_t vcnEnd = 0; // The virtual cluster after the last of them (the call's start when none).
+    };
+
+    // The prefix of a call the file's runs (read back after a refusal) show at the call's target.
+    [[nodiscard]] LandedPrefix landedPrefix(std::span<const StreamRun> now, const MoveCall& call);
+
+    // What is left of a call after a landed prefix.
+    [[nodiscard]] MoveCall remainderOf(const MoveCall& call, LandedPrefix landed);
+
     // Clusters the calls move.
     [[nodiscard]] ClusterCount allocatedOf(std::span<const MoveCall> calls);
 

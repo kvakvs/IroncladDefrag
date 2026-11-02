@@ -43,7 +43,8 @@ namespace icd::core::planner {
         std::vector<ClusterCount> zoneClusters{}; // Per zone: movable clusters of its Placed files.
     };
 
-    // Whether a file can never be moved, whatever its zone: flags or no movable clusters.
+    // Whether a file can never be moved, whatever its zone: flags, no movable clusters, or a file Windows owns in
+    // "System Volume Information".
     [[nodiscard]] bool fixedFile(const Snapshot& snapshot, FileIndex file, ClusterCount movable);
 
     // Assigns every file of a snapshot to the first zone whose selector matches (plan.md 8.1) and decides its role.

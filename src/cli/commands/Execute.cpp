@@ -49,6 +49,7 @@ namespace icd::cli {
             std::uint64_t cancelAfter = 0; // Test hook: cancel after N finished moves.
             std::uint64_t pauseAfter = 0; // Test hook: pause after N finished moves...
             std::uint64_t pauseMs = 500; // ...for this long.
+            std::uint64_t maxMoves = 0; // Run only the first N moves left (tests, small trial runs); 0: all.
             std::optional<std::uint32_t> takeDestination; // Test hook: a stale bitmap just before this move.
         };
 
@@ -63,7 +64,7 @@ namespace icd::cli {
         }};
 
         // Number options and the field each sets.
-        constexpr std::array<std::pair<std::wstring_view, std::uint64_t ExecuteArgs::*>, 7> numbers{{
+        constexpr std::array<std::pair<std::wstring_view, std::uint64_t ExecuteArgs::*>, 8> numbers{{
             {L"--chunk-mb", &ExecuteArgs::chunkMb},
             {L"--limit-mbps", &ExecuteArgs::limitMbps},
             {L"--max-age-hours", &ExecuteArgs::maxAgeHours},
@@ -71,6 +72,7 @@ namespace icd::cli {
             {L"--cancel-after", &ExecuteArgs::cancelAfter},
             {L"--pause-after", &ExecuteArgs::pauseAfter},
             {L"--pause-ms", &ExecuteArgs::pauseMs},
+            {L"--max-moves", &ExecuteArgs::maxMoves},
         }};
 
         // An option and its value on the command line.
@@ -186,8 +188,11 @@ namespace icd::cli {
             ScriptedRun(ScriptedRun&&) = delete;
             ScriptedRun& operator=(ScriptedRun&&) = delete;
 
-            // Removes the probe file (after the run, so the volume holds only the test data again).
-            ~ScriptedRun() {
+            // Removes the probe file if a run left one.
+            ~ScriptedRun() { removeProbe(); }
+
+            // Removes the probe file, so the volume holds only the test data again (before any rescan).
+            void removeProbe() const {
                 std::error_code ignored;
                 std::filesystem::remove(probe_, ignored);
             }
@@ -285,6 +290,9 @@ namespace icd::cli {
             request.options.lowPriority = args.lowPriority;
             request.options.throughputLimit = args.limitMbps << 20U;
             request.options.prefetch = !args.noPrefetch;
+            if (args.maxMoves != 0 && request.order.size() > args.maxMoves) {
+                request.order.resize(args.maxMoves); // A prefix of a plan is valid on its own; the log keeps the rest.
+            }
             if (!request.resume) {
                 request.revalidate.maxAgeTicks =
                     static_cast<std::int64_t>(args.maxAgeHours) * services::fileTimeTicksPerHour;
@@ -322,6 +330,7 @@ namespace icd::cli {
             ScriptedRun script(args, cancel, gate, *drive);
             prepared.request.observers = script.hooks(prepared.request);
             const services::ExecutionOutcome outcome = services::runExecution(prepared.request, context, &gate);
+            script.removeProbe();
             std::optional<services::RescanCheck> rescan;
             if (args.checkRescan && !outcome.revalidation.refused) {
                 rescan = services::checkAgainstRescan(prepared.request, outcome, context);
@@ -337,7 +346,7 @@ namespace icd::cli {
         return "icd-cli execute <volume> [--strategy ID] [--level fast|moderate|max] | [--plan FILE] | [--resume "
                "[--log FILE]] [--json] [--moves] [--chunk-mb N] [--low-priority] [--limit-mbps N] [--max-age-hours H] "
                "[--no-prefetch] [--check-rescan] [--threads N] [--pause-after N --pause-ms M] [--cancel-after N] "
-               "[--take-destination MOVE]";
+               "[--take-destination MOVE] [--max-moves N]";
     }
 
     int runExecute(std::span<const std::wstring_view> args) {

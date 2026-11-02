@@ -450,6 +450,9 @@ namespace icd::services {
         return directory / std::format("{}-{:%Y%m%d-%H%M%S}.jsonl", fileTag(volumeName), now);
     }
 
+    bool resumable(const ExecutionLogContents& log) {
+        return (!log.ended || log.cancelled) && !movesToResume(log).empty();
+    }
     std::optional<std::filesystem::path> unfinishedExecutionLog(const std::filesystem::path& directory,
                                                                 const std::string& volumeName) {
         std::vector<std::filesystem::path> logs;
@@ -464,7 +467,7 @@ namespace icd::services {
         std::ranges::sort(logs, std::greater<>());
         for (const auto& log : logs) {
             try {
-                if (!readExecutionLog(log).ended) {
+                if (resumable(readExecutionLog(log))) {
                     return log;
                 }
             }

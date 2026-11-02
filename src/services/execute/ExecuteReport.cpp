@@ -2,9 +2,8 @@
 
 #include "core/execute/PlanReplay.h"
 #include "core/format/Json.h"
+#include "core/log/Log.h"
 #include "services/scan/AnalysisJob.h"
-#include "services/scan/ScanCompare.h"
-#include "services/snapshot/SnapshotStore.h"
 
 #include <array>
 #include <format>
@@ -54,20 +53,6 @@ namespace icd::services {
             return core::execute::lcnRunsOf(r.runsAfter);
         }
 
-        // Compares the saved snapshot with the rescan.
-        void compareSaved(const ExecutionRequest& request, const core::Snapshot& fresh, JobContext& context,
-                          RescanCheck& out) {
-            const SnapshotStore store(request.snapshotDirectory.empty() ? SnapshotStore::defaultDirectory()
-                                                                        : request.snapshotDirectory);
-            const auto saved = store.load(request.drive.layout.volumeName, context.executor);
-            if (!saved) {
-                return;
-            }
-            const ScanComparison c = compareExact(saved->snapshot, fresh, {.accessTimes = false});
-            out.snapshotDifferences = c.differences;
-            out.snapshotSamples = c.samples;
-        }
-
         // Writes the plan section.
         void writePlan(JsonWriter& json, const ExecutionRequest& request) {
             const auto& id = request.plan.identity;
@@ -111,7 +96,7 @@ namespace icd::services {
                 .value(t.unverified);
             json.key("clustersMoved").value(t.clustersMoved).key("problems").beginArray();
             for (const MoveRecord& r : report.records) {
-                if (r.outcome == MoveOutcome::Moved && r.verified) {
+                if (r.verified && (r.outcome == MoveOutcome::Moved || r.outcome == MoveOutcome::AlreadyDone)) {
                     continue;
                 }
                 json.beginObject()
@@ -163,17 +148,6 @@ namespace icd::services {
             for (const auto& s : c.samples) {
                 json.value(s);
             }
-            json.endArray().key("snapshotDifferences");
-            if (c.snapshotDifferences) {
-                json.value(*c.snapshotDifferences);
-            }
-            else {
-                json.null();
-            }
-            json.key("snapshotSamples").beginArray();
-            for (const auto& s : c.snapshotSamples) {
-                json.value(s);
-            }
             json.endArray().endObject();
         }
 
@@ -213,9 +187,7 @@ namespace icd::services {
                 }
             }
         }
-        if (outcome.snapshotSaved) {
-            compareSaved(request, fresh.snapshot, context, out);
-        }
+        core::logging::info("rescan check", {{"files", out.filesChecked}, {"mismatches", out.mismatches}});
         return out;
     }
 

@@ -12,6 +12,7 @@
 
 #include <filesystem>
 #include <fstream>
+#include <iostream>
 #include <optional>
 #include <string>
 #include <vector>
@@ -186,6 +187,46 @@ namespace {
         EXPECT_EQ(readUnbuffered(file, data.size(), 4096), data);
         EXPECT_EQ(readUnbuffered(file + L":side", side.size(), 4096), side);
         EXPECT_EQ(std::distance(std::filesystem::directory_iterator(dir), {}), 401);
+        std::filesystem::remove_all(dir);
+    }
+
+    // What NTFS does with one call whose target is taken part of the way along (T104b): it moves a large call in
+    // internal pieces and refuses at the piece that meets the taken cluster, keeping the pieces before it at the target
+    // (the executor reads the runs back and keeps that prefix). A small call inside one piece moves nothing.
+    TEST(ClusterMove, RefusedCallKeepsAPrefix) {
+        if (!icd::platform::isElevated()) {
+            GTEST_SKIP() << "needs administrator rights";
+        }
+        const auto v = findTestVolume();
+        if (!v) {
+            GTEST_SKIP() << "no writable ICD-TEST volume mounted (tools/testvol/make-testvol.ps1)";
+        }
+        const auto volume = icd::platform::openVolumeForMoves(v->volumeName);
+        const std::wstring dir = v->root + L"icd-movetest-refused";
+        std::filesystem::remove_all(dir);
+        std::filesystem::create_directory(dir);
+        writeFile(dir + L"\\big.bin", bytesFor(3, std::size_t{4096} * v->bytesPerCluster));
+        writeFile(dir + L"\\blocker.bin", bytesFor(4, v->bytesPerCluster));
+        {
+            const auto big = icd::platform::openForQuery(dir + L"\\big.bin");
+            const auto blocker = icd::platform::openForQuery(dir + L"\\blocker.bin");
+            const auto target = freeRun(volume.get(), *v, 4200);
+            ASSERT_TRUE(target.has_value());
+            ASSERT_EQ(icd::platform::moveClusters({volume.get(), blocker.get()}, {0, target->start + 2048, 1}).error,
+                      MoveError::None);
+            const auto refused = icd::platform::moveClusters({volume.get(), big.get()}, {0, target->start, 4096});
+            EXPECT_NE(refused.error, MoveError::None);
+            std::uint64_t atTarget = 0;
+            for (const ClusterRun& r : runsOf(big.get())) {
+                const auto from = std::max(r.start, target->start);
+                const auto to = std::min(r.end(), target->start + 4096);
+                atTarget += to > from ? to - from : 0;
+            }
+            std::cout << "refused call: error " << refused.win32Error << ", " << atTarget
+                      << " of 4096 clusters at the target afterwards\n";
+            EXPECT_LE(atTarget, 2048U); // Never onto the taken cluster; a prefix, contiguous from the start.
+            EXPECT_EQ(runsOf(big.get()).front().start, atTarget != 0 ? target->start : runsOf(big.get()).front().start);
+        }
         std::filesystem::remove_all(dir);
     }
 

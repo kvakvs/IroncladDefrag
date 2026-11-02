@@ -187,7 +187,16 @@ namespace icd::services {
             }
         }
 
-        // Every column of file f.
+        // Whether a file has the same extent records (run, stream, flags) in the same order in both snapshots. The
+        // records are compared, not their positions: a change elsewhere on the volume shifts the positions.
+        bool sameExtents(const Snapshot& a, const Snapshot& b, FileIndex f) {
+            const auto x = a.extents.extentsOf(f);
+            const auto y = b.extents.extentsOf(f);
+            const auto ra = a.extents.records();
+            const auto rb = b.extents.records();
+            return std::ranges::equal(x, y, [&](std::uint32_t p, std::uint32_t q) { return ra[p] == rb[q]; });
+        }
+
         // The first column in which file f differs ("" when none); access times only when asked.
         const char* fileDifference(const Snapshot& a, const Snapshot& b, FileIndex f, bool accessTimes) {
             const auto& x = a.files;
@@ -203,7 +212,7 @@ namespace icd::services {
                 {x.fileReference(f) == y.fileReference(f), "file reference"},
                 {std::tie(tx.created, tx.modified) == std::tie(ty.created, ty.modified), "times"},
                 {!accessTimes || tx.accessed == ty.accessed, "access time"},
-                {std::ranges::equal(a.extents.extentsOf(f), b.extents.extentsOf(f)), "extents"},
+                {sameExtents(a, b, f), "extents"},
             };
             for (const auto& [same, what] : checks) {
                 if (!same) {
