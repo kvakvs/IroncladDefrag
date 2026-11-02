@@ -138,6 +138,12 @@ namespace icd::core::planner {
         }
     }
 
+    void appendMoves(const Snapshot& snapshot, std::span<const Destination> destinations, Plan& plan) {
+        for (const Destination& d : destinations) {
+            plan.add({.file = d.file, .reason = d.reason, .zone = d.zone}, movableRuns(snapshot, d.file), d.runs);
+        }
+    }
+
     std::vector<ClusterRun> sortedRuns(std::span<const ClusterRun> runs) {
         std::vector<ClusterRun> out(runs.begin(), runs.end());
         std::ranges::sort(out, {}, &ClusterRun::start);

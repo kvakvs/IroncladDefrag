@@ -61,7 +61,8 @@ changes (see `AGENTS.md`).
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
 | `src/core/planner/CandidateFilter.*` | `Candidates`, `filterCandidates()`: must-move files per zone and the defragment-only ones (plan.md 9.3.3). |
 | `src/core/planner/DefragOnly.*` | `planDefragment()`: defragment-only moves to the nearest run that holds the file, or large pieces; skips with a reason; vacated space reused. |
-| `src/core/planner/Placement.*` | `SpaceRequest`, `findFirst()` / `findLast()` / `findNear()` / `findPieces()` avoiding the file's own runs, `takeRuns()`, `releaseRuns()`, `sortedRuns()`. |
+| `src/core/planner/Placement.*` | `SpaceRequest`, `findFirst()` / `findLast()` / `findNear()` / `findPieces()` avoiding the file's own runs, `takeRuns()`, `releaseRuns()`, `sortedRuns()`; `Destination` (file, runs, reason, zone) and `appendMoves()`. |
+| `src/core/planner/FastFill.*` | `fastFill()`: holes filled from the packed end (front or back) with the largest file that fits, single runs or large pieces for the rest, overflow; `FillOptions`, `PackFrom`, `reasonFor()`. |
 | `src/core/planner/HoleSet.*` | `HoleSet`: mutable merged free runs in blocks with a max-length tree; `take()`, `add()`, `contains()`, `nextFit()` / `prevFit()` within a window, `within()`. |
 | `src/core/planner/LowerBound.*` | `GoodEnough`, `fragmentsOk()`, `fragmentOkFor()`, `lowerBound()` (must-move files per zone, parallel), `fitTarget()` (slack before each forward zone by a dynamic programme over stay intervals, plan.md 9.3.2). |
 | `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `clustersOf()`, `fragmentsOf()`, `finishTotals()`. |
@@ -255,6 +256,7 @@ changes (see `AGENTS.md`).
 | `tests/core/RuleEngineTest.cpp` | Globs (anchored, `**`, `?`, case), rule order, size/age/flag/churn conditions, overrides (deepest, directories untouched), bad rule sets, snapshot classes = path classes on a dev tree and a synthetic volume, any executor. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
 | `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
+| `tests/core/FastFillTest.cpp` | Tail files into head holes (bytes = lower bound, plan validates), best fit, back packing, never onto own clusters, synthetic volume destinations checked statically (in zone, disjoint, free or vacated, counts kept). |
 | `tests/core/FileSearchTest.cpp` | Ranks, case, path queries (slashes, trailing backslash, mid-name start), empty queries, limit and total, brute force over built paths on a synthetic volume, pool = serial. |
 | `tests/core/GridTest.cpp` | Grid fade and edge rounding, no grid at small cells, lines exactly on the last pixel of each drawn cell at random fractional views (also at the partial last row), line count bounded by the window. |
 | `tests/core/ScanReconcileTest.cpp` | Placeholder for unclaimed clusters, newer read wins, stale free space, clipping, random scans always tile. |

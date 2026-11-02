@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T085 - Fast-fill planner
-
-- Depends: T084
-- Owns: `src/core/planner/FastFill.*`
-- Do: §9.3.5 hole filling per zone and per stripe, choosing the packed boundary that minimises bytes.
-- Done when: bytes moved equal the lower bound on test layouts.
-
 ### T086 - Sort planner (weighted LIS)
 
 - Depends: T084

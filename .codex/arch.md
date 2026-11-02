@@ -1001,6 +1001,17 @@ All analysis checks passed.
   else large pieces when its zone allows them, else skipped (no space). What a move frees goes back into the pool for
   later files, which keeps the moves valid in the order they were planned.
 
+- Destinations come before moves (plan.md 6.4 step 5): zone planners return `Destination`s (file, new runs, reason,
+  zone) taken from one pool, the space free after the plan (free runs plus every candidate's runs); ordering into moves
+  is a separate step. Zone ranges are disjoint, so zone planners never compete for space.
+- Fast-fill (T085, `fastFill()`): walks the region's holes from the packed end and fills each with the largest waiting
+  file that fits (best fit by size; a union-find over the size-sorted files finds it in near-constant time), skipping
+  files whose own runs are in the way. Files no hole holds try any single run of the region, then large pieces when
+  `fragmentOk` allows, else overflow to the caller. The region is the zone's exact target, so when everything fits the
+  bytes moved equal the lower bound. On volumes whose free space is scattered small gaps, large fragmented files find
+  no hole inside an exact zone and overflow (measured: a fifth of the files, most of the bytes, on a 60% full synthetic
+  volume); they are placed next to the zone or make room by evicting small files (T088).
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

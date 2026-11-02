@@ -1,6 +1,8 @@
 #pragma once
 
 #include "core/planner/HoleSet.h"
+#include "core/planner/Plan.h"
+#include "core/snapshot/Snapshot.h"
 #include "core/snapshot/Types.h"
 
 #include <optional>
@@ -38,6 +40,18 @@ namespace icd::core::planner {
 
     // Returns runs to the pool (the clusters a move vacates).
     void releaseRuns(HoleSet& pool, std::span<const ClusterRun> runs);
+
+    // Where one file goes, before moves are ordered (plan.md 6.4 step 5 assigns these, then orders them).
+    struct Destination {
+        FileIndex file = noFile; // The file.
+        std::vector<ClusterRun> runs{}; // Its new runs, in VCN order.
+        MoveReason reason = MoveReason::Relocate; // Why it moves.
+        ZoneIndex zone = noZone; // The zone it lands in, or noZone.
+    };
+
+    // Appends one move per destination in the given order (the caller has ordered them, or they do not depend on
+    // each other).
+    void appendMoves(const Snapshot& snapshot, std::span<const Destination> destinations, Plan& plan);
 
     // Runs sorted by LCN, for SpaceRequest::own.
     [[nodiscard]] std::vector<ClusterRun> sortedRuns(std::span<const ClusterRun> runs);

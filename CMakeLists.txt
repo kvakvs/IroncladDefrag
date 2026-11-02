@@ -116,6 +116,8 @@ add_library(icd_core STATIC
     src/core/planner/CandidateFilter.h
     src/core/planner/DefragOnly.cpp
     src/core/planner/DefragOnly.h
+    src/core/planner/FastFill.cpp
+    src/core/planner/FastFill.h
     src/core/planner/HoleSet.cpp
     src/core/planner/HoleSet.h
     src/core/planner/LowerBound.cpp
