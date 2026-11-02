@@ -96,21 +96,21 @@ namespace icd::testing {
             if (found == files_.end() || !isFree({to, count})) {
                 return false;
             }
-            std::vector<Cluster*> range;
-            for (Cluster& c : found->second) {
-                if (c.stream == stream && c.vcn >= vcn && c.vcn < vcn + count) {
-                    range.push_back(&c);
-                }
-            }
-            if (range.size() != count) {
+            // Clusters are kept in (stream, VCN) order without gaps, so the range is one slice.
+            auto& clusters = found->second;
+            const auto first = std::ranges::lower_bound(clusters, std::pair(stream, vcn), {},
+                                                        [](const Cluster& c) { return std::pair(c.stream, c.vcn); });
+            const auto offset = static_cast<std::size_t>(first - clusters.begin());
+            if (offset + count > clusters.size() || clusters[offset].stream != stream || clusters[offset].vcn != vcn ||
+                clusters[offset + count - 1].stream != stream || clusters[offset + count - 1].vcn != vcn + count - 1) {
                 return false;
             }
-            for (Cluster* c : range) {
-                owner_[c->lcn] = 0;
+            for (std::size_t k = offset; k < offset + count; ++k) {
+                owner_[clusters[k].lcn] = 0;
             }
-            for (Cluster* c : range) {
-                c->lcn = to + (c->vcn - vcn);
-                owner_[c->lcn] = reference;
+            for (std::size_t k = offset; k < offset + count; ++k) {
+                clusters[k].lcn = to + (k - offset);
+                owner_[clusters[k].lcn] = reference;
             }
             return true;
         }

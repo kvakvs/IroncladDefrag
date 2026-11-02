@@ -1227,6 +1227,35 @@ All analysis checks passed.
   stream and VCN order) that the later executor tests move clusters on: an unchanged volume keeps every move and runs
   them all; a deleted file, a changed file and a destination taken by a new file are dropped with their reasons and
   every kept move still runs; a move cut short halfway is kept with only its rest pending.
+- Executor (T102, `services/execute/Executor`, plan.md 10.4): one mover thread runs the moves in order on a
+  `MoveDevice` (`VolumeMover` on a real volume: files by id, streams by ordinal, `FSCTL_MOVE_FILE`, bitmap per range);
+  a prefetch helper (one jthread, one slot) opens the next move's file while the current one moves. Per move: open,
+  read the runs again, `matchMove()` (the return of a parked file, and later moves of a file whose earlier move
+  deviated, are remapped from wherever it lies), then the pending pieces as `moveCalls()` of at most 16 MB. Compressed
+  files move in whole units: pieces next to each other join over the holes while their destination continues, a call
+  is cut only at a unit boundary and is rounded up to its last unit's end but never into the next piece (which may be
+  done already). Pause holds and cancel stops between calls; a move cancelled before its first call is not recorded
+  (resume starts it again), one cancelled after it is Partial: the file stays valid, half moved.
+- Stale bitmap: a call refused as access denied whose target the bitmap shows taken gets a replacement destination for
+  the rest of the move: a single free run in the move's region (its zone target's span) that avoids the MFT zone and
+  every destination of the moves after it, so nothing later is disturbed; at most two per move, else the move stops
+  with "destination-in-use". Transient refusals are retried three times; locked, unsupported and gone files are
+  skipped with the `MoveError` key as reason; execution never stops for one file.
+- After each move the runs are read back and checked against every landing (done pieces and calls that went through:
+  the allocated clusters of the stream in the call's VCN window form one run at its target). Options: chunk size, low
+  I/O priority (`THREAD_MODE_BACKGROUND_BEGIN` on the mover thread), a throughput limit (waits in 50 ms slices),
+  replacement on or off, prefetch on or off.
+- Snapshot after execution (`services/execute/ExecutedSnapshot`): NTFS does not journal moves, so a saved snapshot
+  that misses them would later be caught up wrongly. `snapshotAfter()` patches the revalidated snapshot with the runs
+  read back after each file's last move (`patchSnapshot()`: the file's old clusters freed, unmovable extents kept);
+  when a moved file was not read back or the runs overlap a file the snapshot still holds there, there is no snapshot
+  and the caller removes the saved one, so the next analysis scans in full.
+- Tests run on `SimDevice` (`tests/services/SimDevice.h`: FSCTL_MOVE_FILE semantics over `SimVolume`, locked files, a
+  hook before each call, a simulated crash): a Maximum plan (parking included) runs and verifies with and without
+  prefetch; pause and resume; cancel inside a move, then revalidation and the rest finish the plan; a destination
+  taken just before its move goes elsewhere in its region with nothing skipped; locked and changed files skipped with
+  reasons; the throughput limit; the snapshot after execution equals the volume. The real-volume run is T104's
+  integration script.
 
 ## Parallel execution
 

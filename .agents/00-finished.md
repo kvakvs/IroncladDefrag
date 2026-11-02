@@ -309,3 +309,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   other volume, reformatted, resized, older than 24 h; `revalidatePlan()`: catch-up or full scan, then the replay).
   `tests/services/SimVolume.h` (volume in memory), `MovePiecesTest`, `RevalidateTest` (scripted deletes, changes and
   taken destinations detected; the kept moves still run). The scripted check on a real volume is part of T104.
+- T102 Executor - `services/execute/Executor.*` (one mover thread plus a prefetch helper; runs re-read and matched
+  before each move; 16 MB calls, whole units for compressed files via `core/execute/MoveCalls.*`; pause, resume and
+  cancel between calls; throughput limit; low I/O priority; stale-bitmap replacement in the move's region avoiding
+  the MFT zone and later destinations; skip reasons; verification against landings), `MoveDevice.h`,
+  `VolumeMover.*` (FSCTL_MOVE_FILE device), `ExecutedSnapshot.*` (`snapshotAfter()`: snapshot patched from verified
+  runs, else none). `tests/services/SimDevice.h`, `ExecutorTest`, `MoveCallsTest`. Pause, resume and cancel mid-run
+  are covered on the simulated volume; the run on a real test volume is T104's integration script.

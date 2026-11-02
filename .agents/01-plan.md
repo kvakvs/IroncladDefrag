@@ -54,15 +54,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)
 
-### T102 - Executor
-
-- Depends: T100, T101
-- Owns: `src/services/execute/Executor.*`
-- Do: single mover thread plus prefetch helper; re-read pointers before each move; verify after;
-  stale-bitmap retry; skip reasons; pause/resume/cancel; low I/O priority; throughput limit; snapshot
-  updated from verified results.
-- Done when: a plan runs on a test volume; pause, resume and cancel mid-run are safe.
-
 ### T103 - Execution log and resume
 
 - Depends: T102

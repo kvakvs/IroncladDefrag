@@ -67,6 +67,8 @@ add_library(icd_core STATIC
     src/core/exec/Executor.h
     src/core/execute/ExecutionPlan.cpp
     src/core/execute/ExecutionPlan.h
+    src/core/execute/MoveCalls.cpp
+    src/core/execute/MoveCalls.h
     src/core/execute/MovePieces.cpp
     src/core/execute/MovePieces.h
     src/core/execute/PlanReplay.cpp
@@ -291,8 +293,15 @@ add_library(icd_services STATIC
     src/services/drives/SystemDriveProvider.h
     src/services/exec/ThreadPool.cpp
     src/services/exec/ThreadPool.h
+    src/services/execute/ExecutedSnapshot.cpp
+    src/services/execute/ExecutedSnapshot.h
+    src/services/execute/Executor.cpp
+    src/services/execute/Executor.h
+    src/services/execute/MoveDevice.h
     src/services/execute/Revalidate.cpp
     src/services/execute/Revalidate.h
+    src/services/execute/VolumeMover.cpp
+    src/services/execute/VolumeMover.h
     src/services/job/FakeJob.cpp
     src/services/job/FakeJob.h
     src/services/job/JobRunner.cpp
