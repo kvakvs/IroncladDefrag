@@ -51,11 +51,15 @@ namespace icd::core::planner {
         // Every hole in LCN order.
         [[nodiscard]] std::vector<ClusterRun> runs() const;
 
+
     private:
         // A short sorted run of holes.
         struct Block {
             std::vector<ClusterRun> runs; // Sorted, disjoint, merged with neighbours inside and across blocks.
             ClusterCount longest = 0; // Longest run in the block.
+            // At least the end of every run the block holds or held, and at most the start of the next block's runs:
+            // blocks stay searchable by LCN while empty (emptied blocks are only dropped in bulk).
+            Lcn end = 0;
         };
 
         // Position of a hole: block and index inside it.
@@ -70,8 +74,11 @@ namespace icd::core::planner {
         // The spot after the last hole.
         [[nodiscard]] Spot end() const { return {blocks_.size(), 0}; }
 
-        // The spot after s, skipping to the next block.
+        // The spot after s, skipping to the next block that holds runs.
         [[nodiscard]] Spot next(Spot s) const;
+
+        // s itself, or the first hole after it when s is past its block's runs (empty blocks are skipped).
+        [[nodiscard]] Spot settle(Spot s) const;
 
         // The hole at a spot.
         [[nodiscard]] const ClusterRun& at(Spot s) const { return blocks_[s.block].runs[s.index]; }
@@ -86,8 +93,15 @@ namespace icd::core::planner {
         // Recomputes a block's longest run and its tree leaf.
         void refresh(std::size_t block);
 
-        // Splits oversized blocks, drops empty ones and rebuilds the tree.
+        // Splits oversized blocks, drops empty ones and rebuilds the tree (O(blocks), rare).
         void restructure();
+
+        // Raises a block's end to at least `end`, and the ends of the empty blocks right after it, so block ends never
+        // decrease along the vector.
+        void raiseEnd(std::size_t block, Lcn end);
+
+        // A block of sorted runs with its longest run and end.
+        [[nodiscard]] static Block blockOf(std::vector<ClusterRun> runs);
 
         // Rebuilds the max-length tree over all blocks.
         void rebuildTree();
@@ -109,6 +123,7 @@ namespace icd::core::planner {
         std::size_t leaves_ = 0; // Leaf count (a power of two).
         ClusterCount total_ = 0; // Free clusters.
         std::size_t count_ = 0; // Holes.
+        std::size_t emptyBlocks_ = 0; // Blocks without runs, dropped when they reach a quarter.
     };
 
 } // namespace icd::core::planner

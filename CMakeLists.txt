@@ -36,6 +36,24 @@ add_custom_command(
     COMMENT "Embedding data/classes.json"
     VERBATIM)
 
+# The built-in strategy presets (data/strategies/*.json), one generated source each, in picker order.
+set(ICD_PRESETS mixed development archive photos video defrag-only hot-zone cold-zone directory-clustering
+    type-segregation size-placement access-time free-space read-ahead)
+set(ICD_PRESET_SOURCES "")
+foreach(preset IN LISTS ICD_PRESETS)
+    string(REPLACE "-" "_" preset_function "${preset}")
+    set(preset_source "${CMAKE_BINARY_DIR}/generated/core/strategy/Preset_${preset_function}.cpp")
+    add_custom_command(
+        OUTPUT "${preset_source}"
+        COMMAND "${CMAKE_COMMAND}" -DINPUT=${CMAKE_SOURCE_DIR}/data/strategies/${preset}.json -DOUTPUT=${preset_source}
+                -DNAMESPACE=icd::core::strategy::embedded -DFUNCTION=${preset_function}
+                -P ${CMAKE_SOURCE_DIR}/cmake/EmbedText.cmake
+        DEPENDS data/strategies/${preset}.json cmake/EmbedText.cmake
+        COMMENT "Embedding data/strategies/${preset}.json"
+        VERBATIM)
+    list(APPEND ICD_PRESET_SOURCES "${preset_source}")
+endforeach()
+
 # --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
 add_library(icd_core STATIC
     src/core/Version.h.in
@@ -184,6 +202,8 @@ add_library(icd_core STATIC
     src/core/snapshot/Stripes.cpp
     src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
+    src/core/strategy/Presets.cpp
+    src/core/strategy/Presets.h
     src/core/strategy/ZoneScript.cpp
     src/core/strategy/ZoneScript.h
     src/core/synth/SynthRandom.h
@@ -194,6 +214,7 @@ add_library(icd_core STATIC
     src/core/synth/SyntheticVolume.h
     data/classes.json
     "${ICD_CATALOG_SOURCE}"
+    ${ICD_PRESET_SOURCES}
 )
 target_include_directories(icd_core PUBLIC src "${CMAKE_BINARY_DIR}/generated")
 icd_target_defaults(icd_core)
@@ -260,6 +281,10 @@ add_library(icd_services STATIC
     src/services/job/FakeJob.h
     src/services/job/JobRunner.cpp
     src/services/job/JobRunner.h
+    src/services/plan/PlanJob.cpp
+    src/services/plan/PlanJob.h
+    src/services/plan/PlanReport.cpp
+    src/services/plan/PlanReport.h
     src/services/scan/AnalysisJob.cpp
     src/services/scan/AnalysisJob.h
     src/services/scan/AnalysisReport.cpp
@@ -386,6 +411,8 @@ add_executable(icd-cli
     src/cli/commands/CliCommon.h
     src/cli/commands/CompareScanners.cpp
     src/cli/commands/CompareScanners.h
+    src/cli/commands/Plan.cpp
+    src/cli/commands/Plan.h
     src/cli/main.cpp
 )
 target_link_libraries(icd-cli PRIVATE icd_services)
@@ -405,6 +432,11 @@ icd_target_defaults(scan-bench)
 add_executable(catchup-bench tools/bench/catchup-bench.cpp)
 target_link_libraries(catchup-bench PRIVATE icd_services)
 icd_target_defaults(catchup-bench)
+
+# --- plan-bench: planning 30 TB / 20 M files in 60 s or less on 8 cores (plan.md 6.5, T093) ----------------------
+add_executable(plan-bench tools/bench/plan-bench.cpp)
+target_link_libraries(plan-bench PRIVATE icd_services)
+icd_target_defaults(plan-bench)
 
 # --- map-bench: drive map performance targets (plan.md 7.5), the Phase 2 exit check (T033) ----------
 # Compiles the map control's sources directly: the bench drives the real MapCanvas in a window.

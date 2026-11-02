@@ -24,13 +24,14 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T093 - Parallel planning orchestration
+### T093b - Planning at the 30 TB scale target
 
-- Depends: T091, T092, T090
-- Owns: `src/services/plan/PlanJob.*`
-- Do: §6.4 stages (filter, per-zone/stripe planning, reconcile, assignment, validation) on the pool;
-  three levels in parallel; time estimate (§9.2.2).
-- Done when: parallel = serial plans; 30 TB synthetic plan ≤ 60 s on 8 cores.
+- Depends: T093
+- Owns: performance of `src/core/planner/*` and `src/services/plan/PlanJob.*`
+- Do: bring `plan-bench` (30 TB / 20 M files, 8 workers) to 60 s or less for all three levels (plan.md 6.5), at least
+  5x faster than on one worker. Measured after T093: 6 M files 42 s, slightly superlinear; Fast's single huge hot spot
+  and the serial parts of ordering and metrics dominate.
+- Done when: `plan-bench --threads 8` reports 60 s or less and `--compare 1` identical plans.
 
 ### T094 - Strategy presets
 

@@ -75,7 +75,7 @@ namespace icd::core::planner {
             // Prepares costs.
             Selector(const Plan& plan, std::uint32_t bytesPerCluster, const BudgetOptions& budget) :
                 plan_(plan), bytesPerCluster_(bytesPerCluster), budget_(budget), deps_(dependencies(plan)),
-                taken_(plan.moves.size(), 0) {}
+                taken_(plan.moves.size(), 0), seen_(plan.moves.size(), 0) {}
 
             // Takes moves by benefit per byte with their dependencies while the budget lasts.
             std::vector<std::uint8_t> select() {
@@ -99,18 +99,21 @@ namespace icd::core::planner {
                 }
                 std::vector<std::uint32_t> closure;
                 std::vector<std::uint32_t> work{v};
-                std::vector<std::uint8_t> seen(plan_.moves.size(), 0);
+                ++stamp_;
                 Cost cost;
                 while (!work.empty()) {
                     const std::uint32_t u = work.back();
                     work.pop_back();
-                    if (taken_[u] != 0 || seen[u] != 0) {
+                    if (taken_[u] != 0 || seen_[u] == stamp_) {
                         continue;
                     }
-                    seen[u] = 1;
+                    seen_[u] = stamp_;
                     closure.push_back(u);
                     cost.clusters += plan_.moves[u].clusters;
                     cost.seconds += budget_.time.moveSeconds(plan_.moves[u].clusters, bytesPerCluster_);
+                    if (!fits(cost)) {
+                        return; // Already over: no need to walk the rest of the closure.
+                    }
                     work.insert(work.end(), deps_[u].begin(), deps_[u].end());
                 }
                 if (!fits(cost)) {
@@ -136,6 +139,8 @@ namespace icd::core::planner {
             std::vector<std::vector<std::uint32_t>> deps_; // Earlier moves each depends on.
             std::vector<std::uint8_t> taken_; // Kept moves.
             Cost used_; // Work kept so far.
+            std::vector<std::uint32_t> seen_; // Per move: the closure walk that last visited it.
+            std::uint32_t stamp_ = 0; // The current closure walk.
         };
 
         // Dependency edges among kept moves.

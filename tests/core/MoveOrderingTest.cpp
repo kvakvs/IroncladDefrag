@@ -59,7 +59,7 @@ namespace icd::core::planner { namespace {
         EXPECT_EQ(parked.report.parked, 1U);
         ASSERT_EQ(parked.plan.moves.size(), 3U);
         EXPECT_EQ(parked.plan.moves[0].reason, MoveReason::Park);
-        EXPECT_EQ(parked.plan.moves[0].file, f.at('A')); // Equal sizes: the first one.
+        EXPECT_EQ(parked.plan.moves[0].file, parked.plan.moves[2].file); // The parked file returns last.
         EXPECT_TRUE(parked.plan.moves[2].fromParking);
         EXPECT_EQ(parked.plan.extra, 1U);
         const Ordered redirected = order(v, d, false);

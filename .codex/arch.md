@@ -1084,6 +1084,23 @@ All analysis checks passed.
   (one move, outside its target; pieces of 64 MB or more when no single run holds it); a parked file whose return can
   no longer happen stays in scratch space, its park becoming its one move.
 
+- Planning job (T093, `services/plan/PlanJob`): `planLevels()` assigns zones once and plans Fast, Moderate and Maximum
+  in parallel on the pool (or one after another when memory is short), each using the pool inside, then validates each
+  plan; the plans equal the single-threaded ones move for move (`PlanJobTest`). `makePlanRequest()` builds a request
+  from a drive (MFT zone reserved, shadow-copy badge, ages from now); `makePlanJob()` wraps it as a job with a
+  `PlanOutput`; `planSummary()` gives the Plan tab's figures.
+- Scale (T093, `plan-bench`, 8 workers, validation off): 800 K files 7 s, 2 M files 11.6 s, 6 M files 42 s for all three
+  levels; Maximum moves 1.02-1.05 x its lower bound. The 30 TB / 20 M-file target of plan.md 6.5 (60 s) is not met yet
+  (T093b). Found on the way and fixed: one strongly connected component holding thousands of cycles broke one file per
+  round (now every move with an edge back into the Tarjan walk is a candidate: the smallest quarter is parked per round,
+  all are redirected at once below Maximum); leftover placement searched every zone piece per file (fast-fill now works
+  on its own slice and searches the region's span once; room finding walks holes lazily); pools are built in one sorted
+  pass; `HoleSet` rebuilt its tree by rescanning every run whenever a block emptied (empty blocks now stay, searchable by
+  a non-decreasing stored end, and are dropped in bulk); budget closures stop as soon as they exceed the budget.
+- Placement keeps re-planning (up to eight rounds) until no file fails for lack of space, and Maximum holds back a
+  scratch reserve (the largest free run outside every zone, 1% of the volume or the largest must-move file) before
+  overflow and defragment-only files take free space, so parking has room.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

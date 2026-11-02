@@ -7,7 +7,9 @@
 
 #include <algorithm>
 #include <cmath>
+#include <iterator>
 #include <set>
+#include <unordered_set>
 
 namespace icd::core::planner {
 
@@ -70,6 +72,12 @@ namespace icd::core::planner {
             return !runs.empty() && runs.front().start >= range.start && runs.back().end() <= range.end();
         }
 
+        // Whether a run lies inside one of the LCN-sorted, disjoint runs.
+        bool holds(const std::vector<ClusterRun>& sorted, ClusterRun run) {
+            const auto it = std::ranges::upper_bound(sorted, run.start, {}, &ClusterRun::start);
+            return it != sorted.begin() && run.start >= std::prev(it)->start && run.end() <= std::prev(it)->end();
+        }
+
         // What Fast plans for one hot spot.
         struct SpotPlan {
             ClusterRun spot; // The hot spot.
@@ -89,6 +97,7 @@ namespace icd::core::planner {
 
             // Plans the level.
             PlanResult run(Executor& executor, const CancelToken& token) {
+                executor_ = &executor;
                 result_.layout = resolveLayout(snapshot_, *input_.script, assignment_, input_.classes, *input_.catalog,
                                                {.reserved = input_.reserved});
                 result_.hotSpots = findHotSpots(snapshot_, assignment_, input_.churn, options_, executor);
@@ -98,11 +107,14 @@ namespace icd::core::planner {
                 for (const ClusterRun& spot : result_.hotSpots) {
                     spots.push_back(planSpot(spot));
                 }
-                buildPool(spots);
-                std::vector<Destination> destinations;
                 for (const SpotPlan& s : spots) {
-                    placeSpot(s, destinations);
+                    for (const auto* list : {&s.movers, &s.bigs}) {
+                        for (const FileIndex f : *list) {
+                            result_.plan.lowerBound += assignment_.movable[f];
+                        }
+                    }
                 }
+                std::vector<Destination> destinations = placeRounds(spots);
                 finish(destinations);
                 return std::move(result_);
             }
@@ -126,7 +138,7 @@ namespace icd::core::planner {
 
             // The files that may move and lie wholly inside the spot.
             [[nodiscard]] std::vector<FileIndex> membersOf(ClusterRun spot) const {
-                std::set<FileIndex> seen;
+                std::unordered_set<FileIndex> seen;
                 std::vector<FileIndex> out;
                 for (const ExtentRecord& r : snapshot_.extents.overlapping(spot)) {
                     const FileIndex f = r.file();
@@ -141,7 +153,8 @@ namespace icd::core::planner {
             }
 
             // The spot's usable pieces: its clusters minus everything that is not a staying member.
-            [[nodiscard]] std::vector<ClusterRun> piecesOf(ClusterRun spot, const std::set<FileIndex>& members) const {
+            [[nodiscard]] std::vector<ClusterRun> piecesOf(ClusterRun spot,
+                                                           const std::unordered_set<FileIndex>& members) const {
                 std::vector<ClusterRun> out;
                 Lcn cursor = spot.start;
                 for (const ExtentRecord& r : snapshot_.extents.overlapping(spot)) {
@@ -178,7 +191,8 @@ namespace icd::core::planner {
             // Members, big files leaving and the packed region of one hot spot, and the files that must move.
             SpotPlan planSpot(ClusterRun spot) const {
                 SpotPlan plan{.spot = spot};
-                std::set<FileIndex> members;
+                std::unordered_set<FileIndex> members;
+                std::vector<FileIndex> memberList; // In LCN order, so the plan does not depend on hashing.
                 ClusterCount need = 0;
                 for (const FileIndex f : membersOf(spot)) {
                     const auto runs = lcnRuns(snapshot_, f);
@@ -187,6 +201,7 @@ namespace icd::core::planner {
                         continue;
                     }
                     members.insert(f);
+                    memberList.push_back(f);
                     need += assignment_.movable[f];
                 }
                 plan.packed = headOf(piecesOf(spot, members), need);
@@ -195,12 +210,10 @@ namespace icd::core::planner {
                                        fragmentOkFor(*input_.script, assignment_.zoneOf[f], {}),
                                        snapshot_.geometry.bytesPerCluster);
                 };
-                for (const FileIndex f : members) {
+                for (const FileIndex f : memberList) {
                     const auto runs = lcnRuns(snapshot_, f);
-                    const bool packedHolds = std::ranges::all_of(runs, [&](const ClusterRun& r) {
-                        return std::ranges::any_of(
-                            plan.packed, [&](const ClusterRun& p) { return r.start >= p.start && r.end() <= p.end(); });
-                    });
+                    const bool packedHolds =
+                        std::ranges::all_of(runs, [&](const ClusterRun& r) { return holds(plan.packed, r); });
                     if (!packedHolds || !okRuns(f)) {
                         plan.movers.push_back(f);
                     }
@@ -208,17 +221,51 @@ namespace icd::core::planner {
                 return plan;
             }
 
-            // After-plan free space: free runs plus the movers' and big files' runs, minus the reserved runs.
+            // Rounds of placement: files that find no place stay where they are and the round is planned again without
+            // them, so no other file is promised their clusters.
+            std::vector<Destination> placeRounds(const std::vector<SpotPlan>& spots) {
+                constexpr int rounds = 3;
+                std::vector<Destination> destinations;
+                for (int round = 0;; ++round) {
+                    buildPool(spots);
+                    noSpace_.clear();
+                    destinations.clear();
+                    for (const SpotPlan& s : spots) {
+                        placeSpot(s, destinations);
+                    }
+                    if (noSpace_.empty() || round + 1 == rounds) {
+                        break;
+                    }
+                    stuck_.insert(noSpace_.begin(), noSpace_.end());
+                }
+                stuck_.insert(noSpace_.begin(), noSpace_.end());
+                for (const FileIndex f : stuck_) {
+                    result_.plan.skipped.push_back(
+                        {.file = f, .reason = SkipReason::NoSpace, .clusters = assignment_.movable[f]});
+                    result_.plan.skippedClusters += assignment_.movable[f];
+                }
+                return destinations;
+            }
+
+            // The files of a list that are still moving (not stuck in an earlier round).
+            [[nodiscard]] std::vector<FileIndex> moving(const std::vector<FileIndex>& files) const {
+                std::vector<FileIndex> out;
+                std::ranges::copy_if(files, std::back_inserter(out), [&](FileIndex f) { return !stuck_.contains(f); });
+                return out;
+            }
+
+            // After-plan free space: free runs plus the moving files' runs, minus the reserved runs.
             void buildPool(const std::vector<SpotPlan>& spots) {
-                pool_ = HoleSet(snapshot_.freeSpace.runs());
+                std::vector<ClusterRun> runs(snapshot_.freeSpace.runs().begin(), snapshot_.freeSpace.runs().end());
                 for (const SpotPlan& s : spots) {
                     for (const auto* list : {&s.movers, &s.bigs}) {
-                        for (const FileIndex f : *list) {
-                            releaseRuns(pool_, movableRuns(snapshot_, f));
-                            result_.plan.lowerBound += assignment_.movable[f];
+                        for (const FileIndex f : moving(*list)) {
+                            const auto vacated = movableRuns(snapshot_, f);
+                            runs.insert(runs.end(), vacated.begin(), vacated.end());
                         }
                     }
                 }
+                pool_ = HoleSet(runs);
                 for (const ClusterRun& r : input_.reserved) {
                     takeRuns(pool_, pool_.within(r));
                 }
@@ -226,11 +273,11 @@ namespace icd::core::planner {
 
             // Destinations of one hot spot: big files to their zone, the rest packed towards its head.
             void placeSpot(const SpotPlan& s, std::vector<Destination>& out) {
-                for (const FileIndex f : s.bigs) {
+                for (const FileIndex f : moving(s.bigs)) {
                     placeBig(f, out);
                 }
                 const FillOptions options{.zone = noZone, .home = s.spot, .fragmentOk = std::nullopt};
-                FillResult fill = fastFill(snapshot_, s.packed, s.movers, pool_, options);
+                FillResult fill = fastFill(snapshot_, s.packed, moving(s.movers), pool_, options);
                 out.insert(out.end(), fill.placed.begin(), fill.placed.end());
                 for (const FileIndex f : fill.overflow) {
                     skip(f);
@@ -254,23 +301,20 @@ namespace icd::core::planner {
                 skip(file);
             }
 
-            // Records a file Fast cannot place.
-            void skip(FileIndex file) {
-                result_.plan.skipped.push_back(
-                    {.file = file, .reason = SkipReason::NoSpace, .clusters = assignment_.movable[file]});
-                result_.plan.skippedClusters += assignment_.movable[file];
-            }
+            // Records a file Fast cannot place this round.
+            void skip(FileIndex file) { noSpace_.push_back(file); }
 
             // Orders, budgets and measures.
             void finish(std::vector<Destination>& destinations) {
                 Plan& plan = result_.plan;
                 plan.effort = strategy::Effort::Fast;
-                (void)orderMoves(snapshot_, destinations, {.allowParking = false}, plan);
+                (void)orderMoves(snapshot_, destinations, {.allowParking = false, .scratch = {}, .executor = executor_},
+                                 plan);
                 applyBudget(snapshot_, plan, policy_.budget);
                 finishTotals(plan, snapshot_);
                 plan.notes.emplace_back(
                     "Fast works on the busiest areas first: run it again to keep improving the drive.");
-                result_.metrics = measurePlan(input_, assignment_, result_.layout, plan);
+                result_.metrics = measurePlan(input_, assignment_, result_.layout, plan, *executor_);
             }
 
             const PlanInput& input_; // Inputs.
@@ -279,7 +323,10 @@ namespace icd::core::planner {
             const HotSpotOptions& options_; // Hot-spot rules.
             LevelPolicy policy_; // Budget.
             HoleSet pool_; // After-plan free space.
+            std::vector<FileIndex> noSpace_; // Files this round could not place.
+            std::set<FileIndex> stuck_; // Files earlier rounds could not place; they stay.
             PlanResult result_; // Output.
+            Executor* executor_ = nullptr; // The executor of run().
         };
 
         // Consecutive hot stripes as runs.

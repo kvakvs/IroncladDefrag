@@ -6,6 +6,7 @@
 #include <functional>
 #include <queue>
 #include <unordered_map>
+#include <unordered_set>
 
 namespace icd::core::planner {
 
@@ -29,7 +30,7 @@ namespace icd::core::planner {
             // Finds the components among moves whose state is Waiting or Parked.
             Components(const std::vector<std::vector<std::uint32_t>>& out, const std::vector<State>& state) :
                 out_(out), state_(state), index_(out.size(), none), low_(out.size(), 0), onStack_(out.size(), 0),
-                component_(out.size(), none) {
+                tail_(out.size(), 0), component_(out.size(), none) {
                 for (std::uint32_t v = 0; v < out.size(); ++v) {
                     if (live(v) && index_[v] == none) {
                         visit(v);
@@ -42,6 +43,9 @@ namespace icd::core::planner {
 
             // Number of components.
             [[nodiscard]] std::uint32_t count() const { return count_; }
+
+            // Whether v has an edge back into the walk's stack: breaking every such move removes every cycle.
+            [[nodiscard]] bool tail(std::uint32_t v) const { return tail_[v] != 0; }
 
         private:
             // Whether a move takes part.
@@ -80,6 +84,7 @@ namespace icd::core::planner {
                 }
                 else if (onStack_[w] != 0) {
                     low_[v] = std::min(low_[v], index_[w]);
+                    tail_[v] = 1; // Without v's edges into the stack only tree edges are left: no cycle.
                 }
             }
 
@@ -111,6 +116,7 @@ namespace icd::core::planner {
             std::vector<std::uint32_t> index_; // Visit order.
             std::vector<std::uint32_t> low_; // Lowest reachable visit order.
             std::vector<std::uint8_t> onStack_; // On the Tarjan stack.
+            std::vector<std::uint8_t> tail_; // Moves with an edge into the stack.
             std::vector<std::uint32_t> component_; // Result.
             std::vector<std::uint32_t> stack_; // Tarjan stack.
             std::uint32_t next_ = 0; // Next visit number.
@@ -126,10 +132,9 @@ namespace icd::core::planner {
                 snapshot_(snapshot), destinations_(destinations), options_(options), plan_(plan),
                 state_(destinations.size(), State::Waiting), out_(destinations.size()),
                 indegree_(destinations.size(), 0), scratchRuns_(destinations.size()) {
-                sources_.reserve(destinations.size());
-                for (const Destination& d : destinations) {
-                    sources_.push_back(movableRuns(snapshot, d.file));
-                }
+                sources_.resize(destinations.size());
+                forEach(destinations.size(),
+                        [&](std::size_t i) { sources_[i] = movableRuns(snapshot, destinations[i].file); });
                 buildEdges();
                 buildScratch();
             }
@@ -169,12 +174,26 @@ namespace icd::core::planner {
             // Edges: move i -> move j when j's destination overlaps i's sources (i must go first).
             void buildEdges() {
                 const auto index = sourceIndex();
+                std::vector<std::vector<std::uint32_t>> preds(destinations_.size());
+                forEach(destinations_.size(),
+                        [&](std::size_t j) { preds[j] = predecessors(index, static_cast<std::uint32_t>(j)); });
                 for (std::uint32_t j = 0; j < destinations_.size(); ++j) {
-                    for (const std::uint32_t i : predecessors(index, j)) {
+                    for (const std::uint32_t i : preds[j]) {
                         out_[i].push_back(j);
                         ++indegree_[j];
                     }
                 }
+            }
+
+            // Runs work(i) for every index, in parallel chunks when an executor is set.
+            void forEach(std::size_t count, const std::function<void(std::size_t)>& work) const {
+                InlineExecutor serial;
+                Executor& executor = options_.executor != nullptr ? *options_.executor : serial;
+                executor.parallelFor({.count = count, .grain = 4096}, [&](std::size_t begin, std::size_t end) {
+                    for (std::size_t i = begin; i < end; ++i) {
+                        work(i);
+                    }
+                });
             }
 
             // The moves whose sources move j's destination overlaps, once each, without j itself.
@@ -294,21 +313,122 @@ namespace icd::core::planner {
                 std::vector<std::uint8_t> entered(components.count(), 0);
                 std::vector<std::vector<std::uint32_t>> members(components.count());
                 for (std::uint32_t v = 0; v < out_.size(); ++v) {
-                    if (components.of(v) == none) {
-                        continue;
+                    if (components.of(v) != none) {
+                        members[components.of(v)].push_back(v);
+                        markEntered(v, components, entered);
                     }
-                    members[components.of(v)].push_back(v);
-                    markEntered(v, components, entered);
                 }
+                // Parking and redirecting are valid at any time, so every cycle is broken in this one pass; only when
+                // none is left (a waiting move nothing feeds) are the components without inbound edges broken.
                 bool any = false;
-                for (std::uint32_t c = 0; c < components.count(); ++c) {
+                for (const auto& component : members) {
+                    any = breakIfCycle(component, components) || any;
+                }
+                return any || breakSources(members, entered);
+            }
+
+            // Breaks the components nothing outside feeds; false when there is none.
+            bool breakSources(const std::vector<std::vector<std::uint32_t>>& members,
+                              const std::vector<std::uint8_t>& entered) {
+                bool broken = false;
+                for (std::size_t c = 0; c < members.size(); ++c) {
                     if (entered[c] == 0 && state_[members[c].front()] == State::Waiting) {
                         ++report_.cycles;
                         breakCycle(members[c]);
-                        any = true;
+                        broken = true;
                     }
                 }
-                return any;
+                return broken;
+            }
+
+            // The waiting moves of a component, and those with an edge back into the walk, smallest first.
+            struct CycleMoves {
+                std::vector<std::uint32_t> waiting; // Moves still waiting.
+                std::vector<std::uint32_t> tails; // Of those, the ones whose breaking removes every cycle.
+            };
+
+            // Splits a component into its waiting moves and tails.
+            [[nodiscard]] CycleMoves cycleMoves(const std::vector<std::uint32_t>& component,
+                                                const Components& components) const {
+                CycleMoves out;
+                for (const std::uint32_t v : component) {
+                    if (state_[v] != State::Waiting) {
+                        continue;
+                    }
+                    out.waiting.push_back(v);
+                    if (components.tail(v)) {
+                        out.tails.push_back(v);
+                    }
+                }
+                std::ranges::sort(out.tails, [&](std::uint32_t a, std::uint32_t b) { return smaller(a, b); });
+                return out;
+            }
+
+            // Breaks a component when two or more of its moves still wait (it holds cycles): of the moves with an edge
+            // back into the walk (breaking all of them would remove every cycle) the smallest quarter is parked per
+            // round (later rounds find which cycles are left, so few large files park), or all are redirected (that
+            // costs no extra move). When scratch space runs out the round ends (returns of parked files free it
+            // again); below Maximum, or when not even one fits, the component is dropped (plan.md 9.3.7).
+            bool breakIfCycle(const std::vector<std::uint32_t>& component, const Components& components) {
+                CycleMoves moves = cycleMoves(component, components);
+                if (moves.waiting.size() < 2) {
+                    return false;
+                }
+                ++report_.cycles;
+                if (options_.allowParking) {
+                    moves.tails.resize(std::max<std::size_t>(1, (moves.tails.size() + 3) / 4));
+                }
+                breakTails(moves);
+                return true;
+            }
+
+            // Parks (Maximum) or redirects one move; false without scratch space for it.
+            bool breakOne(std::uint32_t v) { return options_.allowParking ? park(v) : redirect(v); }
+
+            // What happens when scratch space runs out while breaking a component: wait for parked files to return
+            // (when this round parked any, or one smaller member still fits), else drop the component.
+            void outOfScratch(const CycleMoves& moves, bool broken) {
+                if (!options_.allowParking || !(broken || breakAny(moves.waiting))) {
+                    drop(moves.waiting, SkipReason::Cycle);
+                }
+            }
+
+            // Parks or redirects the tails in order; see breakIfCycle().
+            void breakTails(const CycleMoves& moves) {
+                bool broken = false;
+                for (const std::uint32_t v : moves.tails) {
+                    if (state_[v] != State::Waiting) {
+                        continue;
+                    }
+                    if (!breakOne(v)) {
+                        outOfScratch(moves, broken);
+                        return;
+                    }
+                    broken = true;
+                }
+            }
+
+            // Parks (or redirects) the smallest waiting move of a component that fits the scratch space; false when
+            // none does.
+            bool breakAny(std::vector<std::uint32_t> waiting) {
+                std::ranges::sort(waiting, [&](std::uint32_t a, std::uint32_t b) { return smaller(a, b); });
+                const ClusterCount room = scratch_.total();
+                for (const std::uint32_t v : waiting) {
+                    if (clustersOf(sources_[v]) > room) {
+                        return false; // Sorted by size: nothing later fits either.
+                    }
+                    if (options_.allowParking ? park(v) : redirect(v)) {
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            // Whether move a's file is smaller than b's (index breaks ties).
+            [[nodiscard]] bool smaller(std::uint32_t a, std::uint32_t b) const {
+                const ClusterCount ca = clustersOf(sources_[a]);
+                const ClusterCount cb = clustersOf(sources_[b]);
+                return ca != cb ? ca < cb : a < b;
             }
 
             // Marks the components that v's live edges enter from outside.
@@ -325,11 +445,8 @@ namespace icd::core::planner {
 
             // Parks the smallest file of a cycle, or drops the cycle.
             void breakCycle(const std::vector<std::uint32_t>& cycle) {
-                const auto smallest = std::ranges::min_element(cycle, [&](std::uint32_t a, std::uint32_t b) {
-                    const ClusterCount ca = clustersOf(sources_[a]);
-                    const ClusterCount cb = clustersOf(sources_[b]);
-                    return ca != cb ? ca < cb : a < b;
-                });
+                const auto smallest =
+                    std::ranges::min_element(cycle, [&](std::uint32_t a, std::uint32_t b) { return smaller(a, b); });
                 if (options_.allowParking ? park(*smallest) : redirect(*smallest)) {
                     return;
                 }
@@ -408,10 +525,7 @@ namespace icd::core::planner {
             // Drops moves (skipped with `reason`) and every waiting move that depends on them (Dependency).
             void drop(const std::vector<std::uint32_t>& cycle, SkipReason reason) {
                 std::vector<std::uint32_t> work = cycle;
-                std::vector<std::uint8_t> inCycle(out_.size(), 0);
-                for (const std::uint32_t v : cycle) {
-                    inCycle[v] = 1;
-                }
+                const std::unordered_set<std::uint32_t> inCycle(cycle.begin(), cycle.end());
                 while (!work.empty()) {
                     const std::uint32_t v = work.back();
                     work.pop_back();
@@ -422,7 +536,7 @@ namespace icd::core::planner {
                         continue;
                     }
                     state_[v] = State::Dropped;
-                    skip(v, inCycle[v] != 0 ? reason : SkipReason::Dependency);
+                    skip(v, inCycle.contains(v) ? reason : SkipReason::Dependency);
                     work.insert(work.end(), out_[v].begin(), out_[v].end());
                 }
             }

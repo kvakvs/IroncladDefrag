@@ -27,8 +27,9 @@ namespace icd::core::planner {
 
     // "Move the smaller thing" (plan.md 9.3.6): a window of `clusters` inside the region whose clusters are all free
     // after the plan (in `pool`) or belong to files `mayEvict` accepts, choosing the window that evicts the fewest
-    // clusters (and the lowest one among equals). Windows start where a free hole or an evictable file starts; at most
-    // `maxStarts` starts per region piece are tried, which bounds the work on huge zones.
+    // clusters (and the lowest one among equals). Windows start where a free hole starts or end where one ends; at most
+    // `maxStarts` starts are tried in a piece, and fewer in each further piece, which bounds the work on huge zones.
+    // `region` should hold only pieces long enough for the file, the most promising first.
     [[nodiscard]] std::optional<Room> findRoom(const Snapshot& snapshot, const HoleSet& pool,
                                                const RoomRequest& request,
                                                const std::function<bool(FileIndex)>& mayEvict,

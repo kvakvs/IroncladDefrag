@@ -159,16 +159,13 @@ namespace icd::core::planner {
 
             // Places a file in the first (or last) single run of the region that holds it.
             bool placeInOneRun(const Item& item, std::span<const ClusterRun> region) {
-                for (const ClusterRun& piece : region) {
-                    const SpaceRequest request{.clusters = item.clusters, .own = item.own, .window = piece};
-                    const auto run =
-                        options_.from == PackFrom::Front ? findFirst(pool_, request) : findLast(pool_, request);
-                    if (run) {
-                        place(item, {*run});
-                        return true;
-                    }
+                const SpaceRequest request{.clusters = item.clusters, .own = item.own, .window = spanOf(region)};
+                const auto run =
+                    options_.from == PackFrom::Front ? findFirst(pool_, request) : findLast(pool_, request);
+                if (run) {
+                    place(item, {*run});
                 }
-                return false;
+                return run.has_value();
             }
 
             // Places a file in pieces of at least fragmentOk inside one piece of the region, when allowed.
@@ -177,14 +174,18 @@ namespace icd::core::planner {
                     return false;
                 }
                 const ClusterCount minPiece = (*options_.fragmentOk + bytesPerCluster_ - 1) / bytesPerCluster_;
-                for (const ClusterRun& piece : region) {
-                    const SpaceRequest request{.clusters = item.clusters, .own = item.own, .window = piece};
-                    if (auto pieces = findPieces(pool_, request, minPiece)) {
-                        place(item, std::move(*pieces));
-                        return true;
-                    }
+                const SpaceRequest request{.clusters = item.clusters, .own = item.own, .window = spanOf(region)};
+                auto pieces = findPieces(pool_, request, minPiece);
+                if (pieces) {
+                    place(item, std::move(*pieces));
                 }
-                return false;
+                return pieces.has_value();
+            }
+
+            // The region from its first to one past its last cluster (the slice holds nothing else).
+            static ClusterRun spanOf(std::span<const ClusterRun> region) {
+                return region.empty() ? ClusterRun{}
+                                      : ClusterRun{region.front().start, region.back().end() - region.front().start};
             }
 
             // Records a destination and takes it from the pool.
@@ -217,7 +218,18 @@ namespace icd::core::planner {
 
     FillResult fastFill(const Snapshot& snapshot, std::span<const ClusterRun> region, std::span<const FileIndex> files,
                         HoleSet& pool, const FillOptions& options) {
-        return Filler(snapshot, files, pool, options).run(region);
+        // The region's part of the pool as a slice of its own, so a search over the region's span never lands between
+        // its pieces; what is left goes back.
+        std::vector<ClusterRun> parts;
+        for (const ClusterRun& piece : region) {
+            const auto inside = pool.within(piece);
+            parts.insert(parts.end(), inside.begin(), inside.end());
+        }
+        takeRuns(pool, parts);
+        HoleSet slice(parts);
+        FillResult result = Filler(snapshot, files, slice, options).run(region);
+        releaseRuns(pool, slice.runs());
+        return result;
     }
 
 } // namespace icd::core::planner

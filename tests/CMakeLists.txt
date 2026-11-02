@@ -41,6 +41,7 @@ add_executable(icd_tests
     core/OverviewTest.cpp
     core/PackToBackTest.cpp
     core/PlannerTestUtil.h
+    core/presets/PresetsTest.cpp
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
     core/RuleEngineTest.cpp
@@ -82,6 +83,7 @@ add_executable(icd_tests
     services/MftMergeTest.cpp
     services/MftScannerTest.cpp
     services/MftSecondPassTest.cpp
+    services/PlanJobTest.cpp
     services/SettingsTest.cpp
     services/SnapshotStoreTest.cpp
     services/ThreadPoolTest.cpp

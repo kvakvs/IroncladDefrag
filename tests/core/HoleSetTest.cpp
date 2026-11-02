@@ -130,6 +130,42 @@ namespace icd::core::planner { namespace {
         }
     }
 
+    TEST(HoleSet, EmptiedBlocksStaySearchable) {
+        // Thousands of one-cluster holes two apart: whole blocks empty when their holes are taken, then holes grow back
+        // across the emptied blocks' ranges.
+        const ClusterCount size = 40'000;
+        std::vector<bool> model(size, false);
+        std::vector<ClusterRun> initial;
+        for (Lcn l = 0; l < size; l += 2) {
+            initial.push_back({l, 1});
+            model[l] = true;
+        }
+        HoleSet set(initial);
+        SynthRandom random(3);
+        for (Lcn l = 4000; l < 30'000; l += 2) { // Empties dozens of blocks.
+            ASSERT_TRUE(set.take({l, 1}));
+            model[l] = false;
+        }
+        for (int op = 0; op < 3000; ++op) {
+            const Lcn start = 3000 + random.below(28'000);
+            const ClusterRun run{start, 1 + random.below(300)};
+            bool used = true;
+            for (Lcn l = run.start; l < run.end(); ++l) {
+                used = used && !model[l];
+            }
+            ASSERT_EQ(set.add(run), used) << op;
+            for (Lcn l = run.start; used && l < run.end(); ++l) {
+                model[l] = true;
+            }
+            const Lcn probe = random.below(size);
+            const ClusterRun window{probe, std::min<ClusterCount>(size - probe, 1 + random.below(2000))};
+            ASSERT_EQ(set.nextFit(5, window), modelFit(model, 5, window, true)) << op;
+            ASSERT_EQ(set.prevFit(5, window), modelFit(model, 5, window, false)) << op;
+            ASSERT_EQ(set.holeAt(probe).has_value(), model[probe]) << op;
+        }
+        EXPECT_EQ(set.runs(), runsOf(model));
+    }
+
     TEST(HoleSet, MergesAcrossNeighboursAndClipsWindows) {
         HoleSet set(std::vector<ClusterRun>{{10, 5}, {0, 3}, {2, 4}}); // Unsorted and overlapping.
         EXPECT_EQ(set.runs(), (std::vector<ClusterRun>{{0, 6}, {10, 5}}));

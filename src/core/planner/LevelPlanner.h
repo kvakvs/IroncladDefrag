@@ -73,7 +73,7 @@ namespace icd::core::planner {
 
     // Figures of a plan against its layout.
     [[nodiscard]] PlanMetrics measurePlan(const PlanInput& input, const ZoneAssignment& assignment,
-                                          const TargetLayout& layout, const Plan& plan);
+                                          const TargetLayout& layout, const Plan& plan, Executor& executor);
 
     // Used clusters of a volume (budgets are shares of used space, plan.md 9.2).
     [[nodiscard]] ClusterCount usedClusters(const Snapshot& snapshot);

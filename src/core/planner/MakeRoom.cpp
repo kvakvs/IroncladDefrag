@@ -62,17 +62,25 @@ namespace icd::core::planner {
         }
 
         // Window starts in a piece: hole starts and starts of files that may move, lowest first.
-        std::vector<Lcn> startsIn(const Snapshot& snapshot, const HoleSet& pool, ClusterRun piece,
-                                  const std::function<bool(FileIndex)>& mayEvict, std::size_t maxStarts) {
+        std::vector<Lcn> startsIn(const HoleSet& pool, ClusterRun piece, const RoomRequest& request,
+                                  std::size_t maxStarts) {
+            const ClusterCount clusters = request.clusters;
+            // Windows that start at a hole or end where one ends, walking holes from the piece's start (lazily: huge
+            // pieces hold millions of holes).
             std::vector<Lcn> starts;
-            for (const ClusterRun& hole : pool.within(piece)) {
-                starts.push_back(hole.start);
-            }
-            for (const ExtentRecord& r : snapshot.extents.overlapping(piece)) {
-                if (r.lcn() >= piece.start && mayEvict(r.file())) {
-                    starts.push_back(r.lcn());
+            ClusterRun window = piece;
+            while (starts.size() < maxStarts) {
+                const auto hole = pool.nextFit(1, window);
+                if (!hole) {
+                    break;
                 }
+                starts.push_back(hole->start);
+                if (hole->end() >= piece.start + clusters) {
+                    starts.push_back(hole->end() - clusters);
+                }
+                window = {hole->end(), piece.end() > hole->end() ? piece.end() - hole->end() : 0};
             }
+            std::erase_if(starts, [&](Lcn s) { return s < piece.start; });
             std::ranges::sort(starts);
             starts.erase(std::ranges::unique(starts).begin(), starts.end());
             if (starts.size() > maxStarts) {
@@ -91,9 +99,9 @@ namespace icd::core::planner {
         // Keeps the cheapest window of one region piece in best.
         void bestInPiece(const Snapshot& snapshot, const HoleSet& pool, ClusterRun piece, const Search& search,
                          std::optional<Room>& best) {
-            for (const Lcn start : startsIn(snapshot, pool, piece, search.mayEvict, search.maxStarts)) {
+            for (const Lcn start : startsIn(pool, piece, search.request, search.maxStarts)) {
                 if (start + search.request.clusters > piece.end()) {
-                    return;
+                    continue;
                 }
                 const ClusterRun window{start, search.request.clusters};
                 const auto cost = costOf(snapshot, pool, window, search.request, search.mayEvict);
@@ -108,9 +116,14 @@ namespace icd::core::planner {
     std::optional<Room> findRoom(const Snapshot& snapshot, const HoleSet& pool, const RoomRequest& request,
                                  const std::function<bool(FileIndex)>& mayEvict, std::size_t maxStarts) {
         std::optional<Room> best;
+        std::size_t budget = maxStarts;
         for (const ClusterRun& piece : request.region) {
+            if (budget == 0) {
+                break;
+            }
             if (piece.length >= request.clusters) {
-                bestInPiece(snapshot, pool, piece, {request, mayEvict, maxStarts}, best);
+                bestInPiece(snapshot, pool, piece, {request, mayEvict, budget}, best);
+                budget -= std::min(budget, std::max<std::size_t>(1, budget / 4));
             }
         }
         return best;

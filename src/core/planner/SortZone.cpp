@@ -180,9 +180,11 @@ namespace icd::core::planner {
             // The free holes of the zone inside a range, in LCN order.
             [[nodiscard]] std::vector<ClusterRun> holesIn(ClusterRun range) const {
                 std::vector<ClusterRun> out;
-                for (const ClusterRun& piece : target_.pieces) {
-                    const Lcn start = std::max(piece.start, range.start);
-                    const Lcn end = std::min(piece.end(), range.end());
+                const auto& pieces = target_.pieces;
+                auto it = std::ranges::upper_bound(pieces, range.start, {}, &ClusterRun::end);
+                for (; it != pieces.end() && it->start < range.end(); ++it) {
+                    const Lcn start = std::max(it->start, range.start);
+                    const Lcn end = std::min(it->end(), range.end());
                     if (end > start) {
                         const auto inside = pool_.within({start, end - start});
                         out.insert(out.end(), inside.begin(), inside.end());

@@ -44,7 +44,8 @@ changes (see `AGENTS.md`).
 | `map-render-spike` | console exe with a wx window | `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
 | `gen-scenario` | console exe | `tools/testvol/gen-scenario/*` | `icd_platform`, `advapi32` |
 | `synth-bench` | console exe | `tools/bench/synth-bench.cpp` | `icd_services`, `psapi` |
-| `scan-bench`, `catchup-bench` | console exes | `tools/bench/scan-bench.cpp`, `tools/bench/catchup-bench.cpp` | `icd_services` |
+| `scan-bench`, `catchup-bench`, `plan-bench` | console exes | `tools/bench/plan-bench.cpp` | `plan-bench` target (T093): synthetic volume (default 30 TB / 20 M files), classified, three levels planned on N workers, per-level figures; `--compare 1` checks one worker gives the same plans. |
+| `tools/bench/scan-bench.cpp`, `tools/bench/catchup-bench.cpp`, `tools/bench/plan-bench.cpp` | `icd_services` |
 | `map-bench` | console exe with a wx window | `tools/bench/map-bench.cpp` plus the `src/ui/map` canvas sources, `ui/Accelerators`, `ui/Commands` | `icd_services`, `wx::wx`, `d2d1` |
 | `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `icd_services`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
@@ -159,6 +160,7 @@ changes (see `AGENTS.md`).
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
+| `src/services/plan/PlanJob.*` | `PlanRequest`, `makePlanRequest()`, `fileTimeNow()`, `planLevels()` (three levels in parallel, validated), `LevelOutcome`, `PlanOutcome`, `planSummary()` (Plan tab), `PlanOutput`, `makePlanJob()`. |
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
 | `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
 | `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
@@ -224,6 +226,7 @@ changes (see `AGENTS.md`).
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
+| `tests/services/PlanJobTest.cpp` | Parallel plans = serial plans move for move (levels in parallel and one after another), summary figures, the job's output and progress. |
 | `tests/services/SettingsTest.cpp` | Settings JSON round trip, refused documents, skipped drive entries, effort spellings, drive keys, preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/ChurnStatsTest.cpp` | Sessions from close records, deletes where the file lived (POSIX delete into $Deleted) and before their close record, directory churn rule, small folders with churning siblings, flags below churning directories. |

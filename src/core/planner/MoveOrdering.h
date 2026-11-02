@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/exec/Executor.h"
 #include "core/planner/HoleSet.h"
 #include "core/planner/Placement.h"
 #include "core/planner/Plan.h"
@@ -15,6 +16,7 @@ namespace icd::core::planner {
         bool allowParking = false; // Maximum: break a cycle by parking its smallest file; otherwise drop the cycle.
         // Free runs nothing lands on, for parking; empty: the snapshot's free runs minus every destination.
         std::vector<ClusterRun> scratch{};
+        Executor* executor = nullptr; // Builds the dependency graph in parallel when set (same result either way).
     };
 
     // What ordering did beyond emitting moves.

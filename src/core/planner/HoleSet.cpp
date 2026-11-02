@@ -74,10 +74,9 @@ namespace icd::core::planner {
     HoleSet::HoleSet(std::span<const ClusterRun> runs) {
         const std::vector<ClusterRun> all = merged(runs);
         for (std::size_t i = 0; i < all.size(); i += blockRuns) {
-            Block block;
-            block.runs.assign(all.begin() + static_cast<std::ptrdiff_t>(i),
-                              all.begin() + static_cast<std::ptrdiff_t>(std::min(i + blockRuns, all.size())));
-            blocks_.push_back(std::move(block));
+            blocks_.push_back(
+                blockOf({all.begin() + static_cast<std::ptrdiff_t>(i),
+                         all.begin() + static_cast<std::ptrdiff_t>(std::min(i + blockRuns, all.size()))}));
         }
         for (const ClusterRun& r : all) {
             total_ += r.length;
@@ -87,18 +86,27 @@ namespace icd::core::planner {
     }
 
     HoleSet::Spot HoleSet::locate(Lcn lcn) const {
-        const auto block =
-            std::ranges::partition_point(blocks_, [&](const Block& b) { return b.runs.back().end() <= lcn; });
-        if (block == blocks_.end()) {
-            return end();
+        auto block = std::ranges::partition_point(blocks_, [&](const Block& b) { return b.end <= lcn; });
+        // Later blocks may hold runs below an emptied block's end (inserted after it emptied): search each in turn.
+        for (; block != blocks_.end(); ++block) {
+            const auto run =
+                std::ranges::partition_point(block->runs, [&](const ClusterRun& r) { return r.end() <= lcn; });
+            if (run != block->runs.end()) {
+                return {static_cast<std::size_t>(block - blocks_.begin()),
+                        static_cast<std::size_t>(run - block->runs.begin())};
+            }
         }
-        const auto run = std::ranges::partition_point(block->runs, [&](const ClusterRun& r) { return r.end() <= lcn; });
-        return {static_cast<std::size_t>(block - blocks_.begin()), static_cast<std::size_t>(run - block->runs.begin())};
+        return end();
     }
 
-    HoleSet::Spot HoleSet::next(Spot s) const {
-        return s.index + 1 < blocks_[s.block].runs.size() ? Spot{s.block, s.index + 1} : Spot{s.block + 1, 0};
+    HoleSet::Spot HoleSet::settle(Spot s) const {
+        while (s.block < blocks_.size() && s.index >= blocks_[s.block].runs.size()) {
+            s = {s.block + 1, 0};
+        }
+        return s;
     }
+
+    HoleSet::Spot HoleSet::next(Spot s) const { return settle({s.block, s.index + 1}); }
 
     std::optional<ClusterRun> HoleSet::holeAt(Lcn lcn) const {
         const Spot s = locate(lcn);
@@ -171,6 +179,7 @@ namespace icd::core::planner {
     void HoleSet::joinPrevious(Spot prev, ClusterRun run, std::optional<Spot> next) {
         ClusterRun& p = blocks_[prev.block].runs[prev.index];
         p.length += run.length + (next ? at(*next).length : 0);
+        raiseEnd(prev.block, p.end());
         refresh(prev.block);
         if (next) {
             eraseAt(*next);
@@ -203,7 +212,7 @@ namespace icd::core::planner {
         if (s.block < blocks_.size() && s.index > 0) {
             return Spot{s.block, s.index - 1};
         }
-        const std::size_t b = s.block == 0 ? npos : lastBlockAtLeast(s.block - 1, clusters);
+        const std::size_t b = s.block == 0 ? npos : lastBlockAtLeast(s.block - 1, std::max<ClusterCount>(clusters, 1));
         return b == npos ? std::nullopt : std::optional(Spot{b, blocks_[b].runs.size() - 1});
     }
 
@@ -262,6 +271,7 @@ namespace icd::core::planner {
 
     void HoleSet::restructure() {
         std::vector<Block> out;
+        out.reserve(blocks_.size());
         for (Block& b : blocks_) {
             if (b.runs.size() <= maxBlockRuns) {
                 if (!b.runs.empty()) {
@@ -270,27 +280,40 @@ namespace icd::core::planner {
                 continue;
             }
             for (std::size_t i = 0; i < b.runs.size(); i += 2 * blockRuns) {
-                Block piece;
-                piece.runs.assign(b.runs.begin() + static_cast<std::ptrdiff_t>(i),
-                                  b.runs.begin() +
-                                      static_cast<std::ptrdiff_t>(std::min(i + 2 * blockRuns, b.runs.size())));
-                out.push_back(std::move(piece));
+                out.push_back(blockOf(
+                    {b.runs.begin() + static_cast<std::ptrdiff_t>(i),
+                     b.runs.begin() + static_cast<std::ptrdiff_t>(std::min(i + 2 * blockRuns, b.runs.size()))}));
             }
         }
         blocks_ = std::move(out);
+        emptyBlocks_ = 0;
         rebuildTree();
+    }
+
+    void HoleSet::raiseEnd(std::size_t block, Lcn end) {
+        // Empty blocks after it may keep an older, smaller end; block ends must not decrease along the vector.
+        for (std::size_t b = block; b < blocks_.size() && blocks_[b].end < end; ++b) {
+            if (b != block && !blocks_[b].runs.empty()) {
+                break;
+            }
+            blocks_[b].end = end;
+        }
+    }
+
+    HoleSet::Block HoleSet::blockOf(std::vector<ClusterRun> runs) {
+        Block b{.runs = std::move(runs), .longest = 0, .end = 0};
+        for (const ClusterRun& r : b.runs) {
+            b.longest = std::max(b.longest, r.length);
+        }
+        b.end = b.runs.empty() ? 0 : b.runs.back().end();
+        return b;
     }
 
     void HoleSet::rebuildTree() {
         leaves_ = std::bit_ceil(std::max<std::size_t>(blocks_.size(), 1));
         tree_.assign(2 * leaves_, 0);
         for (std::size_t i = 0; i < blocks_.size(); ++i) {
-            Block& b = blocks_[i];
-            b.longest = 0;
-            for (const ClusterRun& r : b.runs) {
-                b.longest = std::max(b.longest, r.length);
-            }
-            tree_[leaves_ + i] = b.longest;
+            tree_[leaves_ + i] = blocks_[i].longest;
         }
         for (std::size_t node = leaves_ - 1; node > 0; --node) {
             tree_[node] = std::max(tree_[2 * node], tree_[2 * node + 1]);
@@ -311,7 +334,7 @@ namespace icd::core::planner {
 
     void HoleSet::insertAt(Spot s, ClusterRun run) {
         if (blocks_.empty()) {
-            blocks_.push_back({.runs = {run}, .longest = run.length});
+            blocks_.push_back(blockOf({run}));
             ++count_;
             rebuildTree();
             return;
@@ -319,15 +342,23 @@ namespace icd::core::planner {
         if (s.block == blocks_.size()) {
             s = {blocks_.size() - 1, blocks_.back().runs.size()};
         }
-        auto& runs = blocks_[s.block].runs;
-        runs.insert(runs.begin() + static_cast<std::ptrdiff_t>(s.index), run);
+        Block& b = blocks_[s.block];
+        if (b.runs.empty()) {
+            --emptyBlocks_;
+        }
+        b.runs.insert(b.runs.begin() + static_cast<std::ptrdiff_t>(s.index), run);
+        raiseEnd(s.block, run.end());
         ++count_;
-        if (runs.size() > maxBlockRuns) {
-            restructure();
-        }
-        else {
+        if (b.runs.size() <= maxBlockRuns) {
             refresh(s.block);
+            return;
         }
+        // Split this block in two; the tree is rebuilt from the blocks' stored maxima, without rescanning runs.
+        std::vector<ClusterRun> tail(b.runs.begin() + static_cast<std::ptrdiff_t>(blockRuns * 2), b.runs.end());
+        b.runs.resize(blockRuns * 2);
+        b = blockOf(std::move(b.runs));
+        blocks_.insert(blocks_.begin() + static_cast<std::ptrdiff_t>(s.block) + 1, blockOf(std::move(tail)));
+        rebuildTree();
     }
 
     void HoleSet::eraseAt(Spot s) {
@@ -335,11 +366,13 @@ namespace icd::core::planner {
         runs.erase(runs.begin() + static_cast<std::ptrdiff_t>(s.index));
         --count_;
         if (runs.empty()) {
+            ++emptyBlocks_; // Kept (still searchable by its end) until a quarter of the blocks are empty.
+        }
+        if (emptyBlocks_ * 4 > blocks_.size()) {
             restructure();
+            return;
         }
-        else {
-            refresh(s.block);
-        }
+        refresh(s.block);
     }
 
 } // namespace icd::core::planner
