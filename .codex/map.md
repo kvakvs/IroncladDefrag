@@ -72,7 +72,7 @@ changes (see `AGENTS.md`).
 | `src/core/planner/FastFill.*` | `fastFill()`: holes filled from the packed end (front or back) with the largest file that fits without closing a dependency cycle, single runs or large pieces for the rest, overflow; `FillOptions` (with the level's shared `CycleGuard`), `PackFrom`, `reasonFor()`. |
 | `src/core/planner/HoleSet.*` | `HoleSet`: mutable merged free runs in blocks with a max-length tree; `take()`, `add()`, `contains()`, `nextFit()` / `prevFit()` within a window, `within()`. |
 | `src/core/planner/LevelPlanner.*` | `PlanInput`, `LevelPolicy`, `PlanMetrics`, `PlanResult`, `assignInput()`, `planZones()` (Moderate/Maximum pipeline: room for sorted zones, zones in script order on pool slices with one cycle guard, eviction and overflow placed without closing cycles where possible), `measurePlan()`, `usedClusters()`. |
-| `src/core/planner/levels/FastLevel.*` | `HotSpotOptions`, `StripeScore`, `scoreStripes()`, `findHotSpots()`, `fastPolicy()`, `planFast()` (hot-spot compaction, big long-lived files to their zone, budget). |
+| `src/core/planner/levels/FastLevel.*` | `HotSpotOptions`, `StripeScore`, `scoreStripes()`, `findHotSpots()`, `fastPolicy()`, `planFast()` (hot spots cut into pieces of at most 8 stripes, hottest planned first until their movers reach twice the budget; compaction, big long-lived files to their zone, budget). |
 | `src/core/planner/levels/ModerateLevel.*`, `levels/MaximumLevel.*` | `moderatePolicy()` / `planModerate()`, `maximumPolicy()` / `planMaximum()`: the plan.md 9.2 table as policies over `planZones()`. |
 | `src/core/planner/LowerBound.*` | `GoodEnough`, `fragmentsOk()`, `fragmentOkFor()`, `usableSpan()`, `lowerBound()` (must-move files per zone, parallel), `fitTarget()` (slack before each forward zone by a dynamic programme over stay intervals, plan.md 9.3.2). |
 | `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `clustersOf()`, `fragmentsOf()`, `finishTotals()`. |
@@ -89,7 +89,7 @@ changes (see `AGENTS.md`).
 | `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeStorage()` (media with bus), `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`. |
 | `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType` (HDD, SSD, Virtual, Unknown), `StorageFacts`, `VolumeLayout`; `classifyMedia()`, `canOptimize()` (NTFS, not SSD), `isSsd()`. |
 | `src/core/model/VolumeLayout.h` | `VolumeLayout` (volume GUID name, sector/cluster size, cluster counts, disk number, partition offset, disk size, extent count) and `NtfsLayout` (serial, version, record size, MFT/mirror/zone, reserved). |
-| `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce`. |
+| `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce` and `parallelSort` (chunks sorted in parallel, then merged pairwise). |
 | `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
 | `src/core/job/PauseGate.*` | `PauseGate`: workers wait between items while paused; cancellation releases them. |

@@ -4,19 +4,28 @@
 
 #include <algorithm>
 #include <format>
-#include <unordered_map>
-#include <unordered_set>
 
 namespace icd::core::planner {
 
     namespace {
+
+        // "No move".
+        constexpr std::uint32_t noMove = static_cast<std::uint32_t>(-1);
+
+        // Where a file stands in the replay.
+        enum class FileState : std::uint8_t {
+            Unmoved, // No move yet.
+            Placed, // At its final place.
+            Parked, // In scratch space.
+        };
 
         // The replay: free space and the runs of files that moved so far.
         class Replay {
         public:
             // Starts from the snapshot.
             Replay(const Snapshot& snapshot, const Plan& plan, const ValidateOptions& options) :
-                snapshot_(snapshot), plan_(plan), options_(options), free_(snapshot.freeSpace.runs()) {}
+                snapshot_(snapshot), plan_(plan), options_(options), free_(snapshot.freeSpace.runs()),
+                last_(snapshot.files.size(), noMove), state_(snapshot.files.size(), FileState::Unmoved) {}
 
             // Replays every move and checks the plan as a whole.
             Validation run() {
@@ -52,10 +61,14 @@ namespace icd::core::planner {
                 }
             }
 
-            // Where a file's movable clusters are now.
-            [[nodiscard]] std::vector<ClusterRun> currentRuns(FileIndex file) const {
-                const auto it = current_.find(file);
-                return it != current_.end() ? it->second : movableRuns(snapshot_, file);
+            // Where a file's movable clusters are now: its last replayed move's destinations, or where it was (then
+            // read into `own`).
+            [[nodiscard]] std::span<const ClusterRun> currentRuns(FileIndex file, std::vector<ClusterRun>& own) const {
+                if (last_[file] != noMove) {
+                    return plan_.destinations(plan_.moves[last_[file]]);
+                }
+                own = movableRuns(snapshot_, file);
+                return own;
             }
 
             // Checks one move and applies it.
@@ -66,8 +79,9 @@ namespace icd::core::planner {
                 }
                 const auto sources = plan_.sources(m);
                 const auto destinations = plan_.destinations(m);
-                const std::vector<ClusterRun> now = currentRuns(m.file);
-                if (fixedFile(snapshot_, m.file, clustersOf(movableRuns(snapshot_, m.file)))) {
+                std::vector<ClusterRun> own;
+                const std::span<const ClusterRun> now = currentRuns(m.file, own);
+                if (fixedFile(snapshot_, m.file, clustersOf(now))) { // Moves keep cluster counts (checked below).
                     fail(index, m, "moves a file that must not move");
                 }
                 if (!std::ranges::equal(sources, now)) {
@@ -78,13 +92,12 @@ namespace icd::core::planner {
                 }
                 checkCount(index, m);
                 checkZone(index, m, destinations);
-                apply(index, m, now, destinations);
+                apply(index, m, now);
             }
 
-            // Takes the destinations and frees the sources.
-            void apply(std::size_t index, const Move& m, const std::vector<ClusterRun>& now,
-                       std::span<const ClusterRun> destinations) {
-                for (const ClusterRun& d : destinations) {
+            // Takes the move's destinations and frees the clusters the file holds now.
+            void apply(std::size_t index, const Move& m, std::span<const ClusterRun> now) {
+                for (const ClusterRun& d : plan_.destinations(m)) {
                     if (d.length == 0 || !free_.take(d)) {
                         fail(index, m, std::format("destination [{}, {}) is not free at its move", d.start, d.end()));
                     }
@@ -94,22 +107,25 @@ namespace icd::core::planner {
                         fail(index, m, "its old clusters were free already");
                     }
                 }
-                current_[m.file].assign(destinations.begin(), destinations.end());
+                last_[m.file] = static_cast<std::uint32_t>(index);
             }
 
             // At most one move per file, except a park and its return.
             void checkCount(std::size_t index, const Move& m) {
+                FileState& state = state_[m.file];
                 if (m.fromParking) {
-                    if (parked_.erase(m.file) == 0) {
+                    if (state != FileState::Parked) {
                         fail(index, m, "returns from parking without having been parked");
                     }
-                    placed_.insert(m.file);
+                    parkedCount_ -= state == FileState::Parked ? 1 : 0;
+                    state = FileState::Placed;
                     return;
                 }
-                if (placed_.contains(m.file) || parked_.contains(m.file)) {
+                if (state != FileState::Unmoved) {
                     fail(index, m, "moves a file a second time");
                 }
-                (m.reason == MoveReason::Park ? parked_ : placed_).insert(m.file);
+                parkedCount_ += m.reason == MoveReason::Park && state != FileState::Parked ? 1 : 0;
+                state = m.reason == MoveReason::Park ? FileState::Parked : FileState::Placed;
             }
 
             // A move into a zone lands inside it.
@@ -127,8 +143,8 @@ namespace icd::core::planner {
 
             // Every parked file came back.
             void checkParking() {
-                if (!parked_.empty()) {
-                    failPlan(std::format("{} parked file(s) never return from parking", parked_.size()));
+                if (parkedCount_ != 0) {
+                    failPlan(std::format("{} parked file(s) never return from parking", parkedCount_));
                 }
             }
 
@@ -170,10 +186,13 @@ namespace icd::core::planner {
                     t.clustersMoved += m.clusters;
                 }
                 t.moves = plan_.moves.size();
-                t.files = current_.size();
-                for (const auto& [file, runs] : current_) {
-                    t.fragmentsBefore += fragmentsOf(movableRuns(snapshot_, file));
-                    t.fragmentsAfter += fragmentsOf(runs);
+                for (std::size_t f = 0; f < last_.size(); ++f) {
+                    if (last_[f] == noMove) {
+                        continue;
+                    }
+                    ++t.files;
+                    t.fragmentsBefore += fragmentsOf(movableRuns(snapshot_, static_cast<FileIndex>(f)));
+                    t.fragmentsAfter += fragmentsOf(plan_.destinations(plan_.moves[last_[f]]));
                 }
                 out_.totals = t;
                 if (t != plan_.totals) {
@@ -190,9 +209,9 @@ namespace icd::core::planner {
             const Plan& plan_; // The plan.
             const ValidateOptions& options_; // Extra checks.
             HoleSet free_; // Free space as the replay goes.
-            std::unordered_map<FileIndex, std::vector<ClusterRun>> current_; // Runs of files moved so far.
-            std::unordered_set<FileIndex> placed_; // Files at their final place.
-            std::unordered_set<FileIndex> parked_; // Files in scratch space.
+            std::vector<std::uint32_t> last_; // Per file: its last replayed move (where its clusters are), or noMove.
+            std::vector<FileState> state_; // Per file: unmoved, placed or parked.
+            std::size_t parkedCount_ = 0; // Files in scratch space now.
             Validation out_; // Result.
         };
 

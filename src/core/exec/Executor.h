@@ -84,4 +84,30 @@ namespace icd::core {
         return result;
     }
 
+    // Deterministic parallel sort: fixed-size chunks are sorted in parallel, then neighbours are merged pairwise in
+    // rounds (stable merges), so the result depends only on the input and `less`, never on the thread count. For the
+    // planner's tens of millions of runs, where one std::sort is a serial step of seconds.
+    template <typename T, typename Less>
+    void parallelSort(Executor& executor, std::vector<T>& items, Less less, std::size_t chunk = std::size_t{1} << 16U) {
+        const ChunkedRange range{.count = items.size(), .grain = chunk};
+        executor.parallelFor(range, [&](std::size_t begin, std::size_t end) {
+            std::sort(items.begin() + static_cast<std::ptrdiff_t>(begin),
+                      items.begin() + static_cast<std::ptrdiff_t>(end), less);
+        });
+        std::vector<T> buffer(items.size());
+        for (std::size_t width = range.chunkSize(); width < items.size(); width *= 2) {
+            const ChunkedRange pairs{.count = (items.size() + 2 * width - 1) / (2 * width), .grain = 1};
+            executor.parallelFor(pairs, [&](std::size_t first, std::size_t last) {
+                for (std::size_t p = first; p < last; ++p) {
+                    const std::size_t lo = p * 2 * width;
+                    const std::size_t mid = std::min(lo + width, items.size());
+                    const std::size_t hi = std::min(lo + 2 * width, items.size());
+                    const auto at = [](auto& v, std::size_t i) { return v.begin() + static_cast<std::ptrdiff_t>(i); };
+                    std::merge(at(items, lo), at(items, mid), at(items, mid), at(items, hi), at(buffer, lo), less);
+                }
+            });
+            items.swap(buffer);
+        }
+    }
+
 } // namespace icd::core

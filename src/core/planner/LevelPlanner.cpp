@@ -19,33 +19,100 @@ namespace icd::core::planner {
 
     namespace {
 
+        // "No move".
+        constexpr std::uint32_t noMove = static_cast<std::uint32_t>(-1);
+
         // A file's runs at the end of a plan: its last move's destinations, or where it is.
         class FinalRuns {
         public:
-            // Indexes the plan's last move per file.
-            FinalRuns(const Snapshot& snapshot, const Plan& plan) : snapshot_(snapshot), plan_(plan) {
-                for (std::size_t i = 0; i < plan.moves.size(); ++i) {
-                    last_[plan.moves[i].file] = i;
+            // Indexes the plan's first and last move per file.
+            FinalRuns(const Snapshot& snapshot, const Plan& plan) :
+                snapshot_(snapshot), plan_(plan), first_(snapshot.files.size(), noMove),
+                last_(snapshot.files.size(), noMove) {
+                for (std::uint32_t i = 0; i < plan.moves.size(); ++i) {
+                    const FileIndex f = plan.moves[i].file;
+                    first_[f] = first_[f] == noMove ? i : first_[f];
+                    last_[f] = i;
                 }
             }
 
             // Whether the plan moves the file.
-            [[nodiscard]] bool moved(FileIndex file) const { return last_.contains(file); }
+            [[nodiscard]] bool moved(FileIndex file) const { return last_[file] != noMove; }
 
             // The file's movable runs after the plan.
             [[nodiscard]] std::vector<ClusterRun> of(FileIndex file) const {
-                const auto it = last_.find(file);
-                if (it == last_.end()) {
+                if (!moved(file)) {
                     return movableRuns(snapshot_, file);
                 }
-                const auto d = plan_.destinations(plan_.moves[it->second]);
+                const auto d = plan_.destinations(plan_.moves[last_[file]]);
                 return {d.begin(), d.end()};
             }
 
+            // Free runs after the plan, without replaying it: the free runs before plus every moved file's runs
+            // before, minus every moved file's runs after (scratch space used for parking is free again by then).
+            [[nodiscard]] std::vector<ClusterRun> freeAfter(Executor& executor) const {
+                std::vector<ClusterRun> freed(snapshot_.freeSpace.runs().begin(), snapshot_.freeSpace.runs().end());
+                std::vector<ClusterRun> taken;
+                for (std::size_t f = 0; f < first_.size(); ++f) {
+                    if (first_[f] != noMove) {
+                        const auto s = plan_.sources(plan_.moves[first_[f]]);
+                        freed.insert(freed.end(), s.begin(), s.end());
+                        const auto d = plan_.destinations(plan_.moves[last_[f]]);
+                        taken.insert(taken.end(), d.begin(), d.end());
+                    }
+                }
+                const auto byStart = [](const ClusterRun& a, const ClusterRun& b) { return a.start < b.start; };
+                parallelSort(executor, freed, byStart);
+                parallelSort(executor, taken, byStart);
+                return subtractRuns({.from = mergeRuns(freed), .minus = taken});
+            }
+
         private:
+            // Sorted runs with touching ones joined.
+            static std::vector<ClusterRun> mergeRuns(const std::vector<ClusterRun>& sorted) {
+                std::vector<ClusterRun> out;
+                for (const ClusterRun& r : sorted) {
+                    if (!out.empty() && r.start <= out.back().end()) {
+                        out.back().length = std::max(out.back().end(), r.end()) - out.back().start;
+                    }
+                    else if (r.length > 0) {
+                        out.push_back(r);
+                    }
+                }
+                return out;
+            }
+
+            // Two sorted run lists: what to keep and what to take out of it.
+            struct Difference {
+                std::vector<ClusterRun> from; // Disjoint runs.
+                std::span<const ClusterRun> minus; // Disjoint runs, each inside one of `from`.
+            };
+
+            // Sorted, disjoint runs minus sorted runs that lie inside them.
+            static std::vector<ClusterRun> subtractRuns(const Difference& d) {
+                const auto& from = d.from;
+                const auto& minus = d.minus;
+                std::vector<ClusterRun> out;
+                std::size_t j = 0;
+                for (const ClusterRun& r : from) {
+                    Lcn cursor = r.start;
+                    for (; j < minus.size() && minus[j].start < r.end(); ++j) {
+                        if (minus[j].start > cursor) {
+                            out.push_back({cursor, minus[j].start - cursor});
+                        }
+                        cursor = std::max(cursor, minus[j].end());
+                    }
+                    if (cursor < r.end()) {
+                        out.push_back({cursor, r.end() - cursor});
+                    }
+                }
+                return out;
+            }
+
             const Snapshot& snapshot_; // The volume before.
             const Plan& plan_; // The plan.
-            std::unordered_map<FileIndex, std::size_t> last_; // Last move per file.
+            std::vector<std::uint32_t> first_; // Per file: its first move, or noMove.
+            std::vector<std::uint32_t> last_; // Per file: its last move, or noMove.
         };
 
         // Clusters inside their zone and placed clusters in total.
@@ -69,16 +136,6 @@ namespace icd::core::planner {
                 return files == 0 ? 0.0 : 100.0 * static_cast<double>(fragmented) / static_cast<double>(files);
             }
         };
-
-        // Free runs after replaying a plan without checks.
-        HoleSet freeAfter(const Snapshot& snapshot, const Plan& plan) {
-            HoleSet free(snapshot.freeSpace.runs());
-            for (const Move& m : plan.moves) {
-                takeRuns(free, plan.destinations(m));
-                releaseRuns(free, plan.sources(m));
-            }
-            return free;
-        }
 
         // Pool of after-plan free space: free runs plus what must-move files vacate, without the reserved runs.
         HoleSet afterPlanPool(const Snapshot& snapshot, const LowerBound& bound, std::span<const ClusterRun> reserved) {
@@ -613,9 +670,9 @@ namespace icd::core::planner {
                 return part;
             },
             [](Counts a, const Counts& b) { return a += b; });
-        const HoleSet free = freeAfter(snapshot, plan);
+        const std::vector<ClusterRun> free = final.freeAfter(executor);
         ClusterCount largest = 0;
-        for (const ClusterRun& r : free.runs()) {
+        for (const ClusterRun& r : free) {
             largest = std::max(largest, r.length);
         }
         return {.fragmentedBefore = counts.fragBefore.percent(),

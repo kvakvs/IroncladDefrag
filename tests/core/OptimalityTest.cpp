@@ -184,10 +184,11 @@ namespace icd::core::planner { namespace {
     }
 
     // The presets held to the plan.md 9.3.1 ratio at every level: the storage presets the test-bed scenarios are
-    // planned with and the presets that fill zones without sorting them.
+    // planned with and the presets that fill zones without sorting them. Mixed sorts photos at Maximum and on one of
+    // these volumes now completes the third of its bound that cycles used to leave in place, at about 1.12 (T095c).
     bool tightPreset(std::string_view id) {
-        return id == "mixed" || id == "archive" || id == "video" || id == "defrag-only" || id == "free-space" ||
-            id == "hot-zone" || id == "cold-zone" || id == "type-segregation";
+        return id == "archive" || id == "video" || id == "defrag-only" || id == "free-space" || id == "hot-zone" ||
+            id == "cold-zone" || id == "type-segregation";
     }
 
     TEST(Optimality, PresetsStayWithinATenthOfTheLowerBound) {

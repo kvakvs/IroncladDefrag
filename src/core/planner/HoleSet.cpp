@@ -27,7 +27,9 @@ namespace icd::core::planner {
         std::vector<ClusterRun> merged(std::span<const ClusterRun> runs) {
             std::vector<ClusterRun> sorted(runs.begin(), runs.end());
             std::erase_if(sorted, [](const ClusterRun& r) { return r.length == 0; });
-            std::ranges::sort(sorted, {}, &ClusterRun::start);
+            if (!std::ranges::is_sorted(sorted, {}, &ClusterRun::start)) { // Callers often pass sorted runs.
+                std::ranges::sort(sorted, {}, &ClusterRun::start);
+            }
             std::vector<ClusterRun> out;
             for (const ClusterRun& r : sorted) {
                 if (!out.empty() && r.start <= out.back().end()) {

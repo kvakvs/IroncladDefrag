@@ -1101,10 +1101,11 @@ All analysis checks passed.
 - Levels (T091, `LevelPlanner`): `PlanInput` (snapshot, script, catalog, classes, churn, now, reserved MFT zone, shadow
   copies, Fast budget multiplier, time model) is shared by the levels; `assignInput()` assigns once. `planZones()` is
   the Moderate/Maximum pipeline: fitted target, lower bound with sorting, candidates, an after-plan pool without the
-  MFT zone, every zone placed in parallel on its own slice of the pool (zone ranges are disjoint, so the result does
-  not depend on the thread count), defragment-only files near where they are, overflow handled by evicting small files
-  of the same zone (when the level allows) or next to the zone's end, VSS alignment, ordering, budget, metrics
-  (`PlanMetrics`: fragmented files, zone fit, free runs before and after, time).
+  MFT zone, every zone placed in script order on its own slice of the pool with one cycle guard (T095b), defragment-only
+  files near where they are, overflow handled by evicting small files of the same zone (when the level allows) or next
+  to the zone's end, VSS alignment, ordering, budget, metrics (`PlanMetrics`: fragmented files, zone fit, free runs
+  before and after, time). The free runs after a plan are computed without replaying it (T093b): the free runs before
+  plus every moved file's runs before, minus every moved file's final runs, sorted with `parallelSort()`.
 - Fast (T091, `levels/FastLevel`, plan.md 9.2.1): stripes are scored 0.4 x churn share (journal churn or in-place files)
   + 0.3 x small holes (under 1 MB, 32 give the full score) + 0.3 x share held by fragmented files; stripes scoring 0.25
   or more are hot, a single cold stripe between hot ones is bridged, and runs of them are hot spots. Only files lying
@@ -1112,7 +1113,10 @@ All analysis checks passed.
   "need" usable clusters, or fragmented under fragment_ok, are fast-filled there), so its free space ends up as one run
   at its tail. A big long-lived file (64 MB or more, 30 days unchanged) with free space on both sides goes straight to
   its zone. No overflow handling (that would touch other areas); budget 2% of used space or 15 minutes times the
-  multiplier; the plan carries the "run again" note.
+  multiplier; the plan carries the "run again" note. Hot spots are cut into pieces of at most 8 stripes and ranked by
+  their mean score; pieces are planned hottest first until their movers hold twice the cluster budget (T093b), so a
+  volume that is hot nearly everywhere (a 30 TB synthetic one was one hot spot of 6 M movers, 131 s) is not planned
+  whole only for the budget to keep 2% of it; the next run takes the next pieces.
 
 - Moderate and Maximum (T092, `levels/ModerateLevel`, `levels/MaximumLevel`): policies over `planZones()`. Moderate:
   zones' fragment_ok, sorted zones only within a 20% tolerance, small files evicted for large ones, no parking, budget
@@ -1124,7 +1128,10 @@ All analysis checks passed.
   planned again without it, so no other file is promised its clusters (at 80% fill this stopped cascades of dropped
   dependents). At levels that may not park, a cycle is broken by sending its smallest file to scratch space for good
   (one move, outside its target; pieces of 64 MB or more when no single run holds it); a parked file whose return can
-  no longer happen stays in scratch space, its park becoming its one move.
+  no longer happen stays in scratch space, its park becoming its one move. At Maximum a move without a zone
+  (overflow, defragment-only) is redirected the same way, and parked when no free run holds it (T093b): before, such a
+  failure ended the round after one park, so a large component took hundreds of whole-graph rounds and a 4 M-file
+  plan dropped a third of its bound.
 
 - Planning job (T093, `services/plan/PlanJob`): `planLevels()` assigns zones once and plans Fast, Moderate and Maximum
   in parallel on the pool (or one after another when memory is short), each using the pool inside, then validates each
@@ -1152,6 +1159,11 @@ All analysis checks passed.
   on its own slice and searches the region's span once; room finding walks holes lazily); pools are built in one sorted
   pass; `HoleSet` rebuilt its tree by rescanning every run whenever a block emptied (empty blocks now stay, searchable by
   a non-decreasing stored end, and are dropped in bulk); budget closures stop as soon as they exceed the budget.
+- Scale after T093b/T095b (`plan-bench`, 8 workers, validation on): 30 TB / 20 M files 369 s (Fast 25 s, was 131 s;
+  Moderate 329 s; Maximum 368 s, 1.029 x its bound, nothing skipped, zone fit 78%, no fragmented files), every plan
+  valid; 4 M files 72 s. Still above the 60 s target (T093c): zone placement is serial and the cycle guard roughly
+  doubles it (at 30 TB about 110 s per level), eviction room search about 45 s, Moderate's budget and ordering,
+  measuring and validation each tens of seconds.
 - Placement keeps re-planning (up to eight rounds) until no file fails for lack of space, and Maximum holds back a
   scratch reserve (the largest free run outside every zone, 1% of the volume or the largest must-move file) before
   overflow and defragment-only files take free space, so parking has room.

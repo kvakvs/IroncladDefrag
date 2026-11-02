@@ -289,3 +289,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   presets <= 1.1 (free-space 1.29 -> 1.06, hot/cold-zone 1.28 -> 1.07, type-segregation 1.33 -> 1.04, archive 1.07 ->
   1.06), whole-volume sorts 1.5-2.1 -> 1.23-1.44 (threshold 2.5 -> 1.5); the rest split off as T095c.
   `CycleGuardTest`; SortZone and PackToBack tests count files off their packed places in the bound.
+- T093b Planning at scale: Fast pieces, ordering stall, metrics - Fast plans hot spots in pieces of at most 8 stripes,
+  hottest first until their movers reach twice the budget (30 TB: 131 s -> 25 s); at Maximum a zone-less cycle move
+  that no free run holds is parked instead of ending the round (4 M files: ordering 900 -> 18 rounds, 210 s -> 10 s,
+  a third of the bound no longer skipped); `measurePlan()` free runs by set algebra, `parallelSort()` in
+  `core/exec/Executor.h`, `HoleSet` skips sorting sorted input, validator per-file arrays instead of hash maps.
+  30 TB / 20 M files: 369 s with validation (T095b's guard costs zone placement time); the 60 s target split off as
+  T093c. `FastLevelTest` hot-volume pieces; mixed moved to OptimalityTest's 1.5 group (it now completes its bound).

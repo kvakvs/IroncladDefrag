@@ -8,6 +8,7 @@
 #include <algorithm>
 #include <cmath>
 #include <iterator>
+#include <limits>
 #include <set>
 #include <unordered_set>
 
@@ -29,6 +30,60 @@ namespace icd::core::planner {
 
         // Time budget at x1.
         constexpr double fastSeconds = 15.0 * 60.0;
+
+        // Longest piece of a hot spot planned as one, in stripes: a volume that is hot nearly everywhere becomes
+        // pieces that compact on their own and can be ranked.
+        constexpr std::size_t maxSpotStripes = 8;
+
+        // Hot-spot pieces are planned, hottest first, until their movers hold this many times the cluster budget,
+        // so the budget still has a choice while the rest of a large volume is left for the next run.
+        constexpr ClusterCount budgetReach = 2;
+
+        // A piece of a hot spot and how hot it is.
+        struct ScoredSpot {
+            ClusterRun run; // Its clusters.
+            double score = 0.0; // Mean score of its stripes.
+        };
+
+        // Whether each stripe is hot: at or above the threshold, or one cold stripe between two hot ones.
+        std::vector<bool> hotStripes(const std::vector<StripeScore>& scores, double threshold) {
+            std::vector<bool> hot(scores.size());
+            for (std::size_t i = 0; i < scores.size(); ++i) {
+                hot[i] = scores[i].score >= threshold;
+            }
+            for (std::size_t i = 1; i + 1 < hot.size(); ++i) {
+                hot[i] = hot[i] || (hot[i - 1] && hot[i + 1]); // Bridge one cold stripe between hot ones.
+            }
+            return hot;
+        }
+
+        // Consecutive hot stripes as pieces of at most `longest` stripes, with their mean scores, in LCN order.
+        std::vector<ScoredSpot> hotPieces(const StripeLayout& layout, const std::vector<StripeScore>& scores,
+                                          const std::vector<bool>& hot, std::size_t longest) {
+            std::vector<ScoredSpot> out;
+            std::size_t stripes = 0;
+            for (std::size_t i = 0; i < hot.size(); ++i) {
+                const bool joins = hot[i] && i > 0 && hot[i - 1] && stripes < longest;
+                if (!hot[i]) {
+                    continue;
+                }
+                if (joins) {
+                    out.back().run.length += layout.range(i).length;
+                    out.back().score += scores[i].score;
+                    ++stripes;
+                    continue;
+                }
+                if (!out.empty()) {
+                    out.back().score /= static_cast<double>(stripes);
+                }
+                out.push_back({layout.range(i), scores[i].score});
+                stripes = 1;
+            }
+            if (!out.empty()) {
+                out.back().score /= static_cast<double>(stripes);
+            }
+            return out;
+        }
 
         // Whether a file churns: flagged by the journal or kept in place by the strategy.
         bool churns(const ZoneAssignment& a, std::span<const std::uint8_t> churn, FileIndex file) {
@@ -100,13 +155,11 @@ namespace icd::core::planner {
                 executor_ = &executor;
                 result_.layout = resolveLayout(snapshot_, *input_.script, assignment_, input_.classes, *input_.catalog,
                                                {.reserved = input_.reserved});
-                result_.hotSpots = findHotSpots(snapshot_, assignment_, input_.churn, options_, executor);
-                token.throwIfCancelled();
-                std::vector<SpotPlan> spots;
-                spots.reserve(result_.hotSpots.size());
-                for (const ClusterRun& spot : result_.hotSpots) {
-                    spots.push_back(planSpot(spot));
+                const std::vector<SpotPlan> spots = hottestSpots(executor);
+                for (const SpotPlan& s : spots) {
+                    result_.hotSpots.push_back(s.spot);
                 }
+                token.throwIfCancelled();
                 for (const SpotPlan& s : spots) {
                     for (const auto* list : {&s.movers, &s.bigs}) {
                         for (const FileIndex f : *list) {
@@ -120,6 +173,41 @@ namespace icd::core::planner {
             }
 
         private:
+            // The hot-spot pieces Fast plans: the hottest first until their movers reach budgetReach times the
+            // cluster budget; in LCN order.
+            [[nodiscard]] std::vector<SpotPlan> hottestSpots(Executor& executor) const {
+                const StripeLayout layout(snapshot_.geometry.totalClusters);
+                const auto scores = scoreStripes(snapshot_, assignment_, input_.churn, options_, executor);
+                std::vector<ScoredSpot> pieces =
+                    hotPieces(layout, scores, hotStripes(scores, options_.threshold), maxSpotStripes);
+                std::ranges::stable_sort(pieces,
+                                         [](const ScoredSpot& a, const ScoredSpot& b) { return a.score > b.score; });
+                const ClusterCount reach = policy_.budget.maxClusters ? *policy_.budget.maxClusters * budgetReach
+                                                                      : std::numeric_limits<ClusterCount>::max();
+                std::vector<SpotPlan> out;
+                ClusterCount planned = 0;
+                for (const ScoredSpot& piece : pieces) {
+                    if (planned >= reach) {
+                        break;
+                    }
+                    out.push_back(planSpot(piece.run));
+                    planned += moverClusters(out.back());
+                }
+                std::ranges::sort(out, {}, [](const SpotPlan& s) { return s.spot.start; });
+                return out;
+            }
+
+            // Clusters of the files a spot plan moves.
+            [[nodiscard]] ClusterCount moverClusters(const SpotPlan& s) const {
+                ClusterCount out = 0;
+                for (const auto* list : {&s.movers, &s.bigs}) {
+                    for (const FileIndex f : *list) {
+                        out += assignment_.movable[f];
+                    }
+                }
+                return out;
+            }
+
             // Whether a file is a big long-lived file.
             [[nodiscard]] bool bigLongLived(FileIndex file) const {
                 const std::int64_t age = (input_.now - snapshot_.files.times(file).modified) / ticksPerDay;
@@ -329,24 +417,6 @@ namespace icd::core::planner {
             Executor* executor_ = nullptr; // The executor of run().
         };
 
-        // Consecutive hot stripes as runs.
-        std::vector<ClusterRun> mergeHot(const StripeLayout& layout, const std::vector<bool>& hot) {
-            std::vector<ClusterRun> out;
-            for (std::size_t i = 0; i < hot.size(); ++i) {
-                if (!hot[i]) {
-                    continue;
-                }
-                const ClusterRun r = layout.range(i);
-                if (!out.empty() && out.back().end() == r.start) {
-                    out.back().length += r.length;
-                }
-                else {
-                    out.push_back(r);
-                }
-            }
-            return out;
-        }
-
     } // namespace
 
     std::vector<StripeScore> scoreStripes(const Snapshot& snapshot, const ZoneAssignment& assignment,
@@ -362,14 +432,12 @@ namespace icd::core::planner {
                                          Executor& executor) {
         const StripeLayout layout(snapshot.geometry.totalClusters);
         const auto scores = scoreStripes(snapshot, assignment, churn, options, executor);
-        std::vector<bool> hot(scores.size());
-        for (std::size_t i = 0; i < scores.size(); ++i) {
-            hot[i] = scores[i].score >= options.threshold;
+        std::vector<ClusterRun> out;
+        for (const ScoredSpot& s : hotPieces(layout, scores, hotStripes(scores, options.threshold),
+                                             std::numeric_limits<std::size_t>::max())) {
+            out.push_back(s.run);
         }
-        for (std::size_t i = 1; i + 1 < hot.size(); ++i) {
-            hot[i] = hot[i] || (hot[i - 1] && hot[i + 1]); // Bridge one cold stripe between hot ones.
-        }
-        return mergeHot(layout, hot);
+        return out;
     }
 
     LevelPolicy fastPolicy(const PlanInput& input) {

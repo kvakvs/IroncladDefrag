@@ -43,7 +43,9 @@ namespace icd::core::planner {
     // Plans the Fast level (plan.md 9.2.1): only files lying wholly inside hot spots move. Fragmented files are joined
     // and each hot spot is compacted towards its head, so its free space becomes one run at its tail where new churn
     // lands; a big long-lived file (64 MB or more, unchanged for 30 days) that splits a hot spot's free space goes
-    // straight to its zone instead. Cut to the budget, most valuable moves first.
+    // straight to its zone instead. Hot spots are planned in pieces of at most 8 stripes, hottest first, until their
+    // movers reach twice the budget (PlanResult::hotSpots lists the pieces planned). Cut to the budget, most valuable
+    // moves first.
     [[nodiscard]] PlanResult planFast(const PlanInput& input, const ZoneAssignment& assignment, Executor& executor,
                                       const CancelToken& token = {}, const HotSpotOptions& options = {});
 

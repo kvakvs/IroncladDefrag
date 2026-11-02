@@ -3,6 +3,7 @@
 
 #include "core/planner/Validator.h"
 #include "core/planner/levels/FastLevel.h"
+#include "core/snapshot/Stripes.h"
 #include "core/synth/SyntheticVolume.h"
 
 #include "core/PlannerTestUtil.h"
@@ -141,6 +142,35 @@ namespace icd::core::planner { namespace {
             }
             EXPECT_LE(r.metrics.fragmentedAfter, r.metrics.fragmentedBefore);
         }
+    }
+
+    TEST(FastLevel, HotVolumesArePlannedInPiecesUpToTheBudget) {
+        // Every stripe is hot: Fast plans pieces of at most eight stripes, hottest first, only until their movers reach
+        // twice the budget, instead of the whole volume.
+        SynthOptions options;
+        options.seed = 61;
+        options.files = 4000;
+        options.geometry.totalClusters = 1ULL << 21U;
+        options.fillPercent = 70;
+        options.fragmentedShare = 0.3;
+        const Snapshot snapshot = generateSyntheticVolume(options);
+        const auto classes = test::classesOf(snapshot);
+        const auto script = mixedScript();
+        const PlanInput input = inputOf(snapshot, script, classes);
+        InlineExecutor serial;
+        const ZoneAssignment a = assignInput(input, serial);
+        const PlanResult r = planFast(input, a, serial, {}, {.threshold = 0.0});
+        const Validation check = validatePlan(snapshot, r.plan, {.layout = &r.layout});
+        ASSERT_TRUE(check.ok()) << check.issues.front().message;
+        const StripeLayout stripes(snapshot.geometry.totalClusters);
+        ClusterCount planned = 0;
+        for (const ClusterRun& spot : r.hotSpots) {
+            EXPECT_LE(spot.length, 8 * stripes.stripeClusters());
+            planned += spot.length;
+        }
+        EXPECT_FALSE(r.hotSpots.empty());
+        EXPECT_LT(planned, snapshot.geometry.totalClusters / 2);
+        EXPECT_LE(r.plan.totals.clustersMoved, *fastPolicy(input).budget.maxClusters);
     }
 
 }} // namespace icd::core::planner

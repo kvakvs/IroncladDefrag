@@ -533,9 +533,12 @@ namespace icd::core::planner {
             // Parks (Maximum) or redirects one move; false without scratch space for it.
             bool breakOne(std::uint32_t v) {
                 // A move without a zone only needs its file in one piece somewhere: free space reaches that in one
-                // move, so it is redirected even when parking is allowed.
+                // move, so it is redirected even when parking is allowed (and parked when no free run holds it).
                 const bool anywhere = destinations_[v].zone == noZone;
-                return options_.allowParking && !anywhere ? park(v) : redirect(v);
+                if (options_.allowParking && !anywhere) {
+                    return park(v);
+                }
+                return redirect(v) || (options_.allowParking && park(v));
             }
 
             // What happens when scratch space runs out while breaking a component: wait for parked files to return
