@@ -13,6 +13,7 @@ set(INSTALL_GTEST OFF CACHE BOOL "" FORCE)
 FetchContent_MakeAvailable(googletest)
 
 add_executable(icd_tests
+    core/AccessTimeHeuristicTest.cpp
     core/BitmapToRunsTest.cpp
     core/CatalogTest.cpp
     core/ColorModesTest.cpp
@@ -46,6 +47,7 @@ add_executable(icd_tests
     core/ViewportTest.cpp
     core/WorldTest.cpp
     platform/ChildProcessTest.cpp
+    platform/LastAccessSettingTest.cpp
     platform/LogSinksTest.cpp
     platform/StoragePropertiesTest.cpp
     platform/SystemResourcesTest.cpp

@@ -237,3 +237,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   directories, colors, descriptions, ordered rules), embedded by `cmake/EmbedText.cmake`; `core/classify/Catalog.*`
   (strict `parseCatalog()`, `builtinCatalog()`), `core/format/JsonReader.*` (JSON reader for data files).
   `CatalogTest` (one test per class, typical and edge cases), `JsonReaderTest`.
+- T072 Last-access reliability - `platform/win/LastAccessSetting.*` (registry `NtfsDisableLastAccessUpdate`, decoded;
+  equals `fsutil behavior query disablelastaccess`: this machine system managed, on), `core/classify/AccessTimeHeuristic.*`
+  (files read over an hour after creation and last change; setting plus evidence give reliable, unreliable or unknown
+  with a reason); "Last access on/off" badge on every NTFS drive, verdict on the Summary tab and in the JSON report.
+  `AccessTimeHeuristicTest`, `LastAccessSettingTest`.

@@ -91,6 +91,9 @@ namespace icd::ui {
         if (scan.changedDuringScan != 0) {
             addRow(*metrics_, {"Changed during the scan", core::formatCount(scan.changedDuringScan)});
         }
+        if (!scan.lastAccess.empty()) {
+            addRow(*metrics_, {"Last-access times", scan.lastAccess});
+        }
     }
 
     void SummaryPage::clear(const wxString& hint) {

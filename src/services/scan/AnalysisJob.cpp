@@ -1,9 +1,11 @@
 #include "services/scan/AnalysisJob.h"
 
+#include "core/classify/AccessTimeHeuristic.h"
 #include "core/format/DriveText.h"
 #include "core/log/Log.h"
 #include "core/snapshot/ScanReconcile.h"
 #include "core/snapshot/SnapshotBuilder.h"
+#include "platform/win/LastAccessSetting.h"
 #include "platform/win/TextConvert.h"
 #include "platform/win/VolumeBitmap.h"
 #include "platform/win/Volumes.h"
@@ -106,6 +108,7 @@ namespace icd::services {
                 result.fallbackReason = fallback_;
                 result.stats = core::summarize(result.snapshot, context_.executor);
                 result.summary = summaryOf(result.stats, geometry.bytesPerCluster, result.scan);
+                describeLastAccess(result);
                 result.seconds = std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count();
                 result.scanSeconds = std::chrono::duration<double>(scanEnd - scanStart).count();
                 save(result, layout, scanTime);
@@ -114,6 +117,23 @@ namespace icd::services {
             }
 
         private:
+            // Whether last-access times can be trusted on this volume: the system setting and the snapshot's evidence.
+            void describeLastAccess(AnalysisResult& result) const {
+                if (!result.summary.scan) {
+                    return;
+                }
+                AnalysisSummary::ScanFigures& figures = *result.summary.scan;
+                const auto evidence =
+                    core::classify::gatherAccessEvidence(result.snapshot, context_.executor, context_.token);
+                const auto assessment =
+                    core::classify::assessAccessTimes(platform::readLastAccessSetting().updatesEnabled, evidence);
+                result.summary.scan->lastAccess =
+                    std::format("{}: {}", core::classify::verdictName(assessment.verdict), assessment.reason);
+                figures.lastAccessReliable = assessment.verdict == core::classify::AccessTimeVerdict::Unknown
+                    ? std::nullopt
+                    : std::optional(assessment.verdict == core::classify::AccessTimeVerdict::Reliable);
+            }
+
             // The saved snapshot of this volume brought up to date, when there is one the journal can catch up;
             // otherwise an empty outcome with result.catchUp saying why.
             ScanOutcome fromSaved(HANDLE volume, const core::VolumeLayout& layout, core::VolumeGeometry geometry,
@@ -284,6 +304,8 @@ namespace icd::services {
             .unmovableBytes = stats.unmovableClusters * bytesPerCluster,
             .unreadableFiles = scan.unreadable,
             .changedDuringScan = scan.reconcile.droppedExtents,
+            .lastAccessReliable = std::nullopt, // Filled in by the analysis (describeLastAccess()).
+            .lastAccess = {},
         };
         return summary;
     }

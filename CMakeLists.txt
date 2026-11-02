@@ -39,6 +39,8 @@ add_custom_command(
 # --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
 add_library(icd_core STATIC
     src/core/Version.h.in
+    src/core/classify/AccessTimeHeuristic.cpp
+    src/core/classify/AccessTimeHeuristic.h
     src/core/classify/Catalog.cpp
     src/core/classify/Catalog.h
     src/core/classify/RuleEngine.cpp
@@ -159,6 +161,8 @@ add_library(icd_platform STATIC
     src/platform/win/ChildProcess.cpp
     src/platform/win/ChildProcess.h
     src/platform/win/Console.cpp
+    src/platform/win/LastAccessSetting.cpp
+    src/platform/win/LastAccessSetting.h
     src/platform/win/Compression.cpp
     src/platform/win/Compression.h
     src/platform/win/Console.h

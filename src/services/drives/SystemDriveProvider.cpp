@@ -1,6 +1,7 @@
 #include "services/drives/SystemDriveProvider.h"
 
 #include "core/log/Log.h"
+#include "platform/win/LastAccessSetting.h"
 #include "platform/win/StorageProperties.h"
 #include "platform/win/TextConvert.h"
 
@@ -22,6 +23,7 @@ namespace icd::services {
 
     std::vector<core::DriveInfo> SystemDriveProvider::listDrives() {
         const bool elevated = platform::isElevated();
+        const std::optional<bool> lastAccess = platform::readLastAccessSetting().updatesEnabled; // System-wide.
         std::vector<core::DriveInfo> drives;
         for (const platform::VolumeRecord& volume : platform::enumerateVolumes()) {
             if (!volume.problem.empty()) {
@@ -33,6 +35,7 @@ namespace icd::services {
             drive.storage = volume.layout.diskNumber ? platform::queryDiskStorage(*volume.layout.diskNumber)
                                                      : platform::queryVolumeStorage(volume.volumeName);
             drive.media = core::classifyMedia(drive.storage);
+            drive.badges.lastAccessTracking = volume.fileSystem == L"NTFS" ? lastAccess : std::nullopt;
             drives.push_back(std::move(drive));
         }
         return drives;

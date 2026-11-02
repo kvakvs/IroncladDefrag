@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 5 - Classification and activity (§8.2, §13 Phase 5)
 
-### T072 - Last-access reliability
-
-- Depends: T070, T042
-- Owns: `src/platform/win/LastAccessSetting.*`, `src/core/classify/AccessTimeHeuristic.*`
-- Do: read the `disablelastaccess` behaviour; heuristic on timestamp distribution; badge.
-- Done when: heuristic tests; badge correct on the dev machine.
-
 ### T073 - USN churn statistics
 
 - Depends: T046, T070

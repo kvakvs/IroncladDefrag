@@ -50,6 +50,10 @@ namespace icd::services {
             std::uint64_t unmovableBytes = 0; // Metadata, pinned files and unreadable areas.
             std::uint64_t unreadableFiles = 0; // Files that could not be opened.
             std::uint64_t changedDuringScan = 0; // Extents dropped because their file changed during the scan.
+            // Whether access-based strategies may trust last-access times (plan.md 8.2), with the reason; empty
+            // when not checked.
+            std::optional<bool> lastAccessReliable;
+            std::string lastAccess; // "Reliable: ..." or "Unreliable: ..." for the Summary tab.
         };
         std::optional<ScanFigures> scan; // Present after a real analysis.
     };

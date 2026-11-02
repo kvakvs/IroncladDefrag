@@ -27,7 +27,8 @@ namespace {
         result.summary.files = 1;
         result.summary.fragmentedFiles = 1;
         result.summary.freeBytes = 900 * 4096;
-        result.summary.scan = services::AnalysisSummary::ScanFigures{.directories = 1};
+        result.summary.scan = services::AnalysisSummary::ScanFigures{};
+        result.summary.scan->directories = 1;
         result.snapshot.usn = core::UsnCursor{0xABC, 77};
         return result;
     }

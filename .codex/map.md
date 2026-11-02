@@ -56,6 +56,7 @@ changes (see `AGENTS.md`).
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
 | `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
 | `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
+| `src/core/classify/AccessTimeHeuristic.*` | `gatherAccessEvidence()` (files read more than an hour after creation and last change, recent ones), `assessAccessTimes()` (setting plus evidence: reliable, unreliable, unknown with a reason), `verdictName()`. |
 | `src/core/classify/Catalog.*` | `Catalog`, `ClassInfo` (id, name, color, description), `parseCatalog()` (strict: unknown keys, classes, flags, bad sizes and colors refused), `builtinCatalog()` (data/classes.json embedded at build time), `builtinCatalogJson()` (generated). |
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
@@ -127,11 +128,12 @@ changes (see `AGENTS.md`).
 | `src/platform/win/VolumeBitmap.*` | `readVolumeBitmap()` (chunked `FSCTL_GET_VOLUME_BITMAP`), `readFreeRuns()` (32 MB pieces converted in parallel into a `FreeRunList`, progress callback). |
 | `src/platform/win/Volumes.*` | `VolumeRecord`, `listVolumeNames()`, `mountPathsOf()`, `openVolume()`, `queryVolume()` (basics, disk extents and disk size, NTFS volume data; failures noted, never thrown), `enumerateVolumes()`, `isElevated()`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
+| `src/platform/win/LastAccessSetting.*` | `readLastAccessSetting()` (NtfsDisableLastAccessUpdate from the registry), `decodeLastAccessSetting()` (user or system managed, on or off, legacy values). |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
 | `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`). |
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
-| `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge). |
+| `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge); the system-wide last-access badge on NTFS drives. |
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
@@ -211,6 +213,7 @@ changes (see `AGENTS.md`).
 | `tests/core/SyntheticVolumeTest.cpp` | Seed reproducibility, fill level, fragmented share, free patterns, structure. |
 | `tests/core/ViewportTest.cpp` | Pixel/world round trip, fit and limits, anchored zoom, pan clamping, eased zoom motion, durations, inertia. |
 | `tests/core/WorldTest.cpp` | Nice widths, landscape/portrait aspect, round trips and edge cells, levels, tile clipping, row segments. |
+| `tests/core/AccessTimeHeuristicTest.cpp` | Which files count as read after writing (hour of slack, copies), parallel = serial, setting and evidence combined. |
 | `tests/core/BitmapToRunsTest.cpp` | Edge cases, random bitmaps vs per-bit brute force, random chunk cuts stitched = whole, parallel = serial for several grains. |
 | `tests/core/ColorModesTest.cpp` | Age and size bucket edges, bucket values, legend counts vs per-cluster brute force (all modes, random rectangles, pool = serial), tile colors = legend colors, visible cells. |
 | `tests/core/PyramidTest.cpp` | Base-level choice, every bin vs brute force, dominant class, parallel = serial, dirty-range update = rebuild. |
@@ -233,6 +236,7 @@ changes (see `AGENTS.md`).
 | `tests/core/JsonTest.cpp` | JSON structure and indentation, string escaping, non-finite numbers. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
+| `tests/platform/LastAccessSettingTest.cpp` | Every NtfsDisableLastAccessUpdate value decoded; the registry reading equals `fsutil behavior query disablelastaccess`. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops. |

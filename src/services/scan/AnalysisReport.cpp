@@ -154,6 +154,7 @@ namespace icd::services {
                 json.key("fragmentedBytesPercent").value(scan.fragmentedBytesPercent);
                 json.key("largeRunFreePercent").value(scan.largeRunFreePercent);
                 json.key("unmovableBytes").value(scan.unmovableBytes);
+                json.key("lastAccess").value(scan.lastAccess);
             }
             json.endObject();
         }

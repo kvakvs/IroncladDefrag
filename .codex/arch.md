@@ -872,6 +872,16 @@ All analysis checks passed.
   earlier rule (packs, build output) already matched. `CatalogTest` has one test per class with typical and edge cases.
 - `core/format/JsonReader` is the JSON reader the data files need (a small value tree with members in file order,
   RFC 8259 numbers and escapes, line and column in errors, 64 levels deep at most).
+- Last-access times (T072): `platform::readLastAccessSetting()` reads `NtfsDisableLastAccessUpdate` (no administrator
+  rights needed) and decodes 0x80000000-0x80000003 (user or system managed, on or off) and the older 0 and 1. The setting
+  is system-wide, so every NTFS drive gets the same "Last access on/off" badge from it (this machine: system managed,
+  on, which `LastAccessSettingTest` checks against `fsutil behavior query disablelastaccess`).
+- The snapshot adds evidence (`classify::gatherAccessEvidence()`): regular files whose access time lies more than an
+  hour (NTFS's update granularity) after both creation and the last change were read after writing; a copied file
+  (created now, modified earlier, accessed at copy time) is not. `assessAccessTimes()`: off means unreliable whatever
+  the files show (old accesses survive turning updates off); on with any such reads means reliable; without a setting,
+  5% or more is reliable and under 0.5% unreliable, and fewer than 100 files never decide. The analysis puts the
+  verdict and its reason on the Summary tab ("Last-access times") and into the JSON report.
 
 ## Parallel execution
 
