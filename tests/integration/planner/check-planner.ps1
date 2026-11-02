@@ -62,7 +62,7 @@ function Invoke-MakeVol([string[]]$Arguments) {
 
 # Whether every source run of every move lies inside one of the hot spots ([start, clusters] pairs).
 function Test-InsideHotSpots($Level) {
-    foreach ($move in $Level.moves) {
+    foreach ($move in $Level.moveList) {
         foreach ($run in $move.sources) {
             $start = [uint64]$run[0]; $end = $start + [uint64]$run[1]
             $inside = $false

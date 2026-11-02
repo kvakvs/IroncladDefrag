@@ -45,13 +45,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Done when: every preset stays within 1.1 x at Maximum in OptimalityTest, and `check-planner.ps1 -Scenarios all`
   passes.
 
-### T096 - CLI plan
-
-- Depends: T093
-- Owns: `src/cli/commands/Plan.*`
-- Do: `icd-cli plan <vol> --strategy <name> --level fast|moderate|max --json`.
-- Done when: output matches the GUI plan for the same snapshot.
-
 ### T097 - Strategy tab
 
 - Depends: T094, T012

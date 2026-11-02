@@ -435,6 +435,18 @@ this file records what is actually built and the decisions made along the way.
   15 K files) 1.5 s including the 2.3 G-cluster bitmap. Cancel during the file scan stops within a fraction of a
   second ("cancelled after 1.7 s").
 
+## icd-cli plan
+
+- `icd-cli plan <volume> [--strategy ID] [--level fast|moderate|max] [--json] [--moves] [--threads N]` (T096) analyses
+  the volume with the GUI's `analyzeVolume()` (the saved snapshot caught up when possible), builds the request with
+  `makePlanRequest()` and plans the three levels with `planLevels()`, the functions the GUI's plan job runs, then prints
+  `planText()` or `planJson()` (`services/plan/PlanReport`: per level moves, files, bytes, lower bound and the ratio to
+  it, extra, skipped and deferred bytes, metrics before and after, time estimate, hot spots, notes, validity; `--moves`
+  adds each move's file, reason, zone, sources and destinations as `moveList`). `--synthetic N` plans a seeded synthetic
+  volume instead (no administrator rights), for scripts. Exit code 1 when a plan fails validation.
+- `PlanReportTest` checks the CLI's report equals the one made from the GUI job's outcome for the same snapshot (the
+  wall-clock planning time left out).
+
 ## icd-cli analyze
 
 - `icd-cli analyze <volume> [--json] [--dump-extents]` (T049) runs `services::analyzeVolume()`, the same function

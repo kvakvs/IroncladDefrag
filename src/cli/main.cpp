@@ -3,6 +3,7 @@
 #include "cli/commands/CheckCatchUp.h"
 #include "cli/commands/Churn.h"
 #include "cli/commands/CompareScanners.h"
+#include "cli/commands/Plan.h"
 #include "services/AppInfo.h"
 #include "services/AppLogging.h"
 
@@ -22,13 +23,14 @@ namespace {
         const char* (*usage)(); // Its usage line.
     };
 
-    // Every command; plan and execute arrive in later phases.
+    // Every command; execute arrives in a later phase.
     constexpr std::array commands{
         Command{L"analyze", icd::cli::runAnalyze, icd::cli::analyzeUsage},
         Command{L"compare-scanners", icd::cli::runCompareScanners, icd::cli::compareScannersUsage},
         Command{L"check-catchup", icd::cli::runCheckCatchUp, icd::cli::checkCatchUpUsage},
         Command{L"check-caps", icd::cli::runCheckCaps, icd::cli::checkCapsUsage},
         Command{L"churn", icd::cli::runChurn, icd::cli::churnUsage},
+        Command{L"plan", icd::cli::runPlan, icd::cli::planUsage},
     };
 
     // Prints the command summary.

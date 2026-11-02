@@ -86,6 +86,7 @@ add_executable(icd_tests
     services/MftScannerTest.cpp
     services/MftSecondPassTest.cpp
     services/PlanJobTest.cpp
+    services/PlanReportTest.cpp
     services/SettingsTest.cpp
     services/SnapshotStoreTest.cpp
     services/ThreadPoolTest.cpp

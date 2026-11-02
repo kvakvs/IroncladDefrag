@@ -163,6 +163,7 @@ changes (see `AGENTS.md`).
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
 | `src/services/plan/PlanJob.*` | `PlanRequest`, `makePlanRequest()`, `fileTimeNow()`, `planLevels()` (three levels in parallel, validated), `LevelOutcome`, `PlanOutcome`, `planSummary()` (Plan tab), `PlanOutput`, `makePlanJob()`. |
+| `src/services/plan/PlanReport.*` | `planJson()` / `planText()` (per level figures, hot spots, notes, validity, optional move list), `PlanReportOptions`. |
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
 | `src/services/scan/AnalysisReport.*` | `analysisJson()` (volume, scan, summary, optional per-file runs), `analysisText()`, `fileFlagNames()`. |
 | `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
@@ -219,6 +220,7 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/Churn.*` | `icd-cli churn <volume> [--json | --all]`: MFT scan plus the journal's churn statistics; churning directories, flagged files, every directory's counts with --all. |
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`. |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
+| `src/cli/commands/Plan.*` | `icd-cli plan <volume> [--strategy ID] [--level fast|moderate|max] [--json] [--moves] [--threads N] [--synthetic FILES]`: analysis (or a synthetic volume), three levels planned, report on stdout. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
 | `tests/integration/planner/check-planner.ps1` | T095: per scenario a read-only test volume planned with its preset through `icd-cli plan --json --moves`; validity, ratio <= 1.1 per level, Fast within 2% and inside hot spots. |
 | `tests/integration/classes/check-classes.ps1` | T074 / Phase 5 exit: read-only `mixed` volume, every file's class against the scenario layout, summary bytes per class = dumped clusters, counts cover every file. |
@@ -230,6 +232,7 @@ changes (see `AGENTS.md`).
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
 | `tests/services/PlanJobTest.cpp` | Parallel plans = serial plans move for move (levels in parallel and one after another), summary figures, the job's output and progress. |
+| `tests/services/PlanReportTest.cpp` | CLI report = GUI job's report for the same snapshot; levels, figures and move list in the JSON; text report. |
 | `tests/services/SettingsTest.cpp` | Settings JSON round trip, refused documents, skipped drive entries, effort spellings, drive keys, preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/ChurnStatsTest.cpp` | Sessions from close records, deletes where the file lived (POSIX delete into $Deleted) and before their close record, directory churn rule, small folders with churning siblings, flags below churning directories. |
