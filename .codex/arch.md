@@ -196,10 +196,31 @@ this file records what is actually built and the decisions made along the way.
   named; records 0-15 and the snapshot's metadata files are always added, because changes to `$MFT`, `$Secure`,
   `$UsnJrnl` and the like are not journaled. `readMftRecords()` reads just those records through the MFT pipeline (a
   "wanted" bitmap instead of the in-use one, 64 KB skips), then the extension records their attribute lists name
-  (`missingListedRecords()`), and the second pass joins them. The saved drafts of every re-read record are replaced
+  (`missingListedRecords()`), and the second pass joins them. When lists name records not read yet, the whole wanted set
+  is read again in one new plan: a second plan over the same stretches would give chunks whose rows interleave with
+  the first plan's (found at 10 M files, where `$MFT`'s own extension records sit among records 0-15). `RowIndex` orders
+  chunks by their first row. The saved drafts of every re-read record are replaced
   by the fresh ones (`combineDrafts()`), free space is the saved free runs plus the re-read files' old clusters
   (reconcile takes out their new ones), and the result gets the new cursor. Dirty ranges: old and new clusters of the
   re-read files.
+- The finish is a patch of the saved snapshot (T069, `core::patchSnapshot()` via `mft::finishCatchUp()`): finishing
+  every kept file again took 32 s at 20 M files (reconcile 8 s, drafting kept files with their extents 7.5 s, name
+  interning 5 s, builder sort and grouping 5 s). Now the kept files get only their new parent and flags, worked out by
+  the same rules as the full finish (`resolveParent()`, `placementFlags()` shared with it; residency stays as saved),
+  10 bytes per file; the fresh drafts are finished in full. The core patch keeps the kept files' columns and name ids,
+  copies their extent records in one parallel pass per 64 K-record chunk with file indexes remapped and the new
+  records merged in by LCN, maps their per-file positions, frees the clusters of files that were not kept, keeps the
+  rest of the `$Unattributed` runs (minus whatever the new extents took, VCNs counted along as the full finish does),
+  interns only new names into the saved pool and rebuilds the directory tree. Result: the full finish's snapshot,
+  name ids aside (`compareExact()` compares names as text).
+- The patch refuses (nullopt, saved snapshot untouched) wherever a fresh build could come out differently, and the
+  catch-up then finishes every file as before: fresh extents over a kept file's extents (overlaps are resolved by
+  file index there; only possible when a move was not journaled), a kept file whose flags change (a directory moved
+  into or out of the metadata tree), or a name pool holding more than twice as many names as files (deleted files'
+  names stay in a patched pool; the full finish builds a fresh one).
+- Measured with `catchup-bench` (synthetic 30 TB / 20 M files, 48 M extents, 5,000 re-read records, a third of them
+  deleted): patch 1.9 s on 31 workers, 2.0-2.8 s on 8, against 44-53 s for the full finish, same snapshot. The re-read
+  records' old clusters come from the per-file index instead of a pass over every extent.
 - Last-access times are the one thing a catch-up cannot follow: NTFS does not journal access-time updates, so the
   catch-up keeps the saved ones. `compareExact()` can leave them out (`ExactOptions::accessTimes`), which
   `icd-cli check-catchup` does.
@@ -811,8 +832,13 @@ All analysis checks passed.
   - capped scan (2 workers, mapped storage) 1.37 s and identical.
   On the 1 M-file volume (4 KB clusters): MFT scan 0.54 s, catch-up 0.54 s, capped identical; there the API scan took
   23.5 s against 0.48 s for the MFT scan.
-- Catch-up time grows with the snapshot (the kept files are finished again), so 20 M files extrapolate to about 11 s,
-  just over the target: follow-up T069.
+- Catch-up time grew with the snapshot while every kept file was finished again (20 M files extrapolated to about
+  11 s); since T069 the saved snapshot is patched (see USN catch-up).
+- T069 on a 10 M-file scale volume (30 TB thin VHDX on the E: HDD, 8 KB clusters, filled by `make-scalevol` in 50 min,
+  215 GB on the host; large test volumes stay off the SSD): full MFT scan 50.6 s, `$MFT` 9.55 GB read at 226 MB/s with
+  the disk 100% busy, snapshot 889 MB, save 0.65 s / load 0.79 s; catch-up after 10,000 changes (52,500 journal records,
+  5,031 records read) 3.51 s, patched, and equal to a full rescan (target 10 s); capped mapped scan identical. The
+  finish stage alone at 20 M files: see `catchup-bench` under USN catch-up.
 
 ## Parallel execution
 

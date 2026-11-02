@@ -12,6 +12,8 @@
 #include <limits>
 #include <memory>
 #include <memory_resource>
+#include <optional>
+#include <span>
 #include <unordered_map>
 #include <vector>
 
@@ -130,6 +132,33 @@ namespace icd::services::mft {
 
     // Two draft sets as one in record order (extent file positions renumbered); a record in both takes `fresh`'s.
     [[nodiscard]] DraftSet combineDrafts(DraftSet kept, DraftSet fresh);
+
+    // The finish of a USN catch-up as a patch of the saved snapshot (core::patchSnapshot): the saved files whose
+    // records were not re-read keep their names and extents where they are, `fresh` (the drafts of the re-read records,
+    // sorted) replaces or adds the rest, and only the re-read files' clusters, free space and the `$Unattributed` gaps
+    // are worked out again. The result equals finishing draftsOfSnapshot() of the kept files plus `fresh` with the
+    // saved free runs plus the re-read files' old clusters, name ids aside (the saved pool is kept). Nullopt, with
+    // `saved` untouched, when it cannot be equal (fresh extents over kept ones, a kept file whose derived flags change)
+    // or the pool holds more than twice as many names as there are files: then take the full path. On success `saved`
+    // is spent.
+    [[nodiscard]] std::optional<core::Snapshot> finishCatchUp(core::Snapshot& saved, const DraftSet& fresh,
+                                                              std::span<const std::uint64_t> rereadRecords,
+                                                              core::VolumeGeometry geometry, core::Executor& executor,
+                                                              const core::CancelToken& token = {});
+
+    // The finish of a USN catch-up as a patch of the saved snapshot (core::patchSnapshot): the saved files whose
+    // records were not re-read keep their names, sizes, times and extents where they are and only get their parents and
+    // flags worked out again; `fresh` (the drafts of the re-read records, sorted) replaces or adds the rest; free space
+    // and the
+    // `$Unattributed` gaps change only around the re-read files. The result equals finishing draftsOfSnapshot() of the
+    // kept files plus `fresh` with the saved free runs plus the re-read files' old clusters, name ids aside (the saved
+    // pool is kept). Nullopt, with `saved` untouched, when it cannot be equal (fresh extents over kept ones, a kept
+    // file whose flags change) or the pool holds more than twice as many names as there are files: then take the full
+    // path. On success `saved` is spent.
+    [[nodiscard]] std::optional<core::Snapshot> finishCatchUp(core::Snapshot& saved, const DraftSet& fresh,
+                                                              std::span<const std::uint64_t> rereadRecords,
+                                                              core::Executor& executor,
+                                                              const core::CancelToken& token = {});
 
     // draftFiles() then finishDrafts(): the merge of a full MFT scan.
     [[nodiscard]] MergeOutput mergeRows(const RowIndex& rows, const ExtensionMap& extensions,

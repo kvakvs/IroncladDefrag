@@ -32,6 +32,10 @@ namespace icd::services {
         // the parts of $MFT already mapped).
         constexpr int bootstrapRounds = 8;
 
+        // How often a record re-read adds the extension records its attribute lists name and reads again; one round
+        // finds them all unless the lists change between reads.
+        constexpr int maxListRounds = 3;
+
         // Where $MFT is and which of its records are in use.
         struct MftMap {
             std::vector<ntfs::DataRun> runs; // $MFT's $DATA in VCN order.
@@ -310,14 +314,23 @@ namespace icd::services {
             // Reads the chosen records and then the extension records their lists name.
             MftRecordSet readRecords(const std::vector<std::uint64_t>& records) {
                 map_ = Bootstrap(reader_, mftGeometry_, layout_.mftStartLcn).run();
-                std::vector<std::shared_ptr<const mft::ChunkRows>> all = readWanted(records);
+                std::vector<std::uint64_t> wanted = records;
+                std::vector<std::shared_ptr<const mft::ChunkRows>> all = readWanted(wanted);
                 const auto readList = [this](std::span<const ntfs::DataRun> runs, std::uint64_t size) {
                     return readStream(reader_, runs, mftGeometry_.bytesPerCluster, size);
                 };
-                const auto missing = mft::missingListedRecords(mft::RowIndex(all), readList);
-                if (!missing.empty()) {
-                    auto more = readWanted(missing);
-                    all.insert(all.end(), more.begin(), more.end());
+                // Extension records the lists name are read together with the rest in one new plan: a second plan
+                // reads stretches the first one already read, with other records in use, and rows of the two would
+                // interleave (at 10 M files $MFT's own extension records sit among records 0-15).
+                for (int round = 0; round < maxListRounds; ++round) {
+                    const auto missing = mft::missingListedRecords(mft::RowIndex(all), readList);
+                    if (missing.empty()) {
+                        break;
+                    }
+                    wanted.insert(wanted.end(), missing.begin(), missing.end());
+                    std::ranges::sort(wanted);
+                    wanted.erase(std::ranges::unique(wanted).begin(), wanted.end());
+                    all = readWanted(wanted);
                 }
                 MftRecordSet out;
                 out.rows = std::make_unique<mft::RowIndex>(std::move(all));

@@ -220,3 +220,12 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   (about 4.5 GB estimated at 20 M files), catch-up of 10,000 changes 1.14 s and equal to a rescan, capped mapped scan
   identical; on 1 M files the MFT scan is 49x faster than the API scan. Catch-up at 20 M files extrapolates to about
   11 s: follow-up T069. `quality.bat all` passes. Both scale volumes deleted afterwards. **Phase 4 exit.**
+- T069 Catch-up at 20 M files - the catch-up finish patches the saved snapshot instead of finishing every file
+  again: `core/snapshot/SnapshotPatch.*` (`patchSnapshot()`: kept files by base index with new parents and flags, extent
+  records copied in one parallel pass with remapped file indexes and new records merged by LCN, released clusters
+  freed, `$Unattributed` remainder kept, new names into the saved pool; refuses whatever a fresh build could do
+  differently), `mft::finishCatchUp()` (parents and flags by the full finish's rules), full finish as fallback.
+  Synthetic 20 M files: 32 s -> 2.0-2.8 s on 8 workers, same snapshot (`tools/bench/catchup-bench.cpp`). 10 M-file
+  scale volume on the E: HDD: catch-up 3.51 s and equal to a rescan. Fixed on the way: re-reads naming extension
+  records read the wanted set again in one plan (interleaved chunks at 10 M files), `RowIndex` orders chunks by their
+  first row, MappedStorage tests use their own folders. `CatchUpPatchTest`, `SnapshotPatchTest`. **Phase 4 exit.**

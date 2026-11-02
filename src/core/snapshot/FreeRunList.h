@@ -12,6 +12,9 @@ namespace icd::core {
     // Saves and loads the private parts of snapshot classes (SnapshotIO.cpp).
     struct SnapshotAccess;
 
+    // Builds a snapshot as changes to a saved one (SnapshotPatch.cpp).
+    class SnapshotPatcher;
+
     // Free space of a volume as sorted, disjoint, merged runs. Built from the volume bitmap in chunks
     // (plan.md 6.2 principle 5), never as a full bitmap; the planner takes destinations from it.
     class FreeRunList {
@@ -46,6 +49,7 @@ namespace icd::core {
 
     private:
         friend struct SnapshotAccess; // Saves and loads the private parts (SnapshotIO).
+        friend class SnapshotPatcher; // Patches a snapshot for a USN catch-up (SnapshotPatch).
 
         std::vector<ClusterRun> runs_; // Sorted, disjoint, merged.
         ClusterCount freeClusters_ = 0; // Sum of run lengths.

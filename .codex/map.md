@@ -42,6 +42,7 @@ changes (see `AGENTS.md`).
 | `map-render-spike` | console exe with a wx window | `tools/spike/map-render-spike/main.cpp` | `icd_services`, `wx::wx`, `d2d1` |
 | `gen-scenario` | console exe | `tools/testvol/gen-scenario/*` | `icd_platform`, `advapi32` |
 | `synth-bench` | console exe | `tools/bench/synth-bench.cpp` | `icd_services`, `psapi` |
+| `scan-bench`, `catchup-bench` | console exes | `tools/bench/scan-bench.cpp`, `tools/bench/catchup-bench.cpp` | `icd_services` |
 | `map-bench` | console exe with a wx window | `tools/bench/map-bench.cpp` plus the `src/ui/map` canvas sources, `ui/Accelerators`, `ui/Commands` | `icd_services`, `wx::wx`, `d2d1` |
 | `icd_tests` | console exe (GoogleTest, CTest) | `tests/**` (own `tests/CMakeLists.txt`) | `icd_core`, `icd_platform`, `icd_services`, `GTest::gtest_main` |
 | `check-complexity[-all]`, `check-clang-tidy[-all]`, `check-quality[-all]` | custom | quality gate; clang-tidy only in Ninja builds with a compile database | - |
@@ -90,6 +91,7 @@ changes (see `AGENTS.md`).
 | `src/core/snapshot/ScanReconcile.*` | `reconcileScan()`: newer read wins overlaps, extents trim stale free runs, unclaimed used clusters go to a placeholder file; result tiles the volume. |
 | `src/core/snapshot/SnapshotBuilder.*` | Validating, order-independent builder (sorts, splits long runs, groups by file). |
 | `src/core/snapshot/SnapshotStats.*` | `VolumeStats`, `summarize()`: fragmentation (files and bytes), unmovable clusters, free runs, largest run, free share in 64 MB+ runs; parallel and deterministic. |
+| `src/core/snapshot/SnapshotPatch.*` | `SnapshotPatch`, `patchSnapshot()`: a new snapshot as changes to a saved one (continued files by base index with new parents and flags, new files and extents, placeholder runs kept), nullopt when the result could differ from a fresh build; used by the USN catch-up. |
 | `src/core/snapshot/Stripes.*` | `StripeLayout` (fixed LCN stripes, 16 MB aligned, 512 on large volumes), `Stripes` views over extents and free runs, `clip()`, `mapStripes()` / `reduceStripes()` with stripe-order merge. |
 | `src/core/synth/SynthRandom.h` | Self-contained seeded generator (xoshiro256**, own distributions) so seeds reproduce everywhere. |
 | `src/core/synth/SyntheticVolume.*` | `generateSyntheticVolume()`: seeded snapshots up to 30 TB / 20 M files (class mix, fill, fragmentation, free pattern, $MFT, directory indexes). |
@@ -133,12 +135,12 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Compression.*` | `XpressCodec`: snapshot block compression with the Windows Compression API (XPRESS Huffman). |
 | `src/platform/win/MappedMemory.*` | `MappedFileResource`: large allocations in mapped, delete-on-close temporary files. |
 | `src/platform/win/MftReader.*` | `MftReader` (overlapped unbuffered volume reads: `read()`, `stream()` with N in flight), `BufferPool`/`PooledBuffer` (bounded, page-aligned), `ReadStats` (busy time, device busy % from `IOCTL_DISK_PERFORMANCE`, starvation). |
-| `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, drafts replaced, free space adjusted, dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult`. |
+| `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, the saved snapshot patched or, when the patch refuses, every file finished again; dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult` (with `patched`). |
 | `src/services/snapshot/MappedStorage.*` | `storageFor()` (mapped files on the last memory rung), `MemoryGovernor` (low-memory signal steps the plan down), `defaultCacheDirectory()`. |
 | `src/services/snapshot/SnapshotStore.*` | `SnapshotStore`: per-volume snapshot files under `%LOCALAPPDATA%\IroncladDefrag\snapshots`, atomic save, `peek()`, `load()` with a reason when rejected, `remove()`. |
 | `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
 | `src/services/scan/MftRows.*` | Parser output per chunk (`ChunkRows`: record, name, segment rows, provisional extents), `parseChunk()`, `appendRecord()`. |
-| `src/services/scan/MftMerge.*` | `RowIndex` (rows in record order, lookup by record), `mergeRows()` (files, names, parents, metadata, stream ordinals, flags, extents, reconcile), `ExtensionMap`, `extraStreamBase`. |
+| `src/services/scan/MftMerge.*` | `RowIndex` (rows in record order, lookup by record), `mergeRows()` (files, names, parents, metadata, stream ordinals, flags, extents, reconcile), drafts (`draftFiles()`, `finishDrafts()`, `draftsOfSnapshot()`, `combineDrafts()`), `finishCatchUp()` (catch-up finish as a patch: new parents and flags for kept files, fresh drafts in full), `ExtensionMap`, `extraStreamBase`. |
 | `src/services/scan/MftSecondPass.*` | `joinExtensionRecords()`: attribute lists (resident or read through a `ListReader`) decide which extension records join which base file; `SecondPassStats`. |
 | `src/services/scan/ScanRules.*` | Rules both scanners share: `unattributedName`, pinned root names, attribute bits to file flags, extent flags, residency; `scannerName()`. |
 | `src/services/scan/ScanStats.h` | `ScanStats` (shared by both scanners), `ScannerKind`, `MftReadFigures`. |
@@ -188,6 +190,8 @@ changes (see `AGENTS.md`).
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
+| `tests/services/CatchUpPatchTest.cpp` | Catch-up patch = full finish on random volumes and changes (deletes, moves into free and unclaimed space, renames, new files between records), serial = parallel over four rounds, refusals (fresh over kept extents, kept files turning metadata) leave the saved snapshot untouched. |
+| `tests/core/SnapshotPatchTest.cpp` | `patchSnapshot()` on a hand-made volume: released clusters freed, placeholder remainder, new extent placement; invalid patches refused with the base untouched. |
 | `tests/services/UsnCatchUpTest.cpp` | Rescan rules, `combineDrafts()` order and replacement, snapshot drafts and re-read records finish into the scanned snapshot (ICD-TEST volume). |
 | `tests/core/MapUpdateTest.cpp` | `MapData::update()` over dirty ranges equals a full build; other volume sizes refused. |
 | `tests/services/MemoryModesTest.cpp` | Estimate, ladder and give-way, mapped vectors (move keeps, copy leaves, files deleted), snapshots built into mapped files equal heap ones, storage per plan. |
@@ -243,6 +247,7 @@ changes (see `AGENTS.md`).
 | `tools/bench/synth-bench.cpp` | `synth-bench` target: builds a synthetic snapshot (default 30 TB / 20 M files), its color values and pyramid on 8 and all threads, and times tiles per level, whole-volume legend counts, file searches and a selection change's dirty-tile check; `--dump DIR` writes sample tiles as BMP. |
 | `tools/spike/map-render-spike/main.cpp` | `map-render-spike` target (T026): times 4K tile composition with wx Direct2D, raw Direct2D and GDI during scripted zoom and pan. |
 | `tools/bench/scan-bench.cpp` | `scan-bench` target (T067): plan.md 6.5 scan and catch-up targets on a scale volume: bitmap, MFT scan and busy share, snapshot memory, save/load, a day of changes and the catch-up (= full rescan), capped mapped scan (= uncapped). |
+| `tools/bench/catchup-bench.cpp` | `catchup-bench` target (T069): synthetic 30 TB / 20 M-file saved snapshot, a day of re-read records, catch-up finish as a patch timed against the full finish and compared. |
 | `tools/bench/map-bench.cpp` | `map-bench` target (T033): plan.md 7.5 checks on the 30 TB synthetic map: pyramid on 8 threads, map memory, tile times per level and color mode, and the real `MapCanvas` in a window through scripted zoom and pans (fps, stand-in frames); `--no-window 1` skips the window. |
 | `tools/testvol/make-testvol.ps1` | Test VHDX volumes through diskpart (admin): `-Action Create` (dynamic VHDX, GPT, NTFS with `-ClusterSize`, `-Letter` or a free one from T down), `Mount` (`-ReadOnly` for no-write checks), `Dismount`, `Remove`, `Info`; files in `%ICD_TESTVOL_DIR%` or `%LOCALAPPDATA%\IroncladDefrag\testvol`. |
 | `tools/testvol/gen-scenario/` | `gen-scenario` target: `gen-scenario <scenario> <drive> [--seed N] [--fill SHARE] [--force]`. `FileOps.*` (seeded content, interleaved writers, appends, deletes, compression, sparse, links, junction, EFS, attributes, fragment count via retrieval pointers), `Scenarios.*` (dev, archive, photos, video, mixed, almost-full, vss, special), `main.cpp` (safety checks, budget from the fill level, summary). |

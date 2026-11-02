@@ -32,6 +32,7 @@ namespace icd::services {
         std::uint64_t journalRecords = 0; // Change records read.
         std::uint64_t changedRecords = 0; // Distinct MFT records they named (files and their directories).
         std::uint64_t recordsRead = 0; // Records read again, metadata included.
+        bool patched = false; // The saved snapshot was patched rather than every file finished again (much faster).
     };
 
     // Why a saved snapshot cannot be caught up with the volume as it is now, or nullopt when it can (plan.md 6.2

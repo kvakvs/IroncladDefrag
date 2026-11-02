@@ -4,9 +4,13 @@
 #include "core/snapshot/ExtentIndex.h"
 #include "core/snapshot/ScanReconcile.h"
 #include "core/snapshot/SnapshotBuilder.h"
+#include "core/snapshot/SnapshotPatch.h"
 #include "services/scan/ScanRules.h"
 
 #include <algorithm>
+#include <limits>
+#include <optional>
+#include <span>
 #include <stdexcept>
 #include <string_view>
 #include <utility>
@@ -24,6 +28,10 @@ namespace icd::services::mft {
 
         // Parent walks stop here; deeper chains only occur in damaged data.
         constexpr int maxDepth = 64;
+
+        // Names a catch-up may leave in the pool beyond twice the file count (deleted files' names stay in a patched
+        // pool); past that the full finish builds a fresh pool.
+        constexpr std::size_t namePoolSlack = 4096;
 
         // Where a draft's records are and how many real names it has, while drafting.
         struct DraftSource {
@@ -309,6 +317,50 @@ namespace icd::services::mft {
             std::vector<SegmentClass> segments_; // Per global segment.
         };
 
+        // What parent resolution looks files up in.
+        struct ParentLookup {
+            const std::vector<FileIndex>& fileOfRecord; // Record number -> file.
+            FileIndex root = noFile; // The root directory.
+        };
+
+        // The parent of file f whose chosen name lies in the directory `reference`: by reference with matching sequence
+        // number; the root has none, and an unknown or stale parent means the root (as on the API path). Shared by the
+        // full finish and the catch-up patch so both resolve parents alike.
+        template <typename ReferenceOf>
+        FileIndex resolveParent(FileIndex f, const ParentLookup& lookup, ReferenceOf referenceOf,
+                                std::uint64_t reference) {
+            if (f == lookup.root) {
+                return noFile;
+            }
+            const std::uint64_t record = core::ntfs::recordOf(reference);
+            const FileIndex parent = record < lookup.fileOfRecord.size() ? lookup.fileOfRecord[record] : noFile;
+            const bool current = parent != noFile && referenceOf(parent) == reference;
+            return current && parent != f ? parent : lookup.root;
+        }
+
+        // Metadata (system records other than the root, and everything below them) and pinned root files: the flags
+        // that depend on where a file sits. Shared by the full finish and the catch-up patch.
+        template <typename ParentOf, typename ReferenceOf>
+        std::uint16_t placementFlags(FileIndex f, std::string_view name, FileIndex root, ParentOf parentOf,
+                                     ReferenceOf referenceOf) {
+            std::uint16_t flags = 0;
+            FileIndex at = f;
+            for (int depth = 0; depth < maxDepth && at != noFile && at != root; ++depth) {
+                if (core::ntfs::recordOf(referenceOf(at)) < systemRecordCount) {
+                    flags = core::FileMetadata | core::FileUnmovable;
+                    break;
+                }
+                at = parentOf(at);
+            }
+            const bool pinned = parentOf(f) == root && f != root && isPinnedRootName(name);
+            return static_cast<std::uint16_t>(flags | (pinned ? core::FileUnmovable : 0));
+        }
+
+        // The `$Unattributed` placeholder under the root.
+        core::FileEntry placeholderEntry(FileIndex root) {
+            return {unattributedName, root, 0, core::FileMetadata | core::FileUnmovable, {}, 0};
+        }
+
         // Drafts to a snapshot.
         class Finisher {
         public:
@@ -353,30 +405,18 @@ namespace icd::services::mft {
             // The parent's index: by reference with matching sequence number; the root has none, and an unknown or
             // stale parent means the root (as on the API path).
             [[nodiscard]] FileIndex parentOf(FileIndex f) const {
-                if (f == rootFile_) {
-                    return noFile;
-                }
-                const std::uint64_t reference = drafts_.files[f].parentReference;
-                const std::uint64_t record = core::ntfs::recordOf(reference);
-                const FileIndex parent = record < fileOfRecord_.size() ? fileOfRecord_[record] : noFile;
-                const bool current = parent != noFile && drafts_.files[parent].reference == reference;
-                return current && parent != f ? parent : rootFile_;
+                return resolveParent(
+                    f, {fileOfRecord_, rootFile_}, [this](FileIndex p) { return drafts_.files[p].reference; },
+                    drafts_.files[f].parentReference);
             }
 
             // Metadata (system records other than the root, and everything below them), pinned root files and
             // residency (which needs the main stream to have been seen).
             void markSystem(FileIndex f) {
                 core::FileEntry& e = entries_[f];
-                FileIndex at = f;
-                for (int depth = 0; depth < maxDepth && at != noFile && at != rootFile_; ++depth) {
-                    if (core::ntfs::recordOf(entries_[at].fileReference) < systemRecordCount) {
-                        e.flags |= core::FileMetadata | core::FileUnmovable;
-                        break;
-                    }
-                    at = entries_[at].parent;
-                }
-                e.flags |=
-                    e.parent == rootFile_ && f != rootFile_ && isPinnedRootName(e.name) ? core::FileUnmovable : 0;
+                e.flags |= placementFlags(
+                    f, e.name, rootFile_, [this](FileIndex at) { return entries_[at].parent; },
+                    [this](FileIndex at) { return entries_[at].fileReference; });
                 const FileDraft& d = drafts_.files[f];
                 e.flags |= d.mainSeen && isResident(e.flags, d.clusters) ? core::FileResident : 0;
             }
@@ -400,7 +440,7 @@ namespace icd::services::mft {
                     out.stats.directories += (e.flags & core::FileDirectory) != 0 ? 1 : 0;
                     out.stats.streams += (e.flags & core::FileAlternateStreams) != 0 ? 1 : 0;
                 }
-                builder.addFile({unattributedName, rootFile_, 0, core::FileMetadata | core::FileUnmovable, {}, 0});
+                builder.addFile(placeholderEntry(rootFile_));
                 builder.addExtents(std::move(drafts_.extents));
                 for (const core::ClusterRun& run : freeRuns) {
                     builder.addFreeRun(run);
@@ -423,7 +463,11 @@ namespace icd::services::mft {
     } // namespace
 
     RowIndex::RowIndex(std::vector<std::shared_ptr<const ChunkRows>> chunks) : chunks_(std::move(chunks)) {
-        std::ranges::sort(chunks_, {}, [](const auto& c) { return c->firstRecord; });
+        // By the first row, not the first record read: a catch-up's second round (extension records) can read the
+        // stretch of a first-round chunk again with other records in use.
+        std::ranges::stable_sort(chunks_, {}, [](const auto& c) {
+            return c->records.empty() ? c->firstRecord : c->records.front().record();
+        });
         segmentBase_.push_back(0);
         for (std::size_t c = 0; c < chunks_.size(); ++c) {
             rowBase_.push_back(refs_.size());
@@ -510,6 +554,184 @@ namespace icd::services::mft {
         // Record number of a draft.
         std::uint64_t recordOfDraft(const FileDraft& d) { return core::ntfs::recordOf(d.reference); }
 
+        // The finish of a catch-up as a patch of the saved snapshot. The saved files that were not re-read are only
+        // given their new parent and flags (computed by the same rules as the full finish); everything else of theirs
+        // stays in the snapshot. The fresh drafts are finished in full.
+        class CatchUpFinisher {
+        public:
+            CatchUpFinisher(const core::Snapshot& saved, const DraftSet& fresh, std::span<const std::uint64_t> reread,
+                            core::Executor& executor, const core::CancelToken& token) :
+                saved_(saved), fresh_(fresh), reread_(reread), executor_(executor), token_(token),
+                freshTo_(fresh.files.size(), noFile) {}
+
+            // All steps; nullopt when the patch cannot give the full finish's result.
+            std::optional<core::Snapshot> run(core::Snapshot& saved) {
+                if (!walk()) {
+                    return std::nullopt;
+                }
+                indexRecords();
+                const std::size_t n = baseOf_.size();
+                parents_.resize(n + 1);
+                flags_.resize(n + 1);
+                forEach(executor_, token_, n, [this](FileIndex f) { parents_[f] = parentOf(f); });
+                forEach(executor_, token_, n, [this](FileIndex f) { flags_[f] = flagsOf(f); });
+                return patch(saved);
+            }
+
+        private:
+            // Merges the saved files (minus the re-read records) with the fresh drafts by record number; false when
+            // either is out of record order.
+            bool walk() {
+                const std::size_t savedFiles = saved_.files.size() - (hasPlaceholder(saved_) ? 1 : 0);
+                baseOf_.reserve(savedFiles + fresh_.files.size() + 1);
+                for (FileIndex f = 0; f < savedFiles; ++f) {
+                    if (!offer(f)) {
+                        return false;
+                    }
+                }
+                return takeFresh(std::numeric_limits<std::uint64_t>::max());
+            }
+
+            // Saved file f: fresh drafts before it go first; a re-read record is left to its fresh draft.
+            bool offer(FileIndex f) {
+                const std::uint64_t record = core::ntfs::recordOf(saved_.files.fileReference(f));
+                if (!takeFresh(record)) {
+                    return false;
+                }
+                while (r_ < reread_.size() && reread_[r_] < record) {
+                    ++r_;
+                }
+                if (r_ < reread_.size() && reread_[r_] == record) {
+                    return true;
+                }
+                baseOf_.push_back(f);
+                return inOrder(record);
+            }
+
+            // Appends the fresh drafts with a record below `record`.
+            bool takeFresh(std::uint64_t record) {
+                for (; n_ < fresh_.files.size() && recordOfDraft(fresh_.files[n_]) < record; ++n_) {
+                    if (!inOrder(recordOfDraft(fresh_.files[n_]))) {
+                        return false;
+                    }
+                    freshTo_[n_] = static_cast<FileIndex>(baseOf_.size());
+                    baseOf_.push_back(noFile);
+                }
+                return true;
+            }
+
+            // Whether records arrive strictly ascending (both lists must be in record order).
+            bool inOrder(std::uint64_t record) {
+                const bool ascending = record > lastRecord_ || first_;
+                lastRecord_ = std::max(lastRecord_, record);
+                first_ = false;
+                return ascending;
+            }
+
+            // A file's reference.
+            [[nodiscard]] std::uint64_t referenceOf(FileIndex f) const { return references_[f]; }
+
+            // References per file, record number -> file, and the root.
+            void indexRecords() {
+                const std::size_t n = baseOf_.size();
+                references_.resize(n);
+                forEach(executor_, token_, n, [this](FileIndex f) {
+                    references_[f] = baseOf_[f] != noFile ? saved_.files.fileReference(baseOf_[f]) : 0;
+                });
+                for (std::size_t k = 0; k < freshTo_.size(); ++k) {
+                    references_[freshTo_[k]] = fresh_.files[k].reference;
+                    freshOf_.emplace(freshTo_[k], k);
+                }
+                fileOfRecord_.assign(n == 0 ? 0 : core::ntfs::recordOf(references_.back()) + 1, noFile);
+                forEach(executor_, token_, n,
+                        [this](FileIndex f) { fileOfRecord_[core::ntfs::recordOf(references_[f])] = f; });
+                rootFile_ = rootRecordNumber < fileOfRecord_.size() ? fileOfRecord_[rootRecordNumber] : noFile;
+            }
+
+            // The draft a fresh file came from.
+            [[nodiscard]] const FileDraft& draftAt(FileIndex f) const { return fresh_.files[freshOf_.at(f)]; }
+
+            // The directory reference a file's draft would carry: a kept file's saved parent (itself for a saved
+            // root), so it resolves exactly as draftsOfSnapshot() + finishDrafts() would.
+            [[nodiscard]] std::uint64_t parentReferenceOf(FileIndex f) const {
+                const FileIndex b = baseOf_[f];
+                if (b == noFile) {
+                    return draftAt(f).parentReference;
+                }
+                const FileIndex p = saved_.files.parent(b);
+                return saved_.files.fileReference(p == noFile ? b : p);
+            }
+
+            // A file's new parent.
+            [[nodiscard]] FileIndex parentOf(FileIndex f) const {
+                return resolveParent(
+                    f, {fileOfRecord_, rootFile_}, [this](FileIndex p) { return referenceOf(p); },
+                    parentReferenceOf(f));
+            }
+
+            // A file's final flags: its own (residency as saved for kept files) plus where it sits.
+            [[nodiscard]] std::uint16_t flagsOf(FileIndex f) const {
+                const FileIndex b = baseOf_[f];
+                const std::string_view name = b != noFile ? saved_.names.name(saved_.files.name(b)) : draftAt(f).name;
+                const std::uint16_t placed = placementFlags(
+                    f, name, rootFile_, [this](FileIndex at) { return parents_[at]; },
+                    [this](FileIndex at) { return referenceOf(at); });
+                if (b != noFile) {
+                    constexpr std::uint16_t derived = core::FileMetadata | core::FileUnmovable;
+                    return static_cast<std::uint16_t>((saved_.files.flags(b) & ~derived) | placed);
+                }
+                const FileDraft& d = draftAt(f);
+                const auto flags = static_cast<std::uint16_t>(d.flags | placed);
+                return static_cast<std::uint16_t>(
+                    flags | (d.mainSeen && isResident(flags, d.clusters) ? core::FileResident : 0));
+            }
+
+            // The fresh files' entries and extents, the placeholder, and the patch.
+            std::optional<core::Snapshot> patch(core::Snapshot& saved) {
+                core::SnapshotPatch patch;
+                for (std::size_t k = 0; k < freshTo_.size(); ++k) {
+                    const FileDraft& d = fresh_.files[k];
+                    patch.newFiles.push_back({d.name, noFile, d.sizeBytes, 0, d.times, d.reference});
+                }
+                for (core::ExtentEntry e : fresh_.extents) {
+                    e.file = freshTo_[e.file];
+                    e.flags = static_cast<std::uint16_t>(e.flags | extentFlagsFor(flags_[e.file]));
+                    patch.extents.push_back(e);
+                }
+                const auto placeholder = static_cast<FileIndex>(baseOf_.size());
+                const core::FileEntry entry = placeholderEntry(rootFile_);
+                patch.newFiles.push_back(entry);
+                baseOf_.push_back(noFile);
+                parents_[placeholder] = entry.parent;
+                flags_[placeholder] = entry.flags;
+                patch.baseOf = baseOf_;
+                patch.parents = parents_;
+                patch.flags = flags_;
+                patch.baseUnattributed =
+                    hasPlaceholder(saved_) ? static_cast<FileIndex>(saved_.files.size() - 1) : noFile;
+                patch.unattributed = placeholder;
+                return core::patchSnapshot(saved, std::move(patch), executor_, token_);
+            }
+
+            const core::Snapshot& saved_; // The saved snapshot (read only until the patch).
+            const DraftSet& fresh_; // Drafts of the re-read records.
+            std::span<const std::uint64_t> reread_; // Re-read records, sorted.
+            core::Executor& executor_; // Parallel loops.
+            const core::CancelToken& token_; // Checked by the loops.
+            std::vector<FileIndex> freshTo_; // Fresh draft -> file.
+            std::unordered_map<FileIndex, std::size_t> freshOf_; // File -> fresh draft.
+            std::vector<FileIndex> baseOf_; // Per file: the saved file it continues, or noFile.
+            std::vector<std::uint64_t> references_; // Per file.
+            std::vector<FileIndex> fileOfRecord_; // Record number -> file.
+            std::vector<FileIndex> parents_; // Per file, final.
+            std::vector<std::uint16_t> flags_; // Per file, final.
+            FileIndex rootFile_ = noFile; // The root directory.
+            std::size_t n_ = 0; // Next fresh draft during the walk.
+            std::size_t r_ = 0; // Next re-read record during the walk.
+            std::uint64_t lastRecord_ = 0; // Last record taken during the walk.
+            bool first_ = true; // Nothing taken yet.
+        };
+
     } // namespace
 
     DraftSet draftsOfSnapshot(const core::Snapshot& snapshot, const std::function<bool(std::uint64_t record)>& keep) {
@@ -553,6 +775,16 @@ namespace icd::services::mft {
         appendRemapped(kept.extents, keptTo, out.extents);
         appendRemapped(fresh.extents, freshTo, out.extents);
         return out;
+    }
+
+    std::optional<core::Snapshot> finishCatchUp(core::Snapshot& saved, const DraftSet& fresh,
+                                                std::span<const std::uint64_t> rereadRecords, core::Executor& executor,
+                                                const core::CancelToken& token) {
+        if (saved.files.size() == 0 || saved.names.size() > 2 * saved.files.size() + namePoolSlack ||
+            !std::ranges::is_sorted(rereadRecords)) {
+            return std::nullopt;
+        }
+        return CatchUpFinisher(saved, fresh, rereadRecords, executor, token).run(saved);
     }
 
     DraftSet draftFiles(const RowIndex& rows, const ExtensionMap& extensions, core::VolumeGeometry geometry,

@@ -194,8 +194,9 @@ namespace {
         const auto caught =
             services::catchUpSnapshot(volume, v.volumeName, std::move(saved), *v.layout.ntfs, geometry, pool, {});
         line("USN catch-up",
-             std::format("{:.2f} s, {} journal records, {} records read", since(start),
-                         core::formatCount(caught.journalRecords), core::formatCount(caught.recordsRead)),
+             std::format("{:.2f} s, {} journal records, {} records read, {}", since(start),
+                         core::formatCount(caught.journalRecords), core::formatCount(caught.recordsRead),
+                         caught.patched ? "patched" : "full finish"),
              "<= 10 s");
         const core::Snapshot rescan = fullScan(volume, v, pool, {});
         const bool caughtUp = caught.outcome != services::CatchUpOutcome::RescanNeeded &&

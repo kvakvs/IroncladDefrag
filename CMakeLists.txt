@@ -121,6 +121,8 @@ add_library(icd_core STATIC
     src/core/snapshot/SnapshotBuilder.h
     src/core/snapshot/SnapshotIO.cpp
     src/core/snapshot/SnapshotIO.h
+    src/core/snapshot/SnapshotPatch.cpp
+    src/core/snapshot/SnapshotPatch.h
     src/core/snapshot/Stripes.cpp
     src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
@@ -322,6 +324,11 @@ icd_target_defaults(synth-bench)
 add_executable(scan-bench tools/bench/scan-bench.cpp)
 target_link_libraries(scan-bench PRIVATE icd_services)
 icd_target_defaults(scan-bench)
+
+# --- catchup-bench: the catch-up finish at 20 M files on a synthetic snapshot, patch against full finish (T069) ------
+add_executable(catchup-bench tools/bench/catchup-bench.cpp)
+target_link_libraries(catchup-bench PRIVATE icd_services)
+icd_target_defaults(catchup-bench)
 
 # --- map-bench: drive map performance targets (plan.md 7.5), the Phase 2 exit check (T033) ----------
 # Compiles the map control's sources directly: the bench drives the real MapCanvas in a window.

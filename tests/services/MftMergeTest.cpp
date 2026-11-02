@@ -191,6 +191,34 @@ namespace icd::services::mft { namespace {
         EXPECT_EQ(used + s.freeSpace.freeClusters(), 10000U);
     }
 
+    // Two chunks over the same stretch of the MFT with different records in use (and rows that do not interleave) are
+    // ordered by their rows, not by the stretch's first record they share.
+    TEST(MftMerge, ChunksOverTheSameStretchOrderByTheirRows) {
+        const auto records = volumeRecords();
+        const std::uint64_t count = records.back().first + 1;
+        std::vector<std::byte> bytes(count * 1024);
+        for (const auto& [n, raw] : records) {
+            std::ranges::copy(raw, bytes.begin() + static_cast<std::ptrdiff_t>(n * 1024));
+        }
+        const auto chunk = [&](std::uint64_t from, std::uint64_t to) {
+            std::vector<std::byte> inUse((count + 7) / 8, std::byte{0});
+            for (std::uint64_t r = from; r < to; ++r) {
+                inUse[r / 8] |= static_cast<std::byte>(1U << (r % 8));
+            }
+            std::vector<std::byte> copy = bytes; // Fixups are applied in place.
+            auto rows = std::make_shared<ChunkRows>();
+            parseChunk(copy, {0, static_cast<std::uint32_t>(count), 1024}, inUse, *rows);
+            return std::shared_ptr<const ChunkRows>(std::move(rows));
+        };
+        const std::uint64_t half = count / 2;
+        const RowIndex rows({chunk(half, count), chunk(0, half)}); // The later rows first: same stretch start.
+        const RowIndex whole({chunk(0, count)});
+        ASSERT_EQ(rows.size(), whole.size());
+        for (std::size_t i = 0; i < rows.size(); ++i) {
+            EXPECT_EQ(rows.row(i).record(), whole.row(i).record());
+        }
+    }
+
     TEST(MftMerge, SameSnapshotForAnyExecutorAndChunking) {
         core::InlineExecutor inline_;
         const core::Snapshot reference = merge(28, 0, inline_).snapshot;

@@ -15,9 +15,10 @@
 
 namespace icd::services { namespace {
 
-    // A fresh directory for mapped files.
+    // A fresh directory for mapped files, one per test: ctest runs tests in parallel processes.
     std::filesystem::path scratch() {
-        const auto dir = std::filesystem::temp_directory_path() / "icd-mapped-test";
+        const std::string test = ::testing::UnitTest::GetInstance()->current_test_info()->name();
+        const auto dir = std::filesystem::temp_directory_path() / ("icd-mapped-test-" + test);
         std::filesystem::remove_all(dir);
         return dir;
     }

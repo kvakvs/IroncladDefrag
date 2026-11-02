@@ -8,7 +8,7 @@
 
 #include <algorithm>
 #include <format>
-#include <unordered_set>
+#include <ranges>
 
 namespace icd::services {
 
@@ -78,21 +78,19 @@ namespace icd::services {
                 volumeName_(volumeName), saved_(std::move(saved)), ntfs_(ntfs), geometry_(geometry),
                 executor_(executor), token_(token) {}
 
-            // Re-reads the records and finishes the snapshot.
+            // Re-reads the records and finishes the snapshot: as a patch of the saved one when that gives the full
+            // finish's result, else the full finish.
             CatchUpResult run(const JournalReading& journal, core::UsnCursor cursor) {
                 const std::vector<std::uint64_t> records = recordsToRead(journal.records, saved_);
-                const std::unordered_set<std::uint64_t> reread(records.begin(), records.end());
                 MftRecordSet fresh = readMftRecords(volumeName_, geometry_, ntfs_, records, executor_, token_);
-                mft::DraftSet kept =
-                    mft::draftsOfSnapshot(saved_, [&](std::uint64_t record) { return !reread.contains(record); });
                 mft::DraftSet drafts = mft::draftFiles(*fresh.rows, fresh.extensions, geometry_, executor_, token_);
                 CatchUpResult out;
-                out.dirty = dirtyRanges(reread, drafts);
-                std::vector<core::ClusterRun> free = freeAfter(reread);
-                mft::MergeOutput finished = mft::finishDrafts(mft::combineDrafts(std::move(kept), std::move(drafts)),
-                                                              geometry_, std::move(free), executor_, token_);
+                const std::vector<core::ClusterRun> old = oldRuns(records);
+                out.dirty = dirtyRanges(old, drafts);
+                auto patched = mft::finishCatchUp(saved_, drafts, records, executor_, token_);
+                out.patched = patched.has_value();
+                out.snapshot = patched ? std::move(*patched) : fullFinish(records, old, std::move(drafts));
                 out.outcome = CatchUpOutcome::CaughtUp;
-                out.snapshot = std::move(finished.snapshot);
                 out.snapshot.usn = cursor;
                 out.journalRecords = journal.journalRecords;
                 out.changedRecords = journal.records.size();
@@ -101,30 +99,49 @@ namespace icd::services {
             }
 
         private:
+            // The kept files drafted with their extents, the fresh drafts, finished like a full scan.
+            core::Snapshot fullFinish(const std::vector<std::uint64_t>& records,
+                                      const std::vector<core::ClusterRun>& old, mft::DraftSet drafts) const {
+                mft::DraftSet kept = mft::draftsOfSnapshot(
+                    saved_, [&](std::uint64_t record) { return !std::ranges::binary_search(records, record); });
+                std::vector<core::ClusterRun> free(saved_.freeSpace.runs().begin(), saved_.freeSpace.runs().end());
+                free.insert(free.end(), old.begin(), old.end());
+                return mft::finishDrafts(mft::combineDrafts(std::move(kept), std::move(drafts)), geometry_,
+                                         merged(std::move(free), geometry_.totalClusters), executor_, token_)
+                    .snapshot;
+            }
+
+            // The saved file of a record, or noFile. Saved files are in record order with the placeholder (no
+            // reference) last.
+            [[nodiscard]] core::FileIndex savedFileOf(std::uint64_t record) const {
+                const auto& files = saved_.files;
+                const auto count = static_cast<core::FileIndex>(files.size());
+                const auto recordAt = [&](core::FileIndex f) { return core::ntfs::recordOf(files.fileReference(f)); };
+                const auto last = count > 0 && files.fileReference(count - 1) == 0 ? count - 1 : count;
+                const auto searched = std::views::iota(core::FileIndex{0}, last);
+                const auto it =
+                    std::ranges::partition_point(searched, [&](core::FileIndex f) { return recordAt(f) < record; });
+                return it != searched.end() && recordAt(*it) == record ? *it : core::noFile;
+            }
+
             // Clusters of the saved files whose records are read again.
-            std::vector<core::ClusterRun> oldRuns(const std::unordered_set<std::uint64_t>& reread) const {
+            [[nodiscard]] std::vector<core::ClusterRun> oldRuns(const std::vector<std::uint64_t>& records) const {
                 std::vector<core::ClusterRun> runs;
-                for (const core::ExtentRecord& r : saved_.extents.records()) {
-                    const std::uint64_t reference = saved_.files.fileReference(r.file());
-                    if (reference != 0 && reread.contains(core::ntfs::recordOf(reference))) {
-                        runs.push_back(r.run());
+                for (const std::uint64_t record : records) {
+                    const core::FileIndex f = savedFileOf(record);
+                    if (f == core::noFile) {
+                        continue;
+                    }
+                    for (const std::uint32_t position : saved_.extents.extentsOf(f)) {
+                        runs.push_back(saved_.extents.records()[position].run());
                     }
                 }
                 return runs;
             }
 
-            // The saved free space plus what the re-read files held before; finishing takes out what they hold now.
-            std::vector<core::ClusterRun> freeAfter(const std::unordered_set<std::uint64_t>& reread) const {
-                std::vector<core::ClusterRun> free(saved_.freeSpace.runs().begin(), saved_.freeSpace.runs().end());
-                const auto old = oldRuns(reread);
-                free.insert(free.end(), old.begin(), old.end());
-                return merged(std::move(free), geometry_.totalClusters);
-            }
-
             // Old and new clusters of the re-read files: where the map may have changed.
-            std::vector<core::ClusterRun> dirtyRanges(const std::unordered_set<std::uint64_t>& reread,
-                                                      const mft::DraftSet& drafts) const {
-                std::vector<core::ClusterRun> runs = oldRuns(reread);
+            [[nodiscard]] std::vector<core::ClusterRun> dirtyRanges(std::vector<core::ClusterRun> runs,
+                                                                    const mft::DraftSet& drafts) const {
                 for (const core::ExtentEntry& e : drafts.extents) {
                     runs.push_back(e.run);
                 }

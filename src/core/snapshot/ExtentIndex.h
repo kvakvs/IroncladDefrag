@@ -13,6 +13,9 @@ namespace icd::core {
     // Saves and loads the private parts of snapshot classes (SnapshotIO.cpp).
     struct SnapshotAccess;
 
+    // Builds a snapshot as changes to a saved one (SnapshotPatch.cpp).
+    class SnapshotPatcher;
+
     // Facts about an extent that limit how it may be moved.
     enum ExtentFlag : std::uint8_t {
         ExtentUnmovable = 1U << 0U, // Metadata or locked data that must stay in place.
@@ -113,6 +116,7 @@ namespace icd::core {
     private:
         friend class SnapshotBuilder; // The only writer.
         friend struct SnapshotAccess; // Saves and loads the index (SnapshotIO).
+        friend class SnapshotPatcher; // Patches a snapshot for a USN catch-up (SnapshotPatch).
 
         LargeVector<ExtentRecord> records_; // Sorted by LCN.
         LargeVector<std::uint32_t> fileStart_; // Per file: start in byFile_; one extra end marker.
