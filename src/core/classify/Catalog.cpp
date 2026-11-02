@@ -204,6 +204,21 @@ namespace icd::core::classify {
         return it == classes.end() ? std::nullopt : std::optional(static_cast<ClassId>(it - classes.begin()));
     }
 
+    std::optional<std::uint16_t> fileFlagNamed(std::string_view name) {
+        const auto it = std::ranges::find(flagNames, name, &std::pair<std::string_view, std::uint16_t>::first);
+        return it == flagNames.end() ? std::nullopt : std::optional(it->second);
+    }
+
+    std::vector<std::string> fileFlagNames(std::uint16_t flags) {
+        std::vector<std::string> out;
+        for (const auto& [name, bit] : flagNames) {
+            if ((flags & bit) != 0) {
+                out.emplace_back(name);
+            }
+        }
+        return out;
+    }
+
     Catalog parseCatalog(std::string_view json) {
         try {
             Catalog c = catalogOf(parseJson(json));

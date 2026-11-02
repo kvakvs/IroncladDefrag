@@ -46,6 +46,7 @@ add_executable(icd_tests
     core/TileRasterizerTest.cpp
     core/ViewportTest.cpp
     core/WorldTest.cpp
+    core/ZoneScriptTest.cpp
     platform/ChildProcessTest.cpp
     platform/LastAccessSettingTest.cpp
     platform/LogSinksTest.cpp

@@ -259,3 +259,4 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   keyed by volume GUID) and `SettingsStore.*` (`%LOCALAPPDATA%\IroncladDefrag\settings.json`, atomic save, damaged
   file kept as `.bad`), owned by `AppServices`; stable `StrategyPreset::id` and `presetIndex()`; `StrategyPage::select()`;
   `WorkflowBinding` restores the choice on drive selection and saves it on each change. `SettingsTest`.
+- T080 Zone script model - `core/strategy/ZoneScript.*`: zones (selector over classes, globs, extensions, size, age, flags, churn; anchor; order with per-level overrides; action; `fragmentOk` or whole file; gap as the largest of free/volume share, size and class multiple), `Effort`, strict `parseZoneScript()` reporting every issue per zone, `validateScript()`, `zoneScriptJson()` round trip; `parseSizeSpec()` / `sizeSpecText()` in `core/format/ByteSize`, `fileFlagNamed()` / `fileFlagNames()` in the catalog. `ZoneScriptTest`.

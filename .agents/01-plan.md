@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T080 - Zone script model
-
-- Depends: T070
-- Owns: `src/core/strategy/ZoneScript.*`
-- Do: zone model from §8.1 (selector, anchor, order, order_by_level, action, fragment_ok, gap_after),
-  JSON read/write, validation with clear errors.
-- Done when: round-trip and validation tests.
-
 ### T081 - Target layout resolver
 
 - Depends: T080, T021

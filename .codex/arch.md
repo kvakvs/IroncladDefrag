@@ -933,6 +933,23 @@ All analysis checks passed.
   videos stay under 100 MB and are rightly unknown; 4 GB volumes have video. Tile colors equal legend colors in the
   class mode (`ColorModesTest`).
 
+## Strategies (zone scripts)
+
+- `core::strategy::ZoneScript` (T080, plan.md 8.1) is a strategy as data: zones in disk order, each with a selector
+  (catalog classes, path globs, extensions, size and age ranges, file flags, churn; no condition = every file; files go
+  to the first zone that matches), an anchor (front only for the first placed zone; back zones last, and only
+  pack-to-back zones are anchored at the back), an order with optional per-level overrides (video: none at Fast and
+  Moderate, age at Maximum), an action, `fragmentOk` (64 MB by default, "whole" = one fragment) and a gap (the largest
+  of a share of free space, a share of the volume, a size and a multiple of some classes' bytes; the churn gap of 8.3 is
+  `max(5% of volume, 2 x build + temp)`). Keep-in-place and defragment-only zones have no place on the volume.
+- Every order has one direction (size: smallest first; age, modified, created, accessed: newest first, oldest at the
+  end), so "position increases" means the same in every zone, front or back.
+- `parseZoneScript()` is strict like the catalog reader (unknown keys, values, classes, flags, bad sizes and globs) and
+  reports every issue at once, each with its zone, through `ZoneScriptError`; `validateScript()` gives the same issues
+  for an edited script (Strategy tab). `zoneScriptJson()` leaves defaults out and reads back to an equal script; sizes
+  are written as "64 MB" (`core/format/ByteSize`: `parseSizeSpec()`, `sizeSpecText()`).
+- `core::strategy::Effort` is core's copy of the effort level, so the planner needs no services types.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

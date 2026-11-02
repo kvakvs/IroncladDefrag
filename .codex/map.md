@@ -54,11 +54,12 @@ changes (see `AGENTS.md`).
 | File | Purpose |
 | --- | --- |
 | `src/core/Version.h.in` | Version macros template; CMake writes `build*/generated/core/Version.h`. |
-| `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes. |
+| `src/core/format/ByteSize.*` | `formatBytes()`: Explorer-style byte sizes; `parseSizeSpec()` / `sizeSpecText()` for data files ("64 MB"). |
 | `src/core/format/Count.*` | `formatCount()`: locale-neutral thousands separators. |
 | `src/core/classify/AccessTimeHeuristic.*` | `gatherAccessEvidence()` (files read more than an hour after creation and last change, recent ones), `assessAccessTimes()` (setting plus evidence: reliable, unreliable, unknown with a reason), `verdictName()`. |
-| `src/core/classify/Catalog.*` | `Catalog`, `ClassInfo` (id, name, color, description), `parseCatalog()` (strict: unknown keys, classes, flags, bad sizes and colors refused), `builtinCatalog()` (data/classes.json embedded at build time), `builtinCatalogJson()` (generated). |
+| `src/core/classify/Catalog.*` | `Catalog`, `ClassInfo` (id, name, color, description), `parseCatalog()` (strict: unknown keys, classes, flags, bad sizes and colors refused), `builtinCatalog()` (data/classes.json embedded at build time), `builtinCatalogJson()` (generated), `fileFlagNamed()` / `fileFlagNames()`. |
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
+| `src/core/strategy/ZoneScript.*` | Zone scripts (plan.md 8.1): `ZoneScript`, `Zone` (selector, anchor, order and per-level overrides, action, `fragmentOk`, `GapSpec`), `Effort`, `validateScript()` (issues with their zone), `parseZoneScript()` (strict, `ZoneScriptError` with every issue), `zoneScriptJson()` (round trip, defaults left out), enum keys. |
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
 | `src/core/format/Json.*` | `JsonWriter` (streaming, indented, RFC 8259 escaping), `jsonQuote()`. |
 | `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
@@ -234,6 +235,7 @@ changes (see `AGENTS.md`).
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/CatalogTest.cpp` | One test per built-in class with typical and edge-case paths; every class reachable and colored; bad catalogs refused. |
+| `tests/core/ZoneScriptTest.cpp` | Zone script round trip with every field, defaults, per-level order, size specs, read errors per zone and key, every validation rule. |
 | `tests/core/JsonReaderTest.cpp` | Values, escapes and surrogates, writer round trip, malformed input, error positions, kind checks. |
 | `tests/core/RuleEngineTest.cpp` | Globs (anchored, `**`, `?`, case), rule order, size/age/flag/churn conditions, overrides (deepest, directories untouched), bad rule sets, snapshot classes = path classes on a dev tree and a synthetic volume, any executor. |
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |

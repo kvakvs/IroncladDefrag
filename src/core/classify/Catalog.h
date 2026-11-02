@@ -34,6 +34,12 @@ namespace icd::core::classify {
         [[nodiscard]] std::optional<ClassId> find(std::string_view id) const;
     };
 
+    // The FileFlag bit of a flag name as catalog rules and zone scripts write it ("directory"), or nullopt.
+    [[nodiscard]] std::optional<std::uint16_t> fileFlagNamed(std::string_view name);
+
+    // The names of the flag bits set, in a fixed order, for writing data files.
+    [[nodiscard]] std::vector<std::string> fileFlagNames(std::uint16_t flags);
+
     // Reads a catalog from JSON (data/classes.json is the format's reference). Throws CatalogError.
     [[nodiscard]] Catalog parseCatalog(std::string_view json);
 

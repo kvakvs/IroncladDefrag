@@ -144,6 +144,8 @@ add_library(icd_core STATIC
     src/core/snapshot/Stripes.cpp
     src/core/snapshot/Stripes.h
     src/core/snapshot/Types.h
+    src/core/strategy/ZoneScript.cpp
+    src/core/strategy/ZoneScript.h
     src/core/synth/SynthRandom.h
     src/core/util/Crc32.h
     src/core/util/LargeArray.h
