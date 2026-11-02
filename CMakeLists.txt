@@ -112,9 +112,15 @@ add_library(icd_core STATIC
     src/core/ntfs/NtfsText.h
     src/core/ntfs/RunList.cpp
     src/core/ntfs/RunList.h
+    src/core/planner/HoleSet.cpp
+    src/core/planner/HoleSet.h
+    src/core/planner/Plan.cpp
+    src/core/planner/Plan.h
     src/core/planner/TargetLayout.cpp
     src/core/planner/TargetLayout.h
     src/core/planner/ZoneAssignment.cpp
+    src/core/planner/Validator.cpp
+    src/core/planner/Validator.h
     src/core/planner/ZoneAssignment.h
     src/core/resources/MemoryPlanner.cpp
     src/core/resources/MemoryPlanner.h

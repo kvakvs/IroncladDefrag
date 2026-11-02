@@ -59,6 +59,9 @@ changes (see `AGENTS.md`).
 | `src/core/classify/AccessTimeHeuristic.*` | `gatherAccessEvidence()` (files read more than an hour after creation and last change, recent ones), `assessAccessTimes()` (setting plus evidence: reliable, unreliable, unknown with a reason), `verdictName()`. |
 | `src/core/classify/Catalog.*` | `Catalog`, `ClassInfo` (id, name, color, description), `parseCatalog()` (strict: unknown keys, classes, flags, bad sizes and colors refused), `builtinCatalog()` (data/classes.json embedded at build time), `builtinCatalogJson()` (generated), `fileFlagNamed()` / `fileFlagNames()`. |
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
+| `src/core/planner/HoleSet.*` | `HoleSet`: mutable merged free runs in blocks with a max-length tree; `take()`, `add()`, `contains()`, `nextFit()` / `prevFit()` within a window, `within()`. |
+| `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `fragmentsOf()`, `finishTotals()`. |
+| `src/core/planner/Validator.*` | `validatePlan()`: replays a plan on copies of free space and extents and checks plan.md 9.5 (free destinations, current sources, kept clusters, zones, one move per file, parking, accounting, totals). |
 | `src/core/planner/ZoneAssignment.*` | `assignZones()`: per file the first matching zone, its `FileRole` (Fixed, InPlace, Defragment, Placed) and movable clusters; per-zone need; `fixedFile()`. |
 | `src/core/planner/TargetLayout.*` | `AvailableAxis` (usable clusters numbered around obstacles), `layoutObstacles()`, `gapClusters()`, `resolveLayout()`: placed zones as LCN runs (forward from the front, back zones at the end), gaps, slack, notes; `LayoutInputs` (reserved runs, slack before each forward zone). |
 | `src/core/strategy/ZoneScript.*` | Zone scripts (plan.md 8.1): `ZoneScript`, `Zone` (selector, anchor, order and per-level overrides, action, `fragmentOk`, `GapSpec`), `Effort`, `validateScript()` (issues with their zone), `parseZoneScript()` (strict, `ZoneScriptError` with every issue), `zoneScriptJson()` (round trip, defaults left out), enum keys. |
@@ -237,6 +240,8 @@ changes (see `AGENTS.md`).
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
 | `tests/core/CatalogTest.cpp` | One test per built-in class with typical and edge-case paths; every class reachable and colored; bad catalogs refused. |
+| `tests/core/HoleSetTest.cpp` | HoleSet against a per-cluster model under random takes and adds across block splits; fits in both directions; merging. |
+| `tests/core/ValidatorTest.cpp` | Valid chain; broken plans for every validation rule (busy and late destinations, unmovable files, stale and reordered sources, lost clusters, zones, parking, accounting, totals). |
 | `tests/core/PlannerTestUtil.h` | Planner test helpers: volumes drawn as pictures (one character per cluster), zones and scripts, assignment. |
 | `tests/core/TargetLayoutTest.cpp` | Axis vs brute force, zone selection and roles, layouts with obstacles everywhere, full volumes, empty zones, gaps, reserved runs, slack placement. |
 | `tests/core/ZoneScriptTest.cpp` | Zone script round trip with every field, defaults, per-level order, size specs, read errors per zone and key, every validation rule. |

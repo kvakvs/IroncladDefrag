@@ -21,6 +21,7 @@ add_executable(icd_tests
     core/FileSearchTest.cpp
     core/GridTest.cpp
     core/HitTestTest.cpp
+    core/HoleSetTest.cpp
     core/JobTypesTest.cpp
     core/JsonReaderTest.cpp
     core/JsonTest.cpp
@@ -46,6 +47,7 @@ add_executable(icd_tests
     core/SyntheticVolumeTest.cpp
     core/TargetLayoutTest.cpp
     core/TileRasterizerTest.cpp
+    core/ValidatorTest.cpp
     core/ViewportTest.cpp
     core/WorldTest.cpp
     core/ZoneScriptTest.cpp

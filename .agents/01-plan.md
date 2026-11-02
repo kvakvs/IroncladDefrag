@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T082 - Plan model, simulator and validator
-
-- Depends: T081
-- Owns: `src/core/planner/Plan.*`, `src/core/planner/Validator.*`
-- Do: plan and move types; simulation on copies of free runs and extents; all checks from §9.5.
-- Done when: tests with deliberately broken plans catch every rule.
-
 ### T083 - Lower bound and target fitting
 
 - Depends: T082

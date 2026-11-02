@@ -968,6 +968,20 @@ All analysis checks passed.
   follows the last forward zone. Gaps shrink in proportion when free space is short, and the MFT zone is given up
   when the files only fit with it; both leave a note.
 
+- Plans (T082, `Plan`): ordered moves, each taking all movable clusters of one file (sources in VCN order, so the
+  executor maps them onto VCNs by re-reading retrieval pointers) into destination runs in the same order. Runs live in
+  one flat array. A plan accounts for itself against the lower bound: moved clusters = lower bound - skipped
+  (files that could not move, with a reason) - deferred (left for a later run by a budget) + extra (parking and
+  evictions). A parked file has a Park move and later a move `fromParking`.
+- `HoleSet` is the mutable free-run set shared by the validator and the allocators: sorted, merged holes in blocks of
+  256-1024 runs with a max-length segment tree over the blocks, so 17 M free runs cost 16 bytes each and take, add and
+  first/last-fit queries in either direction stay logarithmic plus one block scan.
+- `validatePlan()` replays a plan on a copy of the free runs and the moved files' runs (plan.md 9.5): each
+  destination must be free when its move runs, the sources must be the file's current movable runs (so unmovable
+  files and streams are never touched and a stale or reordered source list fails), clusters are kept, moves into a
+  zone land inside it (given a layout), each file moves once (a parked file returns exactly once), the accounting
+  above holds exactly, and the plan's totals equal the replay's. Tests break a plan for every rule.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one
