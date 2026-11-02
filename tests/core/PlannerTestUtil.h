@@ -6,6 +6,7 @@
 //   any other character: a cluster of the file with that name; repeated characters with gaps make fragments.
 
 #include "core/classify/Catalog.h"
+#include "core/classify/RuleEngine.h"
 #include "core/planner/ZoneAssignment.h"
 #include "core/snapshot/SnapshotBuilder.h"
 #include "core/strategy/ZoneScript.h"
@@ -111,6 +112,21 @@ namespace icd::core::planner::test {
     // A script of zones.
     inline strategy::ZoneScript script(std::vector<strategy::Zone> zones) {
         return {.id = "test", .name = "Test", .description = "", .zones = std::move(zones)};
+    }
+
+    // Classes of any snapshot under the built-in catalog (synthetic volumes).
+    inline std::vector<classify::ClassId> classesOf(const Snapshot& snapshot) {
+        static const classify::RuleEngine engine(classify::builtinCatalog().rules);
+        InlineExecutor serial;
+        return engine.classify(snapshot, {.now = now, .churn = {}}, serial);
+    }
+
+    // Zones and roles of any snapshot under a script.
+    inline ZoneAssignment assignSnapshot(const Snapshot& snapshot, std::span<const classify::ClassId> classes,
+                                         const strategy::ZoneScript& s) {
+        InlineExecutor serial;
+        return assignZones(snapshot, s, classify::builtinCatalog(), {.classes = classes, .churn = {}, .now = now},
+                           serial);
     }
 
     // Zones and roles of a picture volume under a script.

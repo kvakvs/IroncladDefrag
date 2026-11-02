@@ -96,6 +96,9 @@ namespace icd::core::planner {
     // A file's movable runs in VCN order (unmovable extents left out), as a move takes them.
     [[nodiscard]] std::vector<ClusterRun> movableRuns(const Snapshot& snapshot, FileIndex file);
 
+    // Clusters in a run list.
+    [[nodiscard]] ClusterCount clustersOf(std::span<const ClusterRun> runs);
+
     // Fragments of a run list: runs that continue exactly where the previous one ended count once.
     [[nodiscard]] std::uint64_t fragmentsOf(std::span<const ClusterRun> runs);
 

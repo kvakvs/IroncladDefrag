@@ -17,6 +17,7 @@ add_executable(icd_tests
     core/BitmapToRunsTest.cpp
     core/CatalogTest.cpp
     core/ColorModesTest.cpp
+    core/DefragOnlyTest.cpp
     core/DriveInfoTest.cpp
     core/FileSearchTest.cpp
     core/GridTest.cpp

@@ -112,10 +112,16 @@ add_library(icd_core STATIC
     src/core/ntfs/NtfsText.h
     src/core/ntfs/RunList.cpp
     src/core/ntfs/RunList.h
+    src/core/planner/CandidateFilter.cpp
+    src/core/planner/CandidateFilter.h
+    src/core/planner/DefragOnly.cpp
+    src/core/planner/DefragOnly.h
     src/core/planner/HoleSet.cpp
     src/core/planner/HoleSet.h
     src/core/planner/LowerBound.cpp
     src/core/planner/LowerBound.h
+    src/core/planner/Placement.cpp
+    src/core/planner/Placement.h
     src/core/planner/Plan.cpp
     src/core/planner/Plan.h
     src/core/planner/TargetLayout.cpp

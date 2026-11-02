@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T084 - Good-enough filter and defragment-only
-
-- Depends: T083
-- Owns: `src/core/planner/DefragOnly.*`, `src/core/planner/CandidateFilter.*`
-- Do: §9.3.3 filter; defragment files near their current position.
-- Done when: validator passes; untouched files are exactly the good-enough set.
-
 ### T085 - Fast-fill planner
 
 - Depends: T084

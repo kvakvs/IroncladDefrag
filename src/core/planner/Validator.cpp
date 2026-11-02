@@ -11,15 +11,6 @@ namespace icd::core::planner {
 
     namespace {
 
-        // Clusters in a run list.
-        ClusterCount clustersOf(std::span<const ClusterRun> runs) {
-            ClusterCount sum = 0;
-            for (const ClusterRun& r : runs) {
-                sum += r.length;
-            }
-            return sum;
-        }
-
         // The replay: free space and the runs of files that moved so far.
         class Replay {
         public:

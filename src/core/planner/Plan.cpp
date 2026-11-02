@@ -49,6 +49,14 @@ namespace icd::core::planner {
         return out;
     }
 
+    ClusterCount clustersOf(std::span<const ClusterRun> runs) {
+        ClusterCount sum = 0;
+        for (const ClusterRun& r : runs) {
+            sum += r.length;
+        }
+        return sum;
+    }
+
     std::uint64_t fragmentsOf(std::span<const ClusterRun> runs) {
         std::uint64_t fragments = 0;
         for (std::size_t i = 0; i < runs.size(); ++i) {

@@ -992,6 +992,15 @@ All analysis checks passed.
   optimum; thinned to 1,024 evenly spread ones on large volumes) picks the split that keeps the most clusters in place.
   Front zones never shift. On random small volumes it equals brute force over every split.
 
+- Good-enough filter (T084, `filterCandidates()`): the must-move files of the lower bound split per zone, plus the
+  defragment-only ones; everything else (good enough, churn, fixed) is never looked at again.
+- Placement (T084, `Placement`): first, last and nearest fits on a `HoleSet` that skip the file's own runs (a move's
+  destination may not overlap its sources), and large pieces (each at least `fragmentOk`, the last one too) when no
+  single run holds a file. "Nearest" covers the point itself when the hole there is big enough.
+- Defragment-only (T084, `planDefragment()`): largest files first, each to the free run nearest its first cluster,
+  else large pieces when its zone allows them, else skipped (no space). What a move frees goes back into the pool for
+  later files, which keeps the moves valid in the order they were planned.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one
