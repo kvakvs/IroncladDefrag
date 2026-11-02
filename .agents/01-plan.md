@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T088 - Move ordering and cycles
-
-- Depends: T085, T086, T087
-- Owns: `src/core/planner/MoveOrdering.*`
-- Do: dependency graph, topological order, cycle breaking by parking the smallest file, "move the
-  smaller thing" (§9.3.6-9.3.7).
-- Done when: tests with chains and cycles; each file moves at most once except reported parking.
-
 ### T089 - Budgets and benefit ranking
 
 - Depends: T088

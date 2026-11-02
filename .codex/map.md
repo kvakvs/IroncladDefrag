@@ -61,6 +61,8 @@ changes (see `AGENTS.md`).
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
 | `src/core/planner/CandidateFilter.*` | `Candidates`, `filterCandidates()`: must-move files per zone and the defragment-only ones (plan.md 9.3.3). |
 | `src/core/planner/DefragOnly.*` | `planDefragment()`: defragment-only moves to the nearest run that holds the file, or large pieces; skips with a reason; vacated space reused. |
+| `src/core/planner/MakeRoom.*` | `findRoom()`: window for a large file whose occupants are small evictable files (plan.md 9.3.6), fewest clusters evicted. |
+| `src/core/planner/MoveOrdering.*` | `orderMoves()`: dependency graph from destination/source overlaps, Kahn in destination order, Tarjan for cycles, park the smallest file (Maximum) or drop the cycle and its dependents; `OrderOptions`, `OrderReport`. |
 | `src/core/planner/PackToBack.*` | `packToBack()`: back zones filled from the end, or sorted when they have an order at the level. |
 | `src/core/planner/Placement.*` | `SpaceRequest`, `findFirst()` / `findLast()` / `findNear()` / `findPieces()` avoiding the file's own runs, `takeRuns()`, `releaseRuns()`, `sortedRuns()`; `Destination` (file, runs, reason, zone) and `appendMoves()`. |
 | `src/core/planner/FastFill.*` | `fastFill()`: holes filled from the packed end (front or back) with the largest file that fits, single runs or large pieces for the rest, overflow; `FillOptions`, `PackFrom`, `reasonFor()`. |
@@ -227,6 +229,7 @@ changes (see `AGENTS.md`).
 | `tests/services/MemoryModesTest.cpp` | Estimate, ladder and give-way, mapped vectors (move keeps, copy leaves, files deleted), snapshots built into mapped files equal heap ones, storage per plan. |
 | `tests/services/MftScannerTest.cpp` | MFT scan of the `special` volume: 1 worker = 4 workers, read figures, every cluster accounted for, `$MFT` at its start LCN; equal to the API scan, 1,324-fragment file resolved. |
 | `tests/services/MftSecondPassTest.cpp` | Extension records joined only when listed with the right sequence, non-resident and unreadable lists, names and runs across records, same result for any executor. |
+| `tests/core/MoveOrderingTest.cpp` | Chains in dependency order, swaps and cycles parked (smallest file) or dropped with dependents, no scratch space, room finding; plans validate. |
 | `tests/core/NtfsParserTest.cpp` | Fixups, run lists (holes, deltas, malformed, overflow), names, attribute lists, handcrafted records, captured `special` records (MFT, root, resident, compressed, sparse, hard links, reparse points, streams, Unicode, EFS, big directory, 1,324-fragment file over five extension records), fuzzed and truncated records. |
 | `tests/core/NtfsRecordBuilder.h` | Test helper: MFT records byte by byte (header, attributes, update sequence) and run list encoding. |
 | `tests/data/ntfs/*.bin` | Raw MFT records captured from the `special` scenario (4 KB clusters) by `capture-mft-records.ps1`. |

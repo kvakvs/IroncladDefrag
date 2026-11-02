@@ -1027,6 +1027,17 @@ All analysis checks passed.
   level (video: age at Maximum, newest first so the oldest end up last), the sorter. Videos already packed with
   good-enough fragments are not candidates, so they never move at any level.
 
+- Move ordering (T088, `orderMoves()`): move j depends on move i when j's destination overlaps i's sources. Kahn's
+  algorithm emits ready moves in destination order (a min-heap of indexes), so the plan is deterministic. When only
+  cycles remain, Tarjan (iterative) finds the components; every component nothing else feeds is a cycle to break. At
+  Maximum its smallest file is parked first in scratch space (free runs no destination touches), which frees its
+  sources at once; its return waits for the move's own dependencies (a parked file's edges are ignored from then
+  on). Elsewhere, or without scratch space, the cycle is dropped with every move that waited on it (skipped as Cycle
+  or Dependency; extra moves are dropped without a skip entry, they were never in the bound).
+- Move the smaller thing (T088, `findRoom()`): for a file no free run holds, the window of its size inside the region
+  whose clusters are free after the plan or belong to files that may move, evicting the fewest clusters within a
+  limit; windows start at holes and at evictable files, a bounded number per piece.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

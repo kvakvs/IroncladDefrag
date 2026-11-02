@@ -122,6 +122,10 @@ add_library(icd_core STATIC
     src/core/planner/HoleSet.h
     src/core/planner/LowerBound.cpp
     src/core/planner/LowerBound.h
+    src/core/planner/MakeRoom.cpp
+    src/core/planner/MakeRoom.h
+    src/core/planner/MoveOrdering.cpp
+    src/core/planner/MoveOrdering.h
     src/core/planner/PackToBack.cpp
     src/core/planner/PackToBack.h
     src/core/planner/Placement.cpp

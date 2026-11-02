@@ -32,6 +32,7 @@ add_executable(icd_tests
     core/LruCacheTest.cpp
     core/MapUpdateTest.cpp
     core/MftLayoutTest.cpp
+    core/MoveOrderingTest.cpp
     core/NtfsParserTest.cpp
     core/NtfsRecordBuilder.h
     core/OverviewTest.cpp
