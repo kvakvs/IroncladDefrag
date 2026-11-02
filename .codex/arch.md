@@ -1056,6 +1056,22 @@ All analysis checks passed.
   space when it stays in its zone and off the file's own runs; `vssReport()` counts unaligned moves and estimates
   shadow storage growth as the bytes they rewrite.
 
+- Levels (T091, `LevelPlanner`): `PlanInput` (snapshot, script, catalog, classes, churn, now, reserved MFT zone, shadow
+  copies, Fast budget multiplier, time model) is shared by the levels; `assignInput()` assigns once. `planZones()` is
+  the Moderate/Maximum pipeline: fitted target, lower bound with sorting, candidates, an after-plan pool without the
+  MFT zone, every zone placed in parallel on its own slice of the pool (zone ranges are disjoint, so the result does
+  not depend on the thread count), defragment-only files near where they are, overflow handled by evicting small files
+  of the same zone (when the level allows) or next to the zone's end, VSS alignment, ordering, budget, metrics
+  (`PlanMetrics`: fragmented files, zone fit, free runs before and after, time).
+- Fast (T091, `levels/FastLevel`, plan.md 9.2.1): stripes are scored 0.4 x churn share (journal churn or in-place files)
+  + 0.3 x small holes (under 1 MB, 32 give the full score) + 0.3 x share held by fragmented files; stripes scoring 0.25
+  or more are hot, a single cold stripe between hot ones is bridged, and runs of them are hot spots. Only files lying
+  wholly inside a hot spot move: each hot spot is packed towards its head (its files that are not inside the first
+  "need" usable clusters, or fragmented under fragment_ok, are fast-filled there), so its free space ends up as one run
+  at its tail. A big long-lived file (64 MB or more, 30 days unchanged) with free space on both sides goes straight to
+  its zone. No overflow handling (that would touch other areas); budget 2% of used space or 15 minutes times the
+  multiplier; the plan carries the "run again" note.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

@@ -258,6 +258,7 @@ namespace icd::core::planner {
         if (need > layout.axis.size() && !inputs.reserved.empty()) {
             layout.axis = AvailableAxis(layoutObstacles(snapshot, assignment, {}), total);
             layout.notes.emplace_back("The files only fit with the MFT zone used; it holds files after the plan.");
+            layout.reservedUsed = true;
         }
         const ClusterCount freeAfter = assignLengths(layout);
         const auto perClass = clustersPerClass(snapshot, classes, catalog.classes.size());

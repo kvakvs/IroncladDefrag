@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/planner/FastFill.h"
 #include "core/planner/HoleSet.h"
 #include "core/planner/Plan.h"
 #include "core/snapshot/Snapshot.h"
@@ -24,5 +25,11 @@ namespace icd::core::planner {
     // order that is valid as it stands; destinations come out of `pool`.
     void planDefragment(const Snapshot& snapshot, std::span<const FileIndex> files, HoleSet& pool,
                         const DefragOptions& options, Plan& plan);
+
+    // Destinations for defragment-only files out of after-plan free space (no reuse step: the pool already holds what
+    // moving files vacate, and ordering comes later): each file to the run nearest its first cluster, or large pieces
+    // when allowed. Files that fit nowhere are returned as overflow.
+    [[nodiscard]] FillResult defragmentDestinations(const Snapshot& snapshot, std::span<const FileIndex> files,
+                                                    HoleSet& pool, const DefragOptions& options);
 
 } // namespace icd::core::planner

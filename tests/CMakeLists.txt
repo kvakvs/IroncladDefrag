@@ -21,6 +21,7 @@ add_executable(icd_tests
     core/DefragOnlyTest.cpp
     core/DriveInfoTest.cpp
     core/FastFillTest.cpp
+    core/FastLevelTest.cpp
     core/FileSearchTest.cpp
     core/GridTest.cpp
     core/HitTestTest.cpp

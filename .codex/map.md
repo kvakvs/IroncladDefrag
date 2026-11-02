@@ -61,13 +61,15 @@ changes (see `AGENTS.md`).
 | `src/core/format/JsonReader.*` | `JsonValue` (tree, members in file order, kind checks), `parseJson()` (RFC 8259, errors with line and column), `JsonError`. |
 | `src/core/planner/Budget.*` | `TimeModel`, `BudgetOptions`, `moveBenefit()`, `planSeconds()`, `applyBudget()` (benefit-per-byte selection with dependencies, most valuable first, deferred clusters). |
 | `src/core/planner/CandidateFilter.*` | `Candidates`, `filterCandidates()`: must-move files per zone and the defragment-only ones (plan.md 9.3.3). |
-| `src/core/planner/DefragOnly.*` | `planDefragment()`: defragment-only moves to the nearest run that holds the file, or large pieces; skips with a reason; vacated space reused. |
+| `src/core/planner/DefragOnly.*` | `defragmentDestinations()` (for the level pipeline), `planDefragment()`: defragment-only moves to the nearest run that holds the file, or large pieces; skips with a reason; vacated space reused. |
 | `src/core/planner/MakeRoom.*` | `findRoom()`: window for a large file whose occupants are small evictable files (plan.md 9.3.6), fewest clusters evicted. |
 | `src/core/planner/MoveOrdering.*` | `orderMoves()`: dependency graph from destination/source overlaps, Kahn in destination order, Tarjan for cycles, park the smallest file (Maximum) or drop the cycle and its dependents; `OrderOptions`, `OrderReport`. |
 | `src/core/planner/PackToBack.*` | `packToBack()`: back zones filled from the end, or sorted when they have an order at the level. |
 | `src/core/planner/Placement.*` | `SpaceRequest`, `findFirst()` / `findLast()` / `findNear()` / `findPieces()` avoiding the file's own runs, `takeRuns()`, `releaseRuns()`, `sortedRuns()`; `Destination` (file, runs, reason, zone) and `appendMoves()`. |
 | `src/core/planner/FastFill.*` | `fastFill()`: holes filled from the packed end (front or back) with the largest file that fits, single runs or large pieces for the rest, overflow; `FillOptions`, `PackFrom`, `reasonFor()`. |
 | `src/core/planner/HoleSet.*` | `HoleSet`: mutable merged free runs in blocks with a max-length tree; `take()`, `add()`, `contains()`, `nextFit()` / `prevFit()` within a window, `within()`. |
+| `src/core/planner/LevelPlanner.*` | `PlanInput`, `LevelPolicy`, `PlanMetrics`, `PlanResult`, `assignInput()`, `planZones()` (Moderate/Maximum pipeline, zones in parallel on pool slices, eviction and overflow), `measurePlan()`, `usedClusters()`. |
+| `src/core/planner/levels/FastLevel.*` | `HotSpotOptions`, `StripeScore`, `scoreStripes()`, `findHotSpots()`, `fastPolicy()`, `planFast()` (hot-spot compaction, big long-lived files to their zone, budget). |
 | `src/core/planner/LowerBound.*` | `GoodEnough`, `fragmentsOk()`, `fragmentOkFor()`, `lowerBound()` (must-move files per zone, parallel), `fitTarget()` (slack before each forward zone by a dynamic programme over stay intervals, plan.md 9.3.2). |
 | `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `clustersOf()`, `fragmentsOf()`, `finishTotals()`. |
 | `src/core/planner/Validator.*` | `validatePlan()`: replays a plan on copies of free space and extents and checks plan.md 9.5 (free destinations, current sources, kept clusters, zones, one move per file, parking, accounting, totals). |
@@ -269,6 +271,7 @@ changes (see `AGENTS.md`).
 | `tests/core/RulerTest.cpp` | Tick steps, label formats, row/column ticks against the world math at fit and deep zoom, minor ticks, disk %. |
 | `tests/core/HitTestTest.cpp` | Fragment i/n, deep-zoom and free hits, off-volume, brute force at several zooms (hand volume) and every level (synthetic volume), file time and tooltip text. |
 | `tests/core/FastFillTest.cpp` | Tail files into head holes (bytes = lower bound, plan validates), best fit, back packing, never onto own clusters, synthetic volume destinations checked statically (in zone, disjoint, free or vacated, counts kept). |
+| `tests/core/FastLevelTest.cpp` | Stripe scores and bridged hot spots, big long-lived file to its zone, synthetic Fast plans valid, only inside hot spots, within budget. |
 | `tests/core/FileSearchTest.cpp` | Ranks, case, path queries (slashes, trailing backslash, mid-name start), empty queries, limit and total, brute force over built paths on a synthetic volume, pool = serial. |
 | `tests/core/GridTest.cpp` | Grid fade and edge rounding, no grid at small cells, lines exactly on the last pixel of each drawn cell at random fractional views (also at the partial last row), line count bounded by the window. |
 | `tests/core/ScanReconcileTest.cpp` | Placeholder for unclaimed clusters, newer read wins, stale free space, clipping, random scans always tile. |

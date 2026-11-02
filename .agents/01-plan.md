@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T091 - Fast level
-
-- Depends: T089, T073
-- Owns: `src/core/planner/levels/FastLevel.*`
-- Do: hot-spot scoring, local compaction, big long-lived files moved out (≥64 MB, 30 days), budget
-  2% / 15 min with multiplier (§9.2.1).
-- Done when: Fast plans touch only hot spots and stay within budget on the scenarios.
-
 ### T092 - Moderate and Maximum levels
 
 - Depends: T089

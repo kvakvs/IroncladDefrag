@@ -47,6 +47,34 @@ namespace icd::core::planner {
 
     } // namespace
 
+    FillResult defragmentDestinations(const Snapshot& snapshot, std::span<const FileIndex> files, HoleSet& pool,
+                                      const DefragOptions& options) {
+        const ClusterRun window =
+            options.window.length == 0 ? ClusterRun{0, snapshot.geometry.totalClusters} : options.window;
+        std::vector<FileIndex> order(files.begin(), files.end());
+        std::ranges::sort(order, [&](FileIndex a, FileIndex b) {
+            const ClusterCount ca = snapshot.files.allocatedClusters(a);
+            const ClusterCount cb = snapshot.files.allocatedClusters(b);
+            return ca != cb ? ca > cb : a < b;
+        });
+        FillResult out;
+        for (const FileIndex file : order) {
+            const std::vector<ClusterRun> runs = movableRuns(snapshot, file);
+            const std::vector<ClusterRun> own = sortedRuns(runs);
+            const SpaceRequest request{.clusters = clustersOf(runs), .own = own, .window = window};
+            auto destination =
+                runs.empty() ? std::nullopt : destinationFor(snapshot, pool, request, runs.front().start, options);
+            if (!destination) {
+                out.overflow.push_back(file);
+                continue;
+            }
+            takeRuns(pool, *destination);
+            out.placed.push_back(
+                {.file = file, .runs = std::move(*destination), .reason = MoveReason::Defragment, .zone = noZone});
+        }
+        return out;
+    }
+
     void planDefragment(const Snapshot& snapshot, std::span<const FileIndex> files, HoleSet& pool,
                         const DefragOptions& options, Plan& plan) {
         const ClusterRun window =

@@ -89,6 +89,7 @@ namespace icd::core::planner {
         ClusterCount slack = 0; // Free usable clusters outside every zone and gap.
         std::vector<ClusterRun> slackPieces{}; // Their LCN runs.
         std::vector<std::string> notes{}; // Goals the volume cannot reach (gaps shrunk, MFT zone used).
+        bool reservedUsed = false; // The reserved runs had to be given up: files may land in them.
 
         // The target of a script zone, or null for zones without a place.
         [[nodiscard]] const ZoneTarget* target(ZoneIndex zone) const;
