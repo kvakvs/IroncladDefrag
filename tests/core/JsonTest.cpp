@@ -58,4 +58,11 @@ namespace {
         EXPECT_EQ(json.str(), "[\n  null,\n  null\n]");
     }
 
+    TEST(Json, OneLineWriterHasNoNewlines) {
+        icd::core::JsonWriter json(true);
+        json.beginObject().key("a").value(std::uint64_t{1}).key("b").beginArray().value("x").null().endArray();
+        json.endObject();
+        EXPECT_EQ(json.str(), "{\"a\":1,\"b\":[\"x\",null]}");
+    }
+
 } // namespace

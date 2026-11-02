@@ -12,6 +12,12 @@ namespace icd::core {
     // Misuse (a value without a key inside an object) is not checked: callers are our own report builders.
     class JsonWriter {
     public:
+        // A writer of indented output.
+        JsonWriter() = default;
+
+        // A writer that puts everything on one line (JSON lines logs) when `oneLine` is true.
+        explicit JsonWriter(bool oneLine) : oneLine_(oneLine) {}
+
         // Opens an object; as a member of an object pass its key first with key().
         JsonWriter& beginObject();
         // Closes the innermost object.
@@ -49,6 +55,7 @@ namespace icd::core {
         std::string out_; // Output.
         std::vector<bool> hasItems_; // Per open container: whether it has items yet.
         bool afterKey_ = false; // The next value follows a key on the same line.
+        bool oneLine_ = false; // No newlines or indentation (one JSON value per line).
     };
 
     // A JSON string literal with quotes and escapes, for single values.

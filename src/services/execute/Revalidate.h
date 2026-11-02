@@ -50,6 +50,9 @@ namespace icd::services {
         std::shared_ptr<core::Snapshot> current; // The volume now; null when refused before reading it.
         bool caughtUp = false; // `current` came from the saved snapshot and the journal, not a full scan.
         std::string how; // What happened to the saved snapshot, for the log ("caught up ...", rescan reason).
+        std::uint8_t scanner = 0; // ScannerKind of `current`, saved with it (only MFT snapshots are caught up later).
+        core::ScreenAspect aspect; // The drive's map aspect, saved with the snapshot after execution.
+        std::int64_t scanTime = 0; // When `current` was read (FILETIME ticks).
         double seconds = 0.0; // Wall time.
     };
 

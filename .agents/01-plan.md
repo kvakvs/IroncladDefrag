@@ -54,13 +54,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 7 - Execution on the test bed (§10.3-10.4, §13 Phase 7)
 
-### T103 - Execution log and resume
-
-- Depends: T102
-- Owns: `src/services/execute/ExecutionLog.*`
-- Do: append-only JSON lines log; resume or rebuild after a crash.
-- Done when: killing the process mid-run and resuming completes the plan correctly.
-
 ### T104 - CLI execute and integration suite
 
 - Depends: T103, T096

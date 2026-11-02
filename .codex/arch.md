@@ -1256,6 +1256,28 @@ All analysis checks passed.
   taken just before its move goes elsewhere in its region with nothing skipped; locked and changed files skipped with
   reasons; the throughput limit; the snapshot after execution equals the volume. The real-volume run is T104's
   integration script.
+- Execution log (T103, `services/execute/ExecutionLog`): one JSON lines file per run under
+  `%LOCALAPPDATA%\IroncladDefrag\logs\execute\Volume{GUID}-<UTC time>.jsonl`, append-only, every line flushed: a "plan"
+  line (identity; 64-bit values such as the file reference, serial, journal id and FILETIMEs as text, since JSON
+  numbers stop at 2^53), one "move" line per move (file, reason, flags, region, sources, destinations, path), written
+  before anything moves, then "event" lines ("run-started" at every run, paused, resumed, cancelled), a "dropped" line
+  per move revalidation took out, "begin" before a move touches the disk, "outcome" after it (with the runs read back)
+  and "end". `JsonWriter(true)` writes one line. Reading accepts a cut-short last line only (a crash while writing it);
+  any other damage, another version or missing move lines throw `ExecutionLogError`.
+- Resume: a move is settled by an outcome other than partial, or by a dropped line; `movesToResume()` is every
+  unsettled move in order, so the move a crash interrupted (begun without an outcome) and moves cut short are tried
+  again. Revalidation then reads the volume and `matchMove()` finds how far each got, so only the rest moves.
+  `unfinishedExecutionLog()` finds a volume's newest log without an end line.
+- Orchestration (`services/execute/Execution`): `runExecution()` revalidates (a refused plan stops there), creates or
+  appends to the log, removes the saved snapshot before the first move (the moves are not journaled, so a crash would
+  otherwise leave a snapshot that later catch-ups would trust wrongly), runs `executeLogged()` on a `VolumeMover`
+  (drops logged, then the kept moves with the log as hooks, then the end line) and saves `snapshotAfter()` with the
+  revalidation's scanner, aspect and scan time, or leaves none. `freshExecution()` and `resumedExecution()` build
+  requests; a resumed run has no age limit (the volume now decides).
+- `ExecutionLogTest`: a Maximum plan reads back equal field by field; only a last line may be cut short; a run that
+  dies in the middle of a move (`SimulatedCrash` from the device hook) is resumed from its log and the volume and
+  completes the plan, the interrupted move being the only one partly done; the crashed log is found as unfinished and
+  the completed one is not.
 
 ## Parallel execution
 

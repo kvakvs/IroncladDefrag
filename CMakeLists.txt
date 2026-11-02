@@ -295,6 +295,10 @@ add_library(icd_services STATIC
     src/services/exec/ThreadPool.h
     src/services/execute/ExecutedSnapshot.cpp
     src/services/execute/ExecutedSnapshot.h
+    src/services/execute/Execution.cpp
+    src/services/execute/Execution.h
+    src/services/execute/ExecutionLog.cpp
+    src/services/execute/ExecutionLog.h
     src/services/execute/Executor.cpp
     src/services/execute/Executor.h
     src/services/execute/MoveDevice.h

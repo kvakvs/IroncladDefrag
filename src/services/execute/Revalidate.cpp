@@ -77,7 +77,10 @@ namespace icd::services {
             core::logging::warning("plan refused", {{"reason", *out.refused}});
             return out;
         }
+        out.scanTime = fileTimeNow();
         AnalysisResult now = analyzeVolume(drive, context, {}, options.analysis);
+        out.scanner = static_cast<std::uint8_t>(now.scan.scanner);
+        out.aspect = now.aspect;
         out.refused = geometryRefusal(plan.identity.geometry, now.snapshot.geometry);
         out.caughtUp = now.caughtUp;
         out.how = now.catchUp;

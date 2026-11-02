@@ -174,6 +174,8 @@ changes (see `AGENTS.md`).
 | `src/services/execute/Revalidate.*` | `planRefusal()` (other volume, reformatted, resized, too old), `revalidatePlan()` (volume read again by catch-up or scan, then the replay), `replayOnSnapshot()`, `Revalidation`, `RevalidateOptions`, `PlanAge`. |
 | `src/services/execute/Executor.*` | `executePlan()` (mover loop with prefetch helper, re-read and match before each move, chunked calls, pause, cancel, throughput limit, stale-bitmap replacement in the move's region, skip reasons, verification), `ExecuteOptions`, `MoveRecord`, `MoveOutcome` / `outcomeKey()`, `ExecutionReport`, `ExecutionTotals`, `ExecutionControls`, `ExecutionHooks`, `throttleDelaySeconds()`. |
 | `src/services/execute/ExecutedSnapshot.*` | `snapshotAfter()`: the revalidated snapshot patched with the runs read back after each moved file's last move, or nullopt (then the saved snapshot is removed). |
+| `src/services/execute/Execution.*` | `runExecution()` (revalidate, log, remove the stale saved snapshot, execute on the volume, save the snapshot after), `executeLogged()`, `freshExecution()`, `resumedExecution()`, `ExecutionRequest`, `ExecutionOutcome`, `ExecutionRunControls`. |
+| `src/services/execute/ExecutionLog.*` | `ExecutionLogWriter` (JSON lines: plan, moves, run events, dropped, begin, outcome, end; hooks), `parseExecutionLog()` / `readExecutionLog()` (cut-short last line tolerated), `ExecutionLogContents`, `movesToResume()`, `executionLogDirectory()`, `newExecutionLogPath()`, `unfinishedExecutionLog()`. |
 | `src/services/execute/MoveDevice.h` | `MoveDevice` (open by reference, free runs of a range) and `MovableFile` (runs now, one move call): what the executor moves on. |
 | `src/services/execute/VolumeMover.*` | `VolumeMover`: the move device of a real volume (OpenFileById, streams by ordinal, `FSCTL_MOVE_FILE`, ranged bitmap). |
 | `src/services/scan/AnalysisJob.*` | `analyzeVolume()` (bitmap, file scan, figures; shared by GUI and CLI), `makeAnalysisJob()` (adds the early, partial and final maps), `AnalysisResult`, `AnalysisOutput` (newest map and summary for the UI), `bitmapSnapshot()`, `summaryOf()`. |
@@ -305,7 +307,7 @@ changes (see `AGENTS.md`).
 | `tests/core/ScanReconcileTest.cpp` | Placeholder for unclaimed clusters, newer read wins, stale free space, clipping, random scans always tile. |
 | `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
-| `tests/core/JsonTest.cpp` | JSON structure and indentation, string escaping, non-finite numbers. |
+| `tests/core/JsonTest.cpp` | JSON structure and indentation, one-line output, string escaping, non-finite numbers. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
 | `tests/platform/LastAccessSettingTest.cpp` | Every NtfsDisableLastAccessUpdate value decoded; the registry reading equals `fsutil behavior query disablelastaccess`. |
@@ -316,6 +318,7 @@ changes (see `AGENTS.md`).
 | `tests/core/MovePiecesTest.cpp` | Pieces at the sources, streams and VCNs, moves cut short and done, changed files refused, remap, joined LCN runs. |
 | `tests/core/MoveCallsTest.cpp` | Chunks of plain pieces, whole compressed units joined over holes and bounded by the next piece, retarget, landings. |
 | `tests/services/ExecutorTest.cpp` | On `SimDevice`: a plan runs and verifies (with and without prefetch), pause and resume, cancel mid-move then the rest after revalidation, a taken destination moved elsewhere in its region, locked and changed files skipped, throughput limit, snapshot after execution = volume. |
+| `tests/services/ExecutionLogTest.cpp` | Plan round trip through the log, cut-short last line only, a crash mid-move resumed from the log to the full plan, unfinished logs found by volume. |
 | `tests/services/SimDevice.h` | `testing::SimDevice`: FSCTL_MOVE_FILE semantics over a `SimVolume`, locked files, a hook before each call, `SimulatedCrash` after N calls. |
 | `tests/services/RevalidateTest.cpp` | Refusals (other volume, serial, size, NTFS, age); unchanged volume keeps and runs every move; scripted deletes, changes and taken destinations dropped with reasons while the rest still runs; moves cut short kept with their rest. |
 | `tests/services/SimVolume.h` | `testing::SimVolume`: a volume in memory (owner per cluster, files as clusters in stream and VCN order) for revalidation and executor tests; `move()`, `remove()`, `occupy()`, `release()`. |

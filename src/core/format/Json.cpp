@@ -40,6 +40,9 @@ namespace icd::core {
     }
 
     void JsonWriter::indent() {
+        if (oneLine_) {
+            return;
+        }
         out_.push_back('\n');
         out_.append(hasItems_.size() * 2, ' ');
     }
@@ -95,7 +98,7 @@ namespace icd::core {
     JsonWriter& JsonWriter::key(std::string_view name) {
         beforeValue();
         out_ += jsonQuote(name);
-        out_ += ": ";
+        out_ += oneLine_ ? ":" : ": ";
         afterKey_ = true;
         return *this;
     }

@@ -316,3 +316,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `VolumeMover.*` (FSCTL_MOVE_FILE device), `ExecutedSnapshot.*` (`snapshotAfter()`: snapshot patched from verified
   runs, else none). `tests/services/SimDevice.h`, `ExecutorTest`, `MoveCallsTest`. Pause, resume and cancel mid-run
   are covered on the simulated volume; the run on a real test volume is T104's integration script.
+- T103 Execution log and resume - `services/execute/ExecutionLog.*` (append-only JSON lines: the whole plan first, run
+  events, dropped, begin and outcome lines with the runs read back, end; cut-short last line tolerated; `movesToResume()`,
+  `unfinishedExecutionLog()`), `services/execute/Execution.*` (`runExecution()`: revalidate, log, remove the stale saved
+  snapshot, execute on the volume, save the snapshot after; `freshExecution()`, `resumedExecution()`), one-line mode in
+  `core/format/Json`. `ExecutionLogTest`: a crash mid-move (simulated) resumes from the log and completes the plan; the
+  real kill-and-resume run is part of T104's integration script.
