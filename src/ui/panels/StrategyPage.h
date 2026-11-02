@@ -26,8 +26,12 @@ namespace icd::ui {
         // Selected effort level.
         [[nodiscard]] services::EffortLevel effort() const;
 
-        // Back to the default preset and the Fast level (Quick and a new drive use these).
+        // Back to the default preset and the Fast level (Quick and a drive without a remembered choice use these).
         void reset();
+
+        // Shows a preset (index into services::strategyPresets(), out of range = default) and an effort level
+        // without reporting a change, to restore a drive's remembered choice.
+        void select(std::size_t preset, services::EffortLevel effort);
 
         // Enables or disables the picker and the effort level.
         void setEditable(bool editable);

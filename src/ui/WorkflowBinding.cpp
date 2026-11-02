@@ -9,6 +9,7 @@
 #include "services/AppServices.h"
 #include "services/job/FakeJob.h"
 #include "services/scan/AnalysisJob.h"
+#include "services/settings/Settings.h"
 #include "services/workflow/SyntheticAnalysis.h"
 #include "ui/Commands.h"
 #include "ui/MainMenu.h"
@@ -523,11 +524,33 @@ namespace icd::ui {
         BottomPanel& bottom = widgets_.bottom;
         bottom.summary().clear(summaryHint(kind));
         bottom.plan().clear("Build a plan after the analysis.");
-        bottom.strategy().reset();
+        restoreStrategy();
         refresh();
     }
 
+    void WorkflowBinding::restoreStrategy() {
+        StrategyPage& page = widgets_.bottom.strategy();
+        const std::optional<services::DriveStrategy> saved =
+            drive_ ? services_.settings().driveStrategy(services::driveSettingsKey(*drive_)) : std::nullopt;
+        if (!saved) {
+            page.reset();
+            return;
+        }
+        // A preset that no longer exists falls back to the default; the effort level still applies.
+        page.select(services::presetIndex(saved->preset).value_or(0), saved->effort);
+    }
+
+    void WorkflowBinding::rememberStrategy() {
+        if (!drive_) {
+            return;
+        }
+        const StrategyPage& page = widgets_.bottom.strategy();
+        const services::DriveStrategy choice{services::strategyPresets().at(page.preset()).id, page.effort()};
+        services_.settings().rememberDriveStrategy(services::driveSettingsKey(*drive_), choice);
+    }
+
     void WorkflowBinding::onStrategyChanged() {
+        rememberStrategy();
         if (!workflow_.can(WorkflowAction::ChooseStrategy)) {
             return;
         }

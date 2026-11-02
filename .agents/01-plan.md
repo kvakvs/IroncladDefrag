@@ -264,15 +264,16 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 - Depends: T007, T091
 - Owns: `src/services/settings/*`, `src/ui/dialogs/SettingsDialog.*`
-- Do: versioned JSON settings; Fast budget multiplier ×1/×2/×4/×10; thread and memory caps (Auto by
-  default).
+- Do: extend the settings file from T075 (`services/settings/SettingsStore`); Fast budget multiplier
+  ×1/×2/×4/×10; thread and memory caps (Auto by default); the Settings dialog.
 - Done when: settings persist across restarts and affect the next plan and job.
 
 ### T131 - Custom strategies
 
 - Depends: T130, T097
 - Owns: `src/services/settings/StrategyLibrary.*`
-- Do: save user zone scripts, import/export, per-drive default strategy.
+- Do: save user zone scripts, import/export. Per-drive strategy memory exists (T075); custom strategies
+  get ids that fit `DriveStrategy::preset`.
 - Done when: a custom strategy survives a restart and produces the same plan. **Phase 10 exit check.**
 
 ---

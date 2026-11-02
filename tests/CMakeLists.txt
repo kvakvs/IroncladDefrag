@@ -66,6 +66,7 @@ add_executable(icd_tests
     services/MftMergeTest.cpp
     services/MftScannerTest.cpp
     services/MftSecondPassTest.cpp
+    services/SettingsTest.cpp
     services/SnapshotStoreTest.cpp
     services/ThreadPoolTest.cpp
     services/UsnCatchUpTest.cpp

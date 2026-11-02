@@ -181,6 +181,21 @@ this file records what is actually built and the decisions made along the way.
   writes a `.tmp` and renames it over the old file (a crash mid-save keeps the previous snapshot), and turns damaged or
   old files into "no snapshot" with a reason for the log.
 
+## Settings
+
+- `services::SettingsStore` (owned by `AppServices`, UI thread only) keeps `%LOCALAPPDATA%\IroncladDefrag\settings.json`:
+  versioned JSON (`version` 1; other versions are refused, not migrated), read once at start-up, written whole after
+  each change through a `.tmp` and a rename. A missing file gives defaults; a damaged one is logged, kept as
+  `settings.json.bad` and replaced by defaults, so it never blocks start-up. Drive entries that cannot be used are
+  dropped one by one; unknown members are ignored.
+- `services::Settings` is plain data with `settingsJson()` / `parseSettings()`, testable without files. It holds the
+  per-drive strategy choice (preset id and effort level) keyed by `driveSettingsKey()`: the volume GUID name, so a
+  letter change keeps the choice, or the root for drives without one (fake drives). Presets are stored by their
+  stable `StrategyPreset::id`, never by display name.
+- `WorkflowBinding` restores the remembered choice when a drive is selected (unknown preset -> default preset, effort
+  kept) and remembers the Strategy tab after each user change. Quick still runs the default preset at Fast without
+  touching the remembered choice. T130/T131 extend the same file (budget multiplier, caps, custom strategies).
+
 ## USN catch-up
 
 - The MFT merge has two stages (T065): `draftFiles()` turns rows into `FileDraft`s (name, parent reference, size,

@@ -237,6 +237,10 @@ add_library(icd_services STATIC
     src/services/scan/ScanRules.cpp
     src/services/scan/ScanRules.h
     src/services/scan/ScanStats.h
+    src/services/settings/Settings.cpp
+    src/services/settings/Settings.h
+    src/services/settings/SettingsStore.cpp
+    src/services/settings/SettingsStore.h
     src/services/snapshot/MappedStorage.cpp
     src/services/snapshot/MappedStorage.h
     src/services/snapshot/SnapshotStore.cpp

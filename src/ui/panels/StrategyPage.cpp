@@ -48,9 +48,12 @@ namespace icd::ui {
         return static_cast<services::EffortLevel>(effort_->GetSelection());
     }
 
-    void StrategyPage::reset() {
-        preset_->SetSelection(0);
-        effort_->SetSelection(0);
+    void StrategyPage::reset() { select(0, services::EffortLevel::Fast); }
+
+    void StrategyPage::select(std::size_t preset, services::EffortLevel effort) {
+        const bool known = preset < services::strategyPresets().size();
+        preset_->SetSelection(known ? static_cast<int>(preset) : 0);
+        effort_->SetSelection(static_cast<int>(effort));
         showZones();
     }
 

@@ -255,3 +255,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   "Class:" in the tooltip. `tests/integration/classes/check-classes.ps1` on `mixed` (2 and 4 GB): every class right,
   bytes and counts add up. `ClassificationTest`, class cases in `ColorModesTest`, `MapUpdateTest`, `HitTestTest`.
   `quality.bat all` passes. **Phase 5 exit.**
+- T075 Per-drive strategy memory - `services/settings/Settings.*` (versioned JSON, per-drive preset id and effort
+  keyed by volume GUID) and `SettingsStore.*` (`%LOCALAPPDATA%\IroncladDefrag\settings.json`, atomic save, damaged
+  file kept as `.bad`), owned by `AppServices`; stable `StrategyPreset::id` and `presetIndex()`; `StrategyPage::select()`;
+  `WorkflowBinding` restores the choice on drive selection and saves it on each change. `SettingsTest`.

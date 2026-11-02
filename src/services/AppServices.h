@@ -4,8 +4,10 @@
 #include "services/drives/IDriveProvider.h"
 #include "services/exec/ThreadPool.h"
 #include "services/job/JobRunner.h"
+#include "services/settings/SettingsStore.h"
 
 #include <cstdint>
+#include <filesystem>
 #include <memory>
 
 namespace icd::services {
@@ -21,12 +23,14 @@ namespace icd::services {
     [[nodiscard]] DriveSource driveSourceFromEnvironment();
 
     // Composition root of the service layer: detected resources, the active caps, the shared thread pool and
-    // the job runner and the drive provider. The GUI and the CLI create one and pass it down, so neither builds
-    // services itself.
+    // the job runner, the drive provider and the persisted settings. The GUI and the CLI create one and pass it down,
+    // so neither builds services itself.
     class AppServices {
     public:
-        // Detects resources, applies the Auto caps, starts the pool and picks the drive list.
-        explicit AppServices(DriveSource drives = DriveSource::System);
+        // Detects resources, applies the Auto caps, starts the pool, picks the drive list and loads the settings
+        // file (tests pass their own).
+        explicit AppServices(DriveSource drives = DriveSource::System,
+                             std::filesystem::path settingsFile = SettingsStore::defaultPath());
 
         // Cancels and waits for running jobs, then stops the pool.
         ~AppServices();
@@ -52,6 +56,9 @@ namespace icd::services {
         // Source of the all-disks list.
         [[nodiscard]] IDriveProvider& drives() { return *drives_; }
 
+        // Settings kept between runs (UI thread only).
+        [[nodiscard]] SettingsStore& settings() { return settings_; }
+
         // Whether the drive list is the fake one (analysis then stays synthetic).
         [[nodiscard]] bool fakeDrives() const { return driveSource_ == DriveSource::Fake; }
 
@@ -62,6 +69,7 @@ namespace icd::services {
         std::unique_ptr<JobRunner> jobs_; // Runs jobs on pool_.
         DriveSource driveSource_; // Real or fake drives.
         std::unique_ptr<IDriveProvider> drives_; // Drive list source.
+        SettingsStore settings_; // The settings file.
     };
 
 } // namespace icd::services

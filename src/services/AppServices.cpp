@@ -30,10 +30,10 @@ namespace icd::services {
         return fake ? DriveSource::Fake : DriveSource::System;
     }
 
-    AppServices::AppServices(DriveSource drives) :
+    AppServices::AppServices(DriveSource drives, std::filesystem::path settingsFile) :
         resources_(platform::detectSystemResources()), caps_(core::computeCaps(resources_, {})),
         pool_(std::make_unique<ThreadPool>(caps_.workerThreads)), jobs_(std::make_unique<JobRunner>(*pool_)),
-        driveSource_(drives), drives_(makeDriveProvider(drives)) {}
+        driveSource_(drives), drives_(makeDriveProvider(drives)), settings_(std::move(settingsFile)) {}
 
     core::DetectedResources AppServices::detectResources() const { return platform::detectSystemResources(); }
 

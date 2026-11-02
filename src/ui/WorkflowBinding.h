@@ -127,6 +127,12 @@ namespace icd::ui {
         // The user changed preset or effort on the Strategy tab.
         void onStrategyChanged();
 
+        // Shows the strategy last chosen for drive_, or the default when none is remembered.
+        void restoreStrategy();
+
+        // Remembers the Strategy tab's choice for drive_ in the settings file, for the next selection or run.
+        void rememberStrategy();
+
         // Reloads the drive list.
         void refreshDrives();
 

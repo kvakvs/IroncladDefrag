@@ -132,7 +132,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/activity/ChurnStats.*` | `collectChurn()` (whole retained journal: sessions per file and per directory, deletes counted from their first record in the directory the file lived in), `directoryChurns()`, `churnFlags()` (churning files, directories and all below), `churnDirectories()`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
-| `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`). |
+| `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`), `SettingsStore`. |
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
 | `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge); the system-wide last-access badge on NTFS drives. |
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
@@ -145,6 +145,8 @@ changes (see `AGENTS.md`).
 | `src/platform/win/MftReader.*` | `MftReader` (overlapped unbuffered volume reads: `read()`, `stream()` with N in flight), `BufferPool`/`PooledBuffer` (bounded, page-aligned), `ReadStats` (busy time, device busy % from `IOCTL_DISK_PERFORMANCE`, starvation). |
 | `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, the saved snapshot patched or, when the patch refuses, every file finished again; dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult` (with `patched`). |
 | `src/services/snapshot/MappedStorage.*` | `storageFor()` (mapped files on the last memory rung), `MemoryGovernor` (low-memory signal steps the plan down), `defaultCacheDirectory()`. |
+| `src/services/settings/Settings.*` | `Settings` (per-drive `DriveStrategy`: preset id and effort), `settingsJson()`, `parseSettings()` (versioned, `SettingsError`, bad drive entries skipped), `driveSettingsKey()` (volume GUID, else root), `effortId()` / `effortFromId()`. |
+| `src/services/settings/SettingsStore.*` | `SettingsStore`: `%LOCALAPPDATA%\IroncladDefrag\settings.json` loaded at start (damaged file kept as `.bad`), atomic save after each change, `driveStrategy()`, `rememberDriveStrategy()`. |
 | `src/services/snapshot/SnapshotStore.*` | `SnapshotStore`: per-volume snapshot files under `%LOCALAPPDATA%\IroncladDefrag\snapshots`, atomic save, `peek()`, `load()` with a reason when rejected, `remove()`. |
 | `src/services/scan/Classification.*` | `classifyVolume()` (built-in catalog plus churn flags: classes per file and per-class rows), `classSummary()` (files and bytes on disk per class, parallel). |
 | `src/services/scan/MftScanner.*` | `scanFilesMft()`: map of `$MFT` from record 0, read plan, streamed reads to parser tasks, merge, USN cursor; `MftScanOptions`. |
@@ -158,14 +160,14 @@ changes (see `AGENTS.md`).
 | `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Analysis of fake drives: synthetic snapshot shaped like the drive, then `MapData` on the job's executor, handed over through `AnalysisOutput`. |
-| `src/services/workflow/FakeResults.*` | `AnalysisSummary` (with `ScanFigures` from a real scan), fake analysis for fake drives, strategy presets, three-level plan and skipped files. |
+| `src/services/workflow/FakeResults.*` | `AnalysisSummary` (with `ScanFigures` from a real scan), fake analysis for fake drives, strategy presets (stable ids, `presetIndex()`), three-level plan and skipped files. |
 | `src/ui/bridge/JobEvents.*` | `JobEventBridge` (job callbacks to `wxQueueEvent`), `jobProgressEvent()`, `jobFinishedEvent()`, payloads. |
 | `src/services/AppLogging.*` | `initAppLogging()`/`shutdownAppLogging()`: installs the sinks, writes startup/shutdown lines. |
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: starts logging and `AppServices`, creates the main frame, stops services on exit. |
 | `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
-| `src/ui/WorkflowBinding.*` | Commands to workflow actions, the job per step (TRIM real, analysis synthetic, others fake), progress and results to the panels, TRIM output to the Log tab, command enable state. |
+| `src/ui/WorkflowBinding.*` | Commands to workflow actions, the job per step (TRIM real, analysis synthetic, others fake), progress and results to the panels, TRIM output to the Log tab, command enable state, per-drive strategy restored on selection and remembered on change. |
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
 | `src/ui/Accelerators.*` | One table of menu shortcuts with a description each (`applyMenuShortcuts()`, `shortcutFor()`, `shortcutText()`, `commandTip()` for tooltips; Ctrl+F go to file, F3 / Shift+F3 fragments, F1 shortcut list), and the map keys of plan.md 7.4 with descriptions (`mapKeyBindings()`, `mapKeyText()`, `mapKeyFor()`, `commandForMapKey()`). |
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
@@ -174,7 +176,7 @@ changes (see `AGENTS.md`).
 | `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators; later ids appended so values stay stable), `isMapCommand()`, `enableCommand()` for menu item + button. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons (tooltips with action and shortcut), the single status line and gauge. |
 | `src/ui/panels/SummaryPage.*` | Summary tab: volume figures (plus directories, fragmented data, large free runs, unmovable, unreadable and changed files after a real scan) and per-class table. |
-| `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list. |
+| `src/ui/panels/StrategyPage.*` | Strategy tab: preset picker, effort level, zone list; `select()` restores a remembered choice without reporting a change. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
 | `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers (tooltip on the drawn TRIM button), selection callback. |
 | `src/ui/panels/MapPanel.*` | Map area (`updateMap()`, `setDisk()` for the rulers): toolbar (color mode, overlays still disabled, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above and the legend below; forwards the canvas's view changes to the rulers and the legend; View > Color mode, Minimap, Legend, Go to file, next/previous fragment. |
@@ -201,6 +203,7 @@ changes (see `AGENTS.md`).
 | `tests/CMakeLists.txt` | Fetches pinned GoogleTest, defines `icd_tests`, `gtest_discover_tests`. |
 | `tests/core/MftLayoutTest.cpp` | Read plans: capped chunks, skipped stretches, volume order, split records, random layouts against per-record mapping, segment joining, holes. |
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
+| `tests/services/SettingsTest.cpp` | Settings JSON round trip, refused documents, skipped drive entries, effort spellings, drive keys, preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/ChurnStatsTest.cpp` | Sessions from close records, deletes where the file lived (POSIX delete into $Deleted) and before their close record, directory churn rule, small folders with churning siblings, flags below churning directories. |
 | `tests/services/ClassificationTest.cpp` | Class rows add up to the volume (files, bytes), catalog order, any executor; churn turns content into temp. |

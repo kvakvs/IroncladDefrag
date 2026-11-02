@@ -8,6 +8,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <string_view>
 #include <utility>
 #include <vector>
 
@@ -69,6 +70,7 @@ namespace icd::services {
 
     // A strategy preset for the Strategy tab picker.
     struct StrategyPreset {
+        std::string id; // Stable key in the settings file, so renaming a preset keeps remembered choices.
         std::string name; // Shown in the picker.
         std::vector<StrategyZone> zones; // Zone list.
     };
@@ -92,6 +94,9 @@ namespace icd::services {
 
     // The presets, default (Mixed data drive) first.
     [[nodiscard]] const std::vector<StrategyPreset>& strategyPresets();
+
+    // Index of the preset with an id in strategyPresets(), to restore a remembered choice; nullopt when unknown.
+    [[nodiscard]] std::optional<std::size_t> presetIndex(std::string_view id);
 
     // Fake analysis of a drive.
     [[nodiscard]] AnalysisSummary fakeAnalysis(const core::DriveInfo& drive);
