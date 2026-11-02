@@ -38,8 +38,8 @@ namespace icd::core::planner {
     // free at the moment of its move; no unmovable file or stream is touched; each move takes exactly the file's
     // current movable clusters in VCN order and keeps their count; moves into a zone land in it (with a layout); each
     // file moves at most once, except a parked file which returns exactly once; the moved clusters equal the lower
-    // bound minus skipped and deferred clusters plus the reported extra; and the plan's totals equal the recomputed
-    // ones.
+    // bound minus skipped and deferred clusters plus the clusters of moves marked extra; and the plan's totals equal
+    // the recomputed ones.
     [[nodiscard]] Validation validatePlan(const Snapshot& snapshot, const Plan& plan,
                                           const ValidateOptions& options = {});
 

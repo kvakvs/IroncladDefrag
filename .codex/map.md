@@ -68,6 +68,7 @@ changes (see `AGENTS.md`).
 | `src/core/planner/Plan.*` | `Plan` (moves with flat source/destination runs, lower bound, extra, skipped and deferred clusters, notes, `PlanTotals`), `Move`, `MoveReason`, `SkippedFile`, `movableRuns()`, `clustersOf()`, `fragmentsOf()`, `finishTotals()`. |
 | `src/core/planner/Validator.*` | `validatePlan()`: replays a plan on copies of free space and extents and checks plan.md 9.5 (free destinations, current sources, kept clusters, zones, one move per file, parking, accounting, totals). |
 | `src/core/planner/ZoneAssignment.*` | `assignZones()`: per file the first matching zone, its `FileRole` (Fixed, InPlace, Defragment, Placed) and movable clusters; per-zone need; `fixedFile()`. |
+| `src/core/planner/SortZone.*` | `SortKeys` (per-order keys, directory+name ranks), `weightedLis()`, `SortedZone`, `sortsAt()`, `applySortBounds()` (anchors and the sort part of the lower bound, tolerance), `sortZone()` (movers between anchors, anchors given up as extra). |
 | `src/core/planner/TargetLayout.*` | `AvailableAxis` (usable clusters numbered around obstacles), `layoutObstacles()`, `gapClusters()`, `resolveLayout()`: placed zones as LCN runs (forward from the front, back zones at the end), gaps, slack, notes; `LayoutInputs` (reserved runs, slack before each forward zone). |
 | `src/core/strategy/ZoneScript.*` | Zone scripts (plan.md 8.1): `ZoneScript`, `Zone` (selector, anchor, order and per-level overrides, action, `fragmentOk`, `GapSpec`), `Effort`, `validateScript()` (issues with their zone), `parseZoneScript()` (strict, `ZoneScriptError` with every issue), `zoneScriptJson()` (round trip, defaults left out), enum keys. |
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
@@ -230,6 +231,7 @@ changes (see `AGENTS.md`).
 | `tests/data/ntfs/*.bin` | Raw MFT records captured from the `special` scenario (4 KB clusters) by `capture-mft-records.ps1`. |
 | `tests/core/SnapshotTest.cpp` | Snapshot building, LCN and file lookup, split runs, paths, bad input, free runs, order independence. |
 | `tests/core/SnapshotStatsTest.cpp` | Figures of a hand-made volume, parallel = serial on a synthetic one. |
+| `tests/core/SortZoneTest.cpp` | Weighted LIS = brute force, keys per order, movers between anchors with an anchor given up (plan validates), tolerance, a synthetic zone ends in order. |
 | `tests/core/StripesTest.cpp` | Stripe layout coverage, view coverage on random volumes, parallel = serial on 2-16 threads. |
 | `tests/core/SyntheticVolumeTest.cpp` | Seed reproducibility, fill level, fragmented share, free patterns, structure. |
 | `tests/core/ViewportTest.cpp` | Pixel/world round trip, fit and limits, anchored zoom, pan clamping, eased zoom motion, durations, inertia. |

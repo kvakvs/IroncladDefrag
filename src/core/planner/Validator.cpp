@@ -138,7 +138,7 @@ namespace icd::core::planner {
                 ClusterCount extra = 0;
                 for (const Move& m : plan_.moves) {
                     moved += m.clusters;
-                    extra += m.reason == MoveReason::Park || m.reason == MoveReason::Evict ? m.clusters : 0;
+                    extra += m.extra ? m.clusters : 0;
                 }
                 ClusterCount skipped = 0;
                 for (const SkippedFile& s : plan_.skipped) {
@@ -149,7 +149,7 @@ namespace icd::core::planner {
                                          plan_.skippedClusters));
                 }
                 if (extra != plan_.extra) {
-                    failPlan(std::format("parking and evictions move {} clusters, the plan reports {} extra", extra,
+                    failPlan(std::format("moves marked extra move {} clusters, the plan reports {} extra", extra,
                                          plan_.extra));
                 }
                 const ClusterCount reached = plan_.skippedClusters + plan_.deferredClusters;

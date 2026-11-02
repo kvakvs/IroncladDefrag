@@ -31,6 +31,7 @@ namespace icd::core::planner {
         MoveReason reason = MoveReason::Relocate; // Why.
         ZoneIndex zone = noZone; // The zone the destination belongs to; noZone for in-place and scratch space.
         bool fromParking = false; // The second move of a parked file: its sources are the scratch runs.
+        bool extra = false; // Not needed by the lower bound (parking, evictions, sorted-zone anchors given up).
         std::uint32_t firstSource = 0; // First source run in Plan::runs.
         std::uint32_t sourceCount = 0; // Source runs.
         std::uint32_t firstDestination = 0; // First destination run in Plan::runs.
@@ -76,7 +77,7 @@ namespace icd::core::planner {
         std::vector<Move> moves{}; // In execution order.
         std::vector<ClusterRun> runs{}; // Source and destination runs of all moves.
         ClusterCount lowerBound = 0; // Clusters any plan must move to reach this level's target.
-        ClusterCount extra = 0; // Clusters moved beyond the target's files: parking and evictions.
+        ClusterCount extra = 0; // Clusters of moves marked extra: parking, evictions, anchors a sorted zone gave up.
         ClusterCount skippedClusters = 0; // Clusters of skipped files.
         ClusterCount deferredClusters = 0; // Clusters left for a later run by the budget (plan.md 9.2.1).
         std::vector<SkippedFile> skipped{}; // Files that had to move but do not.

@@ -46,6 +46,7 @@ add_executable(icd_tests
     core/SnapshotPatchTest.cpp
     core/SnapshotStatsTest.cpp
     core/SnapshotTest.cpp
+    core/SortZoneTest.cpp
     core/StripesTest.cpp
     core/SyntheticVolumeTest.cpp
     core/TargetLayoutTest.cpp

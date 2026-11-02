@@ -31,6 +31,7 @@ namespace icd::core::planner {
     struct FillResult {
         std::vector<Destination> placed{}; // One per file that fits, in placement order.
         std::vector<FileIndex> overflow{}; // Files no hole of the region holds.
+        std::vector<FileIndex> released{}; // Overflowing files that move only as extra (anchors a sorted zone gave up).
     };
 
     // Fast-fill (plan.md 8.1, 9.3.5): fills the region's holes from the packed end, each hole with the largest file

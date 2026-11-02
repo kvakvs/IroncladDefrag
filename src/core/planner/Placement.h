@@ -47,6 +47,7 @@ namespace icd::core::planner {
         std::vector<ClusterRun> runs{}; // Its new runs, in VCN order.
         MoveReason reason = MoveReason::Relocate; // Why it moves.
         ZoneIndex zone = noZone; // The zone it lands in, or noZone.
+        bool extra = false; // Not needed by the lower bound (see Move::extra).
     };
 
     // Appends one move per destination in the given order (the caller has ordered them, or they do not depend on

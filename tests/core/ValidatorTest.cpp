@@ -17,7 +17,8 @@ namespace icd::core::planner { namespace {
         // Appends a move.
         PlanMaker& move(FileIndex file, std::vector<ClusterRun> from, std::vector<ClusterRun> to,
                         MoveReason reason = MoveReason::Defragment, ZoneIndex zone = noZone) {
-            plan_.add({.file = file, .reason = reason, .zone = zone}, from, to);
+            const bool extra = reason == MoveReason::Park || reason == MoveReason::Evict;
+            plan_.add({.file = file, .reason = reason, .zone = zone, .extra = extra}, from, to);
             return *this;
         }
 

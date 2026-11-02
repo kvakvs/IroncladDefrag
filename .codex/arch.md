@@ -1012,6 +1012,16 @@ All analysis checks passed.
   no hole inside an exact zone and overflow (measured: a fifth of the files, most of the bytes, on a 60% full synthetic
   volume); they are placed next to the zone or make room by evicting small files (T088).
 
+- Sorted zones (T086, `SortZone`): `SortKeys` gives every file one 64-bit key per order with the file index as tie-break
+  (directory+name: the parent's rank in a depth-first walk with children in name order, then the name's rank; names
+  compare ASCII case-insensitively). `applySortBounds()` takes a sorted zone's files that are already in place, finds
+  the byte-heaviest subsequence already in key order (`weightedLis()`, Fenwick tree, O(n log n), equal to brute force)
+  and adds the rest to the lower bound; at Moderate a zone is sorted only when that moves at most the tolerance share of
+  its in-place bytes, otherwise it is fast-filled. Never at Fast. `sortZone()` puts each mover into the gap between the
+  anchors that bracket its key and packs every gap in key order; a gap that cannot hold its movers gives up the anchor
+  that ends it (the zone's last gap the one before it), which then moves as extra. `Move::extra` marks such moves,
+  parking and evictions, and the validator sums them into the plan's extra.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

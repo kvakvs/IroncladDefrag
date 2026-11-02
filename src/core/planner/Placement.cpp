@@ -140,7 +140,8 @@ namespace icd::core::planner {
 
     void appendMoves(const Snapshot& snapshot, std::span<const Destination> destinations, Plan& plan) {
         for (const Destination& d : destinations) {
-            plan.add({.file = d.file, .reason = d.reason, .zone = d.zone}, movableRuns(snapshot, d.file), d.runs);
+            plan.add({.file = d.file, .reason = d.reason, .zone = d.zone, .extra = d.extra},
+                     movableRuns(snapshot, d.file), d.runs);
         }
     }
 

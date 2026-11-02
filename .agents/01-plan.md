@@ -24,13 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T086 - Sort planner (weighted LIS)
-
-- Depends: T084
-- Owns: `src/core/planner/SortZone.*`
-- Do: §9.3.4 byte-weighted LIS with tolerance.
-- Done when: optimality tests against brute force on small inputs.
-
 ### T087 - Pack-to-back planner
 
 - Depends: T084

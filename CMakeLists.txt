@@ -126,6 +126,8 @@ add_library(icd_core STATIC
     src/core/planner/Placement.h
     src/core/planner/Plan.cpp
     src/core/planner/Plan.h
+    src/core/planner/SortZone.cpp
+    src/core/planner/SortZone.h
     src/core/planner/TargetLayout.cpp
     src/core/planner/TargetLayout.h
     src/core/planner/ZoneAssignment.cpp
