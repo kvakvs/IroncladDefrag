@@ -229,3 +229,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   scale volume on the E: HDD: catch-up 3.51 s and equal to a rescan. Fixed on the way: re-reads naming extension
   records read the wanted set again in one plan (interleaved chunks at 10 M files), `RowIndex` orders chunks by their
   first row, MappedStorage tests use their own folders. `CatchUpPatchTest`, `SnapshotPatchTest`. **Phase 4 exit.**
+- T070 Rule engine - `core/classify/RuleEngine.*`: ordered rules (first match wins) over path globs (`*`, `?`, `**`,
+  anchored or not, case-insensitive), extensions, size and age ranges, file flags and churn; per-directory overrides
+  (deepest wins, regular files only); all globs as one automaton stepped once per directory level (parallel) and once
+  per file name, extensions looked up once per distinct name; `classifyPath()` equals `classify()`. `RuleEngineTest`.

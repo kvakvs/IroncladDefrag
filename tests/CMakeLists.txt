@@ -30,6 +30,7 @@ add_executable(icd_tests
     core/OverviewTest.cpp
     core/PyramidTest.cpp
     core/ResourceCapsTest.cpp
+    core/RuleEngineTest.cpp
     core/RulerTest.cpp
     core/ScanReconcileTest.cpp
     core/SelectionTest.cpp

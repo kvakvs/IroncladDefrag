@@ -840,6 +840,26 @@ All analysis checks passed.
   5,031 records read) 3.51 s, patched, and equal to a full rescan (target 10 s); capped mapped scan identical. The
   finish stage alone at 20 M files: see `catchup-bench` under USN catch-up.
 
+## Classification
+
+- `core::classify::RuleEngine` (T070, plan.md 8.2): ordered rules, the first match gives the class (`ClassId`, one byte
+  per file, an index into the rule set's class names); no match gives the fallback ("Unknown"). A rule's conditions
+  all have to hold: path globs (any of them), extensions (any), size range, age range (days since the last change,
+  from a fixed "now" so results are reproducible), file flags that must be set or clear, and churn (any, churning,
+  stable). Specific rules go first (repository packs before sources, build folders before extensions).
+- Path globs work on components (`/` or `\`): `*` and `?` inside a name, `**` for any number of folders, anchored at
+  the volume root unless they start with `**`; ASCII letters compare case-insensitively, as NTFS names do. Paths are
+  never built: all globs of a rule set are one automaton (state i of a glob = its first i parts matched; `**` stays on
+  a part and is skipped by closure), its state set (bit words) computed once per directory, level by level from the
+  roots in parallel, and stepped once more per file name. Extensions are looked up once per distinct name in the pool
+  (a table of all rule extensions, a bitset per rule). Classifying a snapshot is then one parallel pass over the files;
+  the result is the same for any executor.
+- Per-directory overrides (plan.md 8.2): a directory path and a class; the deepest override above a regular file beats
+  every rule. Directories keep their rule class, because directory indexes are placed by their own rules (plan.md 8.3).
+  Overrides are found by walking names from the roots and inherited down the same level pass.
+- `classifyPath()` classifies one path with facts, by the same automaton and override rules; tests require it to give
+  every file of a snapshot exactly what `classify()` gives (hand-made dev tree and a 20 K-file synthetic volume).
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 5 - Classification and activity (§8.2, §13 Phase 5)
 
-### T070 - Rule engine
-
-- Depends: T020
-- Owns: `src/core/classify/RuleEngine.*`
-- Do: ordered rules over path patterns, extension, size, age; per-directory overrides; parallel
-  classification of a snapshot.
-- Done when: tests for rule order, overrides and determinism.
-
 ### T071 - Built-in class catalog
 
 - Depends: T070

@@ -29,6 +29,8 @@ configure_file(src/core/Version.h.in "${CMAKE_BINARY_DIR}/generated/core/Version
 # --- icd_core: wx-free, Win32-free model and algorithms -------------------------------------------
 add_library(icd_core STATIC
     src/core/Version.h.in
+    src/core/classify/RuleEngine.cpp
+    src/core/classify/RuleEngine.h
     src/core/exec/Executor.cpp
     src/core/exec/Executor.h
     src/core/format/ByteSize.cpp
