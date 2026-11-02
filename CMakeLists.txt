@@ -197,6 +197,8 @@ icd_target_defaults(icd_platform)
 
 # --- icd_services: jobs, thread pool, orchestration ----------------------------------------------
 add_library(icd_services STATIC
+    src/services/activity/ChurnStats.cpp
+    src/services/activity/ChurnStats.h
     src/services/AppInfo.cpp
     src/services/AppInfo.h
     src/services/AppLogging.cpp
@@ -328,6 +330,8 @@ add_executable(icd-cli
     src/cli/commands/CheckCaps.h
     src/cli/commands/CheckCatchUp.cpp
     src/cli/commands/CheckCatchUp.h
+    src/cli/commands/Churn.cpp
+    src/cli/commands/Churn.h
     src/cli/commands/CliCommon.cpp
     src/cli/commands/CliCommon.h
     src/cli/commands/CompareScanners.cpp

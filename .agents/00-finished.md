@@ -242,3 +242,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   (files read over an hour after creation and last change; setting plus evidence give reliable, unreliable or unknown
   with a reason); "Last access on/off" badge on every NTFS drive, verdict on the Summary tab and in the JSON report.
   `AccessTimeHeuristicTest`, `LastAccessSettingTest`.
+- T073 USN churn statistics - `services/activity/ChurnStats.*`: the journal's retained window as sessions per file and
+  per directory (creations and data changes from close records, deletes from their first record and in the directory
+  the file lived in, since POSIX deletes move files into $Extend\$Deleted); a directory churns with 10+ deletes at a
+  quarter of its creations, or with some deletes when most siblings churn; flags spread below churning directories.
+  `icd-cli churn`, dev scenario with repeated rebuilds of the same objects and temp churn in `.cache`,
+  `tests/integration/churn/check-churn.ps1` (all 69 build and 3 temp directories, nothing else). `ChurnStatsTest`.

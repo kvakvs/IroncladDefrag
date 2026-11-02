@@ -1,21 +1,42 @@
 #include "cli/commands/Analyze.h"
 #include "cli/commands/CheckCaps.h"
 #include "cli/commands/CheckCatchUp.h"
+#include "cli/commands/Churn.h"
 #include "cli/commands/CompareScanners.h"
 #include "services/AppInfo.h"
 #include "services/AppLogging.h"
 
+#include <algorithm>
+#include <array>
 #include <cstdio>
+#include <span>
 #include <string_view>
 #include <vector>
 
 namespace {
 
-    // Prints the command summary; plan and execute arrive in later phases.
+    // One command: its name, entry point and usage line.
+    struct Command {
+        std::wstring_view name; // First argument.
+        int (*run)(std::span<const std::wstring_view>); // Runs it with the remaining arguments.
+        const char* (*usage)(); // Its usage line.
+    };
+
+    // Every command; plan and execute arrive in later phases.
+    constexpr std::array commands{
+        Command{L"analyze", icd::cli::runAnalyze, icd::cli::analyzeUsage},
+        Command{L"compare-scanners", icd::cli::runCompareScanners, icd::cli::compareScannersUsage},
+        Command{L"check-catchup", icd::cli::runCheckCatchUp, icd::cli::checkCatchUpUsage},
+        Command{L"check-caps", icd::cli::runCheckCaps, icd::cli::checkCapsUsage},
+        Command{L"churn", icd::cli::runChurn, icd::cli::churnUsage},
+    };
+
+    // Prints the command summary.
     void printUsage() {
-        std::printf("Usage: icd-cli [--version] [--help]\n       %s\n       %s\n       %s\n       %s\n",
-                    icd::cli::analyzeUsage(), icd::cli::compareScannersUsage(), icd::cli::checkCatchUpUsage(),
-                    icd::cli::checkCapsUsage());
+        std::printf("Usage: icd-cli [--version] [--help]\n");
+        for (const Command& c : commands) {
+            std::printf("       %s\n", c.usage());
+        }
     }
 
     // Handles the command line and returns the process exit code.
@@ -35,17 +56,9 @@ namespace {
             return 0;
         }
         const std::vector<std::wstring_view> rest(argv + 2, argv + argc);
-        if (arg == L"analyze") {
-            return icd::cli::runAnalyze(rest);
-        }
-        if (arg == L"compare-scanners") {
-            return icd::cli::runCompareScanners(rest);
-        }
-        if (arg == L"check-catchup") {
-            return icd::cli::runCheckCatchUp(rest);
-        }
-        if (arg == L"check-caps") {
-            return icd::cli::runCheckCaps(rest);
+        const auto command = std::ranges::find(commands, arg, &Command::name);
+        if (command != commands.end()) {
+            return command->run(rest);
         }
         std::fprintf(stderr, "Unknown argument: %ls\n", argv[1]);
         printUsage();

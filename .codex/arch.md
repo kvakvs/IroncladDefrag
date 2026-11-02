@@ -882,6 +882,23 @@ All analysis checks passed.
   the files show (old accesses survive turning updates off); on with any such reads means reliable; without a setting,
   5% or more is reliable and under 0.5% unreliable, and fewer than 100 files never decide. The analysis puts the
   verdict and its reason on the Summary tab ("Last-access times") and into the JSON report.
+- USN churn (T073, `services/activity/ChurnStats`): `collectChurn()` reads the journal's whole retained window and
+  counts sessions, not records: creations and data changes come from close records, whose accumulated reason bits sum
+  up the session. Deletes count from their first record (the close record waits until every other handle closes, and a
+  scanner such as Defender often holds a new file), once per file reference, and for the directory the file was last
+  seen in: a POSIX delete with another handle open first moves the file into `\$Extend\$Deleted`, and the delete's
+  records name that directory (found on the dev scenario: a third of a temp folder's deletes landed there). Counts are
+  kept per file reference and per directory reference (the files directly in it, deleted ones included).
+- A directory churns when its files were deleted at least 10 times and at least a quarter as often as files were
+  created there (build output, temp; sources and culled photo folders do not), or, with at least two deletes at that
+  share, when most of its sibling directories churn (the last, small folder of a build tree). A file churns with 10 or
+  more sessions of its own (a log appended all the time). Metadata directories never count. `churnFlags()` marks churning files, churning directories and everything below
+  them, per snapshot file, for the rule engine (`ClassifyInputs::churn`).
+- The `dev` scenario rebuilds the same object files in each of its three build cycles (fresh contents, as a real
+  rebuild) and now writes and deletes temp files in `repo-N\.cache` in five cycles. `icd-cli churn <vol> [--json]`
+  scans a volume and lists its churning directories; `tests/integration/churn/check-churn.ps1` creates the journal
+  before writing the dev scenario and requires every build output and temp directory, and no source, dependency or
+  repository directory, to be churn.
 
 ## Parallel execution
 

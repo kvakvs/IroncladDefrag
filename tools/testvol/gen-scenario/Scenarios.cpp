@@ -112,25 +112,50 @@ namespace icd::testvol {
             return kept;
         }
 
-        // Build/clean cycles: objects written by parallel compilers, deleted, rewritten; a log grows.
+        // Build/clean cycles: the same objects written by parallel compilers, deleted and rewritten (new contents each
+        // build, as a real rebuild does); a log grows.
         std::vector<FileSpec> devBuilds(Generator& gen, const std::wstring& repo, std::uint64_t bytes) {
             const std::wstring log = repo + L"\\build\\build.log";
             std::vector<FileSpec> kept = gen.write({{log, 4 * KB, gen.nextSeed()}}, {});
+            const Sizing s = scaled({120.0 * KB, 1.0, KB, 16 * MB}, bytes, 8);
+            std::vector<FileSpec> build = makeTree(gen, repo + L"\\build\\obj", bytes, s, {kObjectExt, 25});
             std::vector<FileSpec> objects;
             constexpr int kCycles = 3;
             for (int cycle = 0; cycle < kCycles; ++cycle) {
                 for (const FileSpec& old : objects) {
                     gen.remove(old);
                 }
-                const Sizing s = scaled({120.0 * KB, 1.0, KB, 16 * MB}, bytes, 8);
-                objects = gen.write(makeTree(gen, repo + L"\\build\\obj", bytes, s, {kObjectExt, 25}), {4, 64 * KB});
+                for (FileSpec& spec : build) {
+                    spec.seed = gen.nextSeed();
+                }
+                objects = gen.write(build, {4, 64 * KB});
                 gen.append(log, bytes / 200);
             }
             addAll(kept, objects);
             return kept;
         }
 
-        // One repository: sources and history, dependencies, build output.
+        // Temp churn (plan.md 8.3): tools write small temp files into repo\.cache and delete them again, cycle after
+        // cycle; the last batch stays.
+        std::vector<FileSpec> devTemp(Generator& gen, const std::wstring& repo) {
+            constexpr int kCycles = 5;
+            constexpr int kFiles = 20;
+            std::vector<FileSpec> files;
+            for (int cycle = 0; cycle < kCycles; ++cycle) {
+                for (const FileSpec& old : files) {
+                    gen.remove(old);
+                }
+                std::vector<FileSpec> specs;
+                for (int n = 0; n < kFiles; ++n) {
+                    specs.push_back({std::format(L"{}\\.cache\\tmp-{}-{}.tmp", repo, cycle, n),
+                                     static_cast<std::uint64_t>(4 * KB + gen.rng().below(60 * KB)), gen.nextSeed()});
+                }
+                files = gen.write(specs, {1, 64 * KB});
+            }
+            return files;
+        }
+
+        // One repository: sources and history, dependencies, build output, temp churn.
         std::vector<FileSpec> devRepo(Generator& gen, const std::wstring& repo, std::uint64_t bytes) {
             std::vector<FileSpec> kept = devSources(gen, repo, bytes * 15 / 100, bytes * 25 / 100);
             addAll(kept,
@@ -138,6 +163,7 @@ namespace icd::testvol {
                                       {kModuleExt, 50, Content::Text}),
                              {1, 64 * KB}));
             addAll(kept, devBuilds(gen, repo, bytes * 40 / 100));
+            addAll(kept, devTemp(gen, repo));
             return kept;
         }
 

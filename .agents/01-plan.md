@@ -24,14 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 5 - Classification and activity (§8.2, §13 Phase 5)
 
-### T073 - USN churn statistics
-
-- Depends: T046, T070
-- Owns: `src/services/activity/ChurnStats.*`
-- Do: per-file and per-directory create/delete/overwrite counts from the retained journal; churn
-  flag feeding the rule engine.
-- Done when: the `dev` scenario's build and temp directories are detected as churn.
-
 ### T074 - Class map mode and summary
 
 - Depends: T071, T032
