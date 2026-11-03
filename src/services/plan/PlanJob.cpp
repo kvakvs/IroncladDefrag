@@ -4,6 +4,7 @@
 #include "core/classify/RuleEngine.h"
 #include "core/format/Count.h"
 #include "core/map/ZoneFitColorMode.h"
+#include "core/planner/SortZone.h"
 #include "core/planner/Validator.h"
 #include "core/planner/levels/FastLevel.h"
 #include "core/planner/levels/MaximumLevel.h"
@@ -41,8 +42,10 @@ namespace icd::services {
         }
 
         // Validation findings of a planned level.
-        std::vector<std::string> validate(const core::Snapshot& snapshot, const PlanResult& result) {
-            const auto v = core::planner::validatePlan(snapshot, result.plan, {.layout = &result.layout});
+        std::vector<std::string> validate(const core::Snapshot& snapshot, const PlanResult& result,
+                                          core::Executor& executor) {
+            const auto v =
+                core::planner::validatePlan(snapshot, result.plan, {.layout = &result.layout, .executor = &executor});
             std::vector<std::string> out;
             out.reserve(v.issues.size());
             for (const auto& issue : v.issues) {
@@ -108,6 +111,7 @@ namespace icd::services {
                            core::ProgressSink* progress) {
         const auto start = std::chrono::steady_clock::now();
         const core::Snapshot& snapshot = *request.snapshot;
+        core::planner::SortKeyCache sortKeys; // The levels share the keys of each zone order.
         const core::planner::PlanInput input{.snapshot = &snapshot,
                                              .script = &request.script,
                                              .catalog = &core::classify::builtinCatalog(),
@@ -117,7 +121,8 @@ namespace icd::services {
                                              .reserved = request.reserved,
                                              .shadowCopies = request.shadowCopies,
                                              .fastBudgetMultiplier = request.fastBudgetMultiplier,
-                                             .time = {}};
+                                             .time = {},
+                                             .sortKeys = &sortKeys};
         std::atomic<std::uint64_t> done{0};
         const auto report = [&](std::uint64_t count) {
             if (progress != nullptr) {
@@ -137,7 +142,8 @@ namespace icd::services {
                     LevelOutcome& o = outcome.levels.at(level);
                     o.result = planOne(core::strategy::allEfforts.at(level), input, assignment, executor, token);
                     if (request.validate) {
-                        o.issues = validate(snapshot, o.result);
+                        const core::planner::StageScope stage(o.result.stages, "validate");
+                        o.issues = validate(snapshot, o.result, executor);
                     }
                     o.seconds = since(levelStart);
                     report(++done);

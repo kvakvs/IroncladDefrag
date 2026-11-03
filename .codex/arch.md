@@ -1073,12 +1073,18 @@ All analysis checks passed.
   evictions). A parked file has a Park move and later a move `fromParking`.
 - `HoleSet` is the mutable free-run set shared by the validator and the allocators: sorted, merged holes in blocks of
   256-1024 runs with a max-length segment tree over the blocks, so 17 M free runs cost 16 bytes each and take, add and
-  first/last-fit queries in either direction stay logarithmic plus one block scan.
+  first/last-fit queries in either direction stay logarithmic plus one block scan. A block's longest run is kept up to
+  date as runs grow and shrink (rescanned only when the longest one shrinks). `HoleSet::Walk` visits the holes of a
+  window one at a time, for searches that usually stop early (room finding).
 - `validatePlan()` replays a plan on a copy of the free runs and the moved files' runs (plan.md 9.5): each
   destination must be free when its move runs, the sources must be the file's current movable runs (so unmovable
   files and streams are never touched and a stale or reordered source list fails), clusters are kept, moves into a
   zone land inside it (given a layout), each file moves once (a parked file returns exactly once), the accounting
-  above holds exactly, and the plan's totals equal the replay's. Tests break a plan for every rule.
+  above holds exactly, and the plan's totals equal the replay's. Tests break a plan for every rule. A valid plan is
+  checked in parallel (`ValidateOptions::executor`): every move against the file's previous move, then free space per
+  LCN stripe (up to 256, cut where the moves' runs are densest; each stripe replays only the moves reaching into it, in
+  plan order: a destination is free when each part is free in its stripe). Anything off falls back to the serial replay,
+  so a broken plan reports exactly the same issues.
 
 - Lower bound (T083, `LowerBound`): a Placed file must move unless all its movable runs lie in its zone's pieces and its
   fragments are good enough (one fragment, or every fragment at least the zone's `fragmentOk`; at Maximum the whole
@@ -1241,6 +1247,18 @@ All analysis checks passed.
   valid; 4 M files 72 s. Still above the 60 s target (T093c): zone placement is serial and the cycle guard roughly
   doubles it (at 30 TB about 110 s per level), eviction room search about 45 s, Moderate's budget and ordering,
   measuring and validation each tens of seconds.
+- Scale after T093c (`plan-bench`, 8 workers on the 8 performance cores of an i9-14900KF, validation on): 30 TB / 20 M
+  files 57-59 s (Fast 13 s, Moderate 51 s, Maximum 57-58 s; 63 s unpinned, where serial stages may land on efficiency
+  cores), the same plans on one worker (178 s, 3.1x: each level's pipeline is serial). Found with xperf and stage times
+  (`PlanResult::stages`, printed by `plan-bench`) and fixed without changing a plan (checked by the bench's fingerprints):
+  validation in parallel (above); `findRoom()` walks holes lazily, stops a window once it cannot beat the best, and
+  costs a piece's windows in parallel; the budget's dependencies once and in parallel, its order by a parallel sort with
+  index ties; ordering keeps sources and edges in flat arrays, sorts with precomputed sizes, finds components only among
+  live moves with arrays kept across rounds, and builds scratch space as one difference; pools, sort keys
+  (`SortKeyCache`, one per order shared by the levels), fast-fill items and sorted-zone movers are built in parallel;
+  totals and benefits count fragments without building run lists; another worker frees a level's destinations and wait
+  graph. One change alters plans: the cycle guard's search budget per destination went from 64 to 4 visits (searches
+  spent 92% of it giving up), for 0.03% more moves at Moderate and the same bytes and ratio.
 - Placement keeps re-planning (up to eight rounds) until no file fails for lack of space, and Maximum holds back a
   scratch reserve (the largest free run outside every zone, 1% of the volume or the largest must-move file) before
   overflow and defragment-only files take free space, so parking has room.

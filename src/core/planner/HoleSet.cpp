@@ -146,9 +146,7 @@ namespace icd::core::planner {
         if (left.length != 0 && right.length != 0) {
             insertAt({s.block, s.index + 1}, right);
         }
-        else {
-            refresh(s.block);
-        }
+        shrank(s.block, hole.length); // After a split the block is exact anyway; a rescan is harmless.
         return true;
     }
 
@@ -170,7 +168,7 @@ namespace icd::core::planner {
         else if (joinNext) {
             ClusterRun& n = blocks_[s.block].runs[s.index];
             n = {run.start, run.length + n.length};
-            refresh(s.block);
+            grew(s.block, n.length);
         }
         else {
             insertAt(s, run);
@@ -182,7 +180,7 @@ namespace icd::core::planner {
         ClusterRun& p = blocks_[prev.block].runs[prev.index];
         p.length += run.length + (next ? at(*next).length : 0);
         raiseEnd(prev.block, p.end());
-        refresh(prev.block);
+        grew(prev.block, p.length);
         if (next) {
             eraseAt(*next);
         }
@@ -249,6 +247,13 @@ namespace icd::core::planner {
         return out;
     }
 
+    std::optional<ClusterRun> HoleSet::Walk::hole() const {
+        if (spot_.block >= set_.blocks_.size() || set_.at(spot_).start >= window_.end()) {
+            return std::nullopt;
+        }
+        return clipRun(set_.at(spot_), window_);
+    }
+
     std::vector<ClusterRun> HoleSet::runs() const {
         std::vector<ClusterRun> out;
         out.reserve(count_);
@@ -264,8 +269,25 @@ namespace icd::core::planner {
         for (const ClusterRun& r : b.runs) {
             b.longest = std::max(b.longest, r.length);
         }
+        updateLeaf(block);
+    }
+
+    void HoleSet::grew(std::size_t block, ClusterCount length) {
+        if (length > blocks_[block].longest) {
+            blocks_[block].longest = length;
+            updateLeaf(block);
+        }
+    }
+
+    void HoleSet::shrank(std::size_t block, ClusterCount length) {
+        if (length >= blocks_[block].longest) {
+            refresh(block); // It was the longest: another run may be now.
+        }
+    }
+
+    void HoleSet::updateLeaf(std::size_t block) {
         std::size_t node = leaves_ + block;
-        tree_[node] = b.longest;
+        tree_[node] = blocks_[block].longest;
         for (node /= 2; node > 0; node /= 2) {
             tree_[node] = std::max(tree_[2 * node], tree_[2 * node + 1]);
         }
@@ -352,7 +374,7 @@ namespace icd::core::planner {
         raiseEnd(s.block, run.end());
         ++count_;
         if (b.runs.size() <= maxBlockRuns) {
-            refresh(s.block);
+            grew(s.block, run.length);
             return;
         }
         // Split this block in two; the tree is rebuilt from the blocks' stored maxima, without rescanning runs.
@@ -365,6 +387,7 @@ namespace icd::core::planner {
 
     void HoleSet::eraseAt(Spot s) {
         auto& runs = blocks_[s.block].runs;
+        const ClusterCount length = runs[s.index].length;
         runs.erase(runs.begin() + static_cast<std::ptrdiff_t>(s.index));
         --count_;
         if (runs.empty()) {
@@ -374,7 +397,7 @@ namespace icd::core::planner {
             restructure();
             return;
         }
-        refresh(s.block);
+        shrank(s.block, length);
     }
 
 } // namespace icd::core::planner

@@ -5,6 +5,7 @@
 #include "core/planner/MakeRoom.h"
 #include "core/planner/MoveOrdering.h"
 #include "core/planner/Validator.h"
+#include "services/exec/ThreadPool.h"
 
 #include "core/PlannerTestUtil.h"
 
@@ -160,6 +161,33 @@ namespace icd::core::planner { namespace {
         EXPECT_EQ(noT->window, (ClusterRun{2, 3})); // X and the hole at 4.
         EXPECT_FALSE(findRoom(v.snapshot, pool, {.clusters = 3, .own = {}, .region = region, .maxEvict = 0},
                               [](FileIndex) { return true; }));
+    }
+
+    TEST(MakeRoom, ParallelSearchFindsTheSameRoom) {
+        // 26 one-cluster files with a hole after each: dozens of windows per piece, costed in parallel.
+        const auto v = test::pictureVolume("A.B.C.D.E.F.G.H.I.J.K.L.M.N.O.P.Q.R.S.T.U.V.W.X.Y.Z.");
+        const HoleSet pool(v.snapshot.freeSpace.runs());
+        const std::vector<ClusterRun> region{{0, 52}};
+        const FileIndex h = v.files.at('H');
+        const std::function<bool(FileIndex)> mayEvict = [&](FileIndex file) { return file != h; };
+        services::ThreadPool threads(4);
+        std::size_t found = 0;
+        for (const ClusterCount clusters : {3ULL, 6ULL, 9ULL}) {
+            for (const ClusterCount maxEvict : {1ULL, 2ULL, 4ULL}) {
+                SCOPED_TRACE(clusters * 10 + maxEvict);
+                const RoomRequest request{.clusters = clusters, .own = {}, .region = region, .maxEvict = maxEvict};
+                const auto serial = findRoom(v.snapshot, pool, request, mayEvict);
+                const auto parallel = findRoom(v.snapshot, pool, request, mayEvict, 256, &threads);
+                ASSERT_EQ(serial.has_value(), parallel.has_value());
+                if (serial) {
+                    ++found;
+                    EXPECT_EQ(serial->window, parallel->window);
+                    EXPECT_EQ(serial->blockers, parallel->blockers);
+                    EXPECT_EQ(serial->evicted, parallel->evicted);
+                }
+            }
+        }
+        EXPECT_GT(found, 3U);
     }
 
 }} // namespace icd::core::planner

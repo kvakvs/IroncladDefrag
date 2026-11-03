@@ -153,8 +153,10 @@ namespace icd::core::planner {
             // Plans the level.
             PlanResult run(Executor& executor, const CancelToken& token) {
                 executor_ = &executor;
+                std::optional<StageScope> stage(std::in_place, result_.stages, "layout");
                 result_.layout = resolveLayout(snapshot_, *input_.script, assignment_, input_.classes, *input_.catalog,
                                                {.reserved = input_.reserved});
+                stage.emplace(result_.stages, "hot spots");
                 const std::vector<SpotPlan> spots = hottestSpots(executor);
                 for (const SpotPlan& s : spots) {
                     result_.hotSpots.push_back(s.spot);
@@ -167,7 +169,9 @@ namespace icd::core::planner {
                         }
                     }
                 }
+                stage.emplace(result_.stages, "placement");
                 std::vector<Destination> destinations = placeRounds(spots);
+                stage.reset();
                 finish(destinations);
                 return std::move(result_);
             }
@@ -396,12 +400,15 @@ namespace icd::core::planner {
             void finish(std::vector<Destination>& destinations) {
                 Plan& plan = result_.plan;
                 plan.effort = strategy::Effort::Fast;
+                std::optional<StageScope> stage(std::in_place, result_.stages, "order");
                 (void)orderMoves(snapshot_, destinations, {.allowParking = false, .scratch = {}, .executor = executor_},
                                  plan);
-                applyBudget(snapshot_, plan, policy_.budget);
+                stage.emplace(result_.stages, "budget");
+                applyBudget(snapshot_, plan, policy_.budget, executor_);
                 finishTotals(plan, snapshot_);
                 plan.notes.emplace_back(
                     "Fast works on the busiest areas first: run it again to keep improving the drive.");
+                stage.emplace(result_.stages, "measure");
                 result_.metrics = measurePlan(input_, assignment_, result_.layout, plan, *executor_);
             }
 

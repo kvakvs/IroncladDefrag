@@ -28,8 +28,10 @@ namespace icd::core::planner {
         // perRecord for every destination recorded, so planning stays near-linear on huge volumes.
         static constexpr std::uint64_t startCredit = 1ULL << 22U;
 
-        // Visits each recorded destination adds to the budget.
-        static constexpr std::uint64_t perRecord = 64;
+        // Visits each recorded destination adds to the budget. At 30 TB (10 M destinations a level) the searches spend
+        // all of it, nine tenths in searches that give up: 64 cost about 45 s a level, 4 costs a few seconds for plans
+        // within 0.03% of the moves (T093c).
+        static constexpr std::uint64_t perRecord = 4;
 
         // Visits a search may still make when the budget is spent.
         static constexpr std::size_t minLimit = 16;

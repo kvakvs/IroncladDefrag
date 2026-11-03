@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/exec/Executor.h"
 #include "core/planner/Plan.h"
 #include "core/snapshot/Snapshot.h"
 
@@ -35,7 +36,7 @@ namespace icd::core::planner {
     // earlier move it depends on (so the kept set stays valid), while the budget lasts; the kept moves are then
     // ordered with the most valuable ready move first, so stopping after any move leaves the volume better than before.
     // Moves left out count as deferred (extra ones as nothing). Fills Move::benefit. Plans with parking are left whole
-    // (only Maximum parks, and it has no budget).
-    void applyBudget(const Snapshot& snapshot, Plan& plan, const BudgetOptions& budget);
+    // (only Maximum parks, and it has no budget). Benefits and dependencies are computed on `executor` (null: inline).
+    void applyBudget(const Snapshot& snapshot, Plan& plan, const BudgetOptions& budget, Executor* executor = nullptr);
 
 } // namespace icd::core::planner

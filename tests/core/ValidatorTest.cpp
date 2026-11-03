@@ -2,6 +2,9 @@
 // plan.md 9.5.
 
 #include "core/planner/Validator.h"
+#include "core/planner/levels/MaximumLevel.h"
+#include "core/synth/SyntheticVolume.h"
+#include "services/exec/ThreadPool.h"
 
 #include "core/PlannerTestUtil.h"
 
@@ -168,6 +171,83 @@ namespace icd::core::planner { namespace {
         EXPECT_TRUE(mentions(validatePlan(f.v.snapshot, plan), "totals"));
         plan.moves[0].file = 99;
         EXPECT_TRUE(mentions(validatePlan(f.v.snapshot, plan), "names no file"));
+    }
+
+    // A Maximum plan of a synthetic volume: thousands of moves (parking included), so the checks run in stripes.
+    struct PlannedVolume {
+        Snapshot snapshot;
+        strategy::ZoneScript script;
+        PlanResult result;
+    };
+
+    // Plans Maximum with photos sorted at the front and everything else fast-filled.
+    PlannedVolume plannedVolume() {
+        SynthOptions options;
+        options.seed = 71;
+        options.files = 2500;
+        options.geometry.totalClusters = 1ULL << 21U;
+        options.fillPercent = 80.0;
+        options.fragmentedShare = 0.3;
+        PlannedVolume out{.snapshot = generateSyntheticVolume(options), .script = {}, .result = {}};
+        strategy::Zone photos = test::zone("Photos", {"photos"}, strategy::ZoneAction::Sort, strategy::Anchor::Front);
+        photos.order = strategy::ZoneOrder::DirectoryName;
+        out.script = test::script({photos, test::zone("Rest", {}, strategy::ZoneAction::FastFill)});
+        const auto classes = test::classesOf(out.snapshot);
+        const PlanInput input{.snapshot = &out.snapshot,
+                              .script = &out.script,
+                              .catalog = &classify::builtinCatalog(),
+                              .classes = classes,
+                              .churn = {},
+                              .now = test::now};
+        InlineExecutor serial;
+        out.result = planMaximum(input, assignInput(input, serial), serial);
+        return out;
+    }
+
+    TEST(Validator, ParallelChecksAgreeWithTheReplay) {
+        const PlannedVolume p = plannedVolume();
+        ASSERT_GT(p.result.plan.moves.size(), 1000U);
+        const Validation inline_ = validatePlan(p.snapshot, p.result.plan, {.layout = &p.result.layout});
+        ASSERT_TRUE(inline_.ok()) << inline_.issues.front().message;
+        services::ThreadPool pool(4);
+        const Validation parallel =
+            validatePlan(p.snapshot, p.result.plan, {.layout = &p.result.layout, .executor = &pool});
+        ASSERT_TRUE(parallel.ok()) << parallel.issues.front().message;
+        EXPECT_EQ(parallel.totals, inline_.totals);
+        EXPECT_EQ(parallel.freeClusters, inline_.freeClusters);
+        EXPECT_EQ(parallel.freeRuns, inline_.freeRuns);
+        EXPECT_EQ(parallel.totals, p.result.plan.totals);
+        EXPECT_EQ(parallel.freeClusters, p.snapshot.freeSpace.freeClusters()); // Moves keep cluster counts.
+        EXPECT_EQ(parallel.freeRuns, p.result.metrics.freeRunsAfter); // Measured without a replay.
+    }
+
+    TEST(Validator, StripesCatchADestinationTakenTwice) {
+        PlannedVolume p = plannedVolume();
+        Plan& plan = p.result.plan;
+        std::vector<std::size_t> movesOf(p.snapshot.files.size(), 0);
+        for (const Move& m : plan.moves) {
+            ++movesOf[m.file];
+        }
+        // Two single-move files of one zone: the later one lands inside the earlier one's destination, which every
+        // check but the free-space replay accepts (same zone, same cluster count, same fragments).
+        const auto single = [&](const Move& m) {
+            return movesOf[m.file] == 1 && m.destinationCount == 1 && m.zone != noZone && m.reason != MoveReason::Park;
+        };
+        for (std::size_t j = plan.moves.size(); j-- > 0;) {
+            for (std::size_t i = 0; i < j && single(plan.moves[j]); ++i) {
+                const Move& earlier = plan.moves[i];
+                if (single(earlier) && earlier.zone == plan.moves[j].zone &&
+                    plan.destinations(earlier)[0].length >= plan.moves[j].clusters) {
+                    plan.runs[plan.moves[j].firstDestination].start = plan.destinations(earlier)[0].start;
+                    services::ThreadPool pool(4);
+                    const Validation v =
+                        validatePlan(p.snapshot, plan, {.layout = &p.result.layout, .executor = &pool});
+                    EXPECT_TRUE(mentions(v, "is not free at its move"));
+                    return;
+                }
+            }
+        }
+        FAIL() << "no two single-move files share a zone";
     }
 
 }} // namespace icd::core::planner

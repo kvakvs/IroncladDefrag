@@ -1,7 +1,7 @@
 #include "core/planner/Plan.h"
 
 #include <array>
-#include <unordered_map>
+#include <optional>
 
 namespace icd::core::planner {
 
@@ -40,13 +40,39 @@ namespace icd::core::planner {
     std::vector<ClusterRun> movableRuns(const Snapshot& snapshot, FileIndex file) {
         std::vector<ClusterRun> out;
         const auto records = snapshot.extents.records();
-        for (const std::uint32_t position : snapshot.extents.extentsOf(file)) {
+        const auto positions = snapshot.extents.extentsOf(file);
+        out.reserve(positions.size()); // Planning calls this tens of millions of times: one allocation each.
+        for (const std::uint32_t position : positions) {
             const ExtentRecord& r = records[position];
             if ((r.flags() & ExtentUnmovable) == 0) {
                 out.push_back(r.run());
             }
         }
         return out;
+    }
+
+    ClusterCount movableClusters(const Snapshot& snapshot, FileIndex file) {
+        const auto records = snapshot.extents.records();
+        ClusterCount clusters = 0;
+        for (const std::uint32_t position : snapshot.extents.extentsOf(file)) {
+            const ExtentRecord& r = records[position];
+            clusters += (r.flags() & ExtentUnmovable) == 0 ? r.run().length : 0;
+        }
+        return clusters;
+    }
+
+    std::uint64_t movableFragments(const Snapshot& snapshot, FileIndex file) {
+        const auto records = snapshot.extents.records();
+        std::uint64_t fragments = 0;
+        std::optional<Lcn> end;
+        for (const std::uint32_t position : snapshot.extents.extentsOf(file)) {
+            const ExtentRecord& r = records[position];
+            if ((r.flags() & ExtentUnmovable) == 0) {
+                fragments += end != r.run().start ? 1 : 0;
+                end = r.run().end();
+            }
+        }
+        return fragments;
     }
 
     ClusterCount clustersOf(std::span<const ClusterRun> runs) {
@@ -67,17 +93,20 @@ namespace icd::core::planner {
 
     void finishTotals(Plan& plan, const Snapshot& snapshot) {
         PlanTotals t;
-        std::unordered_map<FileIndex, std::size_t> last; // Per file: its last move.
+        constexpr auto none = static_cast<std::uint32_t>(-1);
+        std::vector<std::uint32_t> last(snapshot.files.size(), none); // Per file: its last move.
         for (std::size_t i = 0; i < plan.moves.size(); ++i) {
             const Move& m = plan.moves[i];
             t.clustersMoved += m.clusters;
-            last[m.file] = i;
+            last[m.file] = static_cast<std::uint32_t>(i);
         }
         t.moves = plan.moves.size();
-        t.files = last.size();
-        for (const auto& [file, index] : last) {
-            t.fragmentsBefore += fragmentsOf(movableRuns(snapshot, file));
-            t.fragmentsAfter += fragmentsOf(plan.destinations(plan.moves[index]));
+        for (std::size_t file = 0; file < last.size(); ++file) {
+            if (last[file] != none) {
+                ++t.files;
+                t.fragmentsBefore += movableFragments(snapshot, static_cast<FileIndex>(file));
+                t.fragmentsAfter += fragmentsOf(plan.destinations(plan.moves[last[file]]));
+            }
         }
         plan.totals = t;
     }

@@ -5,6 +5,8 @@
 #include <functional>
 #include <numeric>
 #include <queue>
+#include <span>
+#include <utility>
 
 namespace icd::core::planner {
 
@@ -19,15 +21,16 @@ namespace icd::core::planner {
         // Benefit of closing part of a hole (compaction, sorting).
         constexpr double compactWeight = 1.0;
 
-        // Every move's sources sorted by LCN, with the move.
-        std::vector<std::pair<ClusterRun, std::uint32_t>> sourceIndex(const Plan& plan) {
+        // Every move's sources sorted by LCN, with the move (ties in any order: users sort what they find).
+        std::vector<std::pair<ClusterRun, std::uint32_t>> sourceIndex(const Plan& plan, Executor& executor) {
             std::vector<std::pair<ClusterRun, std::uint32_t>> index;
+            index.reserve(plan.runs.size() / 2);
             for (std::uint32_t i = 0; i < plan.moves.size(); ++i) {
                 for (const ClusterRun& r : plan.sources(plan.moves[i])) {
                     index.emplace_back(r, i);
                 }
             }
-            std::ranges::sort(index, {}, [](const auto& e) { return e.first.start; });
+            parallelSort(executor, index, [](const auto& a, const auto& b) { return a.first.start < b.first.start; });
             return index;
         }
 
@@ -49,12 +52,14 @@ namespace icd::core::planner {
         }
 
         // For each move, the earlier moves whose sources its destination overlaps.
-        std::vector<std::vector<std::uint32_t>> dependencies(const Plan& plan) {
-            const auto index = sourceIndex(plan);
+        std::vector<std::vector<std::uint32_t>> dependencies(const Plan& plan, Executor& executor) {
+            const auto index = sourceIndex(plan, executor);
             std::vector<std::vector<std::uint32_t>> deps(plan.moves.size());
-            for (std::uint32_t j = 0; j < plan.moves.size(); ++j) {
-                deps[j] = earlierOverlaps(plan, index, j);
-            }
+            executor.parallelFor({.count = plan.moves.size(), .grain = 4096}, [&](std::size_t begin, std::size_t end) {
+                for (std::size_t j = begin; j < end; ++j) {
+                    deps[j] = earlierOverlaps(plan, index, static_cast<std::uint32_t>(j));
+                }
+            });
             return deps;
         }
 
@@ -62,6 +67,17 @@ namespace icd::core::planner {
         double perCluster(const Move& m) {
             return m.benefit / static_cast<double>(std::max<ClusterCount>(m.clusters, 1));
         }
+
+        // A list per move in one array (offsets into `items`), so millions of moves need two allocations.
+        struct MoveLists {
+            std::vector<std::size_t> offsets{0}; // Per move: where its items start; one past the last at the end.
+            std::vector<std::uint32_t> items{}; // Every move's items, move after move.
+
+            // One move's list.
+            [[nodiscard]] std::span<const std::uint32_t> operator[](std::size_t v) const {
+                return std::span(items).subspan(offsets[v], offsets[v + 1] - offsets[v]);
+            }
+        };
 
         // Work under a budget.
         struct Cost {
@@ -72,16 +88,20 @@ namespace icd::core::planner {
         // The selection of moves under a budget.
         class Selector {
         public:
-            // Prepares costs.
-            Selector(const Plan& plan, std::uint32_t bytesPerCluster, const BudgetOptions& budget) :
-                plan_(plan), bytesPerCluster_(bytesPerCluster), budget_(budget), deps_(dependencies(plan)),
+            // Prepares costs; deps holds every move's dependencies.
+            Selector(const Plan& plan, std::uint32_t bytesPerCluster, const BudgetOptions& budget,
+                     const std::vector<std::vector<std::uint32_t>>& deps) :
+                plan_(plan), bytesPerCluster_(bytesPerCluster), budget_(budget), deps_(deps),
                 taken_(plan.moves.size(), 0), seen_(plan.moves.size(), 0) {}
 
-            // Takes moves by benefit per byte with their dependencies while the budget lasts.
-            std::vector<std::uint8_t> select() {
+            // Takes moves by benefit per byte with their dependencies while the budget lasts. Ties go to the earlier
+            // move, so the order is total and any sort gives it.
+            std::vector<std::uint8_t> select(Executor& executor) {
                 std::vector<std::uint32_t> order(plan_.moves.size());
                 std::iota(order.begin(), order.end(), 0U);
-                std::ranges::stable_sort(order, [&](std::uint32_t a, std::uint32_t b) { return value(a) > value(b); });
+                parallelSort(executor, order, [&](std::uint32_t a, std::uint32_t b) {
+                    return value(a) != value(b) ? value(a) > value(b) : a < b;
+                });
                 for (const std::uint32_t v : order) {
                     tryTake(v);
                 }
@@ -136,7 +156,7 @@ namespace icd::core::planner {
             const Plan& plan_; // The ordered plan.
             std::uint32_t bytesPerCluster_ = 4096; // Cluster size.
             const BudgetOptions& budget_; // Limits.
-            std::vector<std::vector<std::uint32_t>> deps_; // Earlier moves each depends on.
+            const std::vector<std::vector<std::uint32_t>>& deps_; // Earlier moves each depends on.
             std::vector<std::uint8_t> taken_; // Kept moves.
             Cost used_; // Work kept so far.
             std::vector<std::uint32_t> seen_; // Per move: the closure walk that last visited it.
@@ -145,22 +165,36 @@ namespace icd::core::planner {
 
         // Dependency edges among kept moves.
         struct KeptGraph {
-            std::vector<std::vector<std::uint32_t>> next; // Kept moves waiting for each move.
+            MoveLists next; // Kept moves waiting for each move, in move order.
             std::vector<std::uint32_t> waiting; // Kept moves each still waits for.
         };
 
+        // Move j's dependencies when it is kept, else none.
+        std::span<const std::uint32_t> keptDeps(const std::vector<std::uint8_t>& taken,
+                                                const std::vector<std::vector<std::uint32_t>>& deps, std::uint32_t j) {
+            return taken[j] != 0 ? std::span(deps[j]) : std::span<const std::uint32_t>();
+        }
+
         // The graph of the kept moves.
-        KeptGraph keptGraph(const Plan& plan, const std::vector<std::uint8_t>& taken) {
-            const auto deps = dependencies(plan);
-            KeptGraph g{.next = std::vector<std::vector<std::uint32_t>>(plan.moves.size()),
-                        .waiting = std::vector<std::uint32_t>(plan.moves.size(), 0)};
-            for (std::uint32_t j = 0; j < plan.moves.size(); ++j) {
-                if (taken[j] == 0) {
-                    continue;
-                }
-                for (const std::uint32_t i : deps[j]) {
-                    g.next[i].push_back(j);
+        KeptGraph keptGraph(const Plan& plan, const std::vector<std::uint8_t>& taken,
+                            const std::vector<std::vector<std::uint32_t>>& deps) {
+            const std::size_t n = plan.moves.size();
+            KeptGraph g{.next = {}, .waiting = std::vector<std::uint32_t>(n, 0)};
+            g.next.offsets.assign(n + 1, 0);
+            for (std::uint32_t j = 0; j < n; ++j) {
+                for (const std::uint32_t i : keptDeps(taken, deps, j)) {
+                    ++g.next.offsets[i + 1];
                     ++g.waiting[j];
+                }
+            }
+            for (std::size_t i = 0; i < n; ++i) {
+                g.next.offsets[i + 1] += g.next.offsets[i];
+            }
+            g.next.items.resize(g.next.offsets.back());
+            std::vector<std::size_t> at(g.next.offsets.begin(), g.next.offsets.end() - 1);
+            for (std::uint32_t j = 0; j < n; ++j) {
+                for (const std::uint32_t i : keptDeps(taken, deps, j)) {
+                    g.next.items[at[i]++] = j;
                 }
             }
             return g;
@@ -179,8 +213,9 @@ namespace icd::core::planner {
         };
 
         // The kept moves ordered with the most valuable ready move first (a topological order over the kept set).
-        std::vector<std::uint32_t> valueOrder(const Plan& plan, const std::vector<std::uint8_t>& taken) {
-            KeptGraph g = keptGraph(plan, taken);
+        std::vector<std::uint32_t> valueOrder(const Plan& plan, const std::vector<std::uint8_t>& taken,
+                                              const std::vector<std::vector<std::uint32_t>>& deps) {
+            KeptGraph g = keptGraph(plan, taken, deps);
             std::priority_queue<std::uint32_t, std::vector<std::uint32_t>, ByValue> ready(ByValue{&plan});
             for (std::uint32_t v = 0; v < plan.moves.size(); ++v) {
                 if (taken[v] != 0 && g.waiting[v] == 0) {
@@ -201,28 +236,30 @@ namespace icd::core::planner {
             return out;
         }
 
-        // The plan rebuilt from kept moves in a new order, with deferred clusters and extra recounted.
+        // The plan rebuilt from kept moves in a new order, with deferred clusters and extra recounted (its moves and
+        // runs are taken out first, so the rest of the plan is not copied).
         void rebuild(Plan& plan, const std::vector<std::uint8_t>& taken, const std::vector<std::uint32_t>& order) {
-            Plan out = plan;
-            out.moves.clear();
-            out.runs.clear();
-            out.extra = 0;
+            const std::vector<Move> moves = std::exchange(plan.moves, {});
+            const std::vector<ClusterRun> runs = std::exchange(plan.runs, {});
+            plan.moves.reserve(order.size());
+            plan.runs.reserve(runs.size());
+            plan.extra = 0;
             for (const std::uint32_t v : order) {
-                const Move& m = plan.moves[v];
-                out.add(m, plan.sources(m), plan.destinations(m));
-                out.extra += m.extra ? m.clusters : 0;
+                const Move& m = moves[v];
+                plan.add(m, std::span(runs).subspan(m.firstSource, m.sourceCount),
+                         std::span(runs).subspan(m.firstDestination, m.destinationCount));
+                plan.extra += m.extra ? m.clusters : 0;
             }
             std::uint64_t deferred = 0;
-            for (std::uint32_t v = 0; v < plan.moves.size(); ++v) {
-                if (taken[v] == 0 && !plan.moves[v].extra) {
-                    out.deferredClusters += plan.moves[v].clusters;
+            for (std::uint32_t v = 0; v < moves.size(); ++v) {
+                if (taken[v] == 0 && !moves[v].extra) {
+                    plan.deferredClusters += moves[v].clusters;
                     ++deferred;
                 }
             }
             if (deferred != 0) {
-                out.notes.push_back(std::format("The budget leaves {} moves for a later run.", deferred));
+                plan.notes.push_back(std::format("The budget leaves {} moves for a later run.", deferred));
             }
-            plan = std::move(out);
         }
 
     } // namespace
@@ -236,7 +273,7 @@ namespace icd::core::planner {
         if (move.extra || move.reason == MoveReason::Park) {
             return 0.0;
         }
-        const std::uint64_t before = fragmentsOf(movableRuns(snapshot, move.file));
+        const std::uint64_t before = movableFragments(snapshot, move.file);
         const std::uint64_t after = fragmentsOf(plan.destinations(move));
         const double removed = before > after ? static_cast<double>(before - after) : 0.0;
         const double zone = move.reason == MoveReason::Relocate ? zoneWeight : 0.0;
@@ -251,17 +288,22 @@ namespace icd::core::planner {
         return seconds;
     }
 
-    void applyBudget(const Snapshot& snapshot, Plan& plan, const BudgetOptions& budget) {
-        for (Move& m : plan.moves) {
-            m.benefit = moveBenefit(snapshot, plan, m);
-        }
+    void applyBudget(const Snapshot& snapshot, Plan& plan, const BudgetOptions& budget, Executor* executor) {
+        InlineExecutor inline_;
+        Executor& run = executor != nullptr ? *executor : inline_;
+        run.parallelFor({.count = plan.moves.size(), .grain = 1U << 14U}, [&](std::size_t begin, std::size_t end) {
+            for (std::size_t i = begin; i < end; ++i) {
+                plan.moves[i].benefit = moveBenefit(snapshot, plan, plan.moves[i]);
+            }
+        });
         const bool parks = std::ranges::any_of(plan.moves, [](const Move& m) { return m.reason == MoveReason::Park; });
         if (parks || (!budget.maxClusters && !budget.maxSeconds)) {
             return;
         }
-        Selector selector(plan, snapshot.geometry.bytesPerCluster, budget);
-        const auto taken = selector.select();
-        rebuild(plan, taken, valueOrder(plan, taken));
+        const auto deps = dependencies(plan, run);
+        Selector selector(plan, snapshot.geometry.bytesPerCluster, budget, deps);
+        const auto taken = selector.select(run);
+        rebuild(plan, taken, valueOrder(plan, taken, deps));
         finishTotals(plan, snapshot);
     }
 

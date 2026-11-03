@@ -8,7 +8,10 @@
 #include "core/strategy/ZoneScript.h"
 
 #include <cstdint>
+#include <future>
+#include <map>
 #include <memory>
+#include <mutex>
 #include <span>
 #include <vector>
 
@@ -34,6 +37,18 @@ namespace icd::core::planner {
         void nameKeys(const Snapshot& snapshot, bool byDirectory);
 
         std::vector<std::uint64_t> keys_; // Per file.
+    };
+
+    // Sort keys shared by the zones and levels of one planning run on one snapshot: each order's keys (seconds of work
+    // on 20 M files) are built once, by the first planner that needs them, while the others wait for them.
+    class SortKeyCache {
+    public:
+        // The keys of an order, built on first use; the snapshot must be the same on every call.
+        [[nodiscard]] std::shared_ptr<const SortKeys> get(const Snapshot& snapshot, strategy::ZoneOrder order);
+
+    private:
+        std::mutex mutex_; // Guards keys_.
+        std::map<strategy::ZoneOrder, std::shared_future<std::shared_ptr<const SortKeys>>> keys_; // Built or building.
     };
 
     // A heaviest increasing subsequence.
@@ -68,9 +83,12 @@ namespace icd::core::planner {
     // gaps between anchors then always hold the files whose keys fall between them. A zone is sorted only when that
     // moves at most `tolerance` of its in-place bytes (1 = always, as at Maximum); otherwise it is filled without
     // order and the bound is unchanged.
+    // Keys come from `cache` (null: a cache of this call, so zones of one order share them); the zones' files are
+    // sorted on `executor` (null: inline).
     [[nodiscard]] std::vector<SortedZone> applySortBounds(const Snapshot& snapshot, const strategy::ZoneScript& script,
                                                           const ZoneAssignment& assignment, const TargetLayout& layout,
-                                                          strategy::Effort effort, double tolerance, LowerBound& bound);
+                                                          strategy::Effort effort, double tolerance, LowerBound& bound,
+                                                          SortKeyCache* cache = nullptr, Executor* executor = nullptr);
 
     // Destinations for a sorted zone: the movers (the zone's candidates) in key order go into the gaps between the
     // anchors that bracket their keys, packed from each gap's start. A gap without room for its movers gives up the

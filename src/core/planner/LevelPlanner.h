@@ -11,12 +11,16 @@
 #include "core/snapshot/Snapshot.h"
 #include "core/strategy/ZoneScript.h"
 
+#include <chrono>
 #include <cstdint>
 #include <span>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace icd::core::planner {
+
+    class SortKeyCache;
 
     // Everything a plan is made from besides the effort level.
     struct PlanInput {
@@ -30,6 +34,8 @@ namespace icd::core::planner {
         bool shadowCopies = false; // The volume has shadow copies: prefer aligned destinations (plan.md 9.4).
         double fastBudgetMultiplier = 1.0; // Settings: x1, x2, x4, x10 (plan.md 9.2.1 step 7).
         TimeModel time{}; // Time estimates.
+        SortKeyCache* sortKeys =
+            nullptr; // Keys shared by the levels of one run (they plan in parallel); null: per level.
     };
 
     // How one effort level plans (plan.md 9.2).
@@ -54,12 +60,46 @@ namespace icd::core::planner {
         double seconds = 0.0; // Estimated execution time.
     };
 
+    // Wall time of one planning stage, so benchmarks show where planning time goes (plan.md 6.5's 60 s target).
+    struct StageTime {
+        std::string name; // "lower bound", "zone Photos", "order", ...
+        double seconds = 0.0; // Summed over the rounds that repeat it.
+    };
+
+    // Adds a stage's time to its entry (rounds repeat stages), keeping stages in the order they first ran.
+    void addStageTime(std::vector<StageTime>& stages, std::string_view name, double seconds);
+
+    // Times one stage of a plan: its time is added to `stages` when the scope ends.
+    class StageScope {
+    public:
+        // Starts timing.
+        StageScope(std::vector<StageTime>& stages, std::string name) :
+            stages_(stages), name_(std::move(name)), start_(std::chrono::steady_clock::now()) {}
+
+        // Adds the time.
+        ~StageScope() {
+            addStageTime(stages_, name_,
+                         std::chrono::duration<double>(std::chrono::steady_clock::now() - start_).count());
+        }
+
+        StageScope(const StageScope&) = delete;
+        StageScope& operator=(const StageScope&) = delete;
+        StageScope(StageScope&&) = delete;
+        StageScope& operator=(StageScope&&) = delete;
+
+    private:
+        std::vector<StageTime>& stages_; // Where the time goes.
+        std::string name_; // The stage.
+        std::chrono::steady_clock::time_point start_; // When it began.
+    };
+
     // A planned level.
     struct PlanResult {
         Plan plan{}; // The moves.
         TargetLayout layout{}; // The target it aims for.
         PlanMetrics metrics{}; // Figures.
         std::vector<ClusterRun> hotSpots{}; // Fast only: the areas it works on.
+        std::vector<StageTime> stages{}; // Wall time per stage (does not change the plan).
     };
 
     // Zones and roles of the input's files; shared by all levels of one snapshot and script.

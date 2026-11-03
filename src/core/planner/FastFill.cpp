@@ -3,6 +3,7 @@
 #include "core/planner/CycleGuard.h"
 
 #include <algorithm>
+#include <numeric>
 
 namespace icd::core::planner {
 
@@ -23,11 +24,22 @@ namespace icd::core::planner {
         // union-find over positions where a taken position points at the one before it.
         class SizeIndex {
         public:
-            // Sorts the items.
-            explicit SizeIndex(std::vector<Item> items) : items_(std::move(items)), parent_(items_.size() + 1) {
-                std::ranges::sort(items_, [](const Item& a, const Item& b) {
-                    return a.clusters != b.clusters ? a.clusters < b.clusters : a.file < b.file;
+            // Sorts the items (by size, then file: a total order, so the parallel sort of their positions gives the
+            // same order).
+            SizeIndex(std::vector<Item> items, Executor* executor) : parent_(items.size() + 1) {
+                std::vector<std::uint32_t> order(items.size());
+                std::iota(order.begin(), order.end(), 0U);
+                InlineExecutor inline_;
+                parallelSort(executor != nullptr ? *executor : inline_, order, [&](std::uint32_t a, std::uint32_t b) {
+                    const Item& x = items[a];
+                    const Item& y = items[b];
+                    return x.clusters != y.clusters ? x.clusters < y.clusters
+                                                    : (x.file != y.file ? x.file < y.file : a < b);
                 });
+                items_.reserve(items.size());
+                for (const std::uint32_t i : order) {
+                    items_.push_back(std::move(items[i]));
+                }
                 for (std::size_t i = 0; i < parent_.size(); ++i) {
                     parent_[i] = i;
                 }
@@ -88,8 +100,8 @@ namespace icd::core::planner {
             // Prepares the items.
             Filler(const Snapshot& snapshot, std::span<const FileIndex> files, HoleSet& pool,
                    const FillOptions& options) :
-                pool_(pool), options_(options), index_(itemsOf(snapshot, files)), own_(snapshot),
-                guard_(options.guard != nullptr ? *options.guard : own_),
+                pool_(pool), options_(options), index_(itemsOf(snapshot, files, options.executor), options.executor),
+                own_(snapshot), guard_(options.guard != nullptr ? *options.guard : own_),
                 bytesPerCluster_(std::max<std::uint32_t>(snapshot.geometry.bytesPerCluster, 1)) {}
 
             // Fills every hole of the region, then places what is left wherever the region still has room.
@@ -111,16 +123,21 @@ namespace icd::core::planner {
                 return std::move(out_);
             }
 
+            // The files' items, to be freed elsewhere (millions of small allocations in a large zone).
+            [[nodiscard]] SizeIndex takeIndex() { return std::move(index_); }
+
         private:
-            // The items of the files, with their runs.
-            static std::vector<Item> itemsOf(const Snapshot& snapshot, std::span<const FileIndex> files) {
-                std::vector<Item> items;
-                items.reserve(files.size());
-                for (const FileIndex file : files) {
-                    std::vector<ClusterRun> runs = movableRuns(snapshot, file);
-                    std::vector<ClusterRun> own = sortedRuns(runs);
-                    items.push_back({clustersOf(runs), file, std::move(runs), std::move(own)});
-                }
+            // The items of the files, with their runs (read in parallel).
+            static std::vector<Item> itemsOf(const Snapshot& snapshot, std::span<const FileIndex> files,
+                                             Executor* executor) {
+                std::vector<Item> items(files.size());
+                forChunks(executor, files.size(), [&](std::size_t begin, std::size_t end) {
+                    for (std::size_t i = begin; i < end; ++i) {
+                        std::vector<ClusterRun> runs = movableRuns(snapshot, files[i]);
+                        std::vector<ClusterRun> own = sortedRuns(runs);
+                        items[i] = {clustersOf(runs), files[i], std::move(runs), std::move(own)};
+                    }
+                });
                 return items;
             }
 
@@ -231,6 +248,11 @@ namespace icd::core::planner {
 
     } // namespace
 
+    void forChunks(Executor* executor, std::size_t count, const Executor::RangeBody& body) {
+        InlineExecutor inline_;
+        (executor != nullptr ? *executor : inline_).parallelFor({.count = count, .grain = 4096}, body);
+    }
+
     MoveReason reasonFor(std::span<const ClusterRun> runs, ClusterRun home) {
         const bool inside = home.length > 0 && std::ranges::all_of(runs, [&](const ClusterRun& r) {
                                 return r.start >= home.start && r.end() <= home.end();
@@ -252,8 +274,12 @@ namespace icd::core::planner {
         }
         takeRuns(pool, parts);
         HoleSet slice(parts);
-        FillResult result = Filler(snapshot, files, slice, options).run(region);
+        Filler filler(snapshot, files, slice, options);
+        FillResult result = filler.run(region);
         releaseRuns(pool, slice.runs());
+        if (options.executor != nullptr) { // Another worker frees the items while placement goes on.
+            options.executor->submit([index = filler.takeIndex()] { (void)index; });
+        }
         return result;
     }
 

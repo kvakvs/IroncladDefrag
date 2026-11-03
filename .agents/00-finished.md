@@ -368,3 +368,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - Gate G2 First real-drive run - X: (2.32 TB HDD, photos), `photos` preset at Moderate from the GUI: 22,038 moves
   (82 GB, cancelled) then 7,638 (99.6 GB), nothing skipped or unverified; fragmented files 125 to 0, the largest free
   run 1.85 TB; chkdsk clean with identical totals; moved files open. Recorded in `.codex/arch.md`.
+- T093c Planning at the 30 TB scale target - `plan-bench --threads 8` (30 TB / 20 M files, validation on) 57-59 s on
+  the 8 performance cores (was 369 s; 63 s unpinned), `--compare 1` identical plans (one worker 178 s, 3.1x: the
+  levels are serial pipelines, so the 5x of the task text is not reached). Stage times in `PlanResult::stages`, plan
+  fingerprints in the bench; parallel validation per LCN stripe with a serial fallback, lazy and parallel room search,
+  flat arrays and live-only rounds in ordering, shared sort keys, parallel pools, items and budget steps; plans
+  unchanged except the cycle guard budget (64 -> 4 visits per destination, 0.03% more moves).

@@ -51,6 +51,9 @@ namespace icd::core::planner {
         // Every hole in LCN order.
         [[nodiscard]] std::vector<ClusterRun> runs() const;
 
+        // A walk over the holes overlapping a window, one at a time, so a caller that stops early never collects them.
+        class Walk;
+
 
     private:
         // A short sorted run of holes.
@@ -93,6 +96,15 @@ namespace icd::core::planner {
         // Recomputes a block's longest run and its tree leaf.
         void refresh(std::size_t block);
 
+        // A run of the block grew to `length` (or was added): raises the block's longest run without a rescan.
+        void grew(std::size_t block, ClusterCount length);
+
+        // A run of `length` clusters in the block shrank or left: rescans only when it was the longest.
+        void shrank(std::size_t block, ClusterCount length);
+
+        // Writes a block's longest run into its tree leaf and the leaf's ancestors.
+        void updateLeaf(std::size_t block);
+
         // Splits oversized blocks, drops empty ones and rebuilds the tree (O(blocks), rare).
         void restructure();
 
@@ -124,6 +136,25 @@ namespace icd::core::planner {
         ClusterCount total_ = 0; // Free clusters.
         std::size_t count_ = 0; // Holes.
         std::size_t emptyBlocks_ = 0; // Blocks without runs, dropped when they reach a quarter.
+    };
+
+    // The holes overlapping a window, clipped to it, in LCN order (what within() returns, lazily). The set must not
+    // change during the walk.
+    class HoleSet::Walk {
+    public:
+        // Starts at the first hole overlapping window.
+        Walk(const HoleSet& set, ClusterRun window) : set_(set), window_(window), spot_(set.locate(window.start)) {}
+
+        // The current hole clipped to the window; nullopt when the walk is done.
+        [[nodiscard]] std::optional<ClusterRun> hole() const;
+
+        // Moves to the next hole.
+        void next() { spot_ = set_.next(spot_); }
+
+    private:
+        const HoleSet& set_; // The holes.
+        ClusterRun window_; // The window.
+        Spot spot_; // The current hole.
     };
 
 } // namespace icd::core::planner

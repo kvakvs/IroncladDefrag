@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/exec/Executor.h"
 #include "core/planner/Plan.h"
 #include "core/planner/TargetLayout.h"
 #include "core/snapshot/Snapshot.h"
@@ -21,6 +22,7 @@ namespace icd::core::planner {
     struct ValidateOptions {
         const TargetLayout* layout = nullptr; // When set, every move into a zone must land inside that zone.
         std::size_t maxIssues = 100; // Stop collecting after this many, so a badly broken plan stays readable.
+        Executor* executor = nullptr; // Runs the checks in parallel (30 TB plans hold ~10 M moves); null: inline.
     };
 
     // The outcome of replaying a plan.
@@ -39,7 +41,8 @@ namespace icd::core::planner {
     // current movable clusters in VCN order and keeps their count; moves into a zone land in it (with a layout); each
     // file moves at most once, except a parked file which returns exactly once; the moved clusters equal the lower
     // bound minus skipped and deferred clusters plus the clusters of moves marked extra; and the plan's totals equal
-    // the recomputed ones.
+    // the recomputed ones. A valid plan is checked in parallel (per move, and the free space per
+    // LCN stripe); when that finds anything, the plan is replayed again in order so the issues read as before.
     [[nodiscard]] Validation validatePlan(const Snapshot& snapshot, const Plan& plan,
                                           const ValidateOptions& options = {});
 

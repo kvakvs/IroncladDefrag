@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/exec/Executor.h"
 #include "core/planner/HoleSet.h"
 #include "core/snapshot/Snapshot.h"
 
@@ -29,10 +30,12 @@ namespace icd::core::planner {
     // after the plan (in `pool`) or belong to files `mayEvict` accepts, choosing the window that evicts the fewest
     // clusters (and the lowest one among equals). Windows start where a free hole starts or end where one ends; at most
     // `maxStarts` starts are tried in a piece, and fewer in each further piece, which bounds the work on huge zones.
-    // `region` should hold only pieces long enough for the file, the most promising first.
+    // `region` should hold only pieces long enough for the file, the most promising first. The windows of a piece are
+    // costed on `executor` (null: inline; mayEvict must then be safe to call from several threads), with the same
+    // result.
     [[nodiscard]] std::optional<Room> findRoom(const Snapshot& snapshot, const HoleSet& pool,
                                                const RoomRequest& request,
                                                const std::function<bool(FileIndex)>& mayEvict,
-                                               std::size_t maxStarts = 256);
+                                               std::size_t maxStarts = 256, Executor* executor = nullptr);
 
 } // namespace icd::core::planner

@@ -149,9 +149,17 @@ namespace icd::core::planner {
 
             // Places the movers.
             FillResult run(std::span<const FileIndex> files) {
+                std::vector<Mover> movers(files.size());
+                std::vector<std::size_t> gaps(files.size());
+                forChunks(options_.executor, files.size(), [&](std::size_t begin, std::size_t end) {
+                    for (std::size_t i = begin; i < end; ++i) {
+                        movers[i] = moverOf(files[i], false);
+                        gaps[i] = gapOf(files[i]);
+                    }
+                });
                 std::vector<std::vector<Mover>> perGap(anchors_.size() + 1);
-                for (const FileIndex file : files) {
-                    perGap[gapOf(file)].push_back(moverOf(file, false));
+                for (std::size_t i = 0; i < files.size(); ++i) { // In file order, as before.
+                    perGap[gaps[i]].push_back(std::move(movers[i]));
                 }
                 for (auto& gap : perGap) {
                     std::ranges::sort(gap,
@@ -447,10 +455,12 @@ namespace icd::core::planner {
             return out;
         }
 
-        // Decides one sorted zone and extends the bound: the heaviest chain stays, every other file must move.
+        // Decides one sorted zone and extends the bound: the heaviest chain stays, every other file must move. The
+        // files are sorted on `executor` (keys and indexes make the order total: any sort gives the same result).
         SortedZone decideZone(const DecideContext& c, std::vector<FileIndex> files,
-                              std::shared_ptr<const SortKeys> keys, double tolerance, LowerBound& bound) {
-            std::ranges::sort(files, [&](FileIndex a, FileIndex b) { return keys->before(a, b); });
+                              std::shared_ptr<const SortKeys> keys, double tolerance, LowerBound& bound,
+                              Executor& executor) {
+            parallelSort(executor, files, [&](FileIndex a, FileIndex b) { return keys->before(a, b); });
             const std::vector<StayOffset> offsets = stayOffsets(c, files);
             const LisResult chain = heaviestChain(offsets);
             ClusterCount inPlace = 0;
@@ -504,6 +514,30 @@ namespace icd::core::planner {
         }
     }
 
+    std::shared_ptr<const SortKeys> SortKeyCache::get(const Snapshot& snapshot, strategy::ZoneOrder order) {
+        std::promise<std::shared_ptr<const SortKeys>> promise;
+        std::shared_future<std::shared_ptr<const SortKeys>> keys;
+        bool build = false;
+        {
+            const std::scoped_lock lock(mutex_);
+            const auto [it, added] = keys_.try_emplace(order);
+            if (added) {
+                it->second = promise.get_future().share();
+                build = true;
+            }
+            keys = it->second;
+        }
+        if (build) {
+            try {
+                promise.set_value(std::make_shared<const SortKeys>(snapshot, order));
+            }
+            catch (...) {
+                promise.set_exception(std::current_exception()); // Waiting planners see the same failure.
+            }
+        }
+        return keys.get();
+    }
+
     LisResult weightedLis(std::span<const std::uint32_t> ranks, std::span<const ClusterCount> weights) {
         const std::size_t n = ranks.size();
         std::uint32_t top = 0;
@@ -540,7 +574,12 @@ namespace icd::core::planner {
 
     std::vector<SortedZone> applySortBounds(const Snapshot& snapshot, const strategy::ZoneScript& script,
                                             const ZoneAssignment& assignment, const TargetLayout& layout,
-                                            strategy::Effort effort, double tolerance, LowerBound& bound) {
+                                            strategy::Effort effort, double tolerance, LowerBound& bound,
+                                            SortKeyCache* cache, Executor* executor) {
+        SortKeyCache local;
+        SortKeyCache& keyCache = cache != nullptr ? *cache : local;
+        InlineExecutor inline_;
+        Executor& run = executor != nullptr ? *executor : inline_;
         std::vector<bool> sorting(script.zones.size(), false);
         for (std::size_t z = 0; z < script.zones.size(); ++z) {
             sorting[z] = sortsAt(script.zones[z], effort) && layout.target(static_cast<ZoneIndex>(z)) != nullptr;
@@ -552,10 +591,10 @@ namespace icd::core::planner {
                 continue;
             }
             const ZoneOrder order = script.zones[z].orderAt(effort);
-            auto keys = std::make_shared<const SortKeys>(snapshot, order);
+            auto keys = keyCache.get(snapshot, order);
             const DecideContext context{snapshot, assignment, *layout.target(static_cast<ZoneIndex>(z)), layout.axis,
                                         bound};
-            SortedZone decided = decideZone(context, std::move(files[z]), std::move(keys), tolerance, bound);
+            SortedZone decided = decideZone(context, std::move(files[z]), std::move(keys), tolerance, bound, run);
             decided.order = order;
             out.push_back(std::move(decided));
         }

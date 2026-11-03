@@ -1,8 +1,12 @@
 // plan-bench: the planning target of plan.md 6.5 (30 TB / 20 M files planned in 60 s or less on 8 cores) on a
 // synthetic volume, without a real drive. Builds the volume, classifies it with the built-in catalog, plans the three
 // levels of a mixed strategy in parallel on N workers (validating each plan), and prints per-level figures: moves,
-// bytes, lower bound and the ratio, skipped and deferred bytes, zone fit and fragmentation after, wall time.
-// --compare 1 plans again on one worker and checks the plans are identical.
+// bytes, lower bound and the ratio, skipped and deferred bytes, zone fit and fragmentation after, wall time, a
+// fingerprint of the plan (so a change that should not alter plans can be checked), and the stages that took half a
+// second or more.
+// --compare 1 plans again on one worker and checks the plans are identical. On a CPU with efficiency cores, measure on
+// eight performance cores (PowerShell: start it, then `$p.ProcessorAffinity = 0x5555`): serial stages that land on an
+// efficiency core run up to twice as long.
 //
 // Usage: plan-bench [--files N] [--tb N] [--threads N] [--compare 0|1] [--validate 0|1]
 
@@ -14,6 +18,7 @@
 #include "services/exec/ThreadPool.h"
 #include "services/plan/PlanJob.h"
 
+#include <algorithm>
 #include <chrono>
 #include <cstdio>
 #include <cstdlib>
@@ -84,6 +89,28 @@ namespace {
                           video}};
     }
 
+    // A hash of a plan's moves, runs and skipped files, so runs of the bench show whether a change altered the plans.
+    std::uint64_t fingerprint(const core::planner::Plan& p) {
+        std::uint64_t h = 1469598103934665603ULL; // FNV-1a.
+        const auto mix = [&](std::uint64_t v) {
+            h ^= v;
+            h *= 1099511628211ULL;
+        };
+        for (const auto& m : p.moves) {
+            mix(m.file);
+            mix(static_cast<std::uint64_t>(m.reason) | (std::uint64_t{m.zone} << 8U) |
+                (std::uint64_t{m.fromParking} << 40U) | (std::uint64_t{m.extra} << 41U));
+        }
+        for (const auto& r : p.runs) {
+            mix(r.start);
+            mix(r.length);
+        }
+        for (const auto& s : p.skipped) {
+            mix(s.file);
+        }
+        return h;
+    }
+
     // Prints one level.
     void printLevel(const char* name, const services::LevelOutcome& o, std::uint32_t cluster) {
         const auto& p = o.result.plan;
@@ -91,14 +118,28 @@ namespace {
                                                : static_cast<double>(p.totals.clustersMoved) /
                 static_cast<double>(p.lowerBound - p.skippedClusters - p.deferredClusters + 1);
         std::printf("  %-9s %8.2f s  %10s moves  %9s moved  bound %9s  ratio %.3f  skipped %9s  deferred %9s  "
-                    "fit %.1f%% -> %.1f%%  fragmented %.1f%% -> %.1f%%  %s\n",
+                    "fit %.1f%% -> %.1f%%  fragmented %.1f%% -> %.1f%%  plan %016llx  %s\n",
                     name, o.seconds, core::formatCount(p.moves.size()).c_str(),
                     core::formatBytes(p.totals.clustersMoved * cluster).c_str(),
                     core::formatBytes(p.lowerBound * cluster).c_str(), ratio,
                     core::formatBytes(p.skippedClusters * cluster).c_str(),
                     core::formatBytes(p.deferredClusters * cluster).c_str(), o.result.metrics.zoneFitBefore,
                     o.result.metrics.zoneFitAfter, o.result.metrics.fragmentedBefore, o.result.metrics.fragmentedAfter,
+                    static_cast<unsigned long long>(fingerprint(p)),
                     o.issues.empty() ? "valid" : o.issues.front().c_str());
+    }
+
+    // Prints the stages of one level that took at least 0.5 s, slowest first.
+    void printStages(const services::LevelOutcome& o) {
+        std::vector<core::planner::StageTime> stages = o.result.stages;
+        std::ranges::sort(stages, [](const auto& a, const auto& b) { return a.seconds > b.seconds; });
+        std::printf("           ");
+        for (const auto& s : stages) {
+            if (s.seconds >= 0.5) {
+                std::printf(" %s %.1f s;", s.name.c_str(), s.seconds);
+            }
+        }
+        std::printf("\n");
     }
 
     // Whether two outcomes hold the same plans.
@@ -143,6 +184,7 @@ int main(int argc, char** argv) {
     const char* names[] = {"fast", "moderate", "maximum"};
     for (std::size_t i = 0; i < 3; ++i) {
         printLevel(names[i], outcome.levels[i], outcome.bytesPerCluster);
+        printStages(outcome.levels[i]);
     }
     if (a.compare) {
         core::InlineExecutor serial;

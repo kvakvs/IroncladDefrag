@@ -24,18 +24,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T093c - Planning at the 30 TB scale target
-
-- Depends: T093b, T095b
-- Owns: performance of `src/core/planner/*` and `src/services/plan/PlanJob.*`
-- Do: bring `plan-bench` (30 TB / 20 M files, 8 workers) to 60 s or less for all three levels (plan.md 6.5), at least
-  5x faster than on one worker. Measured after T093b and T095b (validation on): 369 s (Fast 25 s, Moderate 329 s,
-  Maximum 368 s); 4 M files 72 s. Serial phases left, per zone level at 30 TB: zone placement ~110 s (one zone holds most
-  files; the cycle guard about doubles it and forced zones into script order), eviction room search (`findRoom()` per
-  overflow file) ~45 s, ordering 35-77 s, Moderate's budget ~45 s, measuring and validation tens of seconds (the replay
-  could run per LCN stripe), sort keys built per zone and level ~9 s, after-plan pool ~11 s.
-- Done when: `plan-bench --threads 8` reports 60 s or less and `--compare 1` identical plans.
-
 ### T095c - Sorted zones within 1.1 x at Maximum
 
 - Depends: T095b

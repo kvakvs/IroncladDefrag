@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/exec/Executor.h"
 #include "core/planner/HoleSet.h"
 #include "core/planner/Placement.h"
 #include "core/snapshot/Snapshot.h"
@@ -29,7 +30,11 @@ namespace icd::core::planner {
         std::optional<std::uint64_t> fragmentOk{}; // Allows large pieces for files no single hole holds.
         // Shared with the level's other placements so destinations avoid cycles across zones; null: one per fill.
         CycleGuard* guard = nullptr;
+        Executor* executor = nullptr; // Reads the files' runs (millions in a large zone) in parallel; null: inline.
     };
+
+    // Runs body over the chunks of [0, count) on the executor, or inline without one.
+    void forChunks(Executor* executor, std::size_t count, const Executor::RangeBody& body);
 
     // Destinations of the files that fit, and the files that did not.
     struct FillResult {

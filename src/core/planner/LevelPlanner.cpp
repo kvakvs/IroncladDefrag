@@ -39,27 +39,35 @@ namespace icd::core::planner {
             // Whether the plan moves the file.
             [[nodiscard]] bool moved(FileIndex file) const { return last_[file] != noMove; }
 
-            // The file's movable runs after the plan.
-            [[nodiscard]] std::vector<ClusterRun> of(FileIndex file) const {
-                if (!moved(file)) {
-                    return movableRuns(snapshot_, file);
-                }
-                const auto d = plan_.destinations(plan_.moves[last_[file]]);
-                return {d.begin(), d.end()};
+            // A moved file's runs after the plan: its last move's destinations.
+            [[nodiscard]] std::span<const ClusterRun> after(FileIndex file) const {
+                return plan_.destinations(plan_.moves[last_[file]]);
             }
 
             // Free runs after the plan, without replaying it: the free runs before plus every moved file's runs
-            // before, minus every moved file's runs after (scratch space used for parking is free again by then).
+            // before, minus every moved file's runs after (scratch space used for parking is free again by then). The
+            // runs are gathered per chunk of files in parallel; the sort puts them in one order whatever the chunks.
             [[nodiscard]] std::vector<ClusterRun> freeAfter(Executor& executor) const {
+                const ChunkedRange files{.count = first_.size(), .grain = 1U << 16U};
+                std::vector<std::vector<ClusterRun>> freedParts(files.chunks());
+                std::vector<std::vector<ClusterRun>> takenParts(files.chunks());
+                executor.parallelFor(files, [&](std::size_t begin, std::size_t end) {
+                    auto& freedPart = freedParts[begin / files.chunkSize()];
+                    auto& takenPart = takenParts[begin / files.chunkSize()];
+                    for (std::size_t f = begin; f < end; ++f) {
+                        if (first_[f] != noMove) {
+                            const auto s = plan_.sources(plan_.moves[first_[f]]);
+                            freedPart.insert(freedPart.end(), s.begin(), s.end());
+                            const auto d = plan_.destinations(plan_.moves[last_[f]]);
+                            takenPart.insert(takenPart.end(), d.begin(), d.end());
+                        }
+                    }
+                });
                 std::vector<ClusterRun> freed(snapshot_.freeSpace.runs().begin(), snapshot_.freeSpace.runs().end());
                 std::vector<ClusterRun> taken;
-                for (std::size_t f = 0; f < first_.size(); ++f) {
-                    if (first_[f] != noMove) {
-                        const auto s = plan_.sources(plan_.moves[first_[f]]);
-                        freed.insert(freed.end(), s.begin(), s.end());
-                        const auto d = plan_.destinations(plan_.moves[last_[f]]);
-                        taken.insert(taken.end(), d.begin(), d.end());
-                    }
+                for (std::size_t c = 0; c < files.chunks(); ++c) {
+                    freed.insert(freed.end(), freedParts[c].begin(), freedParts[c].end());
+                    taken.insert(taken.end(), takenParts[c].begin(), takenParts[c].end());
                 }
                 const auto byStart = [](const ClusterRun& a, const ClusterRun& b) { return a.start < b.start; };
                 parallelSort(executor, freed, byStart);
@@ -137,15 +145,26 @@ namespace icd::core::planner {
             }
         };
 
-        // Pool of after-plan free space: free runs plus what must-move files vacate, without the reserved runs.
-        HoleSet afterPlanPool(const Snapshot& snapshot, const LowerBound& bound, std::span<const ClusterRun> reserved) {
-            std::vector<ClusterRun> runs(snapshot.freeSpace.runs().begin(), snapshot.freeSpace.runs().end());
-            for (std::size_t f = 0; f < bound.mustMove.size(); ++f) {
-                if (bound.mustMove[f] != 0) {
-                    const auto vacated = movableRuns(snapshot, static_cast<FileIndex>(f));
-                    runs.insert(runs.end(), vacated.begin(), vacated.end());
+        // Pool of after-plan free space: free runs plus what must-move files vacate, without the reserved runs. The
+        // vacated runs are gathered and sorted in parallel (free and file runs are disjoint: the order has no ties).
+        HoleSet afterPlanPool(const Snapshot& snapshot, const LowerBound& bound, std::span<const ClusterRun> reserved,
+                              Executor& executor) {
+            const ChunkedRange files{.count = bound.mustMove.size(), .grain = 1U << 16U};
+            std::vector<std::vector<ClusterRun>> vacated(files.chunks());
+            executor.parallelFor(files, [&](std::size_t begin, std::size_t end) {
+                auto& out = vacated[begin / files.chunkSize()];
+                for (std::size_t f = begin; f < end; ++f) {
+                    if (bound.mustMove[f] != 0) {
+                        const auto runs = movableRuns(snapshot, static_cast<FileIndex>(f));
+                        out.insert(out.end(), runs.begin(), runs.end());
+                    }
                 }
+            });
+            std::vector<ClusterRun> runs(snapshot.freeSpace.runs().begin(), snapshot.freeSpace.runs().end());
+            for (const auto& part : vacated) {
+                runs.insert(runs.end(), part.begin(), part.end());
             }
+            parallelSort(executor, runs, [](const ClusterRun& a, const ClusterRun& b) { return a.start < b.start; });
             HoleSet pool(runs); // One sorted build instead of a million single inserts.
             for (const ClusterRun& r : reserved) {
                 takeRuns(pool, pool.within(r));
@@ -182,17 +201,35 @@ namespace icd::core::planner {
             PlanResult run(Executor& executor, const CancelToken& token) {
                 executor_ = &executor;
                 LayoutInputs base{.reserved = input_.reserved, .slackBefore = {}, .room = sortRoom()};
-                base = fitTarget(snapshot_, script_, assignment_, input_.classes, *input_.catalog, base,
-                                 policy_.goodEnough, executor);
-                result_.layout = resolveLayout(snapshot_, script_, assignment_, input_.classes, *input_.catalog, base);
-                bound_ =
-                    lowerBound(snapshot_, script_, assignment_, result_.layout, policy_.goodEnough, executor, token);
-                sorted_ = applySortBounds(snapshot_, script_, assignment_, result_.layout, policy_.effort,
-                                          policy_.sortTolerance, bound_);
+                {
+                    const StageScope stage(result_.stages, "fit target");
+                    base = fitTarget(snapshot_, script_, assignment_, input_.classes, *input_.catalog, base,
+                                     policy_.goodEnough, executor);
+                    result_.layout =
+                        resolveLayout(snapshot_, script_, assignment_, input_.classes, *input_.catalog, base);
+                }
+                {
+                    const StageScope stage(result_.stages, "lower bound");
+                    bound_ = lowerBound(snapshot_, script_, assignment_, result_.layout, policy_.goodEnough, executor,
+                                        token);
+                    sorted_ = applySortBounds(snapshot_, script_, assignment_, result_.layout, policy_.effort,
+                                              policy_.sortTolerance, bound_, input_.sortKeys, &executor);
+                }
                 reserved_ = result_.layout.reservedUsed ? std::span<const ClusterRun>() : input_.reserved;
                 Placed placed = placeRounds(token);
                 finish(placed);
+                releaseLater(executor, std::move(placed));
                 return std::move(result_);
+            }
+
+            // Hands the destinations and the guard's wait graph (tens of millions of small allocations at 30 TB:
+            // seconds to free) to another worker, so the level's result goes back without waiting for that.
+            void releaseLater(Executor& executor, Placed placed) {
+                struct Garbage {
+                    Placed placed; // The destinations.
+                    std::unique_ptr<CycleGuard> guard; // The wait graph.
+                };
+                executor.submit([garbage = Garbage{std::move(placed), std::move(guard_)}] { (void)garbage; });
             }
 
         private:
@@ -212,17 +249,22 @@ namespace icd::core::planner {
             Placed placeRounds(const CancelToken& token) {
                 constexpr int rounds = 8;
                 for (int round = 0;; ++round) {
+                    std::optional<StageScope> stage(std::in_place, result_.stages, "candidates and pool");
                     const Candidates candidates = filterCandidates(bound_, assignment_, script_.zones.size());
-                    pool_ = afterPlanPool(snapshot_, bound_, reserved_);
+                    pool_ = afterPlanPool(snapshot_, bound_, reserved_, *executor_);
                     evicted_.clear();
                     noSpace_.clear();
+                    stage.reset();
                     Placed placed = placeZones(candidates, token);
                     const std::size_t zoneDestinations = placed.destinations.size();
+                    stage.emplace(result_.stages, "defragment-only");
                     const auto reserve = reserveScratch();
                     placeDefragment(candidates, placed);
                     guardDefragment(placed, zoneDestinations);
+                    stage.emplace(result_.stages, "overflow");
                     reconcile(placed);
                     releaseRuns(pool_, reserve);
+                    stage.reset();
                     if (noSpace_.empty() || round + 1 == rounds) {
                         recordStuck();
                         return placed;
@@ -295,8 +337,11 @@ namespace icd::core::planner {
 
             // Places one zone's candidates in its own slice of the pool.
             FillResult placeZone(const ZoneTarget& t, std::span<const FileIndex> movers, HoleSet& slice) {
-                const FillOptions options{
-                    .zone = t.zone, .home = spanOf(t), .fragmentOk = fragmentOk(t.zone), .guard = guard_.get()};
+                const FillOptions options{.zone = t.zone,
+                                          .home = spanOf(t),
+                                          .fragmentOk = fragmentOk(t.zone),
+                                          .guard = guard_.get(),
+                                          .executor = executor_};
                 const SortedZone& decision = decisionFor(t.zone);
                 if (t.back) {
                     return packToBack(snapshot_, t, decision, movers, slice, options);
@@ -322,6 +367,7 @@ namespace icd::core::planner {
                 std::vector<FillResult> results(zones.size());
                 for (std::size_t i = 0; i < zones.size(); ++i) {
                     token.throwIfCancelled();
+                    const StageScope stage(result_.stages, "zone " + script_.zones.at(zones[i].zone).name);
                     results[i] = placeZone(zones[i], candidates.perZone[zones[i].zone], slices[i]);
                 }
                 Placed placed;
@@ -401,8 +447,10 @@ namespace icd::core::planner {
                 const ClusterCount clusters = clustersOf(runs);
                 const RoomRequest request{
                     .clusters = clusters, .own = own, .region = t->pieces, .maxEvict = clusters / 4};
-                const auto room = findRoom(snapshot_, pool_, request,
-                                           [&](FileIndex other) { return evictable(other, file, t->zone); });
+                constexpr std::size_t maxStarts = 256;
+                const auto room = findRoom(
+                    snapshot_, pool_, request, [&](FileIndex other) { return evictable(other, file, t->zone); },
+                    maxStarts, executor_);
                 if (!room || guard_->closesCycle(file, std::span(&room->window, 1))) {
                     return false;
                 }
@@ -542,17 +590,21 @@ namespace icd::core::planner {
                 plan.effort = policy_.effort;
                 plan.lowerBound = bound_.clusters;
                 if (input_.shadowCopies) {
+                    const StageScope stage(result_.stages, "vss align");
                     (void)alignDestinations(snapshot_, placed.destinations, pool_, &result_.layout);
                 }
+                std::optional<StageScope> stage(std::in_place, result_.stages, "order");
                 (void)orderMoves(snapshot_, placed.destinations,
                                  {.allowParking = policy_.allowParking, .scratch = {}, .executor = executor_}, plan);
                 plan.extra = 0;
                 for (const Move& m : plan.moves) {
                     plan.extra += m.extra ? m.clusters : 0;
                 }
-                applyBudget(snapshot_, plan, policy_.budget);
+                stage.emplace(result_.stages, "budget");
+                applyBudget(snapshot_, plan, policy_.budget, executor_);
                 finishTotals(plan, snapshot_);
                 plan.notes.insert(plan.notes.end(), result_.layout.notes.begin(), result_.layout.notes.end());
+                stage.emplace(result_.stages, "measure");
                 result_.metrics = measurePlan(input_, assignment_, result_.layout, plan, *executor_);
             }
 
@@ -609,7 +661,8 @@ namespace icd::core::planner {
         }
 
         // Adds a file's fragment counts.
-        void countFragments(const CountContext& c, FileIndex file, const std::vector<ClusterRun>* after, Counts& out) {
+        void countFragments(const CountContext& c, FileIndex file, const std::span<const ClusterRun>* after,
+                            Counts& out) {
             const bool was = c.snapshot.extents.fragmentCount(file) > 1;
             ++out.fragBefore.files;
             ++out.fragAfter.files;
@@ -617,15 +670,24 @@ namespace icd::core::planner {
             out.fragAfter.fragmented += (after != nullptr ? fragmentsOf(*after) > 1 : was) ? 1 : 0;
         }
 
+        // Whether every movable run of a file lies in the zone target (inTarget() of its movable runs, unbuilt).
+        bool movableInTarget(const Snapshot& snapshot, const ZoneTarget& t, FileIndex file) {
+            const auto records = snapshot.extents.records();
+            return std::ranges::all_of(snapshot.extents.extentsOf(file), [&](std::uint32_t position) {
+                const ExtentRecord& r = records[position];
+                return (r.flags() & ExtentUnmovable) != 0 || t.holds(r.run());
+            });
+        }
+
         // Adds a placed file's zone fit.
-        void countFit(const CountContext& c, FileIndex file, const std::vector<ClusterRun>* after, Counts& out) {
+        void countFit(const CountContext& c, FileIndex file, const std::span<const ClusterRun>* after, Counts& out) {
             const ZoneTarget* t =
                 c.assignment.roles[file] == FileRole::Placed ? c.layout.target(c.assignment.zoneOf[file]) : nullptr;
             if (t == nullptr) {
                 return;
             }
             const ClusterCount clusters = c.assignment.movable[file];
-            const bool before = inTarget(*t, movableRuns(c.snapshot, file));
+            const bool before = movableInTarget(c.snapshot, *t, file);
             out.fitBefore.total += clusters;
             out.fitAfter.total += clusters;
             out.fitBefore.inZone += before ? clusters : 0;
@@ -637,13 +699,22 @@ namespace icd::core::planner {
             if (c.snapshot.files.allocatedClusters(file) == 0) {
                 return;
             }
-            const std::optional<std::vector<ClusterRun>> after =
-                c.final.moved(file) ? std::optional(c.final.of(file)) : std::nullopt;
+            const std::optional<std::span<const ClusterRun>> after =
+                c.final.moved(file) ? std::optional(c.final.after(file)) : std::nullopt;
             countFragments(c, file, after ? &*after : nullptr, out);
             countFit(c, file, after ? &*after : nullptr, out);
         }
 
     } // namespace
+
+    void addStageTime(std::vector<StageTime>& stages, std::string_view name, double seconds) {
+        const auto found = std::ranges::find(stages, name, &StageTime::name);
+        if (found != stages.end()) {
+            found->seconds += seconds;
+            return;
+        }
+        stages.push_back({.name = std::string(name), .seconds = seconds});
+    }
 
     ZoneAssignment assignInput(const PlanInput& input, Executor& executor, const CancelToken& token) {
         return assignZones(*input.snapshot, *input.script, *input.catalog,
