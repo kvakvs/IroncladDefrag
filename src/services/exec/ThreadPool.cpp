@@ -1,6 +1,7 @@
 #include "services/exec/ThreadPool.h"
 
 #include <algorithm>
+#include <chrono>
 #include <exception>
 #include <utility>
 
@@ -61,6 +62,11 @@ namespace icd::services {
                     state.done.notify_all();
                 }
             }
+        }
+
+        // Steady-clock ticks now, never 0 (0 marks an idle worker).
+        std::int64_t ticksNow() {
+            return std::max<std::int64_t>(std::chrono::steady_clock::now().time_since_epoch().count(), 1);
         }
 
         // Blocks until every chunk has been run or skipped.
@@ -129,12 +135,32 @@ namespace icd::services {
         currentWorker = index;
         while (!stop.stop_requested()) {
             if (std::optional<Task> task = take(index)) {
-                (*task)();
+                runTimed(*queues_[index], *task);
                 continue;
             }
             std::unique_lock lock(sleepMutex_);
             wake_.wait(lock, stop, [this] { return pending_.load() > 0; });
         }
+    }
+
+    void ThreadPool::runTimed(WorkerQueue& worker, Task& task) {
+        const std::int64_t start = ticksNow();
+        worker.busySince.store(start, std::memory_order_relaxed);
+        task();
+        // Added before the start is cleared, so a sample may count a moment twice but never loses one.
+        finishedBusy_.fetch_add(ticksNow() - start, std::memory_order_relaxed);
+        worker.busySince.store(0, std::memory_order_relaxed);
+    }
+
+    std::chrono::nanoseconds ThreadPool::busyTime() const {
+        const std::int64_t now = ticksNow();
+        std::int64_t total = finishedBusy_.load(std::memory_order_relaxed);
+        for (const auto& worker : queues_) {
+            if (const std::int64_t since = worker->busySince.load(std::memory_order_relaxed); since != 0) {
+                total += std::max<std::int64_t>(now - since, 0);
+            }
+        }
+        return std::chrono::duration_cast<std::chrono::nanoseconds>(std::chrono::steady_clock::duration(total));
     }
 
     void ThreadPool::parallelFor(core::ChunkedRange range, const RangeBody& body, const core::CancelToken& token) {

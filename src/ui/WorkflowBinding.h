@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/job/RateMeter.h"
 #include "core/job/StageClock.h"
 #include "core/map/World.h"
 #include "core/model/DriveInfo.h"
@@ -7,6 +8,8 @@
 #include "services/trim/TrimJob.h"
 #include "services/workflow/FakeResults.h"
 #include "services/workflow/Workflow.h"
+#include "ui/ExecutionView.h"
+#include "ui/dialogs/ConfirmExecuteDialog.h"
 
 #include <memory>
 #include <optional>
@@ -23,7 +26,9 @@ namespace icd::core {
 namespace icd::services {
     class AppServices;
     struct AnalysisOutput;
+    struct PlanOutcome;
     struct PlanOutput;
+    struct PlanRequest;
 } // namespace icd::services
 
 namespace icd::ui {
@@ -32,11 +37,11 @@ namespace icd::ui {
     class DrivesPanel;
     class JobEventBridge;
     class MapPanel;
+    struct ProgressDetails;
 
     // Connects the workflow state machine to the window: routes menu and button commands to it, starts the
     // job each step needs, shows progress on the status line and results on the tabs, and enables every
-    // command from the workflow state. In Phase 1 the jobs and results are fake; later phases swap in the
-    // real services behind the same steps.
+    // command from the workflow state. With the fake drive list the analysis is synthetic and execution simulated.
     class WorkflowBinding {
     public:
         // The widgets it drives; children of the frame, so they outlive the binding.
@@ -58,6 +63,10 @@ namespace icd::ui {
         // Cancels a running job and stops event delivery; call when the window closes.
         void shutdown();
 
+        // Selects the drive with this root ("T", "T:" or the full root), as the --drive start option asks; unknown
+        // roots are ignored.
+        void selectDrive(const std::string& root);
+
     private:
         // Binds menu and button commands and job events on the frame.
         void bindEvents();
@@ -74,8 +83,15 @@ namespace icd::ui {
         // Side effects of an applied action (pause gate, cancel request, tabs).
         void afterAction(services::WorkflowAction action);
 
-        // Asks the user to confirm execution of the reviewed plan.
+        // Asks the user to confirm execution of the reviewed plan; keeps the chosen options.
         [[nodiscard]] bool confirmExecute();
+
+        // What the confirmation shows for the reviewed plan at the chosen level.
+        [[nodiscard]] ExecuteConfirmation confirmation(const services::PlanSummary& plan) const;
+
+        // Whether an action may start: actions that read volumes or move files need administrator rights, so
+        // without them the user is offered a restart as administrator (which closes this window).
+        [[nodiscard]] bool elevationReady(services::WorkflowAction action);
 
         // Starts the job for a workflow step; None does nothing.
         void startJob(services::WorkflowJob job);
@@ -83,8 +99,15 @@ namespace icd::ui {
         // Clears results that a new job of this kind makes stale.
         void resetFor(services::WorkflowJob job);
 
-        // Builds the (fake) job function of a step on drive.
+        // Builds the job function of a step on drive: the real one, else the fake stand-in.
         [[nodiscard]] services::JobFunction makeJob(services::WorkflowJob job, const core::DriveInfo& drive);
+
+        // The real job of a step, or null where only a fake one exists (planning without a map, the fake drives'
+        // execution).
+        [[nodiscard]] services::JobFunction makeRealJob(services::WorkflowJob job, const core::DriveInfo& drive);
+
+        // The fake parallel job of a step, with step-specific stage names (the UI shell and the fake drive list).
+        [[nodiscard]] services::JobFunction makeFakeJob(services::WorkflowJob job, const core::DriveInfo& drive);
 
         // Shows throttled progress of the active job.
         void onJobProgress(wxThreadEvent& event);
@@ -113,8 +136,23 @@ namespace icd::ui {
         // A job that plans the shown map with the Strategy tab's script, or null without a map to plan.
         [[nodiscard]] services::JobFunction makePlanJob(const core::DriveInfo& drive);
 
+        // A job that executes the reviewed plan's chosen level, or null when there is no real plan (fake drives).
+        [[nodiscard]] services::JobFunction makeExecuteJob(const core::DriveInfo& drive);
+
+        // The Progress tab fields of a progress report (elapsed, estimate, workers, and the execution's own fields).
+        [[nodiscard]] ProgressDetails progressDetails(const core::Progress& progress, const core::StageClock& clock,
+                                                      std::chrono::steady_clock::time_point now,
+                                                      std::optional<double>& fraction);
+
+        // The share of the pool's workers busy over the last seconds.
+        [[nodiscard]] std::string workersText(std::chrono::steady_clock::time_point now);
+
         // Fills the Log tab and the drive row after an execution; the old figures are now stale.
         void showExecution(core::DriveInfo& drive);
+
+        // An execution ended however it ended: its summary goes into the Log tab, the stale Summary and plan are
+        // dropped. Returns the status line (the run's own, or `status` without a real run).
+        [[nodiscard]] std::string executionEnded(const std::string& status);
 
         // Moves TRIM output collected so far into the Log tab.
         void takeTrimOutput();
@@ -167,6 +205,9 @@ namespace icd::ui {
         wxFrame& frame_; // Window whose commands are bound.
         services::AppServices& services_; // Job runner, caps, drive provider.
         Widgets widgets_; // Panels to update.
+        ExecutionView execution_; // Follows a real execution: Progress fields, Log rows, final status.
+        ExecuteChoices executeChoices_; // Priority and throughput limit from the last confirmation.
+        core::RateMeter busy_; // Worker busy time per second, for the Progress tab's utilisation.
         services::Workflow workflow_; // The state machine.
         std::shared_ptr<JobEventBridge> bridge_; // Delivers job events to the frame.
         std::optional<services::JobId> activeJob_; // Running job, if any.
@@ -177,6 +218,8 @@ namespace icd::ui {
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
         std::shared_ptr<services::PlanOutput> planOutput_; // Where the running plan job leaves its outcome.
+        std::shared_ptr<const services::PlanOutcome> planOutcome_; // The reviewed plan's levels, for Execute.
+        std::shared_ptr<const services::PlanRequest> planRequest_; // What it was planned from, for Execute.
         std::shared_ptr<services::AnalysisOutput> analysisOutput_; // Where the running analysis leaves its map.
         std::shared_ptr<services::TrimOutput> trimOutput_; // Output lines of the running TRIM.
     };

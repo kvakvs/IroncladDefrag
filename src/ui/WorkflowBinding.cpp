@@ -9,6 +9,9 @@
 #include "core/map/MapData.h"
 #include "core/strategy/Presets.h"
 #include "services/AppServices.h"
+#include "services/Elevation.h"
+#include "services/exec/ThreadPool.h"
+#include "services/execute/ExecuteJob.h"
 #include "services/job/FakeJob.h"
 #include "services/plan/PlanJob.h"
 #include "services/scan/AnalysisJob.h"
@@ -23,14 +26,18 @@
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
 #include "ui/panels/SummaryPage.h"
+#include "ui/tabs/ProgressTab.h"
 
 #include <wx/display.h>
 #include <wx/frame.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
 
+#include <algorithm>
 #include <array>
+#include <cctype>
 #include <format>
+#include <iterator>
 
 namespace icd::ui {
 
@@ -102,7 +109,7 @@ namespace icd::ui {
             "analysing...",
             "analysed",
             "building plan...",
-            "plan ready (the plan overlay arrives with the planner)",
+            "plan ready; review it on the map, then execute",
             "executing plan...",
             "execution paused",
             "plan executed; analyze again to refresh",
@@ -128,6 +135,35 @@ namespace icd::ui {
             return std::format("{}Data\\Photos\\{}\\IMG_{:05}.jpg", root, 2015 + index % 10, index);
         }
 
+        // A drive root without its trailing backslash, in upper case ("t:\" becomes "T:"), for --drive.
+        std::string rootKey(std::string root) {
+            while (!root.empty() && (root.back() == '\\' || root.back() == '/')) {
+                root.pop_back();
+            }
+            if (root.size() == 1) {
+                root += ':';
+            }
+            std::ranges::transform(root, root.begin(), [](char c) {
+                return static_cast<char>(std::toupper(static_cast<unsigned char>(c)));
+            });
+            return root;
+        }
+
+        // Whether an action reads volumes or moves files, which needs administrator rights (plan.md 4).
+        bool needsAdministrator(WorkflowAction action) {
+            return action == WorkflowAction::Analyze || action == WorkflowAction::Quick ||
+                action == WorkflowAction::Trim || action == WorkflowAction::Execute;
+        }
+
+        // Whether a warning of the Plan tab belongs to a level: general ones and the level's own ("Fast: ...").
+        bool warningFor(const std::string& warning, services::EffortLevel level) {
+            constexpr std::array levels{services::EffortLevel::Fast, services::EffortLevel::Moderate,
+                                        services::EffortLevel::Maximum};
+            return std::ranges::none_of(levels, [&warning, level](services::EffortLevel other) {
+                return other != level && warning.starts_with(std::string(services::effortName(other)) + ":");
+            });
+        }
+
         // Seconds with one decimal, for result texts.
         std::string seconds(const services::JobResult& result) {
             return std::format("{:.1f} s", static_cast<double>(result.elapsed.count()) / 1000.0);
@@ -136,7 +172,8 @@ namespace icd::ui {
     } // namespace
 
     WorkflowBinding::WorkflowBinding(wxFrame& frame, services::AppServices& services, Widgets widgets) :
-        frame_(frame), services_(services), widgets_(widgets), bridge_(std::make_shared<JobEventBridge>(&frame)) {
+        frame_(frame), services_(services), widgets_(widgets), execution_(widgets.bottom),
+        bridge_(std::make_shared<JobEventBridge>(&frame)) {
         bindEvents();
         widgets_.drives.setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
         widgets_.bottom.strategy().setChangeHandler([this] { onStrategyChanged(); });
@@ -198,7 +235,7 @@ namespace icd::ui {
             widgets_.bottom.showTab(BottomTab::Strategy); // The change itself happens on the tab.
             return;
         }
-        if (!allowed(action) || (action == WorkflowAction::Execute && !confirmExecute())) {
+        if (!allowed(action) || !elevationReady(action) || (action == WorkflowAction::Execute && !confirmExecute())) {
             return;
         }
         core::logging::info("workflow action",
@@ -247,16 +284,50 @@ namespace icd::ui {
         if (!plan_) {
             return false;
         }
-        const auto& level = plan_->levels.at(static_cast<std::size_t>(widgets_.bottom.strategy().effort()));
-        const std::string text = std::format(
-            "Execute the {} plan on {}?\n\n{} files ({}) will be moved.\n\nThis is the UI shell: the run is "
-            "simulated and nothing on the disk changes.",
-            services::effortName(level.level), driveLabel(), core::formatCount(level.filesToMove),
-            core::formatBytes(level.bytesToMove));
-        wxMessageDialog dialog(&frame_, wxString::FromUTF8(text), "Execute plan",
-                               wxYES_NO | wxNO_DEFAULT | wxICON_WARNING);
-        dialog.SetYesNoLabels("&Execute", "&Cancel");
-        return dialog.ShowModal() == wxID_YES;
+        ConfirmExecuteDialog dialog(&frame_, confirmation(*plan_));
+        if (dialog.ShowModal() != wxID_OK) {
+            return false;
+        }
+        executeChoices_ = dialog.choices();
+        core::logging::info(
+            "execution confirmed",
+            {{"lowPriority", executeChoices_.lowPriority}, {"limitMbPerSecond", executeChoices_.limitMbPerSecond}});
+        return true;
+    }
+
+    ExecuteConfirmation WorkflowBinding::confirmation(const services::PlanSummary& plan) const {
+        const StrategyPage& strategy = widgets_.bottom.strategy();
+        ExecuteConfirmation what;
+        what.drive = driveLabel();
+        what.strategy = strategy.script().name;
+        what.level = plan.levels.at(static_cast<std::size_t>(strategy.effort()));
+        std::ranges::copy_if(plan.warnings, std::back_inserter(what.warnings),
+                             [&what](const std::string& w) { return warningFor(w, what.level.level); });
+        what.simulated = services_.fakeDrives() || !planOutcome_;
+        return what;
+    }
+
+    bool WorkflowBinding::elevationReady(WorkflowAction action) {
+        if (!needsAdministrator(action) || services_.fakeDrives() || services::runningElevated()) {
+            return true;
+        }
+        wxMessageDialog dialog(&frame_,
+                               "Reading volumes and moving files need administrator rights, and IroncladDefrag was "
+                               "started without them.\n\nRestart it as administrator? This window closes; the drive "
+                               "stays selected, but the analysis and plan must be made again.",
+                               "Administrator rights needed", wxYES_NO | wxICON_WARNING);
+        dialog.SetYesNoLabels("&Restart as administrator", "&Not now");
+        if (dialog.ShowModal() != wxID_YES) {
+            return false;
+        }
+        const std::string arguments = drive_ ? "--drive " + rootKey(drive_->root) : std::string();
+        if (services::restartElevated(arguments)) {
+            frame_.Close();
+        }
+        else {
+            widgets_.bottom.setStatus("Not restarted: administrator rights were not granted");
+        }
+        return false;
     }
 
     void WorkflowBinding::startJob(WorkflowJob job) {
@@ -272,7 +343,8 @@ namespace icd::ui {
         BottomPanel& bottom = widgets_.bottom;
         bottom.setStatus(wxString::FromUTF8(std::format("{} {}...", text.verb, driveLabel())));
         bottom.setProgress(0.0);
-        bottom.setProgressDetails({});
+        bottom.progress().show({});
+        busy_.reset();
         bottom.showTab(BottomTab::Progress);
     }
 
@@ -288,6 +360,7 @@ namespace icd::ui {
         if (job == WorkflowJob::Execute) {
             bottom.clearLog();
             pause_ = std::make_shared<core::PauseGate>();
+            widgets_.map.setPlanOverlays(nullptr, nullptr); // They show the layout before the moves.
         }
         if (job == WorkflowJob::Trim) {
             bottom.clearLog();
@@ -295,7 +368,15 @@ namespace icd::ui {
     }
 
     services::JobFunction WorkflowBinding::makeJob(WorkflowJob job, const core::DriveInfo& drive) {
-        if (job == WorkflowJob::Analyze) {
+        if (auto real = makeRealJob(job, drive); real) {
+            return real;
+        }
+        return makeFakeJob(job, drive);
+    }
+
+    services::JobFunction WorkflowBinding::makeRealJob(WorkflowJob job, const core::DriveInfo& drive) {
+        switch (job) {
+        case WorkflowJob::Analyze:
             analysisOutput_ = std::make_shared<services::AnalysisOutput>();
             if (services_.fakeDrives()) {
                 return services::makeSyntheticAnalysis(drive, screenAspect(), analysisOutput_);
@@ -303,16 +384,20 @@ namespace icd::ui {
             analysisOutput_->previous = widgets_.map.currentMap(); // Used only when it shows the same volume.
             return services::makeAnalysisJob(drive, screenAspect(), analysisOutput_,
                                              services_.caps().memoryBudgetBytes);
-        }
-        if (job == WorkflowJob::Trim) {
+        case WorkflowJob::Trim:
             trimOutput_ = std::make_shared<services::TrimOutput>();
             return services::makeTrimJob(drive.root, trimOutput_);
+        case WorkflowJob::Plan:
+            return makePlanJob(drive);
+        case WorkflowJob::Execute:
+            return makeExecuteJob(drive);
+        case WorkflowJob::None:
+            break;
         }
-        if (job == WorkflowJob::Plan) {
-            if (auto plan = makePlanJob(drive); plan) {
-                return plan;
-            }
-        }
+        return {};
+    }
+
+    services::JobFunction WorkflowBinding::makeFakeJob(WorkflowJob job, const core::DriveInfo& drive) {
         const StepText& text = textOf(job);
         services::FakeJobOptions options;
         options.chunks = text.chunksPerWorker * services_.caps().workerThreads;
@@ -345,6 +430,20 @@ namespace icd::ui {
                                      planOutput_);
     }
 
+    services::JobFunction WorkflowBinding::makeExecuteJob(const core::DriveInfo& drive) {
+        if (services_.fakeDrives() || !planOutcome_ || !planRequest_) {
+            return {}; // The fake drive list simulates execution.
+        }
+        services::ExecuteJobRequest request;
+        request.drive = drive;
+        request.outcome = planOutcome_;
+        request.plan = planRequest_;
+        request.level = static_cast<core::strategy::Effort>(widgets_.bottom.strategy().effort());
+        request.options.lowPriority = executeChoices_.lowPriority;
+        request.options.throughputLimit = executeChoices_.limitMbPerSecond << 20U;
+        return execution_.start(std::move(request), pause_);
+    }
+
     void WorkflowBinding::onJobProgress(wxThreadEvent& event) {
         const auto payload = event.GetPayload<JobProgressPayload>();
         if (payload.id != activeJob_ || !clock_ || workflow_.state() == WorkflowState::Paused) {
@@ -353,23 +452,49 @@ namespace icd::ui {
         const core::Progress& progress = payload.progress;
         const auto now = std::chrono::steady_clock::now();
         clock_->update(progress, now);
+        std::optional<double> fraction = progress.fraction();
+        const ProgressDetails details = progressDetails(progress, *clock_, now, fraction);
+        BottomPanel& bottom = widgets_.bottom;
+        bottom.setStatus(wxString::FromUTF8(std::format("{} {}: {}, {}", textOf(activeKind_).verb, driveLabel(),
+                                                        progress.stage, details.done.utf8_string())));
+        bottom.setProgress(fraction);
+        bottom.progress().show(details);
+        takeTrimOutput();
+        takeAnalysisMap();
+    }
+
+    ProgressDetails WorkflowBinding::progressDetails(const core::Progress& progress, const core::StageClock& clock,
+                                                     std::chrono::steady_clock::time_point now,
+                                                     std::optional<double>& fraction) {
         std::string count = core::formatCount(progress.done);
         if (progress.total != 0) {
             count += " of " + core::formatCount(progress.total);
         }
-        const auto remaining = clock_->remaining(now);
-        BottomPanel& bottom = widgets_.bottom;
-        bottom.setStatus(wxString::FromUTF8(
-            std::format("{} {}: {}, {}", textOf(activeKind_).verb, driveLabel(), progress.stage, count)));
-        bottom.setProgress(progress.fraction());
-        bottom.setProgressDetails({.stage = wxString::FromUTF8(progress.stage),
-                                   .done = wxString::FromUTF8(count),
-                                   .elapsed = wxString::FromUTF8(core::formatDuration(clock_->elapsed(now))),
-                                   .throughput = {},
-                                   .eta = remaining ? wxString::FromUTF8(core::formatDuration(*remaining)) : "",
-                                   .currentFile = wxString::FromUTF8(progress.message)});
-        takeTrimOutput();
-        takeAnalysisMap();
+        const auto remaining = clock.remaining(now);
+        ProgressDetails details{.stage = wxString::FromUTF8(progress.stage),
+                                .done = wxString::FromUTF8(count),
+                                .elapsed = wxString::FromUTF8(core::formatDuration(clock.elapsed(now))),
+                                .eta = remaining ? wxString::FromUTF8(core::formatDuration(*remaining)) : "",
+                                .throughput = {},
+                                .workers = wxString::FromUTF8(workersText(now)),
+                                .currentFile = wxString::FromUTF8(progress.message),
+                                .moves = {}};
+        if (activeKind_ == WorkflowJob::Execute) {
+            execution_.fill(details, fraction, now);
+        }
+        return details;
+    }
+
+    std::string WorkflowBinding::workersText(std::chrono::steady_clock::time_point now) {
+        services::ThreadPool& pool = services_.pool();
+        busy_.add(now, std::chrono::duration<double>(pool.busyTime()).count());
+        const auto busy = busy_.perSecond(); // Busy workers on average.
+        if (!busy) {
+            return {};
+        }
+        const double workers = static_cast<double>(pool.concurrency());
+        return std::format("{:.0f}% of {} threads busy", std::clamp(*busy / workers, 0.0, 1.0) * 100.0,
+                           pool.concurrency());
     }
 
     void WorkflowBinding::takeAnalysisMap() {
@@ -399,7 +524,7 @@ namespace icd::ui {
         const WorkflowJob next = workflow_.finish(result.outcome);
         BottomPanel& bottom = widgets_.bottom;
         bottom.setProgress(std::nullopt);
-        bottom.setProgressDetails({});
+        bottom.progress().show({});
         std::string status;
         switch (result.outcome) {
         case services::JobOutcome::Succeeded:
@@ -414,6 +539,9 @@ namespace icd::ui {
             dropPartialMap(job);
             status = std::format("{} of {} failed: {}", textOf(job).title, driveLabel(), result.error);
             break;
+        }
+        if (job == WorkflowJob::Execute) {
+            status = executionEnded(status);
         }
         bottom.setStatus(wxString::FromUTF8(status));
         startJob(next); // The plan of a Quick run.
@@ -469,6 +597,8 @@ namespace icd::ui {
         }
         BottomPanel& bottom = widgets_.bottom;
         const auto outcome = planOutput_ ? planOutput_->take() : nullptr;
+        planOutcome_ = outcome;
+        planRequest_ = planOutput_ ? planOutput_->takeRequest() : nullptr;
         planOutput_.reset();
         const services::PlanSummary plan = outcome ? services::planSummary(*outcome)
                                                    : services::fakePlan(drive, *analysis_, bottom.strategy().preset());
@@ -484,6 +614,8 @@ namespace icd::ui {
     void WorkflowBinding::dropPlan(const char* hint) {
         plan_.reset();
         planOutput_.reset();
+        planOutcome_.reset();
+        planRequest_.reset();
         widgets_.map.setPlanOverlays(nullptr, nullptr);
         widgets_.bottom.plan().clear(hint);
     }
@@ -497,16 +629,26 @@ namespace icd::ui {
 
     void WorkflowBinding::showExecution(core::DriveInfo& drive) {
         BottomPanel& bottom = widgets_.bottom;
-        for (const auto& [file, reason] : services::fakeSkippedFiles(drive)) {
-            bottom.addLogEntry(wxString::FromUTF8(file), wxString::FromUTF8(reason));
+        if (!planOutcome_) { // The simulated run of the fake drive list.
+            for (const auto& [file, reason] : services::fakeSkippedFiles(drive)) {
+                bottom.addLogEntry(wxString::FromUTF8(file), "skipped", wxString::FromUTF8(reason));
+            }
+            if (plan_) {
+                const auto effort = static_cast<std::size_t>(bottom.strategy().effort());
+                drive.fragmentationPercent = plan_->levels.at(effort).fragmentationAfter;
+            }
         }
-        if (plan_) {
-            const auto effort = static_cast<std::size_t>(bottom.strategy().effort());
-            drive.fragmentationPercent = plan_->levels.at(effort).fragmentationAfter;
-        }
-        bottom.summary().clear("The layout changed: analyze again to refresh these figures.");
-        dropPlan("The plan was executed. Analyze again before building a new one.");
         bottom.showTab(BottomTab::Log);
+    }
+
+    std::string WorkflowBinding::executionEnded(const std::string& status) {
+        const std::optional<std::string> real = execution_.finish(driveLabel());
+        if (real) {
+            widgets_.bottom.showTab(BottomTab::Log); // Also after a cancel: what ran and what did not.
+        }
+        widgets_.bottom.summary().clear("The layout changed: analyze again to refresh these figures.");
+        dropPlan("The plan was executed. Analyze again before building a new one.");
+        return real.value_or(status);
     }
 
     void WorkflowBinding::takeTrimOutput() {
@@ -515,7 +657,7 @@ namespace icd::ui {
         }
         const wxString drive = wxString::FromUTF8(driveLabel());
         for (const std::string& line : trimOutput_->take()) {
-            widgets_.bottom.addLogEntry(drive, wxString::FromUTF8(line));
+            widgets_.bottom.addLogEntry(drive, "TRIM", wxString::FromUTF8(line));
         }
     }
 
@@ -545,6 +687,16 @@ namespace icd::ui {
         const auto& level = plan_->levels.at(static_cast<std::size_t>(effort));
         return std::format("{} plan for {} ready: {} to move. Review it on the map, then execute.",
                            services::effortName(effort), driveLabel(), core::formatBytes(level.bytesToMove));
+    }
+
+    void WorkflowBinding::selectDrive(const std::string& root) {
+        const std::string wanted = rootKey(root);
+        const auto& drives = widgets_.drives.drives();
+        const auto found =
+            std::ranges::find_if(drives, [&wanted](const core::DriveInfo& d) { return rootKey(d.root) == wanted; });
+        if (found != drives.end()) {
+            widgets_.drives.select(static_cast<std::size_t>(found - drives.begin()));
+        }
     }
 
     void WorkflowBinding::onDriveSelected() {

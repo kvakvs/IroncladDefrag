@@ -28,7 +28,7 @@ namespace icd {
 
     } // namespace
 
-    MainFrame::MainFrame(services::AppServices& services) :
+    MainFrame::MainFrame(services::AppServices& services, const std::string& initialDrive) :
         wxFrame(nullptr, wxID_ANY,
                 wxString::FromUTF8(std::string(services::appName()) + " " + std::string(services::appVersion())),
                 wxDefaultPosition, wxDefaultSize),
@@ -38,6 +38,9 @@ namespace icd {
         buildLayout();
         binding_ = std::make_unique<ui::WorkflowBinding>(*this, services_,
                                                          ui::WorkflowBinding::Widgets{*drives_, *map_, *bottom_});
+        if (!initialDrive.empty()) {
+            binding_->selectDrive(initialDrive);
+        }
         Bind(wxEVT_MENU, [this](wxCommandEvent&) { Close(); }, wxID_EXIT);
         Bind(wxEVT_MENU, [this](wxCommandEvent&) { ui::AboutDialog(this, services_).ShowModal(); }, wxID_ABOUT);
         Bind(

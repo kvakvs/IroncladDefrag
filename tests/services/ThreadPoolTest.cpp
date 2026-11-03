@@ -164,6 +164,37 @@ namespace icd::services { namespace {
         EXPECT_EQ(ThreadPool(3).concurrency(), 3u);
     }
 
+    // Busy time counts running tasks up to now and finished ones in full, so two samples give the utilisation.
+    TEST(ThreadPool, BusyTimeCountsRunningAndFinishedTasks) {
+        ThreadPool pool(2);
+        EXPECT_EQ(pool.busyTime(), 0ns);
+        std::latch started(2);
+        std::atomic<bool> release{false};
+        for (int i = 0; i < 2; ++i) {
+            pool.submit([&] {
+                started.count_down();
+                while (!release) {
+                    std::this_thread::sleep_for(1ms);
+                }
+            });
+        }
+        started.wait();
+        std::this_thread::sleep_for(50ms);
+        const auto running = pool.busyTime();
+        EXPECT_GE(running, 2 * 50ms); // Both workers, while their tasks still run.
+        release = true;
+        const auto deadline = std::chrono::steady_clock::now() + 5s;
+        auto settled = pool.busyTime();
+        for (; std::chrono::steady_clock::now() < deadline; settled = pool.busyTime()) {
+            std::this_thread::sleep_for(20ms);
+            if (pool.busyTime() == settled) {
+                break; // Both tasks ended: the total stops growing.
+            }
+        }
+        EXPECT_GE(settled, running);
+        EXPECT_EQ(pool.busyTime(), settled);
+    }
+
     // The inline executor runs chunks in order and honours cancellation.
     TEST(InlineExecutor, RunsInOrderAndCancels) {
         core::InlineExecutor executor;

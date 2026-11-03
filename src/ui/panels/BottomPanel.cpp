@@ -5,6 +5,7 @@
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
 #include "ui/panels/SummaryPage.h"
+#include "ui/tabs/ProgressTab.h"
 
 #include <wx/button.h>
 #include <wx/datetime.h>
@@ -38,16 +39,6 @@ namespace icd::ui {
             ButtonSpec{ID_PAUSE, "&Pause"},           ButtonSpec{ID_CANCEL, "&Cancel"},
         };
 
-        constexpr std::array<const char*, 6> detailLabels{
-            "Stage:", "Done:", "Elapsed:", "Throughput:", "Time left:", "Current file:",
-        };
-
-        // ProgressDetails fields in the order of detailLabels.
-        std::array<const wxString*, 6> detailValues(const ProgressDetails& details) {
-            return {&details.stage,      &details.done, &details.elapsed,
-                    &details.throughput, &details.eta,  &details.currentFile};
-        }
-
     } // namespace
 
     BottomPanel::BottomPanel(wxWindow* parent, const wxString& resourcesText) : wxPanel(parent) {
@@ -58,7 +49,8 @@ namespace icd::ui {
         notebook_->AddPage(summary_, "Summary");
         notebook_->AddPage(strategy_, "Strategy");
         notebook_->AddPage(plan_, "Plan");
-        notebook_->AddPage(createProgressPage(resourcesText), "Progress");
+        progress_ = new ProgressTab(notebook_, resourcesText);
+        notebook_->AddPage(progress_, "Progress");
         notebook_->AddPage(createLogPage(), "Log");
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -67,30 +59,12 @@ namespace icd::ui {
         SetSizer(sizer);
     }
 
-    wxWindow* BottomPanel::createProgressPage(const wxString& resourcesText) {
-        auto* page = new wxPanel(notebook_);
-        auto* grid = new wxFlexGridSizer(2, wxSize(FromDIP(12), FromDIP(4)));
-        grid->AddGrowableCol(1);
-        for (std::size_t row = 0; row < detailRows; ++row) {
-            grid->Add(new wxStaticText(page, wxID_ANY, detailLabels.at(row)));
-            details_.at(row) = new wxStaticText(page, wxID_ANY, "-", wxDefaultPosition, wxDefaultSize,
-                                                wxST_NO_AUTORESIZE | wxST_ELLIPSIZE_MIDDLE);
-            grid->Add(details_.at(row), wxSizerFlags().Expand());
-        }
-        grid->Add(new wxStaticText(page, wxID_ANY, "Resources:"));
-        grid->Add(new wxStaticText(page, wxID_ANY, resourcesText), wxSizerFlags().Expand());
-
-        auto* sizer = new wxBoxSizer(wxVERTICAL);
-        sizer->Add(grid, wxSizerFlags().Expand().Border(wxALL, FromDIP(12)));
-        page->SetSizer(sizer);
-        return page;
-    }
-
     wxWindow* BottomPanel::createLogPage() {
         log_ = new wxListView(notebook_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
         log_->AppendColumn("Time", wxLIST_FORMAT_LEFT, FromDIP(140));
-        log_->AppendColumn("File", wxLIST_FORMAT_LEFT, FromDIP(480));
-        log_->AppendColumn("Reason", wxLIST_FORMAT_LEFT, FromDIP(320));
+        log_->AppendColumn("File", wxLIST_FORMAT_LEFT, FromDIP(420));
+        log_->AppendColumn("Result", wxLIST_FORMAT_LEFT, FromDIP(110));
+        log_->AppendColumn("Details", wxLIST_FORMAT_LEFT, FromDIP(420));
         return log_;
     }
 
@@ -127,18 +101,11 @@ namespace icd::ui {
         percent_->SetLabelText(wxString::Format("%d%%", static_cast<int>(std::lround(*fraction * 100.0))));
     }
 
-    void BottomPanel::setProgressDetails(const ProgressDetails& details) {
-        const auto values = detailValues(details);
-        for (std::size_t row = 0; row < detailRows; ++row) {
-            const wxString& value = *values.at(row);
-            details_.at(row)->SetLabelText(value.empty() ? wxString("-") : value);
-        }
-    }
-
-    void BottomPanel::addLogEntry(const wxString& file, const wxString& reason) {
+    void BottomPanel::addLogEntry(const wxString& file, const wxString& result, const wxString& details) {
         const long row = log_->InsertItem(log_->GetItemCount(), wxDateTime::Now().FormatISOCombined(' '));
         log_->SetItem(row, 1, file);
-        log_->SetItem(row, 2, reason);
+        log_->SetItem(row, 2, result);
+        log_->SetItem(row, 3, details);
     }
 
     void BottomPanel::clearLog() { log_->DeleteAllItems(); }

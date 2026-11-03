@@ -341,3 +341,12 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   script now runs about 12 min for all scenarios (1 GB volumes, `icd-cli execute --max-moves`, hashes and chkdsk once
   per scenario, resume and kill on `mixed`, `-ChurnGap` opt-in). Churn gap measured (67% of new build output in a gap
   holding 87% of free space); the decision is T150. **Phase 7 exit check.**
+- T110 Execute controls and Progress tab - `services/execute/ExecuteJob.*` (`makeExecuteJob()`: execution plan of the
+  reviewed level, `runExecution()` with pause; `ExecutionFeed` with counts, bytes, current file, Log lines in words
+  with a cap, moved records, summary), `ui/dialogs/ConfirmExecuteDialog.*` (figures, warnings, safety note, low I/O
+  priority, throughput limit, Cancel default), `ui/tabs/ProgressTab.*` (stage, done, elapsed, time left, throughput,
+  workers, current file, moves, resources), `ui/ExecutionView.*`, `core/job/RateMeter.*`, `ThreadPool::busyTime()`,
+  elevation flow (`services/Elevation.*`, `platform::relaunchElevated()`, `--drive`), `PlanOutput::takeRequest()`,
+  `onRevalidated` hook; Log tab gains a Result column. `ExecuteJobTest`, `RateMeter` and busy-time tests. Run from
+  the GUI on a 1 GB `mixed` VHDX: Fast, Maximum (2,959 moves) with pause and resume, a cancelled Maximum; hashes and
+  chkdsk clean.

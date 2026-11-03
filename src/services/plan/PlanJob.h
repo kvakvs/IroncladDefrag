@@ -82,10 +82,11 @@ namespace icd::services {
 
     // Hands a finished plan from the job to the UI.
     struct PlanOutput {
-        // Stores the outcome (worker side).
-        void set(std::shared_ptr<const PlanOutcome> value) {
+        // Stores the outcome and the request it was planned from (worker side).
+        void set(std::shared_ptr<const PlanOutcome> value, std::shared_ptr<const PlanRequest> from = nullptr) {
             const std::scoped_lock lock(mutex);
             outcome = std::move(value);
+            request = std::move(from);
         }
 
         // Takes the outcome (UI side); null when none arrived.
@@ -94,12 +95,19 @@ namespace icd::services {
             return std::exchange(outcome, nullptr);
         }
 
-        std::mutex mutex; // Guards outcome.
+        // Takes the request of the outcome (UI side): executing a level needs it; null when none arrived.
+        [[nodiscard]] std::shared_ptr<const PlanRequest> takeRequest() {
+            const std::scoped_lock lock(mutex);
+            return std::exchange(request, nullptr);
+        }
+
+        std::mutex mutex; // Guards outcome and request.
         std::shared_ptr<const PlanOutcome> outcome; // The newest outcome.
+        std::shared_ptr<const PlanRequest> request; // What it was planned from, with the classes filled in.
     };
 
-    // A job that plans a request and stores the outcome, with its map overlays, in `output`. Files are classified
-    // first when the request carries no classes for them.
+    // A job that plans a request and stores the outcome, with its map overlays, and the request in `output`. Files are
+    // classified first when the request carries no classes for them.
     [[nodiscard]] JobFunction makePlanJob(PlanRequest request, std::shared_ptr<PlanOutput> output);
 
 } // namespace icd::services

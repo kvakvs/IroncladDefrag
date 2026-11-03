@@ -1,6 +1,7 @@
 #include "core/job/CancelToken.h"
 #include "core/job/PauseGate.h"
 #include "core/job/Progress.h"
+#include "core/job/RateMeter.h"
 #include "core/job/StageClock.h"
 
 #include <gtest/gtest.h>
@@ -260,6 +261,39 @@ namespace icd::core { namespace {
         EXPECT_EQ(clock.elapsed(start + 25s), 25s);
         clock.update({"names", 10, 0, ""}, start + 30s);
         EXPECT_EQ(clock.remaining(start + 40s), std::nullopt); // Unknown total.
+    }
+
+    // The rate spans the window: older samples drop out, so a slow patch shows within a few seconds.
+    TEST(RateMeter, AveragesOverTheWindow) {
+        const RateMeter::TimePoint start{};
+        RateMeter meter(5s);
+        EXPECT_EQ(meter.perSecond(), std::nullopt);
+        meter.add(start, 0.0);
+        EXPECT_EQ(meter.perSecond(), std::nullopt); // One sample says nothing.
+        meter.add(start + 100ms, 50.0);
+        EXPECT_EQ(meter.perSecond(), std::nullopt); // Too short a span.
+        meter.add(start + 2s, 200.0);
+        EXPECT_DOUBLE_EQ(*meter.perSecond(), 100.0);
+        meter.add(start + 4s, 400.0);
+        EXPECT_DOUBLE_EQ(*meter.perSecond(), 100.0);
+        meter.add(start + 10s, 430.0); // Slow for the last 6 s: the anchor is the 4 s sample.
+        EXPECT_DOUBLE_EQ(*meter.perSecond(), 5.0);
+        meter.add(start + 12s, 450.0); // The 10 s sample anchors only once 4 s drops out of the window.
+        EXPECT_DOUBLE_EQ(*meter.perSecond(), 50.0 / 8.0);
+    }
+
+    // A total that goes down starts over; reset forgets everything.
+    TEST(RateMeter, RestartsOnSmallerTotals) {
+        const RateMeter::TimePoint start{};
+        RateMeter meter;
+        meter.add(start, 100.0);
+        meter.add(start + 1s, 200.0);
+        meter.add(start + 2s, 10.0);
+        EXPECT_EQ(meter.perSecond(), std::nullopt);
+        meter.add(start + 3s, 30.0);
+        EXPECT_DOUBLE_EQ(*meter.perSecond(), 20.0);
+        meter.reset();
+        EXPECT_EQ(meter.perSecond(), std::nullopt);
     }
 
 }} // namespace icd::core

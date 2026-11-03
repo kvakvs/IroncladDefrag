@@ -58,14 +58,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 8 - GUI execution and live map (§13 Phase 8)
 
-### T110 - Execute controls and Progress tab
-
-- Depends: T104b, T098
-- Owns: `src/ui/tabs/ProgressTab.*`, `src/ui/dialogs/ConfirmExecuteDialog.*`
-- Do: Execute / Pause / Cancel; confirmation with plan summary; stage, throughput, worker
-  utilisation, ETA, current file, active resource caps.
-- Done when: the full workflow runs on a test VHDX from the GUI.
-
 ### T111 - Live map and Log tab
 
 - Depends: T110

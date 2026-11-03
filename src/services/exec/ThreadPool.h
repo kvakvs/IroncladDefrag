@@ -3,8 +3,10 @@
 #include "core/exec/Executor.h"
 
 #include <atomic>
+#include <chrono>
 #include <condition_variable>
 #include <cstddef>
+#include <cstdint>
 #include <deque>
 #include <memory>
 #include <mutex>
@@ -38,15 +40,23 @@ namespace icd::services {
         // caller takes part, so nested calls from pool tasks never deadlock.
         void parallelFor(core::ChunkedRange range, const RangeBody& body, const core::CancelToken& token = {}) override;
 
+        // Worker time spent in tasks since the pool started, summed over the workers (running tasks count up to now).
+        // Two samples give the workers' utilisation between them, which the Progress tab shows (plan.md 11).
+        [[nodiscard]] std::chrono::nanoseconds busyTime() const;
+
     private:
-        // One worker's task queue.
+        // One worker's task queue and when its running task started.
         struct WorkerQueue {
             std::mutex mutex; // Guards tasks; owners and thieves both lock it.
             std::deque<Task> tasks; // Owner pops from the back, thieves from the front.
+            std::atomic<std::int64_t> busySince{0}; // Steady-clock ticks when the running task started; 0 when idle.
         };
 
         // Main loop of worker number index.
         void run(std::size_t index, const std::stop_token& stop);
+
+        // Runs a task on a worker and adds its time to the busy total.
+        void runTimed(WorkerQueue& worker, Task& task);
 
         // Takes a task for worker index: its own newest, else another worker's oldest.
         std::optional<Task> take(std::size_t index);
@@ -54,6 +64,7 @@ namespace icd::services {
         std::vector<std::unique_ptr<WorkerQueue>> queues_; // One per worker, same order as workers_.
         std::atomic<std::size_t> pending_{0}; // Queued tasks over all queues, for sleeping.
         std::atomic<std::size_t> nextQueue_{0}; // Round-robin position for outside submissions.
+        std::atomic<std::int64_t> finishedBusy_{0}; // Steady-clock ticks spent in tasks that have ended.
         std::mutex sleepMutex_; // Pairs with wake_ so wake-ups are never lost.
         std::condition_variable_any wake_; // Signals idle workers that work arrived.
         std::vector<std::jthread> workers_; // The threads; declared last so they stop first.

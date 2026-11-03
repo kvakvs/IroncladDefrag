@@ -180,7 +180,7 @@ namespace icd::services {
             auto outcome =
                 std::make_shared<PlanOutcome>(planLevels(request, context.executor, context.token, &context.progress));
             outcome->overlays = levelOverlays(*outcome, snapshot);
-            output->set(std::move(outcome));
+            output->set(std::move(outcome), std::make_shared<const PlanRequest>(std::move(request)));
         };
     }
 

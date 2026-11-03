@@ -84,6 +84,7 @@ add_executable(icd_tests
     services/ChurnStatsTest.cpp
     services/ClassificationTest.cpp
     services/ApiScannerTest.cpp
+    services/ExecuteJobTest.cpp
     services/ExecuteReportTest.cpp
     services/ExecutionLogTest.cpp
     services/ExecutorTest.cpp

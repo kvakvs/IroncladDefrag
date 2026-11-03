@@ -127,6 +127,9 @@ namespace icd::services {
         ExecutionOutcome out;
         out.log = request.log;
         out.revalidation = revalidatePlan(request.drive, request.plan, request.order, context, request.revalidate);
+        if (request.onRevalidated) {
+            request.onRevalidated(out.revalidation);
+        }
         if (out.revalidation.refused) {
             return out;
         }

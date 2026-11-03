@@ -142,10 +142,35 @@ this file records what is actually built and the decisions made along the way.
 - `ui::WorkflowBinding` maps commands to actions, starts the job a step needs, feeds job ends back
   and enables every command from `Workflow::can()`. The drive list is locked while a job runs, and
   the selected drive is copied so a refresh cannot change it mid-job. Execute asks for confirmation
-  first. In Phase 1 every step is the fake parallel job with step-specific stage names; results come
-  from `services/workflow/FakeResults`.
+  first. Every step runs its real job; the fake parallel job with step-specific stage names (results from
+  `services/workflow/FakeResults`) remains only where no real one exists: execution on the fake drive list.
 - Pause is a `core::PauseGate` that the execution job checks between items; Cancel still works
   while paused because the gate's wait returns on cancellation.
+- Execute in the GUI (T110): the plan job keeps its request with the outcome (`PlanOutput::takeRequest()`), since an
+  execution plan needs the snapshot, script and planning time. Execute opens `ConfirmExecuteDialog` (the chosen
+  level's figures and warnings, what keeps the volume safe, low I/O priority and a throughput limit; Cancel is the
+  default button) and starts `services::makeExecuteJob()`: the execution plan of that level, refused when the level
+  failed validation, then `runExecution()` with the pause gate. The plan overlays are cleared at the start (they show
+  the layout before the moves); the plan, the Summary and the overlays are dropped when the run ends, however it ends.
+  With the fake drive list Execute stays the simulated job.
+- The job writes into an `ExecutionFeed` (one mutex; the mover thread calls its hooks): counts, bytes moved against
+  the bytes revalidation left to move, the file of the move under way, Log tab lines (drops, skips, partial, replaced
+  and unverified moves in words, capped at 5,000 with a pointer to the execution log for the rest), the records that
+  moved clusters (for the live map) and the summary. `ui::ExecutionView` turns it into Progress fields on each
+  progress event: throughput over the last 5 s (`core::RateMeter`), time left from the bytes still to move at that
+  rate, the gauge by bytes. Revalidation reports like an analysis until the moves start (`onRevalidated` hook).
+- Worker utilisation (all jobs): `ThreadPool::busyTime()` sums worker time in tasks (running ones up to now); its rate
+  over 5 s divided by the worker count is "N% of 31 threads busy". Execution itself is one mover thread, so it shows a
+  few percent.
+- Elevation flow: Analyze, Quick, TRIM and Execute on real drives check `services::runningElevated()` first. Without
+  administrator rights (a RunAsInvoker start) the user is offered a restart as administrator (`ShellExecuteExW`
+  "runas" with `--drive X:`, which selects the drive again); the window closes when the new process starts.
+- Checked from the GUI (2026-11-03, elevated, 1 GB `mixed` VHDX on the E: HDD, driven by UI Automation): Fast (12
+  moves), then Maximum (2,959 moves, 400 MB in 30 s, every move verified) with Pause and Resume in the middle; on a
+  fresh volume a Maximum run cancelled after 8 s (2,561 moves done, the rest left in the log). File hashes unchanged
+  and `chkdsk /scan` clean after each. wx buttons appear to UI Automation as panes without the Invoke pattern, so
+  scripts press them with `BM_CLICK` on their window handles after activating the window; the confirmation dialog is
+  listed under the main window, not under the desktop.
 
 ## Snapshot
 

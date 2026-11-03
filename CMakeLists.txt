@@ -91,6 +91,8 @@ add_library(icd_core STATIC
     src/core/job/PauseGate.h
     src/core/job/Progress.cpp
     src/core/job/Progress.h
+    src/core/job/RateMeter.cpp
+    src/core/job/RateMeter.h
     src/core/job/StageClock.cpp
     src/core/job/StageClock.h
     src/core/log/Log.h
@@ -286,6 +288,8 @@ add_library(icd_services STATIC
     src/services/AppLogging.h
     src/services/AppServices.cpp
     src/services/AppServices.h
+    src/services/Elevation.cpp
+    src/services/Elevation.h
     src/services/drives/FakeDriveProvider.cpp
     src/services/drives/FakeDriveProvider.h
     src/services/drives/IDriveProvider.h
@@ -293,6 +297,8 @@ add_library(icd_services STATIC
     src/services/drives/SystemDriveProvider.h
     src/services/exec/ThreadPool.cpp
     src/services/exec/ThreadPool.h
+    src/services/execute/ExecuteJob.cpp
+    src/services/execute/ExecuteJob.h
     src/services/execute/ExecuteReport.cpp
     src/services/execute/ExecuteReport.h
     src/services/execute/ExecutedSnapshot.cpp
@@ -369,6 +375,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/App.h
     src/ui/Commands.cpp
     src/ui/Commands.h
+    src/ui/ExecutionView.cpp
+    src/ui/ExecutionView.h
     src/ui/MainFrame.cpp
     src/ui/MainFrame.h
     src/ui/MainMenu.cpp
@@ -379,6 +387,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/bridge/JobEvents.h
     src/ui/dialogs/AboutDialog.cpp
     src/ui/dialogs/AboutDialog.h
+    src/ui/dialogs/ConfirmExecuteDialog.cpp
+    src/ui/dialogs/ConfirmExecuteDialog.h
     src/ui/dialogs/GoToFileDialog.cpp
     src/ui/dialogs/GoToFileDialog.h
     src/ui/dialogs/ShortcutsDialog.cpp
@@ -411,6 +421,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/panels/StrategyPage.h
     src/ui/panels/SummaryPage.cpp
     src/ui/panels/SummaryPage.h
+    src/ui/tabs/ProgressTab.cpp
+    src/ui/tabs/ProgressTab.h
     res/IroncladDefrag.manifest
     res/IroncladDefrag.rc
 )

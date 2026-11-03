@@ -3,6 +3,7 @@
 #include <wx/frame.h>
 
 #include <memory>
+#include <string>
 
 class wxSplitterWindow;
 
@@ -24,8 +25,9 @@ namespace icd {
     // widgets; ui::WorkflowBinding drives them.
     class MainFrame : public wxFrame {
     public:
-        // Creates the window; services must outlive it.
-        explicit MainFrame(services::AppServices& services);
+        // Creates the window and selects the drive with root initialDrive (none when empty); services must outlive
+        // it.
+        MainFrame(services::AppServices& services, const std::string& initialDrive);
 
         // Defined in the .cpp, where WorkflowBinding is complete.
         ~MainFrame() override;

@@ -3,6 +3,7 @@
 #include <wx/app.h>
 
 #include <memory>
+#include <string>
 
 namespace icd::services {
     class AppServices;
@@ -25,8 +26,15 @@ namespace icd {
         // Stops the services (waiting for jobs) and writes the shutdown log line after the last window closed.
         int OnExit() override;
 
+        // Adds --drive, which selects a drive at start (the restart as administrator passes it on).
+        void OnInitCmdLine(wxCmdLineParser& parser) override;
+
+        // Takes --drive.
+        bool OnCmdLineParsed(wxCmdLineParser& parser) override;
+
     private:
         std::unique_ptr<services::AppServices> services_; // Pool and job runner; outlives the main window.
+        std::string initialDrive_; // Root given with --drive; empty for none.
     };
 
 } // namespace icd

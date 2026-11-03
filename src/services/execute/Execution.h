@@ -11,6 +11,7 @@
 
 #include <cstdint>
 #include <filesystem>
+#include <functional>
 #include <memory>
 #include <string>
 #include <vector>
@@ -28,6 +29,8 @@ namespace icd::services {
         bool resume = false; // Append to `log` instead of starting it.
         std::filesystem::path snapshotDirectory; // Saved snapshots; empty: SnapshotStore::defaultDirectory().
         ExecutionHooks observers; // Called after the log's own hooks (scripted pause, cancel and conflicts in tests).
+        // Called once revalidation has judged the plan, before anything moves (the GUI lists the drops at once).
+        std::function<void(const Revalidation&)> onRevalidated;
     };
 
     // What an execution did.
