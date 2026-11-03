@@ -58,7 +58,9 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 8 - GUI execution and live map (§13 Phase 8)
 
-> **Gate G2:** first real-drive run (§13 "First real-drive run") only with the user's go-ahead.
+> **Gate G2:** passed 2026-11-03: first real-drive run on X: with the user's go-ahead (`photos`, Moderate, two runs,
+> about 180 GB moved, chkdsk clean; see `.codex/arch.md` "First real-drive run"). Later real-drive runs (other presets, Maximum)
+> stay the user's call.
 
 ---
 

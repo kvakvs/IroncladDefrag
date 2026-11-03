@@ -1400,6 +1400,21 @@ All analysis checks passed.
   Phase 9's VSS alignment and warnings are for. Churn gap: NTFS put 67% of new build output into a gap holding 87% of
   the free space, so it does not favour the gap (decision deferred, T150).
 
+## First real-drive run (Gate G2)
+
+- 2026-11-03, by the user from the GUI, on X: (2.32 TB HDD, 111,413 files, 538 GB used: 108,207 photos, 290 videos),
+  backed up, no shadow copies, no USN journal (every analysis and revalidation was a full MFT scan, about 1 s).
+  `photos` preset: Fast found nothing worth moving (no hot spots); Moderate was run twice: 22,038 of 28,634 moves
+  (82 GB, 25 min, 54 MB/s), cancelled by the user; then a new Moderate plan, 7,638 moves (99.6 GB, 25 min, 65.6
+  MB/s). No move was skipped, partial, unverified or sent to a replacement destination; revalidation dropped none.
+- After: fragmented files 125 to 0; free space in 1,504 runs (4 before, as the data sat packed at the front of a
+  mostly empty volume), but the largest free run is 1.85 TB (94% of free space) and 99.8% of free space is in runs of
+  64 MB or more: the holes are small gaps between the new zones. `chkdsk /scan` clean after each run with identical
+  file and byte totals; moved files open correctly. The live map kept up (1,738 and 1,023 updates, slowest 132 ms).
+- Found by the run and fixed (T113): time left changed with every report; Log rows were stamped when the window
+  took them (pause and resume got the same time); the legend blinked with every live update; the user asked for
+  right-click menus on drives and on map files.
+
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one

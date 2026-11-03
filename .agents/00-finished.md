@@ -365,3 +365,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   across live updates (`Legend::updateMap()`); `ui/CallbackTimer.h`. `SmoothedEstimate` and `ShellActions` tests.
   Checked in the GUI on the T: test VHDX with real mouse input. First real-drive run (X:, Moderate): 22,038 moves,
   82 GB at 54 MB/s, cancelled by the user, nothing skipped or unverified.
+- Gate G2 First real-drive run - X: (2.32 TB HDD, photos), `photos` preset at Moderate from the GUI: 22,038 moves
+  (82 GB, cancelled) then 7,638 (99.6 GB), nothing skipped or unverified; fragmented files 125 to 0, the largest free
+  run 1.85 TB; chkdsk clean with identical totals; moved files open. Recorded in `.codex/arch.md`.
