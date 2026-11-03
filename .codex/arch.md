@@ -171,6 +171,31 @@ this file records what is actually built and the decisions made along the way.
   and `chkdsk /scan` clean after each. wx buttons appear to UI Automation as panes without the Invoke pattern, so
   scripts press them with `BM_CLICK` on their window handles after activating the window; the confirmation dialog is
   listed under the main window, not under the desktop.
+- Live map (T111, plan.md 7.2 and 10.4): `ui::MapLiveUpdates` follows a run from the map shown at Execute. Every
+  250 ms it takes the feed's finished moves that moved clusters; one update runs at a time on the pool and the next
+  one waits twice the last one's duration (500 ms at least), so a large volume updates less often instead of falling
+  behind. An update copies the shown map's snapshot, patches it with the runs read back after each move
+  (`snapshotAfter()`, as after execution) and recomputes only the pyramid bins over the moved files' old and new
+  clusters (`MapData::update()`); the canvas then marks only the cached and rendering tiles over those clusters
+  dirty (`MapCanvas::updateMap(map, dirty)`, the selection-change path), the selected file's highlight follows it,
+  and the hover stays. World, classes and file indexes stay, so a test checks that batches of moves give exactly
+  the pyramid of a full build of the volume after them.
+- The moves are checked against the volume as revalidation read it, not the analysis: a file deleted or grown in
+  between frees or takes clusters that later moves use. So the feed keeps a copy of revalidation's snapshot and the
+  first update rebases on it when it lays out differently (`rebaseMap()`: the same world, classes carried over by
+  file reference, new files "unknown"; every tile renders again once). Found by the GUI run below: without it the
+  live map stopped when a video moved into the space of a photo deleted after planning. If a patch still does not
+  fit (or another map is shown), the live map stops and logs why; the run itself is not affected.
+- Measured: 1 GB `mixed` VHDX at Maximum, 2,954 moves in 29 s: 40 updates, the slowest 14 ms. An update copies the
+  whole snapshot, so its cost grows with the volume; the spacing rule keeps that bounded (not measured at 30 TB).
+- Log tab (`ui/tabs/LogTab`): time, file, result, details; a line above counts the rows per result ("7 dropped");
+  new rows scroll into view only while the newest row is visible; bursts are added under one repaint.
+- Phase 8 exit (2026-11-03, elevated, 1 GB `mixed` VHDX on the E: HDD, the GUI driven by UI Automation): the full
+  workflow (Analyze, Strategy at Maximum, Build plan, Execute with confirmation) ran from the GUI; Pause, Resume and
+  Cancel worked; the map showed the moves as they happened (fragmented data 329 MB, 215 MB mid-run, 41.6 MB at the
+  end); with three photos deleted and two grown after planning, revalidation dropped 7 moves and the Log tab listed
+  them with reasons. File hashes unchanged (runs without changed files), `chkdsk /scan` clean and the saved
+  snapshot equal to a full rescan (`icd-cli check-catchup`) after each run.
 
 ## Snapshot
 

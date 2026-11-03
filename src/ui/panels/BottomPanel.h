@@ -6,12 +6,12 @@
 #include <optional>
 
 class wxGauge;
-class wxListView;
 class wxNotebook;
 class wxStaticText;
 
 namespace icd::ui {
 
+    class LogTab;
     class PlanPage;
     class ProgressTab;
     class StrategyPage;
@@ -50,19 +50,13 @@ namespace icd::ui {
         // The Progress tab.
         [[nodiscard]] ProgressTab& progress() const { return *progress_; }
 
-        // Adds a row to the Log tab (a skipped or failed file, or a line about a run), stamped with the current time.
-        void addLogEntry(const wxString& file, const wxString& result, const wxString& details);
-
-        // Empties the Log tab (a new run starts).
-        void clearLog();
+        // The Log tab.
+        [[nodiscard]] LogTab& log() const { return *log_; }
 
         // Shows Pause or Resume on the pause button.
         void setPauseLabel(bool paused);
 
     private:
-        // Creates the Log tab (skipped and failed files with reasons).
-        wxWindow* createLogPage();
-
         // Creates the row of workflow buttons, status line and gauge under the notebook.
         wxSizer* createStatusStrip();
 
@@ -71,7 +65,7 @@ namespace icd::ui {
         StrategyPage* strategy_ = nullptr; // Strategy tab; owned by the notebook.
         PlanPage* plan_ = nullptr; // Plan tab; owned by the notebook.
         ProgressTab* progress_ = nullptr; // Progress tab; owned by the notebook.
-        wxListView* log_ = nullptr; // Log tab; owned by the notebook.
+        LogTab* log_ = nullptr; // Log tab; owned by the notebook.
         wxStaticText* status_ = nullptr; // The single status line.
         wxGauge* gauge_ = nullptr; // Job progress next to the status line.
         wxStaticText* percent_ = nullptr; // Progress as a number, beside the gauge.

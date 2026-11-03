@@ -14,6 +14,7 @@
 #include <functional>
 #include <memory>
 #include <optional>
+#include <span>
 #include <unordered_map>
 #include <unordered_set>
 #include <vector>
@@ -65,6 +66,11 @@ namespace icd::ui {
         // Shows newer data of the same volume (an analysis still reading files): with the same world the view stays
         // and cached tiles stay on screen until they render again from the new data; otherwise like setMap().
         void updateMap(std::shared_ptr<const core::MapData> map);
+
+        // Shows newer data of the same volume where only the clusters in `dirty` may look different (moves during
+        // execution, plan.md 7.2): only the cached and rendering tiles over them render again, the selection follows
+        // its file and the hover stays. Another world falls back to setMap().
+        void updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty);
 
         // Changes the color mode: cached tiles are marked dirty and render again, shown in the old colors until
         // then.
@@ -129,6 +135,12 @@ namespace icd::ui {
     private:
         // Marks every cached and rendering tile dirty: they stay on screen and render again.
         void markAllDirty();
+
+        // Marks the cached and rendering tiles (and the minimap's tile) over any of runs dirty.
+        void markDirty(std::span<const core::ClusterRun> runs);
+
+        // Whether map has the same world as the map shown, so the view and the cached tiles can stay.
+        [[nodiscard]] bool sameWorld(const core::MapData* map) const;
 
         // Draws the frame.
         void onPaint(wxPaintEvent& event);

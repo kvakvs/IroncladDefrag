@@ -350,3 +350,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `onRevalidated` hook; Log tab gains a Result column. `ExecuteJobTest`, `RateMeter` and busy-time tests. Run from
   the GUI on a 1 GB `mixed` VHDX: Fast, Maximum (2,959 moves) with pause and resume, a cancelled Maximum; hashes and
   chkdsk clean.
+- T111 Live map and Log tab - `services/execute/LiveMap.*` (`applyMoves()`: snapshot copy patched with read-back runs,
+  pyramid over the moved files' clusters only; `rebaseMap()` on revalidation's volume when files changed after
+  planning), `ui/map/MapLiveUpdates.*` (ticker, one pool update at a time spaced by its cost, mailbox),
+  `MapCanvas::updateMap(map, dirty)` (only touched tiles, selection follows its file), `MapSelection::refresh()`,
+  `ui/tabs/LogTab.*` (counts per result, follows new rows); `ExecutionFeed::takeVolumeNow()`. `LiveMapTest`. GUI
+  runs on a 1 GB `mixed` VHDX: the map follows every move (40 updates, slowest 14 ms); deleted and grown files
+  dropped and listed with reasons. **Phase 8 exit check.**

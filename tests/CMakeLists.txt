@@ -90,12 +90,14 @@ add_executable(icd_tests
     services/ExecutorTest.cpp
     services/FakeDriveProviderTest.cpp
     services/JobRunnerTest.cpp
+    services/LiveMapTest.cpp
     services/MemoryModesTest.cpp
     services/MftMergeTest.cpp
     services/MftScannerTest.cpp
     services/MftSecondPassTest.cpp
     services/PlanJobTest.cpp
     services/PlanReportTest.cpp
+    services/PlannedBed.h
     services/RevalidateTest.cpp
     services/SimDevice.h
     services/SimVolume.h

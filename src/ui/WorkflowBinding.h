@@ -10,6 +10,7 @@
 #include "services/workflow/Workflow.h"
 #include "ui/ExecutionView.h"
 #include "ui/dialogs/ConfirmExecuteDialog.h"
+#include "ui/map/MapLiveUpdates.h"
 
 #include <memory>
 #include <optional>
@@ -206,6 +207,7 @@ namespace icd::ui {
         services::AppServices& services_; // Job runner, caps, drive provider.
         Widgets widgets_; // Panels to update.
         ExecutionView execution_; // Follows a real execution: Progress fields, Log rows, final status.
+        MapLiveUpdates live_; // Shows a real execution's moves on the map as they happen.
         ExecuteChoices executeChoices_; // Priority and throughput limit from the last confirmation.
         core::RateMeter busy_; // Worker busy time per second, for the Progress tab's utilisation.
         services::Workflow workflow_; // The state machine.

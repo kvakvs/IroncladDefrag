@@ -26,6 +26,7 @@
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
 #include "ui/panels/SummaryPage.h"
+#include "ui/tabs/LogTab.h"
 #include "ui/tabs/ProgressTab.h"
 
 #include <wx/display.h>
@@ -112,7 +113,7 @@ namespace icd::ui {
             "plan ready; review it on the map, then execute",
             "executing plan...",
             "execution paused",
-            "plan executed; analyze again to refresh",
+            "plan executed; analyze again for fresh figures",
         };
 
         // Hint for the Summary tab when a drive of this kind is selected but not analysed.
@@ -173,7 +174,7 @@ namespace icd::ui {
 
     WorkflowBinding::WorkflowBinding(wxFrame& frame, services::AppServices& services, Widgets widgets) :
         frame_(frame), services_(services), widgets_(widgets), execution_(widgets.bottom),
-        bridge_(std::make_shared<JobEventBridge>(&frame)) {
+        live_(widgets.map, services.pool()), bridge_(std::make_shared<JobEventBridge>(&frame)) {
         bindEvents();
         widgets_.drives.setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
         widgets_.bottom.strategy().setChangeHandler([this] { onStrategyChanged(); });
@@ -350,6 +351,9 @@ namespace icd::ui {
 
     void WorkflowBinding::resetFor(WorkflowJob job) {
         BottomPanel& bottom = widgets_.bottom;
+        if (job != WorkflowJob::Execute) {
+            live_.stop(); // A new analysis or plan replaces what the live map follows.
+        }
         if (job == WorkflowJob::Analyze) {
             analysis_.reset();
             bottom.summary().clear("Analysis running...");
@@ -358,12 +362,12 @@ namespace icd::ui {
             dropPlan(job == WorkflowJob::Plan ? "Building the plan..." : "Build a plan after the analysis.");
         }
         if (job == WorkflowJob::Execute) {
-            bottom.clearLog();
+            bottom.log().clear();
             pause_ = std::make_shared<core::PauseGate>();
             widgets_.map.setPlanOverlays(nullptr, nullptr); // They show the layout before the moves.
         }
         if (job == WorkflowJob::Trim) {
-            bottom.clearLog();
+            bottom.log().clear();
         }
     }
 
@@ -441,7 +445,9 @@ namespace icd::ui {
         request.level = static_cast<core::strategy::Effort>(widgets_.bottom.strategy().effort());
         request.options.lowPriority = executeChoices_.lowPriority;
         request.options.throughputLimit = executeChoices_.limitMbPerSecond << 20U;
-        return execution_.start(std::move(request), pause_);
+        services::JobFunction job = execution_.start(std::move(request), pause_);
+        live_.follow(execution_.feed());
+        return job;
     }
 
     void WorkflowBinding::onJobProgress(wxThreadEvent& event) {
@@ -631,7 +637,7 @@ namespace icd::ui {
         BottomPanel& bottom = widgets_.bottom;
         if (!planOutcome_) { // The simulated run of the fake drive list.
             for (const auto& [file, reason] : services::fakeSkippedFiles(drive)) {
-                bottom.addLogEntry(wxString::FromUTF8(file), "skipped", wxString::FromUTF8(reason));
+                bottom.log().add(wxString::FromUTF8(file), "skipped", wxString::FromUTF8(reason));
             }
             if (plan_) {
                 const auto effort = static_cast<std::size_t>(bottom.strategy().effort());
@@ -642,6 +648,7 @@ namespace icd::ui {
     }
 
     std::string WorkflowBinding::executionEnded(const std::string& status) {
+        live_.finish(); // The last moves still reach the map.
         const std::optional<std::string> real = execution_.finish(driveLabel());
         if (real) {
             widgets_.bottom.showTab(BottomTab::Log); // Also after a cancel: what ran and what did not.
@@ -657,7 +664,7 @@ namespace icd::ui {
         }
         const wxString drive = wxString::FromUTF8(driveLabel());
         for (const std::string& line : trimOutput_->take()) {
-            widgets_.bottom.addLogEntry(drive, "TRIM", wxString::FromUTF8(line));
+            widgets_.bottom.log().add(drive, "TRIM", wxString::FromUTF8(line));
         }
     }
 
@@ -710,6 +717,7 @@ namespace icd::ui {
             return; // Busy; the panel is disabled, so this does not normally happen.
         }
         drive_ = selected != nullptr ? std::optional(*selected) : std::nullopt;
+        live_.stop();
         widgets_.map.setMap(nullptr);
         const bool placed = drive_ && drive_->layout.diskBytes != 0;
         widgets_.map.setDisk(

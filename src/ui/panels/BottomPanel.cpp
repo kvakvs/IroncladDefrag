@@ -5,12 +5,11 @@
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
 #include "ui/panels/SummaryPage.h"
+#include "ui/tabs/LogTab.h"
 #include "ui/tabs/ProgressTab.h"
 
 #include <wx/button.h>
-#include <wx/datetime.h>
 #include <wx/gauge.h>
-#include <wx/listctrl.h>
 #include <wx/notebook.h>
 #include <wx/settings.h>
 #include <wx/sizer.h>
@@ -51,21 +50,13 @@ namespace icd::ui {
         notebook_->AddPage(plan_, "Plan");
         progress_ = new ProgressTab(notebook_, resourcesText);
         notebook_->AddPage(progress_, "Progress");
-        notebook_->AddPage(createLogPage(), "Log");
+        log_ = new LogTab(notebook_);
+        notebook_->AddPage(log_, "Log");
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(notebook_, wxSizerFlags(1).Expand());
         sizer->Add(createStatusStrip(), wxSizerFlags().Expand().Border(wxALL, FromDIP(6)));
         SetSizer(sizer);
-    }
-
-    wxWindow* BottomPanel::createLogPage() {
-        log_ = new wxListView(notebook_, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxLC_REPORT | wxLC_SINGLE_SEL);
-        log_->AppendColumn("Time", wxLIST_FORMAT_LEFT, FromDIP(140));
-        log_->AppendColumn("File", wxLIST_FORMAT_LEFT, FromDIP(420));
-        log_->AppendColumn("Result", wxLIST_FORMAT_LEFT, FromDIP(110));
-        log_->AppendColumn("Details", wxLIST_FORMAT_LEFT, FromDIP(420));
-        return log_;
     }
 
     wxSizer* BottomPanel::createStatusStrip() {
@@ -100,15 +91,6 @@ namespace icd::ui {
         gauge_->SetValue(static_cast<int>(std::lround(*fraction * gaugeRange)));
         percent_->SetLabelText(wxString::Format("%d%%", static_cast<int>(std::lround(*fraction * 100.0))));
     }
-
-    void BottomPanel::addLogEntry(const wxString& file, const wxString& result, const wxString& details) {
-        const long row = log_->InsertItem(log_->GetItemCount(), wxDateTime::Now().FormatISOCombined(' '));
-        log_->SetItem(row, 1, file);
-        log_->SetItem(row, 2, result);
-        log_->SetItem(row, 3, details);
-    }
-
-    void BottomPanel::clearLog() { log_->DeleteAllItems(); }
 
     void BottomPanel::setPauseLabel(bool paused) {
         if (wxWindow* button = FindWindow(ID_PAUSE); button != nullptr) {

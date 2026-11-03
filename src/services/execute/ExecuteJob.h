@@ -102,6 +102,10 @@ namespace icd::services {
         // How the run ended; nullopt while it runs (and after a failure before the end).
         [[nodiscard]] std::optional<ExecutionSummary> summary() const;
 
+        // The volume as revalidation read it, once (null before revalidation and after the first call): the live
+        // map starts from it, since the moves are checked against it, not against the analysis.
+        [[nodiscard]] std::shared_ptr<const core::Snapshot> takeVolumeNow();
+
         // Job side: the plan is built.
         void setPlan(std::shared_ptr<const core::execute::ExecutionPlan> plan);
 
@@ -132,6 +136,7 @@ namespace icd::services {
         std::size_t linesOver_ = 0; // Lines past the cap.
         std::vector<MoveRecord> moved_; // Moves with moved clusters not taken yet.
         std::optional<ExecutionSummary> summary_; // How the run ended.
+        std::shared_ptr<const core::Snapshot> volumeNow_; // A copy of revalidation's snapshot, until taken.
     };
 
     // A job that executes a planned level (plan.md 10.3-10.4): builds the execution plan, refuses one that failed

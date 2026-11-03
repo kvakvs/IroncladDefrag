@@ -307,6 +307,8 @@ add_library(icd_services STATIC
     src/services/execute/Execution.h
     src/services/execute/ExecutionLog.cpp
     src/services/execute/ExecutionLog.h
+    src/services/execute/LiveMap.cpp
+    src/services/execute/LiveMap.h
     src/services/execute/Executor.cpp
     src/services/execute/Executor.h
     src/services/execute/MoveDevice.h
@@ -401,6 +403,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/map/MapCanvas.h
     src/ui/map/MapHover.cpp
     src/ui/map/MapHover.h
+    src/ui/map/MapLiveUpdates.cpp
+    src/ui/map/MapLiveUpdates.h
     src/ui/map/MapNavigator.cpp
     src/ui/map/MapNavigator.h
     src/ui/map/MapSelection.cpp
@@ -421,6 +425,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/panels/StrategyPage.h
     src/ui/panels/SummaryPage.cpp
     src/ui/panels/SummaryPage.h
+    src/ui/tabs/LogTab.cpp
+    src/ui/tabs/LogTab.h
     src/ui/tabs/ProgressTab.cpp
     src/ui/tabs/ProgressTab.h
     res/IroncladDefrag.manifest

@@ -4,7 +4,10 @@
 #include "core/format/Count.h"
 #include "core/format/Duration.h"
 #include "ui/panels/BottomPanel.h"
+#include "ui/tabs/LogTab.h"
 #include "ui/tabs/ProgressTab.h"
+
+#include <wx/wupdlock.h>
 
 #include <cmath>
 #include <format>
@@ -87,16 +90,21 @@ namespace icd::ui {
             return std::nullopt;
         }
         for (const services::ExecutionLogLine& line : services::summaryLines(*summary)) {
-            bottom_.addLogEntry(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
-                                wxString::FromUTF8(line.details));
+            bottom_.log().add(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
+                              wxString::FromUTF8(line.details));
         }
         return services::summaryStatus(*summary, drive);
     }
 
     void ExecutionView::takeLines() {
-        for (const services::ExecutionLogLine& line : feed_->takeLines()) {
-            bottom_.addLogEntry(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
-                                wxString::FromUTF8(line.details));
+        const std::vector<services::ExecutionLogLine> lines = feed_->takeLines();
+        if (lines.empty()) {
+            return;
+        }
+        const wxWindowUpdateLocker frozen(&bottom_.log()); // One repaint for a burst of rows.
+        for (const services::ExecutionLogLine& line : lines) {
+            bottom_.log().add(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
+                              wxString::FromUTF8(line.details));
         }
     }
 

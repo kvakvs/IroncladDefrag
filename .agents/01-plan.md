@@ -58,13 +58,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 8 - GUI execution and live map (§13 Phase 8)
 
-### T111 - Live map and Log tab
-
-- Depends: T110
-- Owns: `src/ui/tabs/LogTab.*`, live-update wiring in `src/ui/map/MapLiveUpdates.*`
-- Do: moved ranges mark tiles dirty while executing; skipped and failed files with reasons.
-- Done when: moves appear on the map as they happen. **Phase 8 exit check.**
-
 > **Gate G2:** first real-drive run (§13 "First real-drive run") only with the user's go-ahead.
 
 ---
@@ -128,6 +121,17 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 ---
 
 ## Deferred (look at later)
+
+### T112 - Resume an unfinished execution from the GUI
+
+- Depends: T111
+- Owns: resume flow in `src/ui/WorkflowBinding.*`, `src/ui/ExecutionView.*`
+- Why: a GUI run that was cancelled, or a crash or power loss, leaves an execution log the GUI cannot continue; today
+  only `icd-cli execute --resume` does (`unfinishedExecutionLog()`, `resumedExecution()`). A new plan from a fresh
+  analysis also works, so this is convenience, not safety.
+- Do: on drive selection, find the volume's unfinished log and offer "Resume the interrupted run" (with how many moves
+  are left); run it with the same job, Progress, Log and live map.
+- Done when: a run cancelled in the GUI is resumed from the GUI and the volume ends as after an uninterrupted run.
 
 ### T150 - Churn gap size after measuring NTFS allocation (TODO)
 

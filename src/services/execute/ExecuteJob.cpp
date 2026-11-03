@@ -168,6 +168,11 @@ namespace icd::services {
         return summary_;
     }
 
+    std::shared_ptr<const core::Snapshot> ExecutionFeed::takeVolumeNow() {
+        const std::scoped_lock lock(mutex_);
+        return std::exchange(volumeNow_, nullptr);
+    }
+
     void ExecutionFeed::setPlan(std::shared_ptr<const core::execute::ExecutionPlan> plan) {
         const std::scoped_lock lock(mutex_);
         plan_ = std::move(plan);
@@ -183,11 +188,17 @@ namespace icd::services {
     }
 
     void ExecutionFeed::revalidated(const Revalidation& revalidation) {
+        // Copied before taking the lock: on a large volume this takes a while, and the UI reads counters meanwhile.
+        // A copy, since the run patches revalidation's snapshot into the one it saves afterwards.
+        auto now = revalidation.current != nullptr && !revalidation.refused
+            ? std::make_shared<const core::Snapshot>(*revalidation.current)
+            : nullptr;
         const std::scoped_lock lock(mutex_);
         if (plan_ == nullptr || revalidation.refused) {
             return;
         }
         const core::execute::ReplayResult& replay = revalidation.replay;
+        volumeNow_ = std::move(now);
         counters_.moving = true;
         counters_.moves = replay.kept.size();
         counters_.dropped = replay.dropped.size();

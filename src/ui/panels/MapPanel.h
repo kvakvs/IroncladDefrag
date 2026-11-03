@@ -7,6 +7,7 @@
 
 #include <memory>
 #include <optional>
+#include <span>
 
 class wxChoice;
 class wxSearchCtrl;
@@ -15,6 +16,7 @@ class wxStaticText;
 namespace icd::core {
     class Executor;
     class MapData;
+    struct ClusterRun;
     struct MapOverlay;
 } // namespace icd::core
 
@@ -60,6 +62,10 @@ namespace icd::ui {
 
         // Shows newer data of the same volume, keeping the view (MapCanvas::updateMap()).
         void updateMap(std::shared_ptr<const core::MapData> map);
+
+        // Shows newer data where only the clusters in `dirty` changed (moves during execution): only the tiles over
+        // them render again.
+        void updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty);
 
         // Where the selected volume sits on its disk (rulers' "% of disk"); nullopt when unknown.
         void setDisk(std::optional<core::DiskPlacement> disk);

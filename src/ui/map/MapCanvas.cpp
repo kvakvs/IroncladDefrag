@@ -123,10 +123,38 @@ namespace icd::ui {
         notifyView();
     }
 
+    bool MapCanvas::sameWorld(const core::MapData* map) const {
+        return map_ != nullptr && map != nullptr && map->world().clusters() == map_->world().clusters() &&
+            map->world().rowWidth() == map_->world().rowWidth();
+    }
+
+    void MapCanvas::updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty) {
+        if (!sameWorld(map.get())) {
+            setMap(std::move(map));
+            return;
+        }
+        map_ = std::move(map);
+        selection_->refresh(); // Its file's fragments as the new snapshot has them.
+        markDirty(dirty);
+        notifyView();
+    }
+
+    void MapCanvas::markDirty(std::span<const core::ClusterRun> runs) {
+        ++selectionVersion_;
+        const core::World& world = map_->world();
+        std::vector<core::TileId> candidates = cache_.keys();
+        candidates.insert(candidates.end(), pending_.begin(), pending_.end());
+        candidates.push_back({world.maxLevel(), 0, 0}); // The minimap's image, which may be kept outside the cache.
+        for (const core::TileId tile : candidates) {
+            if (core::runsTouch(world, runs, world.tileCells(tile))) {
+                dirty_[tile] = selectionVersion_;
+            }
+        }
+        Refresh(false);
+    }
+
     void MapCanvas::updateMap(std::shared_ptr<const core::MapData> map) {
-        const bool sameWorld = map_ != nullptr && map != nullptr &&
-            map->world().clusters() == map_->world().clusters() && map->world().rowWidth() == map_->world().rowWidth();
-        if (!sameWorld) {
+        if (!sameWorld(map.get())) {
             setMap(std::move(map));
             return;
         }

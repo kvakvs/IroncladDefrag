@@ -39,6 +39,10 @@ namespace icd::ui {
         // Forgets the selection without touching the canvas (the canvas shows a new map).
         void reset();
 
+        // Takes the selected file's fragments again from the canvas's map (newer data of the same volume, where file
+        // indexes stay): the highlight follows a file that moved, the view stays.
+        void refresh();
+
         // Moves the view to the next fragment, after the last one back to the first; false without fragments.
         bool nextFragment();
 

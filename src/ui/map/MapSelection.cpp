@@ -109,6 +109,22 @@ namespace icd::ui {
         notify();
     }
 
+    void MapSelection::refresh() {
+        const core::MapData* map = canvas_.map();
+        if (file_ == core::noFile) {
+            return;
+        }
+        if (map == nullptr || file_ >= map->snapshot().files.size()) {
+            clear();
+            return;
+        }
+        const core::ExtentIndex& extents = map->snapshot().extents;
+        fragments_ = core::fileFragments(extents, file_);
+        current_ = std::min(current_, std::max<std::size_t>(fragments_.size(), 1) - 1);
+        canvas_.setSelection(std::make_shared<const core::SelectionOverlay>(core::selectionOf(extents, file_)));
+        notify();
+    }
+
     bool MapSelection::nextFragment() { return step(1); }
 
     bool MapSelection::previousFragment() { return step(-1); }

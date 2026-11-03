@@ -186,6 +186,12 @@ namespace icd::ui {
         canvas_->updateMap(std::move(map));
     }
 
+    void MapPanel::updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty) {
+        map_ = map;
+        legend_->setMap(map);
+        canvas_->updateMap(std::move(map), dirty);
+    }
+
     void MapPanel::setDisk(std::optional<core::DiskPlacement> disk) { rows_->setDisk(disk); }
 
     void MapPanel::showLegend(bool shown) {
