@@ -1,6 +1,7 @@
 #include "ui/panels/MapPanel.h"
 
 #include "core/map/MapData.h"
+#include "services/ShellActions.h"
 #include "ui/Accelerators.h"
 #include "ui/Commands.h"
 #include "ui/dialogs/GoToFileDialog.h"
@@ -11,6 +12,9 @@
 #include "ui/map/Ruler.h"
 
 #include <wx/choice.h>
+#include <wx/clipbrd.h>
+#include <wx/menu.h>
+#include <wx/msgdlg.h>
 #include <wx/sizer.h>
 #include <wx/srchctrl.h>
 #include <wx/stattext.h>
@@ -98,6 +102,12 @@ namespace icd::ui {
         sizer->Add(map, wxSizerFlags(1).Expand());
         sizer->Add(legend_, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxTOP, FromDIP(4)));
         SetSizer(sizer);
+
+        // The release itself, not wxEVT_CONTEXT_MENU: the canvas does not get that from a mouse click.
+        canvas_->Bind(wxEVT_RIGHT_UP, &MapPanel::onRightUp, this);
+        canvas_->Bind(wxEVT_CONTEXT_MENU, &MapPanel::onContextMenu, this);
+        // The popup's commands start at the canvas and travel up to this panel.
+        Bind(wxEVT_MENU, &MapPanel::onFileCommand, this, ID_SHOW_IN_EXPLORER, ID_COPY_PATH);
     }
 
     MapPanel::~MapPanel() {
@@ -182,13 +192,13 @@ namespace icd::ui {
     void MapPanel::updateMap(std::shared_ptr<const core::MapData> map) {
         map_ = map;
         search_->Enable(map_ != nullptr);
-        legend_->setMap(map);
+        legend_->updateMap(map);
         canvas_->updateMap(std::move(map));
     }
 
     void MapPanel::updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty) {
         map_ = map;
-        legend_->setMap(map);
+        legend_->updateMap(map);
         canvas_->updateMap(std::move(map), dirty);
     }
 
@@ -224,6 +234,64 @@ namespace icd::ui {
             selectionText(map_->snapshot().path(*file), selection.fragment(), selection.fragmentCount());
         selectionLabel_->SetLabelText(wxString::FromUTF8(text));
         selectionLabel_->SetToolTip(wxString::FromUTF8(text)); // The label may be cut in the middle.
+    }
+
+    void MapPanel::onRightUp(wxMouseEvent& event) {
+        event.Skip();
+        if (map_ == nullptr) {
+            return;
+        }
+        canvas_->selection().selectAt({static_cast<double>(event.GetX()), static_cast<double>(event.GetY())});
+        showFileMenu();
+    }
+
+    void MapPanel::onContextMenu(wxContextMenuEvent& event) {
+        if (event.GetPosition() != wxDefaultPosition) {
+            return; // From the mouse: onRightUp() has it.
+        }
+        showFileMenu();
+    }
+
+    void MapPanel::showFileMenu() {
+        const std::optional<core::FileIndex> file = canvas_->selection().file();
+        if (!file || map_ == nullptr) {
+            return; // Free space: nothing to offer.
+        }
+        const bool metadata = map_->snapshot().files.has(*file, core::FileMetadata); // $MFT and friends are hidden.
+        wxMenu menu;
+        menu.Append(ID_SHOW_IN_EXPLORER, "Show in &Explorer");
+        menu.Append(ID_COPY_PATH, "&Copy path");
+        menu.Enable(ID_SHOW_IN_EXPLORER, !metadata && !root_.empty());
+        menu.Enable(ID_COPY_PATH, !root_.empty());
+        canvas_->PopupMenu(&menu);
+    }
+
+    std::string MapPanel::selectedPath() const {
+        const auto file = canvas_->selection().file();
+        if (!file || map_ == nullptr || root_.empty()) {
+            return {};
+        }
+        return services::volumePath(root_, map_->snapshot().path(*file));
+    }
+
+    void MapPanel::onFileCommand(wxCommandEvent& event) {
+        const std::string path = selectedPath();
+        if (path.empty()) {
+            return;
+        }
+        if (event.GetId() == ID_COPY_PATH) {
+            if (wxTheClipboard->Open()) {
+                wxTheClipboard->SetData(new wxTextDataObject(wxString::FromUTF8(path))); // The clipboard owns it.
+                wxTheClipboard->Close();
+            }
+            return;
+        }
+        if (!services::showInExplorer(path)) {
+            wxMessageBox(wxString::FromUTF8(path +
+                                            "\n\nwas not found. It may have been moved, renamed or deleted "
+                                            "since the analysis; analyze again to refresh the map."),
+                         "Show in Explorer", wxOK | wxICON_INFORMATION, this);
+        }
     }
 
     bool MapPanel::hasMap() const { return canvas_->hasMap(); }

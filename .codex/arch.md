@@ -96,6 +96,11 @@ this file records what is actually built and the decisions made along the way.
   under review (`MapPanel::commandAvailable()`). The toolbar color
   choice posts the same View command as the menu, so check marks and toolbar always agree.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
+- Context menus: a right click on a drive selects it and shows the bottom bar's commands (`workflowCommands()`, one
+  table for both; plus TRIM on SSDs) with their shortcuts, each enabled by `commandEnabled()` like its button, so
+  the steps unlock one after another; the chosen command travels up to the frame like a button click. A right click
+  on the map selects the file under the pointer and offers Show in Explorer (`SHOpenFolderAndSelectItems`; not for
+  NTFS metadata; a file moved or deleted since the analysis gets a message) and Copy path.
 
 ## Drive discovery
 
@@ -159,6 +164,13 @@ this file records what is actually built and the decisions made along the way.
   moved clusters (for the live map) and the summary. `ui::ExecutionView` turns it into Progress fields on each
   progress event: throughput over the last 5 s (`core::RateMeter`), time left from the bytes still to move at that
   rate, the gauge by bytes. Revalidation reports like an analysis until the moves start (`onRevalidated` hook).
+- Time left (all jobs) changes at most every 3 s, to the average of the estimates since the last change
+  (`core::SmoothedEstimate`), and starts over with each stage and on Resume (the throughput window restarts too, so
+  paused seconds do not lengthen the estimate); it jumped with every progress report before (found in
+  the first real-drive run).
+- Log tab rows carry the time they happened (`ExecutionLogLine::at`) and are taken by a 250 ms timer, also while
+  paused: before, a row was stamped when the window took it, and nothing reached the window while paused, so
+  "paused" and "resumed" showed the same time (found in the first real-drive run).
 - Worker utilisation (all jobs): `ThreadPool::busyTime()` sums worker time in tasks (running ones up to now); its rate
   over 5 s divided by the worker count is "N% of 31 threads busy". Execution itself is one mover thread, so it shows a
   few percent.
@@ -178,7 +190,7 @@ this file records what is actually built and the decisions made along the way.
   (`snapshotAfter()`, as after execution) and recomputes only the pyramid bins over the moved files' old and new
   clusters (`MapData::update()`); the canvas then marks only the cached and rendering tiles over those clusters
   dirty (`MapCanvas::updateMap(map, dirty)`, the selection-change path), the selected file's highlight follows it,
-  and the hover stays. World, classes and file indexes stay, so a test checks that batches of moves give exactly
+  and the hover stays; the legend keeps its numbers until the recount of the same view replaces them (they blinked once per update before, found in the first real-drive run). World, classes and file indexes stay, so a test checks that batches of moves give exactly
   the pyramid of a full build of the volume after them.
 - The moves are checked against the volume as revalidation read it, not the analysis: a file deleted or grown in
   between frees or takes clusters that later moves use. So the feed keeps a copy of revalidation's snapshot and the

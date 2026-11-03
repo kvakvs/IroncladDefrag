@@ -240,6 +240,7 @@ namespace icd::ui {
         view_->SetRowHeight(FromDIP(26));
         createColumns();
         view_->Bind(wxEVT_DATAVIEW_SELECTION_CHANGED, &DrivesPanel::onSelectionChanged, this);
+        view_->Bind(wxEVT_DATAVIEW_ITEM_CONTEXT_MENU, &DrivesPanel::onContextMenu, this);
         view_->GetMainWindow()->Bind(wxEVT_MOTION, &DrivesPanel::onListMotion, this);
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -339,6 +340,20 @@ namespace icd::ui {
         }
         else if (!onTrim && rows->GetToolTip() != nullptr) {
             rows->UnsetToolTip();
+        }
+    }
+
+    void DrivesPanel::onContextMenu(wxDataViewEvent& event) {
+        const wxDataViewItem item = event.GetItem();
+        if (!item.IsOk()) {
+            return; // Below the last row.
+        }
+        const std::size_t row = model_->GetRow(item);
+        if (selectedRow() != row) {
+            select(row); // The menu acts on the row under the pointer, like a left click would pick it.
+        }
+        if (onContextMenu_ && selectedRow() == row) {
+            onContextMenu_();
         }
     }
 

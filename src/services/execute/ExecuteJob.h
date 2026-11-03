@@ -10,6 +10,7 @@
 #include "services/job/JobRunner.h"
 #include "services/plan/PlanJob.h"
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <memory>
@@ -49,6 +50,9 @@ namespace icd::services {
         std::string file; // The file's path; empty for a line about the run.
         std::string result; // "skipped", "partly moved", "dropped", "moved elsewhere", "not verified", "run".
         std::string details; // Why, in words.
+        // When it happened; the feed stamps lines as they are added, since the UI may take them much later (the
+        // window gets no progress while the run is paused).
+        std::chrono::system_clock::time_point at{};
     };
 
     // How an execution ended, for the status line and the Log tab.

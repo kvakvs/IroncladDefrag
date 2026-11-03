@@ -93,6 +93,8 @@ add_library(icd_core STATIC
     src/core/job/Progress.h
     src/core/job/RateMeter.cpp
     src/core/job/RateMeter.h
+    src/core/job/SmoothedEstimate.cpp
+    src/core/job/SmoothedEstimate.h
     src/core/job/StageClock.cpp
     src/core/job/StageClock.h
     src/core/log/Log.h
@@ -260,6 +262,8 @@ add_library(icd_platform STATIC
     src/platform/win/Privileges.h
     src/platform/win/RetrievalPointers.cpp
     src/platform/win/RetrievalPointers.h
+    src/platform/win/Shell.cpp
+    src/platform/win/Shell.h
     src/platform/win/ShadowCopies.cpp
     src/platform/win/ShadowCopies.h
     src/platform/win/StorageProperties.cpp
@@ -289,6 +293,8 @@ add_library(icd_services STATIC
     src/services/AppServices.cpp
     src/services/AppServices.h
     src/services/Elevation.cpp
+    src/services/ShellActions.cpp
+    src/services/ShellActions.h
     src/services/Elevation.h
     src/services/drives/FakeDriveProvider.cpp
     src/services/drives/FakeDriveProvider.h
@@ -376,6 +382,7 @@ add_executable(IroncladDefrag WIN32
     src/ui/Accelerators.h
     src/ui/App.h
     src/ui/Commands.cpp
+    src/ui/CallbackTimer.h
     src/ui/Commands.h
     src/ui/ExecutionView.cpp
     src/ui/ExecutionView.h

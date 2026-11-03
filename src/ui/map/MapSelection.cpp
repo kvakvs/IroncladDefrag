@@ -88,6 +88,13 @@ namespace icd::ui {
         notify();
     }
 
+    std::optional<core::FileIndex> MapSelection::selectAt(core::PixelPoint pointer) {
+        if (!canvas_.minimap().contains(pointer)) {
+            clickAt(pointer);
+        }
+        return file();
+    }
+
     void MapSelection::goTo(core::FileIndex file) {
         select(file, {.index = 1, .count = 0});
         showCurrent();

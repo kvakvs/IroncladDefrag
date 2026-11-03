@@ -1,6 +1,7 @@
 #pragma once
 
 #include "core/job/RateMeter.h"
+#include "core/job/SmoothedEstimate.h"
 #include "core/job/StageClock.h"
 #include "core/map/World.h"
 #include "core/model/DriveInfo.h"
@@ -173,6 +174,9 @@ namespace icd::ui {
         // A different drive was selected in the all-disks panel.
         void onDriveSelected();
 
+        // Right click on a drive: the workflow buttons as a menu (plus TRIM on SSDs), each enabled like its button.
+        void showDriveMenu();
+
         // The user changed preset or effort on the Strategy tab.
         void onStrategyChanged();
 
@@ -210,6 +214,8 @@ namespace icd::ui {
         MapLiveUpdates live_; // Shows a real execution's moves on the map as they happen.
         ExecuteChoices executeChoices_; // Priority and throughput limit from the last confirmation.
         core::RateMeter busy_; // Worker busy time per second, for the Progress tab's utilisation.
+        core::SmoothedEstimate eta_; // Time left as shown: changes every 3 s at most, averaged.
+        std::string etaStage_; // The stage eta_ averages over; a new stage starts it again.
         services::Workflow workflow_; // The state machine.
         std::shared_ptr<JobEventBridge> bridge_; // Delivers job events to the frame.
         std::optional<services::JobId> activeJob_; // Running job, if any.

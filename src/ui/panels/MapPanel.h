@@ -8,6 +8,7 @@
 #include <memory>
 #include <optional>
 #include <span>
+#include <string>
 
 class wxChoice;
 class wxSearchCtrl;
@@ -67,6 +68,9 @@ namespace icd::ui {
         // them render again.
         void updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty);
 
+        // The root of the volume shown (a drive letter with its backslash), for full paths of files; empty for none.
+        void setVolumeRoot(std::string root) { root_ = std::move(root); }
+
         // Where the selected volume sits on its disk (rulers' "% of disk"); nullopt when unknown.
         void setDisk(std::optional<core::DiskPlacement> disk);
 
@@ -105,8 +109,24 @@ namespace icd::ui {
         // Shows the selected file and its current fragment in the toolbar.
         void updateSelectionLabel();
 
+        // Right click on the map: selects the file under the pointer, then the file menu.
+        void onRightUp(wxMouseEvent& event);
+
+        // The keyboard's menu key: the file menu for the selected file (mouse clicks come through onRightUp()).
+        void onContextMenu(wxContextMenuEvent& event);
+
+        // Shows Show in Explorer and Copy path for the selected file; nothing on free space.
+        void showFileMenu();
+
+        // Show in Explorer and Copy path for the selected file.
+        void onFileCommand(wxCommandEvent& event);
+
+        // The full path of the selected file (the volume root plus its path on the volume), or empty without one.
+        [[nodiscard]] std::string selectedPath() const;
+
         core::Executor& executor_; // Runs tiles and file searches.
         std::shared_ptr<const core::MapData> map_; // The map shown, for searches; null for none.
+        std::string root_; // Root of the volume shown, for full paths.
         MapCanvas* canvas_ = nullptr; // The map; child window owned by wx.
         Legend* legend_ = nullptr; // Colors and counts of the view; child window owned by wx.
         Ruler* rows_ = nullptr; // Row ruler left of the map; child window owned by wx.

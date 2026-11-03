@@ -25,18 +25,6 @@ namespace icd::ui {
         // Gauge resolution: tenths of a percent.
         constexpr int gaugeRange = 1000;
 
-        // A workflow button in the status strip; its id is the command id, so the frame's command handler
-        // and enable rule cover it like the menu item.
-        struct ButtonSpec {
-            int id = 0; // Command id.
-            const char* label = ""; // Button text with & mnemonic.
-        };
-
-        constexpr std::array workflowButtons{
-            ButtonSpec{ID_ANALYZE, "&Analyze"},       ButtonSpec{ID_QUICK, "&Quick"},
-            ButtonSpec{ID_BUILD_PLAN, "&Build plan"}, ButtonSpec{ID_EXECUTE, "&Execute..."},
-            ButtonSpec{ID_PAUSE, "&Pause"},           ButtonSpec{ID_CANCEL, "&Cancel"},
-        };
 
     } // namespace
 
@@ -61,7 +49,9 @@ namespace icd::ui {
 
     wxSizer* BottomPanel::createStatusStrip() {
         auto* strip = new wxBoxSizer(wxHORIZONTAL);
-        for (const ButtonSpec& spec : workflowButtons) {
+        // Each button's id is its command id, so the frame's command handler and enable rule cover it like the menu
+        // item.
+        for (const WorkflowCommand& spec : workflowCommands()) {
             auto* button = new wxButton(this, spec.id, wxString::FromUTF8(spec.label));
             button->SetToolTip(commandTip(spec.id)); // What it does and its key, from the shortcut table.
             button->Disable(); // Enabled by the frame from the app state.

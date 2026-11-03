@@ -29,13 +29,24 @@ namespace icd::ui {
             return text;
         }
 
-        // Time left from the bytes still to move at the recent rate; empty while the rate is unknown.
-        wxString etaText(const services::ExecutionCounters& c, std::optional<double> rate) {
+        // How often new Log rows are taken from the feed.
+        constexpr int rowsMs = 250;
+
+        // Time left from the bytes still to move at the recent rate; nullopt while the rate is unknown.
+        std::optional<std::chrono::seconds> timeLeft(const services::ExecutionCounters& c, std::optional<double> rate) {
             if (!rate || *rate <= 0.0 || c.bytesPending < c.bytesMoved) {
-                return {};
+                return std::nullopt;
             }
             const double seconds = static_cast<double>(c.bytesPending - c.bytesMoved) / *rate;
-            return wxString::FromUTF8(core::formatDuration(std::chrono::seconds(std::llround(seconds))));
+            return std::chrono::seconds(std::llround(seconds));
+        }
+
+        // A feed line's time for the Log tab.
+        wxDateTime whenOf(const services::ExecutionLogLine& line) {
+            if (line.at == std::chrono::system_clock::time_point{}) {
+                return wxDateTime::Now();
+            }
+            return wxDateTime(static_cast<time_t>(std::chrono::system_clock::to_time_t(line.at)));
         }
 
         // Share of the run done: by bytes, or by moves when nothing is left to move (resumed, already done).
@@ -48,16 +59,25 @@ namespace icd::ui {
 
     } // namespace
 
-    ExecutionView::ExecutionView(BottomPanel& bottom) : bottom_(bottom) {}
+    ExecutionView::ExecutionView(BottomPanel& bottom) :
+        bottom_(bottom), rows_([this] {
+            if (feed_) {
+                takeLines();
+            }
+        }) {}
+
+    ExecutionView::~ExecutionView() { rows_.Stop(); }
 
     services::JobFunction ExecutionView::start(services::ExecuteJobRequest request,
                                                std::shared_ptr<core::PauseGate> pause) {
         feed_ = std::make_shared<services::ExecutionFeed>();
         throughput_.reset();
+        rows_.Start(rowsMs);
         return services::makeExecuteJob(std::move(request), feed_, std::move(pause));
     }
 
     void ExecutionView::fill(ProgressDetails& details, std::optional<double>& fraction,
+                             std::optional<std::chrono::seconds>& remaining,
                              std::chrono::steady_clock::time_point now) {
         if (!feed_) {
             return;
@@ -73,7 +93,7 @@ namespace icd::ui {
             std::format("{} of {}", core::formatBytes(c.bytesMoved), core::formatBytes(c.bytesPending)));
         details.throughput =
             rate ? wxString::FromUTF8(core::formatBytes(static_cast<std::uint64_t>(*rate)) + "/s") : wxString();
-        details.eta = etaText(c, rate);
+        remaining = timeLeft(c, rate);
         details.currentFile = wxString::FromUTF8(c.currentFile);
         details.moves = wxString::FromUTF8(movesText(c));
         fraction = doneFraction(c);
@@ -83,6 +103,7 @@ namespace icd::ui {
         if (!feed_) {
             return std::nullopt;
         }
+        rows_.Stop();
         takeLines();
         const std::optional<services::ExecutionSummary> summary = feed_->summary();
         feed_.reset();
@@ -91,7 +112,7 @@ namespace icd::ui {
         }
         for (const services::ExecutionLogLine& line : services::summaryLines(*summary)) {
             bottom_.log().add(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
-                              wxString::FromUTF8(line.details));
+                              wxString::FromUTF8(line.details), whenOf(line));
         }
         return services::summaryStatus(*summary, drive);
     }
@@ -104,7 +125,7 @@ namespace icd::ui {
         const wxWindowUpdateLocker frozen(&bottom_.log()); // One repaint for a burst of rows.
         for (const services::ExecutionLogLine& line : lines) {
             bottom_.log().add(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
-                              wxString::FromUTF8(line.details));
+                              wxString::FromUTF8(line.details), whenOf(line));
         }
     }
 

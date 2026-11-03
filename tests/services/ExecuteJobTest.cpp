@@ -67,6 +67,9 @@ namespace icd::services { namespace {
         const auto locked = std::ranges::find(lines, b.plan->paths[2], &ExecutionLogLine::file);
         EXPECT_NE(locked->details.find("locked"), std::string::npos) << locked->details;
         EXPECT_TRUE(feed.takeLines().empty()); // Taken once.
+        // Stamped when they happened: the UI may take them much later (nothing reaches it while paused).
+        EXPECT_TRUE(std::ranges::none_of(
+            lines, [](const ExecutionLogLine& l) { return l.at == std::chrono::system_clock::time_point{}; }));
 
         const auto moved = feed.takeMoved();
         const auto withClusters =

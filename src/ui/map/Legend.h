@@ -42,6 +42,11 @@ namespace icd::ui {
         // Shows the legend of a map (null: none) and counts its whole view once it gets one.
         void setMap(std::shared_ptr<const core::MapData> map);
 
+        // Takes newer data of the same volume (an analysis filling in, moves during execution): the numbers shown stay
+        // until the new count of the same view arrives, so they do not blink with every update. Another volume size is
+        // like setMap().
+        void updateMap(std::shared_ptr<const core::MapData> map);
+
         // Switches to the entries of a mode and counts them again.
         void setMode(core::ColorMode mode);
 

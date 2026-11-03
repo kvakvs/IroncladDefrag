@@ -357,3 +357,11 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `ui/tabs/LogTab.*` (counts per result, follows new rows); `ExecutionFeed::takeVolumeNow()`. `LiveMapTest`. GUI
   runs on a 1 GB `mixed` VHDX: the map follows every move (40 updates, slowest 14 ms); deleted and grown files
   dropped and listed with reasons. **Phase 8 exit check.**
+- T113 GUI feedback from the first real-drive run - right-click menus: drives (the bottom bar's steps from one table,
+  `workflowCommands()`, enabled like the buttons; TRIM on SSDs) and map files (Show in Explorer via
+  `platform/win/Shell` / `services/ShellActions`, Copy path; on the right-button release, since the canvas gets no
+  context-menu event from the mouse); time left shown every 3 s as an average (`core/job/SmoothedEstimate`), restarted
+  per stage and on Resume; Log rows stamped when they happen and taken while paused; the legend keeps its numbers
+  across live updates (`Legend::updateMap()`); `ui/CallbackTimer.h`. `SmoothedEstimate` and `ShellActions` tests.
+  Checked in the GUI on the T: test VHDX with real mouse input. First real-drive run (X:, Moderate): 22,038 moves,
+  82 GB at 54 MB/s, cancelled by the user, nothing skipped or unverified.

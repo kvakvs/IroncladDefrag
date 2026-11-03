@@ -2,8 +2,7 @@
 
 #include "services/execute/Executor.h"
 #include "services/execute/LiveMap.h"
-
-#include <wx/timer.h>
+#include "ui/CallbackTimer.h"
 
 #include <chrono>
 #include <cstdint>
@@ -81,19 +80,6 @@ namespace icd::ui {
         // Computes one update on the pool: rebase if asked, then the moves.
         static Result compute(const Work& work, core::Executor& executor);
 
-        // A timer that calls back, so this class needs no window of its own.
-        class Ticker : public wxTimer {
-        public:
-            // Calls tick on every notification.
-            explicit Ticker(std::function<void()> tick) : tick_(std::move(tick)) {}
-
-            // Calls the callback.
-            void Notify() override { tick_(); }
-
-        private:
-            std::function<void()> tick_; // What each tick does.
-        };
-
         // Takes new moves from the feed and starts an update when one is due; stops once a finished run is drained.
         void tick();
 
@@ -112,7 +98,7 @@ namespace icd::ui {
         MapPanel& map_; // Where updates are shown.
         core::Executor& executor_; // Applies moves.
         std::shared_ptr<Mailbox> mailbox_; // Shared with running updates.
-        Ticker ticker_; // Drives tick().
+        CallbackTimer ticker_; // Drives tick().
         std::shared_ptr<services::ExecutionFeed> feed_; // The followed run; null when none.
         std::shared_ptr<const core::MapData> base_; // The map shown by the last update (the next one starts there).
         std::vector<services::MoveRecord> pending_; // Moves taken from the feed, not applied yet.

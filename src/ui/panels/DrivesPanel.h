@@ -45,6 +45,9 @@ namespace icd::ui {
         // Sets the receiver of selection changes.
         void setSelectionHandler(SelectionHandler handler) { onSelection_ = std::move(handler); }
 
+        // Sets what a right click on a row does, after the row was selected (the workflow's context menu).
+        void setContextMenuHandler(std::function<void()> handler) { onContextMenu_ = std::move(handler); }
+
     private:
         // Adds the columns and their renderers.
         void createColumns();
@@ -58,12 +61,16 @@ namespace icd::ui {
         // Shows the TRIM button's tooltip (action and shortcut) while the pointer is over a button.
         void onListMotion(wxMouseEvent& event);
 
+        // A right click on a row: selects it, then asks for the context menu.
+        void onContextMenu(wxDataViewEvent& event);
+
         // A TRIM button was clicked: selects its row and sends the Drive > TRIM command up to the frame.
         void requestTrim(std::size_t row);
 
         // The row currently selected in the control.
         [[nodiscard]] std::optional<std::size_t> selectedRow() const;
 
+        std::function<void()> onContextMenu_; // Shows the context menu of the selected row.
         std::vector<core::DriveInfo> drives_; // Rows, read by the model.
         wxDataViewCtrl* view_ = nullptr; // The list control; child owned by wx.
         DriveListModel* model_ = nullptr; // Owned by view_ (reference counted); valid while view_ lives.

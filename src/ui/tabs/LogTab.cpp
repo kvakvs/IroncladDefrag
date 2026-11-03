@@ -31,10 +31,14 @@ namespace icd::ui {
     }
 
     void LogTab::add(const wxString& file, const wxString& result, const wxString& details) {
+        add(file, result, details, wxDateTime::Now());
+    }
+
+    void LogTab::add(const wxString& file, const wxString& result, const wxString& details, const wxDateTime& when) {
         const long count = list_->GetItemCount();
         // Follow new rows only while the newest is in view, so reading older rows is not disturbed.
         const bool following = count == 0 || list_->GetTopItem() + list_->GetCountPerPage() >= count;
-        const long row = list_->InsertItem(count, wxDateTime::Now().FormatISOCombined(' '));
+        const long row = list_->InsertItem(count, when.FormatISOCombined(' '));
         list_->SetItem(row, 1, file);
         list_->SetItem(row, 2, result);
         list_->SetItem(row, 3, details);

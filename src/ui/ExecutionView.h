@@ -3,6 +3,7 @@
 #include "core/job/RateMeter.h"
 #include "services/execute/ExecuteJob.h"
 #include "services/job/JobRunner.h"
+#include "ui/CallbackTimer.h"
 
 #include <chrono>
 #include <memory>
@@ -28,6 +29,12 @@ namespace icd::ui {
         // Rows go to bottom's Log tab.
         explicit ExecutionView(BottomPanel& bottom);
 
+        // Stops taking rows.
+        ~ExecutionView();
+
+        ExecutionView(const ExecutionView&) = delete;
+        ExecutionView& operator=(const ExecutionView&) = delete;
+
         // A job that runs request with pause; the view follows it from now on, forgetting any earlier run.
         [[nodiscard]] services::JobFunction start(services::ExecuteJobRequest request,
                                                   std::shared_ptr<core::PauseGate> pause);
@@ -35,14 +42,19 @@ namespace icd::ui {
         // Whether a run started by start() is followed.
         [[nodiscard]] bool active() const { return feed_ != nullptr; }
 
-        // Overwrites the execution fields of details and the gauge fraction once the moves run (revalidation reports
-        // like an analysis until then), and moves new rows into the Log tab.
-        void fill(ProgressDetails& details, std::optional<double>& fraction, std::chrono::steady_clock::time_point now);
+        // Overwrites the execution fields of details, the gauge fraction and the time left (from the bytes still to
+        // move at the recent rate) once the moves run; revalidation reports like an analysis until then.
+        void fill(ProgressDetails& details, std::optional<double>& fraction,
+                  std::optional<std::chrono::seconds>& remaining, std::chrono::steady_clock::time_point now);
 
         // The run ended: its last rows and the summary go into the Log tab and the view stops following it. Returns
         // the status line, or nullopt when the job ended before a summary (it failed or was cancelled while the
         // volume was read again).
         [[nodiscard]] std::optional<std::string> finish(std::string_view drive);
+
+        // The run continues after a pause: the paused seconds must not count against the throughput, which the time
+        // left is computed from.
+        void resumed() { throughput_.reset(); }
 
         // The feed of the followed run (null when none), for the live map.
         [[nodiscard]] const std::shared_ptr<services::ExecutionFeed>& feed() const { return feed_; }
@@ -54,6 +66,7 @@ namespace icd::ui {
         BottomPanel& bottom_; // Log tab.
         std::shared_ptr<services::ExecutionFeed> feed_; // The followed run; null when none.
         core::RateMeter throughput_; // Bytes moved per second over the last seconds.
+        CallbackTimer rows_; // Takes new rows while the run is followed, also while paused (no progress then).
     };
 
 } // namespace icd::ui

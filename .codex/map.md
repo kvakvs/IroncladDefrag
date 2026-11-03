@@ -94,6 +94,7 @@ changes (see `AGENTS.md`).
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
 | `src/core/job/PauseGate.*` | `PauseGate`: workers wait between items while paused; cancellation releases them. |
 | `src/core/job/StageClock.*` | Job elapsed time and a linear per-stage time-left estimate for the Progress tab. |
+| `src/core/job/SmoothedEstimate.*` | `SmoothedEstimate`: the shown time left changes at most every 3 s, to the average of the estimates since. |
 | `src/core/job/RateMeter.*` | `RateMeter`: rate of a growing total over the last seconds (disk throughput, worker busy time). |
 | `src/core/job/Progress.*` | `Progress` snapshot, `ProgressSink`, `ThrottledProgress` (~10 Hz, injectable clock). |
 | `src/core/log/Log.h` | `logging::Level`, `Field`, `Record`, `Sink`, thread-safe `Logger`, `globalLogger()`, `info()`/`error()`/... helpers. |
@@ -151,6 +152,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/ChildProcess.*` | `runCaptured()` (console program without a window, output chunks to a callback, cancel terminates, exit code), `systemProgram()` (System32 path). |
 | `src/platform/win/Console.*` | `ConsoleCancel` (Ctrl+C cancels a source while alive), `useUtf8ConsoleOutput()`. |
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
+| `src/platform/win/Shell.*` | `showInExplorer()`: `SHOpenFolderAndSelectItems` (the running Explorer opens the folder, with the user's rights). |
 | `src/platform/win/Privileges.*` | `enablePrivilege()` (e.g. `SE_BACKUP_NAME` for files only SYSTEM may open), `relaunchElevated()` (`ShellExecuteExW` "runas" of this program). |
 | `src/platform/win/RetrievalPointers.*` | `readRetrievalPointers()` (all runs of a stream, holes as LCN -1), `readFileFacts()` (times, attributes, size, links, named streams), `openFileById()`, `openForQuery()`. |
 | `src/platform/win/ShadowCopies.*` | `countShadowCopies()` (vssadmin listing, GUID path count, nullopt without rights), `countShadowsInListing()`. |
@@ -163,6 +165,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/LastAccessSetting.*` | `readLastAccessSetting()` (NtfsDisableLastAccessUpdate from the registry), `decodeLastAccessSetting()` (user or system managed, on or off, legacy values). |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/activity/ChurnStats.*` | `collectChurn()` (whole retained journal: sessions per file and per directory, deletes counted from their first record in the directory the file lived in), `directoryChurns()`, `churnFlags()` (churning files, directories and all below), `churnDirectories()`. |
+| `src/services/ShellActions.*` | `volumePath()` (volume root plus snapshot path), `showInExplorer()` for the map's context menu. |
 | `src/services/Elevation.*` | `runningElevated()`, `restartElevated()`: the GUI's elevation flow without Win32 in `ui`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
 | `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`), `SettingsStore`. |
@@ -221,15 +224,16 @@ changes (see `AGENTS.md`).
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
 | `src/ui/dialogs/ShortcutsDialog.*` | Help > Keyboard shortcuts (F1): `shortcutLines()` groups the shortcut table by the menu holding each command, then the map keys (keys of one action on one line); shown as a list with bold headings. |
 | `src/ui/dialogs/GoToFileDialog.*` | View > Go to file: search field and match list (path, size, fragments); searches on the pool as the user types (200 ms pause, cancelled when replaced), results through a detachable mailbox. |
-| `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators; later ids appended so values stay stable), `isMapCommand()`, `enableCommand()` for menu item + button. |
+| `src/ui/CallbackTimer.h` | `CallbackTimer`: a `wxTimer` calling a function, for helpers without a window (live map, execution view). |
+| `src/ui/Commands.*` | `CommandId` (shared by menus, buttons, accelerators; later ids appended so values stay stable), `workflowCommands()` (the bottom bar's steps, also the drive list's context menu), `isMapCommand()`, `enableCommand()` for menu item + button. |
 | `src/ui/tabs/LogTab.*` | Log tab: time, file, result, details; counts per result above the list; follows new rows while the newest is in view. |
 | `src/ui/tabs/ProgressTab.*` | Progress tab: stage, done, elapsed, time left, throughput, workers, current file, moves (two per row), resources line. |
 | `src/ui/panels/BottomPanel.*` | Bottom notebook (Summary, Strategy, Plan, Progress, Log), workflow buttons (tooltips with action and shortcut), the single status line and gauge. |
 | `src/ui/panels/SummaryPage.*` | Summary tab: volume figures (plus directories, fragmented data, large free runs, unmovable, unreadable and changed files after a real scan) and per-class table. |
 | `src/ui/panels/StrategyPage.*` | Strategy tab: built-in preset picker, effort level, editable zone table (classes, action, anchor, orders, fragment_ok, gap), validation problems under it; `script()` for the next plan, `problems()`; `select()` restores a remembered choice without reporting a change. |
 | `src/ui/panels/PlanPage.*` | Plan tab: Fast / Moderate / Maximum side by side, chosen level, warnings. |
-| `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers (tooltip on the drawn TRIM button), selection callback. |
-| `src/ui/panels/MapPanel.*` | Map area (`updateMap()`, `setDisk()` for the rulers): toolbar (color mode, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above and the legend below; forwards the canvas's view changes to the rulers and the legend; View > Color mode (zone fit and plan preview with a plan's overlays, `setPlanOverlays()`), Minimap, Legend, Go to file, next/previous fragment. |
+| `src/ui/panels/DrivesPanel.*` | All-disks panel: `wxDataViewCtrl` over a virtual model, space bar and TRIM button renderers (tooltip on the drawn TRIM button), selection callback, right click selects the row and asks for the context menu. |
+| `src/ui/panels/MapPanel.*` | Map area (`updateMap()`, `setDisk()` for the rulers): toolbar (color mode, caption, selected file and fragment, "Find file" search opening Go to file) above the `MapCanvas` with rulers left and above and the legend below; forwards the canvas's view changes to the rulers and the legend; View > Color mode (zone fit and plan preview with a plan's overlays, `setPlanOverlays()`), Minimap, Legend, Go to file, next/previous fragment; right click on a file: Show in Explorer, Copy path (`setVolumeRoot()`). |
 | `src/ui/map/Legend.*` | Legend strip: swatch, label, size and share of the visible area per entry of the color mode; counts on the pool after the view rests, cancellable, delivered through a mailbox. |
 | `src/ui/map/MapCanvas.*` | Drive map widget (`updateMap()` takes newer data of the same volume, keeping the view; with dirty runs only the tiles over them render again and the selection follows its file): Direct2D composition of cached tiles, coarser cached tiles scaled while exact ones render, async tile rendering on the pool via a detachable mailbox (96 in flight, 16 uploads per frame), LRU GPU cache (256 MB), selection highlight and plan overlay (`setOverlay()`) painted into tiles with dirty-tile refresh, frame-time log per animation, `missingTiles()` of the last frame. |
 | `src/ui/map/MapSelection.*` | Selected file: click (press and release within 4 DIP, not on the minimap) selects the owner of the cluster or clears on free space; fragments in file order, current fragment, next/previous and go to with an animated focus view; observer for the toolbar label. |
@@ -329,6 +333,7 @@ changes (see `AGENTS.md`).
 | `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops, busy time. |
 | `tests/services/PlannedBed.h` | A planned synthetic volume with its classes and plan and a `SimVolume` to run it on (feed and live map tests). |
 | `tests/services/LiveMapTest.cpp` | Moves applied in batches equal a full build of the snapshot after them; rebase on a changed volume, then the rest; nothing to apply and a patch that does not fit. |
+| `tests/services/ShellActionsTest.cpp` | Full paths from volume roots (letters, mount folders) and snapshot paths. |
 | `tests/services/ExecuteJobTest.cpp` | `ExecutionFeed` following the executor on `SimDevice` (counts, bytes, drops and skips in words, moved records), the Log tab cap, reason and summary texts. |
 | `tests/core/MovePiecesTest.cpp` | Pieces at the sources, streams and VCNs, moves cut short and done, changed files refused, remap, joined LCN runs. |
 | `tests/core/MoveCallsTest.cpp` | Chunks of plain pieces, whole compressed units joined over holes and bounded by the next piece, retarget, landings, the landed prefix of a refused call. |

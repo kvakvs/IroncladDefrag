@@ -1,5 +1,6 @@
 #pragma once
 
+#include <wx/datetime.h>
 #include <wx/panel.h>
 
 #include <map>
@@ -19,6 +20,9 @@ namespace icd::ui {
 
         // Adds a row stamped with the current time.
         void add(const wxString& file, const wxString& result, const wxString& details);
+
+        // Adds a row stamped with the time it happened (local time, to the second).
+        void add(const wxString& file, const wxString& result, const wxString& details, const wxDateTime& when);
 
         // Empties the list (a new run starts).
         void clear();

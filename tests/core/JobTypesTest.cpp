@@ -2,6 +2,7 @@
 #include "core/job/PauseGate.h"
 #include "core/job/Progress.h"
 #include "core/job/RateMeter.h"
+#include "core/job/SmoothedEstimate.h"
 #include "core/job/StageClock.h"
 
 #include <gtest/gtest.h>
@@ -294,6 +295,23 @@ namespace icd::core { namespace {
         EXPECT_DOUBLE_EQ(*meter.perSecond(), 20.0);
         meter.reset();
         EXPECT_EQ(meter.perSecond(), std::nullopt);
+    }
+
+    // The shown time left changes at most every 3 s, to the average of the estimates since the last change; unknown
+    // estimates are left out, and the first known one shows at once.
+    TEST(SmoothedEstimate, ChangesEveryPeriodToTheAverage) {
+        const SmoothedEstimate::TimePoint start{};
+        SmoothedEstimate eta(3s);
+        EXPECT_EQ(eta.update(start, std::nullopt), std::nullopt);
+        EXPECT_EQ(eta.update(start + 100ms, 60s), 60s); // First known estimate at once.
+        EXPECT_EQ(eta.update(start + 1s, 40s), 60s); // Held for the period.
+        EXPECT_EQ(eta.update(start + 2s, std::nullopt), 60s);
+        EXPECT_EQ(eta.update(start + 3100ms, 50s), 45s); // Average of 40 and 50.
+        EXPECT_EQ(eta.update(start + 4s, 10s), 45s);
+        EXPECT_EQ(eta.update(start + 6200ms, std::nullopt), 10s); // Due: the one estimate since.
+        EXPECT_EQ(eta.update(start + 9500ms, std::nullopt), 10s); // Nothing new: the old value stays.
+        eta.reset();
+        EXPECT_EQ(eta.update(start + 10s, std::nullopt), std::nullopt);
     }
 
 }} // namespace icd::core

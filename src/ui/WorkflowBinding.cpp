@@ -17,6 +17,7 @@
 #include "services/scan/AnalysisJob.h"
 #include "services/settings/Settings.h"
 #include "services/workflow/SyntheticAnalysis.h"
+#include "ui/Accelerators.h"
 #include "ui/Commands.h"
 #include "ui/MainMenu.h"
 #include "ui/bridge/JobEvents.h"
@@ -177,6 +178,7 @@ namespace icd::ui {
         live_(widgets.map, services.pool()), bridge_(std::make_shared<JobEventBridge>(&frame)) {
         bindEvents();
         widgets_.drives.setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
+        widgets_.drives.setContextMenuHandler([this] { showDriveMenu(); });
         widgets_.bottom.strategy().setChangeHandler([this] { onStrategyChanged(); });
         widgets_.drives.setDrives(services_.drives().listDrives());
         refresh();
@@ -269,6 +271,8 @@ namespace icd::ui {
             if (pause_) {
                 pause_->resume();
             }
+            execution_.resumed();
+            eta_.reset(); // The estimates made while paused were too long.
             break;
         case WorkflowAction::Cancel:
             if (activeJob_) {
@@ -346,6 +350,8 @@ namespace icd::ui {
         bottom.setProgress(0.0);
         bottom.progress().show({});
         busy_.reset();
+        eta_.reset();
+        etaStage_.clear();
         bottom.showTab(BottomTab::Progress);
     }
 
@@ -476,18 +482,24 @@ namespace icd::ui {
         if (progress.total != 0) {
             count += " of " + core::formatCount(progress.total);
         }
-        const auto remaining = clock.remaining(now);
+        std::optional<std::chrono::seconds> remaining = clock.remaining(now);
         ProgressDetails details{.stage = wxString::FromUTF8(progress.stage),
                                 .done = wxString::FromUTF8(count),
                                 .elapsed = wxString::FromUTF8(core::formatDuration(clock.elapsed(now))),
-                                .eta = remaining ? wxString::FromUTF8(core::formatDuration(*remaining)) : "",
+                                .eta = {},
                                 .throughput = {},
                                 .workers = wxString::FromUTF8(workersText(now)),
                                 .currentFile = wxString::FromUTF8(progress.message),
                                 .moves = {}};
         if (activeKind_ == WorkflowJob::Execute) {
-            execution_.fill(details, fraction, now);
+            execution_.fill(details, fraction, remaining, now);
         }
+        if (progress.stage != etaStage_) {
+            eta_.reset(); // Another stage: its estimate has nothing to do with the last one's.
+            etaStage_ = progress.stage;
+        }
+        const std::optional<std::chrono::seconds> shown = eta_.update(now, remaining);
+        details.eta = shown ? wxString::FromUTF8(core::formatDuration(*shown)) : wxString();
         return details;
     }
 
@@ -718,6 +730,7 @@ namespace icd::ui {
         }
         drive_ = selected != nullptr ? std::optional(*selected) : std::nullopt;
         live_.stop();
+        widgets_.map.setVolumeRoot(drive_ ? drive_->root : std::string());
         widgets_.map.setMap(nullptr);
         const bool placed = drive_ && drive_->layout.diskBytes != 0;
         widgets_.map.setDisk(
@@ -730,6 +743,30 @@ namespace icd::ui {
         bottom.summary().clear(summaryHint(kind));
         restoreStrategy();
         refresh();
+    }
+
+    void WorkflowBinding::showDriveMenu() {
+        const bool paused = workflow_.state() == WorkflowState::Paused;
+        wxMenu menu;
+        const auto add = [&](int id, wxString label) {
+            if (const auto shortcut = shortcutFor(id); shortcut) {
+                label += "\t" + shortcutText(*shortcut);
+            }
+            menu.Append(id, label);
+            menu.Enable(id, commandEnabled(id));
+        };
+        for (const WorkflowCommand& command : workflowCommands()) {
+            if (command.startsGroup) {
+                menu.AppendSeparator();
+            }
+            add(command.id, command.id == ID_PAUSE && paused ? wxString("&Resume") : wxString(command.label));
+        }
+        if (allowed(WorkflowAction::Trim)) { // SSDs: their only action.
+            menu.AppendSeparator();
+            add(ID_TRIM, "&TRIM");
+        }
+        // The chosen item's command event travels up to the frame, where the buttons' handler takes it.
+        widgets_.drives.PopupMenu(&menu);
     }
 
     void WorkflowBinding::restoreStrategy() {

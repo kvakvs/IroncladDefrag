@@ -30,6 +30,10 @@ namespace icd::ui {
         MapSelection(const MapSelection&) = delete;
         MapSelection& operator=(const MapSelection&) = delete;
 
+        // Selects what lies under a window pixel, or clears on free space (a right click, before its menu). Returns
+        // the selected file.
+        std::optional<core::FileIndex> selectAt(core::PixelPoint pointer);
+
         // Selects a file and moves the view to its first fragment ("go to file").
         void goTo(core::FileIndex file);
 

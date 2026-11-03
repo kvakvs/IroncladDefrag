@@ -52,6 +52,12 @@ namespace icd::services {
             return {.file = {}, .result = "run", .details = std::move(details)};
         }
 
+        // A line stamped with the current time.
+        ExecutionLogLine stampedNow(ExecutionLogLine line) {
+            line.at = std::chrono::system_clock::now();
+            return line;
+        }
+
         // Moves that did not go as planned in a summary.
         std::uint64_t problems(const ExecutionSummary& s) { return s.totals.skipped + s.totals.partial + s.dropped; }
 
@@ -184,6 +190,7 @@ namespace icd::services {
             return;
         }
         ++linesAdded_;
+        line.at = std::chrono::system_clock::now();
         lines_.push_back(std::move(line));
     }
 
@@ -258,9 +265,10 @@ namespace icd::services {
         s.snapshotNote = outcome.snapshotNote;
         summary_ = std::move(s);
         if (linesOver_ != 0) {
-            lines_.push_back(runLine(std::format("{} more files that did not move as planned are listed in the "
-                                                 "execution log only",
-                                                 core::formatCount(linesOver_))));
+            lines_.push_back(
+                stampedNow(runLine(std::format("{} more files that did not move as planned are listed in the "
+                                               "execution log only",
+                                               core::formatCount(linesOver_)))));
         }
     }
 

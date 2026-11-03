@@ -81,6 +81,17 @@ namespace icd::ui {
         showCounts();
     }
 
+    void Legend::updateMap(std::shared_ptr<const core::MapData> map) {
+        if (map_ == nullptr || map == nullptr || map->world().clusters() != map_->world().clusters()) {
+            setMap(std::move(map));
+            return;
+        }
+        map_ = std::move(map); // View and counts stay: the old numbers show until the recount replaces them.
+        if (view_) {
+            restTimer_.StartOnce(restMilliseconds);
+        }
+    }
+
     void Legend::setMode(core::ColorMode mode) {
         if (mode == mode_) {
             return;
