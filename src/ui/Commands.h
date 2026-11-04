@@ -49,6 +49,9 @@ namespace icd::ui {
         // Map context menu (right click on a file); handled by the map panel, not in the menu bar.
         ID_SHOW_IN_EXPLORER, // Opens the file's folder in Explorer with the file selected.
         ID_COPY_PATH, // Copies the file's full path to the clipboard.
+
+        // Drive > Windows schedule: takes the drive out of Windows' scheduled optimization or puts it back (T120).
+        ID_WINDOWS_SCHEDULE,
     };
 
     // A workflow command as the bottom panel's buttons and the drive list's context menu show it, so both list the

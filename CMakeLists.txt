@@ -241,6 +241,7 @@ icd_target_defaults(icd_core)
 add_library(icd_platform STATIC
     src/platform/win/ChildProcess.cpp
     src/platform/win/ChildProcess.h
+    src/platform/win/Com.h
     src/platform/win/Console.cpp
     src/platform/win/LastAccessSetting.cpp
     src/platform/win/LastAccessSetting.h
@@ -262,6 +263,8 @@ add_library(icd_platform STATIC
     src/platform/win/Privileges.h
     src/platform/win/RetrievalPointers.cpp
     src/platform/win/RetrievalPointers.h
+    src/platform/win/ScheduledOptimize.cpp
+    src/platform/win/ScheduledOptimize.h
     src/platform/win/Shell.cpp
     src/platform/win/Shell.h
     src/platform/win/ShadowCopies.cpp
@@ -281,7 +284,7 @@ add_library(icd_platform STATIC
     src/platform/win/WinError.cpp
     src/platform/win/WinError.h
 )
-target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32 oleaut32 wbemuuid cabinet)
+target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32 oleaut32 wbemuuid taskschd cabinet)
 icd_target_defaults(icd_platform)
 
 # --- icd_services: jobs, thread pool, orchestration ----------------------------------------------
@@ -402,6 +405,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/dialogs/ConfirmExecuteDialog.h
     src/ui/dialogs/GoToFileDialog.cpp
     src/ui/dialogs/GoToFileDialog.h
+    src/ui/dialogs/ScheduleDialog.cpp
+    src/ui/dialogs/ScheduleDialog.h
     src/ui/dialogs/ShortcutsDialog.cpp
     src/ui/dialogs/ShortcutsDialog.h
     src/ui/map/D2DRenderer.cpp
@@ -473,6 +478,8 @@ add_executable(icd-cli
     src/cli/commands/Execute.h
     src/cli/commands/Plan.cpp
     src/cli/commands/Plan.h
+    src/cli/commands/Schedule.cpp
+    src/cli/commands/Schedule.h
     src/cli/main.cpp
 )
 target_link_libraries(icd-cli PRIVATE icd_services)

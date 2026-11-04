@@ -21,6 +21,7 @@
 #include "ui/Commands.h"
 #include "ui/MainMenu.h"
 #include "ui/bridge/JobEvents.h"
+#include "ui/dialogs/ScheduleDialog.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
 #include "ui/panels/MapPanel.h"
@@ -203,6 +204,7 @@ namespace icd::ui {
         }
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_COLOR_CLASS, ID_ZOOM_CLUSTER);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_GOTO_FILE, ID_PREVIOUS_FRAGMENT);
+        frame_.Bind(wxEVT_MENU, &WorkflowBinding::onScheduleCommand, this, ID_WINDOWS_SCHEDULE);
         frame_.Bind(jobProgressEvent(), &WorkflowBinding::onJobProgress, this);
         frame_.Bind(jobFinishedEvent(), &WorkflowBinding::onJobFinished, this);
     }
@@ -230,6 +232,46 @@ namespace icd::ui {
             return;
         }
         perform(*action);
+    }
+
+    bool WorkflowBinding::scheduleChangeable() const {
+        return drive_ && !workflow_.busy() && core::canOptimize(*drive_) &&
+            drive_->badges.scheduledOptimization.has_value();
+    }
+
+    void WorkflowBinding::onScheduleCommand(wxCommandEvent& /*event*/) {
+        if (!scheduleChangeable() || !drive_) {
+            return;
+        }
+        core::DriveInfo& drive = *drive_;
+        const bool scheduled = drive.badges.scheduledOptimization.value_or(false);
+        ScheduleDialog dialog(&frame_,
+                              {.drive = driveLabel(), .scheduled = scheduled, .simulated = services_.fakeDrives()});
+        if (dialog.ShowModal() != wxID_OK) {
+            return;
+        }
+        const std::string error = services_.drives().setScheduledOptimization(drive, !scheduled);
+        if (!error.empty()) {
+            core::logging::warning("windows schedule not changed", {{"drive", drive.root}, {"error", error}});
+            wxMessageBox(wxString::FromUTF8("The Windows schedule was not changed: " + error),
+                         "Windows scheduled optimization", wxOK | wxICON_WARNING, &frame_);
+            return;
+        }
+        takeScheduleBadge(drive);
+        widgets_.bottom.setStatus(wxString::FromUTF8(
+            std::format("{} {} Windows' scheduled optimization", driveLabel(),
+                        drive.badges.scheduledOptimization.value_or(false) ? "is back on" : "was taken out of")));
+        refresh();
+    }
+
+    void WorkflowBinding::takeScheduleBadge(core::DriveInfo& drive) {
+        widgets_.drives.setDrives(services_.drives().listDrives());
+        for (const core::DriveInfo& listed : widgets_.drives.drives()) {
+            if (listed.root == drive.root) {
+                drive.badges.scheduledOptimization = listed.badges.scheduledOptimization;
+            }
+        }
+        widgets_.drives.updateDrive(drive); // Keep this session's analysis results in the row.
     }
 
     void WorkflowBinding::perform(WorkflowAction action) {
@@ -772,6 +814,10 @@ namespace icd::ui {
             menu.AppendSeparator();
             add(ID_TRIM, "&TRIM");
         }
+        if (scheduleChangeable()) {
+            menu.AppendSeparator();
+            add(ID_WINDOWS_SCHEDULE, "Windows &schedule...");
+        }
         // The chosen item's command event travels up to the frame, where the buttons' handler takes it.
         widgets_.drives.PopupMenu(&menu);
     }
@@ -840,6 +886,9 @@ namespace icd::ui {
     }
 
     bool WorkflowBinding::commandEnabled(int id) const {
+        if (id == ID_WINDOWS_SCHEDULE) {
+            return scheduleChangeable();
+        }
         if (isMapCommand(id)) {
             return widgets_.map.hasMap() && widgets_.map.commandAvailable(id);
         }

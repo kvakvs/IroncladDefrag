@@ -139,6 +139,29 @@ this file records what is actually built and the decisions made along the way.
 - `tests/platform/VolumesTest` compares every lettered NTFS volume with `fsutil fsinfo ntfsinfo` (serial, version,
   clusters, sector and cluster size, record size, MFT, mirror, zone, reserved).
 
+## Windows scheduled optimization
+
+- Windows' "Optimize Drives" schedule may undo zone layouts (plan.md 10.4), so each drive shows "Auto-optimize on/off"
+  and Drive > Windows schedule... (also in the drive list's menu) takes an optimizable drive out of it or puts it back
+  after a confirmation (`ui/dialogs/ScheduleDialog`, Cancel is the default). `icd-cli schedule <volume> [--remove |
+  --restore]` does the same from a script.
+- How Windows stores it was found by diffing what the Optimize Drives dialog writes (no documentation exists): the
+  task `\Microsoft\Windows\Defrag\ScheduledDefrag` runs `defrag.exe` with the choice in its arguments (`-c -h -o -$`
+  for all drives; `<GUID paths> -e -h -o -$` for all but those, new drives included; `<GUID paths> -h -o -$` for only
+  those), and the dialog reads its check boxes from `HKLM\SOFTWARE\Microsoft\Dfrg\TaskSettings` (`fAllVolumes`,
+  `fExclude` DWORDs and `Volumes`, a REG_SZ of GUID paths separated by one space, `" "` for none). The task's
+  arguments are the truth (they are what runs); `platform/win/ScheduledOptimize` parses and formats them
+  (`parseScheduleArguments()`, `scheduleArguments()`, `withScheduled()`, unit-tested on the dialog's own strings),
+  reads the task through the Task Scheduler COM API and writes both places as the dialog does: the task's action
+  arguments re-registered in place under its own principal (the exported task XML stays identical apart from the
+  arguments) and the three TaskSettings values. A change only touches the one drive: All becomes AllExcept it, an
+  emptied AllExcept list becomes All again, an Only list gains or loses it, and the last drive of an Only list is
+  refused (turn the schedule off in Optimize Drives instead). A disabled task shows "off" for every drive and cannot
+  be "put back" here.
+- `tests/integration/schedule/check-schedule.ps1` takes a test VHDX out and back in and checks the task arguments
+  and TaskSettings, restoring the values it touched; on this machine the Optimize Drives dialog showed the drive
+  unchecked while it was out, and the task XML was identical after the restore.
+
 ## SSD TRIM
 
 - TRIM is Windows' own `defrag <volume> /L /U /V` (plan.md 10.5), started from System32 by full path through

@@ -15,6 +15,9 @@ namespace icd::services {
         // Enumerates the volumes now (a few milliseconds for the cached-metadata queries, plus one WMI query for
         // BitLocker).
         [[nodiscard]] std::vector<core::DriveInfo> listDrives() override;
+
+        // Changes the ScheduledDefrag task and the Optimize Drives settings (platform/win/ScheduledOptimize).
+        [[nodiscard]] std::string setScheduledOptimization(const core::DriveInfo& drive, bool scheduled) override;
     };
 
     // One enumerated volume as the core model sees it; `elevated` decides the "admin needed" badge.
@@ -24,5 +27,8 @@ namespace icd::services {
     // its BitLocker state from `encrypted` (platform::encryptedVolumes(), asked once per listing).
     void addTopology(const platform::VolumeRecord& volume, const std::map<std::wstring, bool>& encrypted,
                      core::StorageFacts& storage);
+
+    // The names Windows' schedule may list a volume by: its GUID path and its mount paths.
+    [[nodiscard]] std::vector<std::wstring> namesOf(const platform::VolumeRecord& volume);
 
 } // namespace icd::services

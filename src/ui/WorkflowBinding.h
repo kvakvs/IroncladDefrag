@@ -79,6 +79,18 @@ namespace icd::ui {
         // Handles every workflow command; other ids are passed on.
         void onCommand(wxCommandEvent& event);
 
+        // Drive > Windows schedule: explains, asks, then takes the selected drive out of Windows' scheduled
+        // optimization or puts it back.
+        void onScheduleCommand(wxCommandEvent& event);
+
+        // Whether the selected drive's Windows schedule can be changed now: an optimizable drive whose schedule is
+        // known, with no job running.
+        [[nodiscard]] bool scheduleChangeable() const;
+
+        // Reloads the drive list after a schedule change and carries the new badge into `drive`, the selected drive's
+        // copy.
+        void takeScheduleBadge(core::DriveInfo& drive);
+
         // Carries out a user action.
         void perform(services::WorkflowAction action);
 

@@ -385,3 +385,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `movesBlockedText()` in the plan-ready status and `icd-cli execute`, `DriveKind::AnalyzeOnly` (analysis and plans,
   never Execute). `tests/integration/topology/check-topology.ps1` (temporary Storage Spaces pool: planned, execute
   refused); dynamic disks cannot be created on current Windows, the other setups are unit tests on the facts.
+- T120 Windows scheduled optimization - `platform/win/ScheduledOptimize.*` (the drive choice lives in the ScheduledDefrag
+  task's arguments, `-c` / `<GUID paths> -e` / `<GUID paths>`, mirrored in `Dfrg\TaskSettings` fAllVolumes, fExclude,
+  Volumes; found by diffing what Optimize Drives writes), `platform/win/Com.h`, `IDriveProvider::setScheduledOptimization()`,
+  "Auto-optimize on/off" badge from the task, Drive > Windows schedule... with `ui/dialogs/ScheduleDialog.*`,
+  `icd-cli schedule <volume> [--remove | --restore]`, `tests/integration/schedule/check-schedule.ps1`. Opt-out and
+  restore checked on a test VHDX: Optimize Drives showed it unchecked, the task XML was identical after restore.

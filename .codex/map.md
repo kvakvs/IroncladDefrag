@@ -156,6 +156,8 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Privileges.*` | `enablePrivilege()` (e.g. `SE_BACKUP_NAME` for files only SYSTEM may open), `relaunchElevated()` (`ShellExecuteExW` "runas" of this program). |
 | `src/platform/win/RetrievalPointers.*` | `readRetrievalPointers()` (all runs of a stream, holes as LCN -1), `readFileFacts()` (times, attributes, size, links, named streams), `openFileById()`, `openForQuery()`. |
 | `src/platform/win/ShadowCopies.*` | `countShadowCopies()` (vssadmin listing, GUID path count, nullopt without rights), `countShadowsInListing()`. |
+| `src/platform/win/ScheduledOptimize.*` | Windows' scheduled optimization: `ScheduleSelection` (All / AllExcept / Only), `parseScheduleArguments()`, `scheduleArguments()`, `scheduleCovers()`, `withScheduled()`, `readSchedule()` / `writeSchedule()` (ScheduledDefrag task via Task Scheduler COM, `Dfrg\TaskSettings`). |
+| `src/platform/win/Com.h` | `ComScope`, `Bstr`, `Variant`: RAII for one COM query (WMI, Task Scheduler). |
 | `src/platform/win/VolumeTopology.*` | `isDynamicDisk()` (LDM partitions via `IOCTL_DISK_GET_DRIVE_LAYOUT_EX`, `hasLdmPartition()`), `encryptedVolumes()` (BitLocker states from WMI `Win32_EncryptableVolume`), `volumeKey()`. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
 | `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
@@ -170,9 +172,9 @@ changes (see `AGENTS.md`).
 | `src/services/Elevation.*` | `runningElevated()`, `restartElevated()`: the GUI's elevation flow without Win32 in `ui`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
 | `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`), `SettingsStore`. |
-| `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
+| `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI; `setScheduledOptimization()` (take a drive out of Windows' schedule or put it back). |
 | `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge); the system-wide last-access badge on NTFS drives; `addTopology()` (removable, dynamic disk, BitLocker facts). |
-| `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
+| `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target; a simulated Windows schedule. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
 | `src/services/plan/PlanJob.*` | `PlanRequest`, `makePlanRequest()`, `fileTimeNow()`, `planLevels()` (three levels in parallel, validated), `LevelOutcome`, `LevelOverlays`, `PlanOutcome` (with the zone assignment and per-level overlays), `levelOverlays()`, `planSummary()` (Plan tab), `PlanOutput`, `makePlanJob()` (classifies when the request has no classes, builds the overlays) |
@@ -221,6 +223,7 @@ changes (see `AGENTS.md`).
 | `src/ui/MainMenu.*` | `createMainMenuBar()`: the section 11 menu as tables; `stateDependentCommands()`. |
 | `src/ui/Accelerators.*` | One table of menu shortcuts with a description each (`applyMenuShortcuts()`, `shortcutFor()`, `shortcutText()`, `commandTip()` for tooltips; Ctrl+F go to file, F3 / Shift+F3 fragments, F1 shortcut list), and the map keys of plan.md 7.4 with descriptions (`mapKeyBindings()`, `mapKeyText()`, `mapKeyFor()`, `commandForMapKey()`). |
 | `src/ui/ExecutionView.*` | Follows one real execution for the UI: its job, Progress fields (bytes, throughput, time left, current file, move counts), Log rows, final status. |
+| `src/ui/dialogs/ScheduleDialog.*` | Drive > Windows schedule: why Windows' scheduled optimization may undo zones, Remove / Put back; Cancel is the default button. |
 | `src/ui/dialogs/ConfirmExecuteDialog.*` | Execute confirmation: the level's figures and warnings, safety note, low I/O priority and throughput limit; Cancel is the default button. |
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
 | `src/ui/dialogs/ShortcutsDialog.*` | Help > Keyboard shortcuts (F1): `shortcutLines()` groups the shortcut table by the menu holding each command, then the map keys (keys of one action on one line); shown as a list with bold headings. |
@@ -251,8 +254,10 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`, `effortNamed()`, `presetNamed()`, `presetIds()`. |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
 | `src/cli/commands/Plan.*` | `icd-cli plan <volume> [--strategy ID] [--level fast|moderate|max] [--json] [--moves] [--threads N] [--synthetic FILES] [--save FILE]`: analysis (or a synthetic volume), three levels planned, report on stdout; `--save` writes the chosen level for `icd-cli execute --plan`. |
+| `src/cli/commands/Schedule.*` | `icd-cli schedule <volume> [--remove \| --restore]`: Windows' scheduled optimization of a volume, changed as the GUI does. |
 | `src/cli/commands/Execute.*` | `icd-cli execute`: plan now, `--plan FILE` or `--resume [--log FILE]`, options (chunk, priority, throughput, age, prefetch, `--check-rescan`), `--max-moves N` (a prefix of the plan), test hooks (`--pause-after`, `--cancel-after`, `--take-destination`), JSON or text report, exit codes. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `tests/integration/schedule/check-schedule.ps1` | T120: a test VHDX taken out of Windows' schedule and put back through `icd-cli schedule`; task arguments and TaskSettings checked, touched values restored. |
 | `tests/integration/topology/check-topology.ps1` | T122: a temporary Storage Spaces pool of two VHDX files; its volume is planned, `icd-cli execute` refuses it naming Storage Spaces; pool and files removed. |
 | `tests/integration/planner/check-planner.ps1` | T095: per scenario a read-only test volume planned with its preset through `icd-cli plan --json --moves`; validity, ratio <= 1.1 per level, Fast within 2% and inside hot spots. |
 | `tests/integration/execute/check-execute.ps1` | T104 / Phase 7 exit (about 12 min for `-Scenarios all`): per scenario a 1 GB volume with a journal, every execution capped by `-MaxMoves`: changes between plan and execute dropped, main run with a stale bitmap, on `mixed` pause/cancel and kill then resume; after each run the report checks and `check-catchup`, at the end hashes and `chkdsk /scan`; `-ChurnGap` measures churn-gap allocation on `dev`; step timings. |
@@ -349,8 +354,9 @@ changes (see `AGENTS.md`).
 | `tests/services/AnalysisJobTest.cpp` | Bitmap-only snapshot; full job on the `special` volume (stages, final map, summary); cancel during the scan. |
 | `tests/services/AnalysisReportTest.cpp` | JSON report carries the summary and USN cursor; dumped runs joined; flag names. |
 | `tests/services/ApiScannerTest.cpp` | On the `special` test volume: every special case flagged, extent kinds, every cluster accounted for, extents = `fsutil file queryextents` for sampled files. |
-| `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
+| `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style; the simulated Windows schedule. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
+| `tests/platform/ScheduledOptimizeTest.cpp` | The dialog's three argument forms round-trip, matching by any name, opt-out and restore steps; the live task vs `Get-ScheduledTask` (slow). |
 | `tests/platform/ShadowCopiesTest.cpp` | Listing parse; the `vss` scenario volume shows a copy (slow, elevated). |
 | `tests/platform/VolumeTopologyTest.cpp` | LDM partition rule, volume keys; every disk's layout vs `Get-Partition` and BitLocker states vs `Get-CimInstance` (slow). |
 | `tests/platform/StoragePropertiesTest.cpp` | Media and bus of every physical disk vs `Get-PhysicalDisk`; bus names. |

@@ -56,14 +56,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 9 - VSS and Windows integration (§13 Phase 9)
 
-### T120 - Windows scheduled optimization
-
-- Depends: T042
-- Owns: `src/platform/win/ScheduledOptimize.*`, badge and dialog in `src/ui/dialogs/ScheduleDialog.*`
-- Do: find out how Windows stores per-drive scheduled optimization and implement detection,
-  confirmed opt-out and restore (§10.4).
-- Done when: opt-out and restore work on a test volume and are visible in "Optimize Drives".
-
 ### T121 - VSS user interface
 
 - Depends: T090, T098

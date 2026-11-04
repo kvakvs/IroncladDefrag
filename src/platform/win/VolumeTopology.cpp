@@ -1,5 +1,6 @@
 #include "platform/win/VolumeTopology.h"
 
+#include "platform/win/Com.h"
 #include "platform/win/Handle.h"
 
 #include <windows.h>
@@ -64,47 +65,6 @@ namespace icd::platform {
             }
             return types;
         }
-
-        // Initializes COM on this thread for the scope; a thread already in another apartment keeps it (WMI works
-        // from either).
-        class ComScope {
-        public:
-            ComScope() : result_(CoInitializeEx(nullptr, COINIT_MULTITHREADED)) {}
-            ComScope(const ComScope&) = delete;
-            ComScope& operator=(const ComScope&) = delete;
-            ~ComScope() {
-                if (SUCCEEDED(result_)) {
-                    CoUninitialize();
-                }
-            }
-
-        private:
-            HRESULT result_; // S_OK or S_FALSE: balanced by CoUninitialize; another mode: nothing to undo.
-        };
-
-        // Owns a BSTR for one WMI call.
-        class Bstr {
-        public:
-            explicit Bstr(const wchar_t* text) : value_(SysAllocString(text)) {}
-            Bstr(const Bstr&) = delete;
-            Bstr& operator=(const Bstr&) = delete;
-            ~Bstr() { SysFreeString(value_); }
-
-            // The string for the call (still owned).
-            [[nodiscard]] BSTR get() const { return value_; }
-
-        private:
-            BSTR value_; // Allocated by SysAllocString.
-        };
-
-        // Owns a VARIANT read from a WMI object.
-        struct Variant {
-            VARIANT value{}; // Filled by IWbemClassObject::Get.
-            Variant() { VariantInit(&value); }
-            Variant(const Variant&) = delete;
-            Variant& operator=(const Variant&) = delete;
-            ~Variant() { VariantClear(&value); }
-        };
 
         // The BitLocker namespace, with the packet privacy it requires; null when WMI or BitLocker is not there.
         ComPtr<IWbemServices> connectBitLocker() {

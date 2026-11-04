@@ -66,8 +66,28 @@ namespace icd::services {
         vault.fragmentationPercent = 25.0;
         vault.lastAnalysed = now_ - 24h * 9;
 
-        return {std::move(system), std::move(data),     std::move(media),
-                std::move(backup), std::move(transfer), std::move(vault)};
+        std::vector<core::DriveInfo> drives;
+        drives.reserve(6);
+        for (core::DriveInfo* d : {&system, &data, &media, &backup, &transfer, &vault}) {
+            if (d->badges.scheduledOptimization && unscheduled_.contains(d->root)) {
+                d->badges.scheduledOptimization = false;
+            }
+            drives.push_back(std::move(*d));
+        }
+        return drives;
+    }
+
+    std::string FakeDriveProvider::setScheduledOptimization(const core::DriveInfo& drive, bool scheduled) {
+        if (!drive.badges.scheduledOptimization) {
+            return "the Windows schedule of this drive is not known";
+        }
+        if (scheduled) {
+            unscheduled_.erase(drive.root);
+        }
+        else {
+            unscheduled_.insert(drive.root);
+        }
+        return {};
     }
 
 } // namespace icd::services

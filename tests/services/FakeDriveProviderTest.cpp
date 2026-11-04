@@ -25,4 +25,22 @@ namespace icd::services { namespace {
         }
     }
 
+    // The simulated Windows schedule: a drive taken out shows "off" in the next listing and comes back on restore;
+    // a drive whose schedule is unknown is refused.
+    TEST(FakeDriveProvider, SimulatesTheWindowsSchedule) {
+        FakeDriveProvider provider;
+        const auto find = [&](const char* root) {
+            const auto drives = provider.listDrives();
+            return *std::ranges::find(drives, std::string(root), &core::DriveInfo::root);
+        };
+        const core::DriveInfo backup = find("F:\\");
+        ASSERT_EQ(backup.badges.scheduledOptimization, true);
+        EXPECT_EQ(provider.setScheduledOptimization(backup, false), "");
+        EXPECT_EQ(find("F:\\").badges.scheduledOptimization, false);
+        EXPECT_EQ(find("C:\\").badges.scheduledOptimization, true); // Other drives keep theirs.
+        EXPECT_EQ(provider.setScheduledOptimization(find("F:\\"), true), "");
+        EXPECT_EQ(find("F:\\").badges.scheduledOptimization, true);
+        EXPECT_NE(provider.setScheduledOptimization(find("E:\\"), false), "");
+    }
+
 }} // namespace icd::services

@@ -5,6 +5,7 @@
 #include "cli/commands/CompareScanners.h"
 #include "cli/commands/Execute.h"
 #include "cli/commands/Plan.h"
+#include "cli/commands/Schedule.h"
 #include "services/AppInfo.h"
 #include "services/AppLogging.h"
 
@@ -33,6 +34,7 @@ namespace {
         Command{L"churn", icd::cli::runChurn, icd::cli::churnUsage},
         Command{L"plan", icd::cli::runPlan, icd::cli::planUsage},
         Command{L"execute", icd::cli::runExecute, icd::cli::executeUsage},
+        Command{L"schedule", icd::cli::runSchedule, icd::cli::scheduleUsage},
     };
 
     // Prints the command summary.
