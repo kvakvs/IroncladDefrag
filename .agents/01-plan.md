@@ -31,20 +31,12 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   `tests/integration/churn/check-churn.ps1`
 - Do: the `dev` scenario gains Rust, Python, Elixir/Erlang and Node projects (with their marker files) with
   build/clean cycles, logs and dumps; the C++ repositories get their `CMakeLists.txt`.
-- Since T076a: development types count only inside projects, so `repo-N\build\` needs a marker beside it (today
-  `build\build.log` is Logs and `build\obj\*.lib` Unknown), and in `check-classes.ps1` a small `.ts` under `\video`
-  (no project) is Unknown, not Source; Logs and Dumps join its expected classes.
+- Since T076a/c: development types count only inside projects, so `repo-N\build\` needs a marker beside it (today
+  `build\build.log` is Logs, and `build\obj\*` is Build only by extension); in `check-classes.ps1` a small `.ts`
+  under `\video` (no project) is Unknown, not Source, and other `.git` files are Repository; Logs and Dumps join its
+  expected classes. `icd-cli classify <folder>` (T076c) shows a generated tree's classes without a volume scan.
 - Done when: `check-classes.ps1` / `check-churn.ps1` find every churning folder and file type and nothing else;
   classifying a 6 M-file synthetic volume is not measurably slower than before T076a.
-
-### T076c - Class summary of a real development folder
-
-- Depends: T076a
-- Owns: `icd-cli classify <folder>` (`src/cli/commands/Classify.*`)
-- Do: a read-only folder walk (ordinary directory listing, no volume handle) that builds a snapshot without extents and
-  prints the class summary through the same rule engine; run it on `F:\ESL` and `F:\Projects` (the user's choice; maybe
-  also `F:\Projects\Simlunky` copied to a mechanical drive and analysed there); fix the catalog where it is wrong.
-- Done when: the class summary of those folders has been reviewed with the user.
 
 ---
 

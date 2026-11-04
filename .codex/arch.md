@@ -1083,7 +1083,7 @@ All analysis checks passed.
   `inside = parent's inside | rules it enters itself`; files take their directory's mask. Nothing is read from disk.
 - `classifyPath()` classifies one path with facts, by the same automaton, override and marker rules (markers come from
   a list of the volume's other entries); tests require it to give every file of a snapshot exactly what `classify()`
-  gives (hand-made dev and project trees, 20 K- and 3 K-file synthetic volumes, the latter with marker rules).
+  gives (hand-made dev and project trees, 20 K- and 2 K-file synthetic volumes, the latter with marker rules).
 - The classes are data (T071): `data/classes.json` lists the classes of plan.md 8.3-8.6 (source and config, repository
   data, dependencies, build output, temp, logs, archives, disc images, VM disks, backups, dumps, photos, catalogs and
   thumbnails, video, unknown) plus NTFS metadata and directories, each with an id, display name, color and
@@ -1105,8 +1105,19 @@ All analysis checks passed.
   rewritten only by installs); logs (`log`, `etl`, `evtx`, rotated `*.log.N`) are their own class kept in place with
   the churn; dumps (`dmp`, `mdmp`, `hdmp`, `hprof`, `erl_crash.dump`, `hs_err_pid*.log`, `core`, CrashDumps, Crashpad,
   Minidump, WER folders) match anywhere, even in build folders, since programs crash wherever they run, and are placed
-  cold with archives; `.lib`, `.a`, `.d` and `.map` are left alone (built or shipped, D or make, game or source map).
-  The synthetic volume has one empty `.git` folder at its root, so its sources stay sources. Loose
+  cold with archives; binaries inside a project (`exe`, `dll`, `lib`, `a`, `so`, `dylib`, `pyd`, `wasm`) are build
+  output whether built or shipped (the user's call at the T076c review); `.d` and plain `.map` are left alone (D or
+  make, game or source map).
+  The synthetic volume has one empty `.git` folder at its root, so its sources stay sources. Build folders come
+  before the Git rules, so a clone fetched into a build tree (CMake `_deps`) is build output; everything else under
+  `.git` (refs, index, hooks, tool indexes) is repository data; `.bin` / `.img` are disc images only from 1 MB.
+- `icd-cli classify <folder>` (T076c) shows what the catalog makes of a real folder without analysing its volume:
+  `platform::walkFolder()` lists it with `FindFirstFileExW` (no admin, junctions not entered), the command builds an
+  extent-less snapshot whose paths read as on the volume and runs the same `RuleEngine` (35 K files in 1 s, 426 K in
+  10 s). Markers above the walked folder are not seen. The review of `F:\ESL` and `F:\Projects` (2026-11-04) moved
+  CMake `_deps` packs to build, `.git` internals to repository, small `.bin` test data out of disc images, WebView2
+  `Crashpad` settings out of dumps, and added common project files (`README`, `LICENSE`, `.iml`, `.inc`, `.in`,
+  `.asn1`, `.app.src`, `.appup`, `.mib`, `.xsd`, `.s`, `.svg`, `.gql`, `.j2`, `.pem`...) to source. Loose
   `.git/objects/xx/*` files are temp (churn), packs repository data; a project's `bin` folder is build output but a
   `.bin` file elsewhere is a disc image; videos of any size count as video (T132, with DVD / HD DVD /
   Blu-ray streams); `.ts`, `.mts`, `.mod` and `.gif` only from 10 MB, smaller ones are TypeScript, Go modules or images; anything the journal shows as churn is temp, unless an

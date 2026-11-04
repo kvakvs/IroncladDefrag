@@ -455,3 +455,12 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   new Logs class (kept in place with the churn in every preset) and Dumps (anywhere, cold with archives) with colors in
   every color preset. The synthetic volume gets a root `.git`. SnapshotStoreTest: XPRESS ignores some flipped bits, so
   random damage must be refused or load identical. CatalogTest, RuleEngineTest.
+- T076c Class summary of a real development folder - `icd-cli classify <folder> [--depth N] [--top N] [--list CLASS]`
+  (`src/cli/commands/Classify.*`) over `platform::walkFolder()` (`src/platform/win/FolderWalk.*`, ordinary directory
+  API, no admin, junctions not entered): an extent-less snapshot classified by the same RuleEngine, files and bytes per
+  class with the folders holding most. Reviewed with the user on F:\ESL (35 K files) and F:\Projects (426 K files);
+  fixes: build folders before the Git rules (CMake `_deps` packs are build), other `.git` data repository, `.bin` /
+  `.img` disc images only from 1 MB, no Crashpad folder rule, more project files as source (README, LICENSE, .iml,
+  .inc, .in, .asn1, .app.src, .appup, .mib, .xsd, .s, .svg, .gql, .j2, .pem...), binaries inside projects (exe, dll,
+  lib, a, so, dylib, pyd, wasm) build output (the user's call). The synthetic volume's binaries are `.sys` (installed
+  programs, outside the root project). FolderWalkTest, CatalogTest.

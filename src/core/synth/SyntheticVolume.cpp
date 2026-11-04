@@ -14,7 +14,7 @@ namespace icd::core {
     std::vector<SynthClass> SynthOptions::defaultClasses() {
         return {
             {".cpp", 0.35, 12e3, 1.2},  {".docx", 0.15, 200e3, 1.0}, {".jpg", 0.25, 6e6, 0.5},
-            {".dll", 0.12, 1.5e6, 1.3}, {".zip", 0.02, 300e6, 1.5},  {".mp4", 0.01, 1.5e9, 0.8},
+            {".sys", 0.12, 1.5e6, 1.3}, {".zip", 0.02, 300e6, 1.5},  {".mp4", 0.01, 1.5e9, 0.8},
             {".dat", 0.10, 500e3, 2.0},
         };
     }

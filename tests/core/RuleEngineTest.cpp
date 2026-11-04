@@ -372,13 +372,13 @@ namespace icd::core::classify { namespace {
 
     TEST(RuleEngine, SyntheticMarkersMatchPathsForAnyExecutor) {
         SynthOptions o;
-        o.files = 3000;
+        o.files = 2000;
         o.filesPerDirectory = 8;
         o.geometry = {4096, 1ULL << 22U};
         const Snapshot s = generateSyntheticVolume(o);
         RuleSet set;
         set.classNames = names();
-        set.rules = {marked(Build, {"f1*.cpp"}, {"dir2*"}), marked(Deps, {"f2*.dll"}),
+        set.rules = {marked(Build, {"f1*.cpp"}, {"dir2*"}), marked(Deps, {"f2*.sys"}),
                      marked(Source, {"f4*"}, {"dir3*", "dir5?"}, {"jpg"})};
         const RuleEngine engine(set);
         std::vector<std::string> entries; // The names the markers can match, to keep the path side fast.

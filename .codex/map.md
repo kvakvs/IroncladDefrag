@@ -151,6 +151,7 @@ changes (see `AGENTS.md`).
 | `src/core/resources/ResourceCaps.*` | `computeCaps()` (plan.md 6.6 worker and memory caps with reasons), `describeCaps()`. |
 | `src/platform/win/SystemResources.*` | `detectSystemResources()` (groups, affinity, job CPU/memory limits, cores, RAM), `LowMemorySignal`. |
 | `src/platform/win/ChildProcess.*` | `runCaptured()` (console program without a window, output chunks to a callback, cancel terminates, exit code), `systemProgram()` (System32 path). |
+| `src/platform/win/FolderWalk.*` | `walkFolder()`: a folder tree by the ordinary directory API (no volume handle, no admin), entries with parent indexes, junctions and symbolic links listed but not entered, unreadable folders counted. |
 | `src/platform/win/Console.*` | `ConsoleCancel` (Ctrl+C cancels a source while alive), `useUtf8ConsoleOutput()`. |
 | `src/platform/win/Handle.h` | `UniqueHandle`: move-only owner of a Win32 kernel handle. |
 | `src/platform/win/Shell.*` | `showInExplorer()`: `SHOpenFolderAndSelectItems` (the running Explorer opens the folder, with the user's rights). |
@@ -259,6 +260,7 @@ changes (see `AGENTS.md`).
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`, dispatch to commands. |
 | `src/cli/commands/CheckCaps.*` | `icd-cli check-caps <volume> [--threads N] [--memory-budget B]`: capped (mapped) and uncapped full scans compared exactly. |
 | `src/cli/commands/CheckCatchUp.*` | `icd-cli check-catchup <volume>`: saved snapshot caught up and compared with a full MFT scan (access times aside). |
+| `src/cli/commands/Classify.*` | `icd-cli classify <folder> [--depth N] [--top N] [--list CLASS]`: walks a folder, builds an extent-less snapshot (volume root, the folders down to it, the walk) and classifies it with the built-in catalog; files and bytes per class with the folders holding most of each, or every path of one class. |
 | `src/cli/commands/Churn.*` | `icd-cli churn <volume> [--json | --all]`: MFT scan plus the journal's churn statistics; churning directories, flagged files, every directory's counts with --all. |
 | `src/cli/commands/CliCommon.*` | Shared by commands: `ConsoleProgress`, `normalizeRoot()`, `findDrive()`, `refusal()`, `ownExecutor()`, `scannerNamed()`, `effortNamed()`, `presetNamed()` and `presetIds()` (built-in and custom strategies). |
 | `src/cli/commands/CompareScanners.*` | `icd-cli compare-scanners <volume> [--threads 1,2,8]`: API scan, MFT scans per worker count, comparisons and times. |
@@ -343,6 +345,7 @@ changes (see `AGENTS.md`).
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/JsonTest.cpp` | JSON structure and indentation, one-line output, string escaping, non-finite numbers. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
+| `tests/platform/FolderWalkTest.cpp` | Every entry once, folders before their contents, sizes and times, junctions listed but not entered, a missing folder refused. |
 | `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
 | `tests/platform/OptimizeStatisticsTest.cpp` | Statistics key names, LastRunTime decoding as local time (never run, bad sizes and dates), unknown volumes. |
 | `tests/platform/LastAccessSettingTest.cpp` | Every NtfsDisableLastAccessUpdate value decoded; the registry reading equals `fsutil behavior query disablelastaccess`. |

@@ -252,6 +252,8 @@ add_library(icd_platform STATIC
     src/platform/win/Compression.cpp
     src/platform/win/Compression.h
     src/platform/win/Console.h
+    src/platform/win/FolderWalk.cpp
+    src/platform/win/FolderWalk.h
     src/platform/win/Handle.h
     src/platform/win/LogSinks.cpp
     src/platform/win/LogSinks.h
@@ -488,6 +490,8 @@ add_executable(icd-cli
     src/cli/commands/CheckCatchUp.h
     src/cli/commands/Churn.cpp
     src/cli/commands/Churn.h
+    src/cli/commands/Classify.cpp
+    src/cli/commands/Classify.h
     src/cli/commands/CliCommon.cpp
     src/cli/commands/CliCommon.h
     src/cli/commands/CompareScanners.cpp

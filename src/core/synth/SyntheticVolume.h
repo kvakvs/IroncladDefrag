@@ -39,7 +39,8 @@ namespace icd::core {
         double gapChance = 0.3; // Chance that a piece has a free gap before it (scattered free space).
         std::vector<SynthClass> classes = defaultClasses(); // File kinds; empty uses the defaults.
 
-        // A mixed drive: sources, documents, photos, binaries, archives and some video.
+        // A mixed drive: sources, documents, photos, binaries (".sys": installed programs, outside any project, so not
+        // build output), archives and some video.
         static std::vector<SynthClass> defaultClasses();
     };
 

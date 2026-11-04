@@ -83,6 +83,11 @@ namespace icd::core::classify { namespace {
         EXPECT_EQ(classIn(git, "\\proj\\Makefile"), "source");
         EXPECT_EQ(classIn(git, "\\proj\\.gitignore"), "source");
         EXPECT_EQ(classIn(git, "\\proj\\App.SLN"), "source"); // Case-insensitive extension.
+        for (const char* name : {"README", "LICENSE", "AUTHORS", "Procfile", ".dockerignore", "src\\app.app.src",
+                                 "src\\app.appup", "asn1\\X.asn1", "mibs\\X.mib", "schema.xsd", "boot.s", "x.inc",
+                                 "config.h.in", "app.iml", "logo.svg", "api.graphql", "conf.j2", "cert.pem"}) {
+            EXPECT_EQ(classIn(git, std::string("\\proj\\") + name), "source") << name;
+        }
         EXPECT_EQ(classIn(git, "\\proj\\web\\app.ts", 8 * 1024), "source"); // TypeScript, not a transport stream.
         EXPECT_EQ(classIn(git, "\\proj\\src\\cache\\lru.cpp"), "source"); // A source folder named "cache".
         EXPECT_EQ(classIn({"\\rs\\Cargo.toml"}, "\\rs\\src\\main.rs"), "source");
@@ -101,7 +106,15 @@ namespace icd::core::classify { namespace {
     TEST(Catalog, RepositoryData) {
         EXPECT_EQ(classOf("\\repo\\.git\\objects\\pack\\pack-1a2b.pack", 300 * mb), "repository");
         EXPECT_EQ(classOf("\\repo\\.git\\objects\\pack\\pack-1a2b.idx"), "repository");
-        EXPECT_EQ(classOf("\\repo\\.git\\objects\\pack\\tmp_pack_x"), "unknown"); // Not a pack yet.
+        EXPECT_EQ(classOf("\\repo\\.git\\objects\\pack\\tmp_pack_x"), "repository"); // Not a pack yet: other Git data.
+        for (const char* name : {"HEAD", "index", "config", "packed-refs", "refs\\heads\\master",
+                                 "hooks\\pre-commit.sample", "logs\\HEAD", "cursor\\crepe\\e390\\index.bin"}) {
+            EXPECT_EQ(classOf(std::string("\\repo\\.git\\") + name), "repository") << name;
+        }
+        // A clone fetched into a build tree (CMake FetchContent) is build output, packs and all.
+        EXPECT_EQ(classIn({"\\cm\\CMakeLists.txt"},
+                          "\\cm\\cmake-build-debug\\_deps\\fmt-src\\.git\\objects\\pack\\p.pack", 50 * mb),
+                  "build");
         EXPECT_EQ(classOf("\\backup\\objects\\pack\\a.pack"), "unknown"); // Not inside .git.
     }
 
@@ -166,7 +179,7 @@ namespace icd::core::classify { namespace {
         EXPECT_EQ(classOf("\\Program Files\\App\\bin\\app.exe"), "unknown");
         EXPECT_EQ(classOf("\\Program Files\\App\\x64\\driver.sys"), "unknown");
         EXPECT_EQ(classOf("\\Photos\\Release\\party.docx"), "unknown");
-        EXPECT_EQ(classIn({"\\cs\\App.csproj"}, "\\cs\\binaries\\tool.exe"), "unknown"); // Whole folder names.
+        EXPECT_EQ(classIn({"\\cs\\App.csproj"}, "\\cs\\binaries\\notes.docx"), "unknown"); // Whole folder names.
         // Haskell, Zig, Swift, Bazel, Dart, Xcode.
         EXPECT_EQ(classIn({"\\hs\\stack.yaml"}, "\\hs\\.stack-work\\dist\\x.o"), "build");
         EXPECT_EQ(classIn({"\\hs\\app.cabal"}, "\\hs\\dist-newstyle\\cache\\plan.json"), "build");
@@ -193,9 +206,33 @@ namespace icd::core::classify { namespace {
 
     TEST(Catalog, BuildFilesOnlyInsideProjects) {
         const std::vector<std::string> git{"\\proj\\.git"};
-        for (const char* name : {"main.obj", "main.o", "app.pch", "std.ifc", "m.pcm", "x.gch", "app.ilk", "app.exp",
-                                 "a.tlog", "Main.class", "mod.pyc", "app.beam", "Main.hi", "Main.dyn_o", "m.cmi",
-                                 "m.cmx", "tsconfig.tsbuildinfo", "app.pdb", "app.debug"}) {
+        for (const char* name : {"main.obj",
+                                 "main.o",
+                                 "app.pch",
+                                 "std.ifc",
+                                 "m.pcm",
+                                 "x.gch",
+                                 "app.ilk",
+                                 "app.exp",
+                                 "a.tlog",
+                                 "Main.class",
+                                 "mod.pyc",
+                                 "app.beam",
+                                 "Main.hi",
+                                 "Main.dyn_o",
+                                 "m.cmi",
+                                 "m.cmx",
+                                 "tsconfig.tsbuildinfo",
+                                 "app.pdb",
+                                 "app.debug",
+                                 "tool.exe",
+                                 "zlib.dll",
+                                 "zlib.lib",
+                                 "libz.a",
+                                 "libz.so",
+                                 "libz.dylib",
+                                 "ext.pyd",
+                                 "app.wasm"}) {
             EXPECT_EQ(classIn(git, std::string("\\proj\\src\\") + name), "build") << name;
             EXPECT_EQ(classOf(std::string("\\Program Files\\App\\") + name), "unknown") << name;
         }
@@ -203,8 +240,8 @@ namespace icd::core::classify { namespace {
         EXPECT_EQ(classIn(git, "\\proj\\web\\site.css.map"), "build");
         EXPECT_EQ(classIn(git, "\\proj\\App.dSYM\\Contents\\Info.plist"), "build");
         EXPECT_EQ(classOf("\\Games\\maps\\level1.map"), "unknown"); // A game map is not a source map.
-        EXPECT_EQ(classIn(git, "\\proj\\lib\\zlib.lib"), "unknown"); // Built or shipped: no guess.
-        EXPECT_EQ(classIn(git, "\\proj\\lib\\libz.a"), "unknown");
+        // Binaries in a project count as build output, shipped or built (the user's call, 2026-11-04).
+        EXPECT_EQ(classIn(git, "\\proj\\thirdparty\\clang\\bin\\clang.exe", 100 * mb), "build");
         EXPECT_EQ(classIn(git, "\\proj\\src\\main.d"), "unknown"); // D source or make dependencies: no guess.
     }
 
@@ -259,6 +296,7 @@ namespace icd::core::classify { namespace {
         EXPECT_EQ(classOf("\\cygwin\\home\\a.exe.stackdump"), "dumps");
         EXPECT_EQ(classOf("\\ProgramData\\Microsoft\\Windows\\WER\\ReportArchive\\AppCrash_x\\Report.wer"), "dumps");
         EXPECT_EQ(classOf("\\Users\\me\\AppData\\Local\\Slack\\Crashpad\\reports\\abc.dmp"), "dumps");
+        EXPECT_EQ(classOf("\\Users\\me\\AppData\\Local\\Slack\\Crashpad\\settings.dat"), "unknown"); // Not a dump.
         EXPECT_EQ(classOf("\\home\\me\\core", 64 * mb), "dumps");
         EXPECT_EQ(classIn({"\\rs\\Cargo.toml"}, "\\rs\\target\\debug\\crash.dmp", 50 * mb), "dumps"); // Beats build.
         EXPECT_EQ(classIn({"\\rs\\Cargo.toml"}, "\\rs\\src\\core", 4096), "unknown"); // A small "core" file.
@@ -276,8 +314,10 @@ namespace icd::core::classify { namespace {
         EXPECT_EQ(classOf("\\iso\\Windows.iso", 5000 * mb), "disc-images");
         EXPECT_EQ(classOf("\\games\\disc.bin", 700 * mb), "disc-images");
         EXPECT_EQ(classOf("\\games\\disc.cue"), "disc-images");
-        EXPECT_EQ(classIn({"\\fw\\fw.vcxproj"}, "\\fw\\bin\\firmware.bin"), "build"); // A project's bin folder.
-        EXPECT_EQ(classOf("\\fw\\bin\\firmware.bin"), "disc-images"); // Without a project it is an image.
+        EXPECT_EQ(classIn({"\\fw\\fw.vcxproj"}, "\\fw\\bin\\firmware.bin", 2 * mb), "build"); // A project's bin folder.
+        EXPECT_EQ(classOf("\\fw\\bin\\firmware.bin", 2 * mb), "disc-images"); // Without a project it is an image.
+        EXPECT_EQ(classOf("\\games\\disk.img", 1440 * 1024), "disc-images");
+        EXPECT_EQ(classIn({"\\p\\.git"}, "\\p\\tests\\data\\sample.bin", 4096), "unknown"); // Small: test data.
     }
 
     TEST(Catalog, VmDisks) {

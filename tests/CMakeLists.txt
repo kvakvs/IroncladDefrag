@@ -69,6 +69,7 @@ add_executable(icd_tests
     core/WorldTest.cpp
     core/ZoneScriptTest.cpp
     platform/ChildProcessTest.cpp
+    platform/FolderWalkTest.cpp
     platform/LastAccessSettingTest.cpp
     platform/OptimizeStatisticsTest.cpp
     platform/LogSinksTest.cpp
