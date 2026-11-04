@@ -57,10 +57,15 @@ namespace icd::ui {
     } // namespace
 
     Legend::Legend(wxWindow* parent, core::Executor& executor) :
-        wxPanel(parent), executor_(executor), mailbox_(std::make_shared<LegendMailbox>()), restTimer_(this) {
+        wxScrolledWindow(parent), executor_(executor), mailbox_(std::make_shared<LegendMailbox>()), restTimer_(this) {
         mailbox_->target = this;
         sizer_ = new wxWrapSizer(wxHORIZONTAL);
         SetSizer(sizer_);
+        SetScrollRate(0, FromDIP(10)); // Vertical only: entries wrap to the width.
+        Bind(wxEVT_SIZE, [this](wxSizeEvent& event) {
+            event.Skip();
+            CallAfter([this] { relayout(); }); // After the new size is in place.
+        });
         Bind(wxEVT_TIMER, [this](wxTimerEvent&) { startCount(); }, restTimer_.GetId());
         rebuild();
     }
@@ -166,10 +171,15 @@ namespace icd::ui {
                                              : std::string(legend[index].label);
             entries_[index].text->SetLabelText(wxString::FromUTF8(text));
         }
-        // The texts changed width, so the entries may wrap differently and the strip change height.
-        if (GetParent() != nullptr) {
-            GetParent()->Layout();
-        }
+        // The texts changed width, so the entries may wrap differently.
+        relayout();
+    }
+
+    void Legend::relayout() {
+        const wxSize client = GetClientSize();
+        sizer_->InformFirstDirection(wxHORIZONTAL, client.x, client.y); // Wrap to the visible width.
+        SetVirtualSize(client.x, sizer_->CalcMin().y);
+        Layout();
     }
 
 } // namespace icd::ui

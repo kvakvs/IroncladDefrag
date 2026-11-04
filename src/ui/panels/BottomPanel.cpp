@@ -2,6 +2,7 @@
 
 #include "ui/Accelerators.h"
 #include "ui/Commands.h"
+#include "ui/panels/MapColorsPage.h"
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
 #include "ui/panels/SummaryPage.h"
@@ -28,7 +29,8 @@ namespace icd::ui {
 
     } // namespace
 
-    BottomPanel::BottomPanel(wxWindow* parent, const wxString& resourcesText) : wxPanel(parent) {
+    BottomPanel::BottomPanel(wxWindow* parent, const wxString& resourcesText, core::Executor& executor) :
+        wxPanel(parent) {
         notebook_ = new wxNotebook(this, wxID_ANY);
         summary_ = new SummaryPage(notebook_);
         strategy_ = new StrategyPage(notebook_);
@@ -40,6 +42,8 @@ namespace icd::ui {
         notebook_->AddPage(progress_, "Progress");
         log_ = new LogTab(notebook_);
         notebook_->AddPage(log_, "Log");
+        mapColors_ = new MapColorsPage(notebook_, executor);
+        notebook_->AddPage(mapColors_, "Map colors");
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(notebook_, wxSizerFlags(1).Expand());

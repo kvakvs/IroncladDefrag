@@ -55,7 +55,7 @@ namespace icd::ui {
 
         constexpr std::array viewItems{
             ItemSpec{ID_SHOW_MINIMAP, "&Minimap", wxITEM_CHECK},
-            ItemSpec{ID_SHOW_LEGEND, "&Legend", wxITEM_CHECK},
+            ItemSpec{ID_SHOW_LEGEND, "Map &colors and legend"},
             separator,
             ItemSpec{ID_ZOOM_IN, "Zoom &in"},
             ItemSpec{ID_ZOOM_OUT, "Zoom &out"},
@@ -144,7 +144,6 @@ namespace icd::ui {
         bar->Append(makeMenu(settingsItems), "&Settings");
         bar->Append(makeMenu(helpItems), "&Help");
         bar->Check(ID_SHOW_MINIMAP, true); // The map starts with its minimap.
-        bar->Check(ID_SHOW_LEGEND, true); // And its legend.
         bar->Check(ID_COLOR_FRAGMENTATION, true); // The map's first color mode.
         return bar;
     }

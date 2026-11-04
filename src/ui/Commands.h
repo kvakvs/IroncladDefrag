@@ -32,7 +32,7 @@ namespace icd::ui {
         ID_COLOR_ZONE_FIT, // View > Color mode > Zone fit.
         ID_COLOR_PLAN, // View > Color mode > Plan preview.
         ID_SHOW_MINIMAP, // View > Minimap.
-        ID_SHOW_LEGEND, // View > Legend.
+        ID_SHOW_LEGEND, // View > Map colors and legend: brings the bottom panel's Map colors tab to the front.
         ID_ZOOM_IN, // View > Zoom in.
         ID_ZOOM_OUT, // View > Zoom out.
         ID_ZOOM_FIT, // View > Fit volume.

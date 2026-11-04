@@ -61,7 +61,8 @@ namespace icd {
             new wxSplitterWindow(root, wxID_ANY, wxDefaultPosition, wxDefaultSize, wxSP_LIVE_UPDATE | wxSP_3DSASH);
         map_ = new ui::MapPanel(splitter_, services_.pool());
         const wxString resources = wxString::FromUTF8(core::describeCaps(services_.resources(), services_.caps()));
-        bottom_ = new ui::BottomPanel(splitter_, resources);
+        bottom_ = new ui::BottomPanel(splitter_, resources, services_.pool());
+        map_->attachColors(bottom_->mapColors());
         splitter_->SetSashGravity(1.0); // Window growth goes to the map.
         splitter_->SetMinimumPaneSize(FromDIP(140));
         splitter_->SplitHorizontally(map_, bottom_);

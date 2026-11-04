@@ -4,13 +4,13 @@
 #include "core/map/Ruler.h"
 
 #include <wx/panel.h>
+#include <wx/weakref.h>
 
 #include <memory>
 #include <optional>
 #include <span>
 #include <string>
 
-class wxChoice;
 class wxSearchCtrl;
 class wxStaticText;
 
@@ -25,11 +25,12 @@ namespace icd::ui {
 
     class Legend;
     class MapCanvas;
+    class MapColorsPage;
     class Ruler;
 
-    // The drive map area (plan.md section 11): a toolbar with the color mode, overlays, a caption saying which
-    // drive is shown and in what state, the selected file and a file search, above the map canvas with its rulers
-    // (plan.md 7.1) and the legend of the color mode below it (plan.md 7.4).
+    // The drive map area (plan.md section 11): a toolbar with the selected file and a file search above the map canvas
+    // with its rulers (plan.md 7.1). The color mode switch and the legend (plan.md 7.4) live in the bottom panel's Map
+    // colors tab, which this panel keeps in step; the drive and its state are on the one status line.
     class MapPanel : public wxPanel {
     public:
         // Creates the toolbar and an empty map; tiles render on executor.
@@ -41,8 +42,9 @@ namespace icd::ui {
         MapPanel(const MapPanel&) = delete;
         MapPanel& operator=(const MapPanel&) = delete;
 
-        // Text in the toolbar, e.g. which drive is shown and what state it is in.
-        void setCaption(const wxString& caption);
+        // Feeds the Map colors tab from now on: its legend counts the view, its switch shows the mode. The page may be
+        // destroyed first when the window closes; the panel then stops feeding it.
+        void attachColors(MapColorsPage& page);
 
         // Whether a View command can run: zone fit and plan preview need a plan's overlays.
         [[nodiscard]] bool commandAvailable(int id) const;
@@ -52,7 +54,7 @@ namespace icd::ui {
         void setPlanOverlays(std::shared_ptr<const core::MapOverlay> zoneFit,
                              std::shared_ptr<const core::MapOverlay> preview);
 
-        // Colors the map and the legend by a mode and shows it in the toolbar.
+        // Colors the map and the legend by a mode and shows it in the mode switch.
         void setColorMode(core::ColorMode mode);
 
         // The View > Color mode command of the current mode (for its check mark).
@@ -80,24 +82,24 @@ namespace icd::ui {
         // The map shown, or null.
         [[nodiscard]] std::shared_ptr<const core::MapData> currentMap() const;
 
-        // Carries out a View map command (color mode, minimap and legend toggles, zoom in/out, fit, one cluster per
-        // pixel, go to file, next/previous fragment); false for other ids.
+        // Carries out a View map command (color mode, minimap toggle, zoom in/out, fit, one cluster per pixel, go to
+        // file, next/previous fragment); false for other ids.
         bool handleViewCommand(int id);
 
         // Whether the minimap is switched on (for the View > Minimap check mark).
         [[nodiscard]] bool minimapShown() const;
 
-        // Whether the legend is switched on (for the View > Legend check mark).
-        [[nodiscard]] bool legendShown() const;
-
     private:
-        // Creates the color mode, overlay and search controls (overlays disabled until their features exist).
+        // Creates the selected-file label and the search field.
         wxSizer* createToolbar();
 
-        // Shows or hides the legend strip.
-        void showLegend(bool shown);
+        // The attached tab's legend, or null without one.
+        [[nodiscard]] Legend* legend() const;
 
-        // Color mode, minimap and legend commands; false for other ids.
+        // Shows the mode in the attached tab's switch and enables the modes that can be shown now.
+        void syncColors();
+
+        // Color mode and minimap commands; false for other ids.
         bool handleDisplayCommand(int id);
 
         // Zoom, go to file and fragment commands; false for other ids.
@@ -128,13 +130,11 @@ namespace icd::ui {
         std::shared_ptr<const core::MapData> map_; // The map shown, for searches; null for none.
         std::string root_; // Root of the volume shown, for full paths.
         MapCanvas* canvas_ = nullptr; // The map; child window owned by wx.
-        Legend* legend_ = nullptr; // Colors and counts of the view; child window owned by wx.
+        wxWeakRef<MapColorsPage> colors_; // The Map colors tab; becomes null when wx destroys it.
         Ruler* rows_ = nullptr; // Row ruler left of the map; child window owned by wx.
         core::ColorMode mode_ = core::ColorMode::Fragmentation; // Current color mode.
         std::shared_ptr<const core::MapOverlay> zoneFit_; // Zone-fit overlay of the plan, or null.
         std::shared_ptr<const core::MapOverlay> preview_; // Plan-preview overlay of the plan, or null.
-        wxChoice* colorMode_ = nullptr; // Toolbar color mode; child window owned by wx.
-        wxStaticText* caption_ = nullptr; // Drive and state; child window owned by wx.
         wxStaticText* selectionLabel_ = nullptr; // Selected file and fragment; child window owned by wx.
         wxSearchCtrl* search_ = nullptr; // "Find file" field; opens Go to file; child window owned by wx.
     };

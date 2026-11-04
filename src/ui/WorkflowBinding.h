@@ -221,9 +221,6 @@ namespace icd::ui {
         // Enables each command from the workflow state.
         void refreshCommands();
 
-        // Sets the map caption and pattern from the state.
-        void refreshMap();
-
         // Whether a command can run now.
         [[nodiscard]] bool commandEnabled(int id) const;
 

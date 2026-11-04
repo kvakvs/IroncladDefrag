@@ -93,8 +93,15 @@ this file records what is actually built and the decisions made along the way.
   drift. The TRIM button is drawn in a list cell, so the list's rows window shows its tooltip while the
   pointer is over it.
 - View commands are enabled once a map is shown; the zone-fit and plan-preview color modes only while a plan is
-  under review (`MapPanel::commandAvailable()`). The toolbar color
-  choice posts the same View command as the menu, so check marks and toolbar always agree.
+  under review (`MapPanel::commandAvailable()`). The color mode switch (Map colors tab) posts the same View command
+  as the menu, so check marks, map and switch always agree; `MapPanel::syncColors()` shows the mode in it and
+  enables the modes that can be shown.
+- Map colors tab (T124): the bottom panel's last tab, `ui::MapColorsPage`, holds the color mode switch and the legend.
+  The legend used to be a strip under the map and the color choice and a state caption sat above it; the file class
+  legend has 16 entries and took several lines of the map's height, and the caption repeated the status line. The
+  map's top row keeps the selected file and the search field. `MainFrame` attaches the page to the map panel
+  (`MapPanel::attachColors()`), which holds it by `wxWeakRef`, so either may be destroyed first. View > Map colors and
+  legend (Ctrl+L, formerly the legend toggle) brings the tab to the front.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
 - Context menus: a right click on a drive selects it and shows the bottom bar's commands (`workflowCommands()`, one
   table for both; plus TRIM on SSDs) with their shortcuts, each enabled by `commandEnabled()` like its button, so
@@ -914,7 +921,7 @@ All analysis checks passed.
   activity signals (plan.md 8.2) can feed the same byte.
 - Switching modes changes only the palette: the canvas marks every cached and rendering tile dirty
   (the selection-change path), keeps showing them until each re-renders, and never rebuilds map data.
-- The legend (`ui::Legend`, a strip under the map, View > Legend / Ctrl+L) counts clusters per entry
+- The legend (`ui::Legend`, in the Map colors tab, scrolled when its wrapped entries do not fit) counts clusters per entry
   exactly from the extent index (`countLegend()`): the visible cell rectangle becomes one LCN range
   for whole rows or one per row, cut into 4 M-cluster pieces summed in parallel; equal to a per-cluster
   count (tested). It runs on the pool 150 ms after the view rests, cancelled by a newer view or mode,

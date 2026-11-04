@@ -10,8 +10,8 @@
 #include "ui/map/MapNavigator.h"
 #include "ui/map/MapSelection.h"
 #include "ui/map/Ruler.h"
+#include "ui/panels/MapColorsPage.h"
 
-#include <wx/choice.h>
 #include <wx/clipbrd.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
@@ -29,38 +29,11 @@ namespace icd::ui {
 
     namespace {
 
-        // A color mode in the toolbar and the View > Color mode command that selects it.
-        struct ModeItem {
-            core::ColorMode mode; // The mode.
-            int command; // Its View > Color mode command.
-            const char* label; // Its toolbar name.
-        };
-
-        // The color modes in View > Color mode order; zone fit and plan preview need a plan.
-        constexpr std::array modeItems{
-            ModeItem{core::ColorMode::FileClass, ID_COLOR_CLASS, "File class"},
-            ModeItem{core::ColorMode::Fragmentation, ID_COLOR_FRAGMENTATION, "Fragmentation"},
-            ModeItem{core::ColorMode::Age, ID_COLOR_AGE, "Age"},
-            ModeItem{core::ColorMode::Size, ID_COLOR_SIZE, "Size"},
-            ModeItem{core::ColorMode::ZoneFit, ID_COLOR_ZONE_FIT, "Zone fit"},
-            ModeItem{core::ColorMode::PlanPreview, ID_COLOR_PLAN, "Plan preview"},
-        };
-
-        // The color choice's tooltip: every mode with its shortcut, from the shortcut table.
-        wxString colorModeTip() {
-            wxString tip = "Color mode";
-            for (const ModeItem& item : modeItems) {
-                if (const auto shortcut = shortcutFor(item.command); shortcut) {
-                    tip += "\n" + shortcutText(*shortcut) + "  " + item.label;
-                }
-            }
-            return tip;
-        }
-
-        // The toolbar entry of a mode.
-        int modeIndex(core::ColorMode mode) {
-            const auto found = std::ranges::find(modeItems, mode, &ModeItem::mode);
-            return found == modeItems.end() ? 0 : static_cast<int>(found - modeItems.begin());
+        // The View > Color mode command of a mode.
+        int commandOf(core::ColorMode mode) {
+            const auto items = colorModeItems();
+            const auto found = std::ranges::find(items, mode, &ColorModeItem::mode);
+            return found == items.end() ? ID_COLOR_FRAGMENTATION : found->command;
         }
 
         // The toolbar text for a selected file: its path and where in its fragments the view is.
@@ -78,14 +51,15 @@ namespace icd::ui {
 
     MapPanel::MapPanel(wxWindow* parent, core::Executor& executor) : wxPanel(parent), executor_(executor) {
         canvas_ = new MapCanvas(this, executor);
-        legend_ = new Legend(this, executor);
         auto* rows = new Ruler(this, *canvas_, Ruler::Orientation::Vertical);
         rows_ = rows;
         auto* columns = new Ruler(this, *canvas_, Ruler::Orientation::Horizontal);
-        canvas_->setViewObserver([rows, columns, legend = legend_, canvas = canvas_] {
+        canvas_->setViewObserver([this, rows, columns] {
             rows->Refresh(false);
             columns->Refresh(false);
-            legend->setView(canvas->viewport());
+            if (Legend* counts = legend(); counts != nullptr) {
+                counts->setView(canvas_->viewport());
+            }
         });
 
         // Rulers above and left of the map; the corner stays empty.
@@ -100,7 +74,6 @@ namespace icd::ui {
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(createToolbar(), wxSizerFlags().Expand().Border(wxALL, FromDIP(4)));
         sizer->Add(map, wxSizerFlags(1).Expand());
-        sizer->Add(legend_, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxTOP, FromDIP(4)));
         SetSizer(sizer);
 
         // The release itself, not wxEVT_CONTEXT_MENU: the canvas does not get that from a mouse click.
@@ -111,47 +84,51 @@ namespace icd::ui {
     }
 
     MapPanel::~MapPanel() {
-        canvas_->setViewObserver({}); // The rulers and the legend may be destroyed before the canvas.
+        canvas_->setViewObserver({}); // The rulers may be destroyed before the canvas.
         canvas_->selection().setObserver({}); // So may the toolbar label.
     }
 
     wxSizer* MapPanel::createToolbar() {
         auto* bar = new wxBoxSizer(wxHORIZONTAL);
-        colorMode_ = new wxChoice(this, wxID_ANY);
-        for (const ModeItem& item : modeItems) {
-            colorMode_->Append(item.label);
-        }
-        colorMode_->SetSelection(modeIndex(mode_));
-        colorMode_->SetToolTip(colorModeTip());
-        // The same command as the menu, so the menu's check mark and the toolbar always agree.
-        colorMode_->Bind(wxEVT_CHOICE, [this](wxCommandEvent& event) {
-            const int index = event.GetSelection();
-            wxWindow* frame = wxGetTopLevelParent(this);
-            if (frame != nullptr && index >= 0 && static_cast<std::size_t>(index) < modeItems.size()) {
-                wxCommandEvent command(wxEVT_MENU, modeItems.at(static_cast<std::size_t>(index)).command);
-                wxPostEvent(frame, command);
-            }
-        });
         search_ = new wxSearchCtrl(this, wxID_ANY, "", wxDefaultPosition, FromDIP(wxSize(220, -1)), wxTE_PROCESS_ENTER);
         search_->SetDescriptiveText("Find file");
         search_->SetToolTip(commandTip(ID_GOTO_FILE));
         search_->Bind(wxEVT_SEARCH, [this](wxCommandEvent&) { goToFile(search_->GetValue()); });
         search_->Disable(); // Until a map is shown.
-        caption_ = new wxStaticText(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize,
-                                    wxST_NO_AUTORESIZE | wxST_ELLIPSIZE_END);
         selectionLabel_ = new wxStaticText(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize,
                                            wxST_NO_AUTORESIZE | wxST_ELLIPSIZE_MIDDLE);
         canvas_->selection().setObserver([this] { updateSelectionLabel(); });
 
-        bar->Add(new wxStaticText(this, wxID_ANY, "Color:"), wxSizerFlags().CenterVertical());
-        bar->Add(colorMode_, wxSizerFlags().CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(6)));
-        bar->Add(caption_, wxSizerFlags(1).CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(12)));
         bar->Add(selectionLabel_, wxSizerFlags(1).CenterVertical().Border(wxRIGHT, FromDIP(12)));
         bar->Add(search_, wxSizerFlags().CenterVertical());
         return bar;
     }
 
-    void MapPanel::setCaption(const wxString& caption) { caption_->SetLabelText(caption); }
+    void MapPanel::attachColors(MapColorsPage& page) {
+        colors_ = &page;
+        page.legend().setMode(mode_);
+        page.legend().setMap(map_);
+        if (canvas_->hasMap()) {
+            page.legend().setView(canvas_->viewport());
+        }
+        syncColors();
+    }
+
+    Legend* MapPanel::legend() const {
+        MapColorsPage* page = colors_.get();
+        return page != nullptr ? &page->legend() : nullptr;
+    }
+
+    void MapPanel::syncColors() {
+        MapColorsPage* page = colors_.get();
+        if (page == nullptr) {
+            return;
+        }
+        for (const ColorModeItem& item : colorModeItems()) {
+            page->enableMode(item.mode, hasMap() && commandAvailable(item.command));
+        }
+        page->showMode(mode_);
+    }
 
     bool MapPanel::commandAvailable(int id) const {
         if (id == ID_COLOR_ZONE_FIT) {
@@ -161,16 +138,18 @@ namespace icd::ui {
     }
 
     void MapPanel::setColorMode(core::ColorMode mode) {
-        if (!commandAvailable(modeItems.at(static_cast<std::size_t>(modeIndex(mode))).command)) {
+        if (!commandAvailable(commandOf(mode))) {
             mode = core::ColorMode::Fragmentation; // No plan yet: the overlay modes have nothing to show.
         }
         mode_ = mode;
-        colorMode_->SetSelection(modeIndex(mode));
         canvas_->setPalette(core::paletteFor(mode));
         canvas_->setOverlay(mode == core::ColorMode::ZoneFit           ? zoneFit_
                                 : mode == core::ColorMode::PlanPreview ? preview_
                                                                        : nullptr);
-        legend_->setMode(mode);
+        if (Legend* counts = legend(); counts != nullptr) {
+            counts->setMode(mode);
+        }
+        syncColors();
     }
 
     void MapPanel::setPlanOverlays(std::shared_ptr<const core::MapOverlay> zoneFit,
@@ -180,34 +159,37 @@ namespace icd::ui {
         setColorMode(mode_); // Shows the new overlays, or leaves an overlay mode that lost its plan.
     }
 
-    int MapPanel::colorModeCommand() const { return modeItems.at(static_cast<std::size_t>(modeIndex(mode_))).command; }
+    int MapPanel::colorModeCommand() const { return commandOf(mode_); }
 
     void MapPanel::setMap(std::shared_ptr<const core::MapData> map) {
         map_ = map;
         search_->Enable(map_ != nullptr);
-        legend_->setMap(map); // Before the canvas, which reports its first view.
+        if (Legend* counts = legend(); counts != nullptr) {
+            counts->setMap(map); // Before the canvas, which reports its first view.
+        }
         canvas_->setMap(std::move(map));
+        syncColors();
     }
 
     void MapPanel::updateMap(std::shared_ptr<const core::MapData> map) {
         map_ = map;
         search_->Enable(map_ != nullptr);
-        legend_->updateMap(map);
+        if (Legend* counts = legend(); counts != nullptr) {
+            counts->updateMap(map);
+        }
         canvas_->updateMap(std::move(map));
+        syncColors();
     }
 
     void MapPanel::updateMap(std::shared_ptr<const core::MapData> map, std::span<const core::ClusterRun> dirty) {
         map_ = map;
-        legend_->updateMap(map);
+        if (Legend* counts = legend(); counts != nullptr) {
+            counts->updateMap(map);
+        }
         canvas_->updateMap(std::move(map), dirty);
     }
 
     void MapPanel::setDisk(std::optional<core::DiskPlacement> disk) { rows_->setDisk(disk); }
-
-    void MapPanel::showLegend(bool shown) {
-        legend_->Show(shown);
-        Layout();
-    }
 
     void MapPanel::goToFile(const wxString& query) {
         if (map_ == nullptr) {
@@ -300,8 +282,6 @@ namespace icd::ui {
 
     bool MapPanel::minimapShown() const { return canvas_->minimap().shown(); }
 
-    bool MapPanel::legendShown() const { return legend_->IsShown(); }
-
     bool MapPanel::handleViewCommand(int id) { return handleDisplayCommand(id) || handleNavigationCommand(id); }
 
     bool MapPanel::handleDisplayCommand(int id) {
@@ -309,12 +289,9 @@ namespace icd::ui {
             canvas_->showMinimap(!canvas_->minimap().shown());
             return true;
         }
-        if (id == ID_SHOW_LEGEND) {
-            showLegend(!legend_->IsShown());
-            return true;
-        }
-        const auto item = std::ranges::find(modeItems, id, &ModeItem::command);
-        if (item == modeItems.end()) {
+        const auto items = colorModeItems();
+        const auto item = std::ranges::find(items, id, &ColorModeItem::command);
+        if (item == items.end()) {
             return false;
         }
         setColorMode(item->mode);

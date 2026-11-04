@@ -32,7 +32,7 @@ namespace icd::ui {
             Shortcut{ID_COLOR_ZONE_FIT, wxACCEL_ALT, '5', "Color the map by zone fit"},
             Shortcut{ID_COLOR_PLAN, wxACCEL_ALT, '6', "Color the map by the planned moves"},
             Shortcut{ID_SHOW_MINIMAP, wxACCEL_CTRL, 'M', "Show or hide the minimap"},
-            Shortcut{ID_SHOW_LEGEND, wxACCEL_CTRL, 'L', "Show or hide the legend"},
+            Shortcut{ID_SHOW_LEGEND, wxACCEL_CTRL, 'L', "Show the map colors tab (color mode and legend)"},
             Shortcut{ID_ZOOM_IN, wxACCEL_CTRL, '+', "Zoom in"},
             Shortcut{ID_ZOOM_OUT, wxACCEL_CTRL, '-', "Zoom out"},
             Shortcut{ID_ZOOM_FIT, wxACCEL_CTRL, '0', "Fit the whole volume"},

@@ -4,7 +4,7 @@
 #include "core/map/ColorModes.h"
 #include "core/map/Viewport.h"
 
-#include <wx/panel.h>
+#include <wx/scrolwin.h>
 #include <wx/timer.h>
 
 #include <cstdint>
@@ -27,8 +27,8 @@ namespace icd::ui {
     // The map legend (plan.md 7.4): one swatch per color of the current mode with the size and share of the
     // visible area it covers. Counts are exact (core::countLegend()) and run on the pool once the view rests, so
     // panning never waits for them; a newer view cancels a running count. Entries wrap onto more lines in a
-    // narrow window.
-    class Legend : public wxPanel {
+    // narrow window and scroll when they do not fit (the file class mode has many).
+    class Legend : public wxScrolledWindow {
     public:
         // An empty legend; counts run on executor, which must outlive it.
         Legend(wxWindow* parent, core::Executor& executor);
@@ -71,6 +71,9 @@ namespace icd::ui {
 
         // Writes the entry texts: label alone while counting, then size and share.
         void showCounts();
+
+        // Lays the entries out for the current width and sets the scrolled height to fit them.
+        void relayout();
 
         core::Executor& executor_; // Runs counts.
         std::shared_ptr<LegendMailbox> mailbox_; // Route from workers back to this window.

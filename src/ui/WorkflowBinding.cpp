@@ -104,22 +104,6 @@ namespace icd::ui {
         // Texts of a step.
         const StepText& textOf(WorkflowJob job) { return stepTexts.at(static_cast<std::size_t>(job)); }
 
-        // Map caption per WorkflowState, after the drive name.
-        constexpr std::array<const char*, 12> mapCaptions{
-            "",
-            "not supported (only NTFS volumes are optimized)",
-            "SSD, TRIM only (no map)",
-            "TRIM running",
-            "not analysed yet",
-            "analysing...",
-            "analysed",
-            "building plan...",
-            "plan ready; review it on the map, then execute",
-            "executing plan...",
-            "execution paused",
-            "plan executed; analyze again for fresh figures",
-        };
-
         // Hint for the Summary tab when a drive of this kind is selected but not analysed.
         const char* summaryHint(services::DriveKind kind) {
             switch (kind) {
@@ -241,6 +225,10 @@ namespace icd::ui {
         if (!commandEnabled(id)) {
             return; // Map keys arrive even when the menu item is disabled.
         }
+        if (id == ID_SHOW_LEGEND) {
+            widgets_.bottom.showTab(BottomTab::MapColors);
+            return;
+        }
         if (!widgets_.map.handleViewCommand(id)) {
             return;
         }
@@ -248,7 +236,6 @@ namespace icd::ui {
         // accelerator or map key).
         wxMenuBar& menu = *frame_.GetMenuBar();
         menu.Check(ID_SHOW_MINIMAP, widgets_.map.minimapShown());
-        menu.Check(ID_SHOW_LEGEND, widgets_.map.legendShown());
         menu.Check(widgets_.map.colorModeCommand(), true);
     }
 
@@ -966,7 +953,6 @@ namespace icd::ui {
         widgets_.bottom.setPauseLabel(paused);
         widgets_.drives.Enable(!workflow_.busy());
         widgets_.bottom.strategy().setEditable(workflow_.can(WorkflowAction::ChooseStrategy));
-        refreshMap();
     }
 
     void WorkflowBinding::refreshCommands() {
@@ -982,28 +968,14 @@ namespace icd::ui {
         if (id == ID_RESOURCES || id == wxID_PREFERENCES) {
             return !workflow_.busy(); // Caps change only between jobs.
         }
+        if (id == ID_SHOW_LEGEND) {
+            return true; // The tab exists without a map too.
+        }
         if (isMapCommand(id)) {
             return widgets_.map.hasMap() && widgets_.map.commandAvailable(id);
         }
         const auto action = actionFor(id, workflow_.state());
         return action.has_value() && allowed(*action);
-    }
-
-    void WorkflowBinding::refreshMap() {
-        if (!drive_) {
-            widgets_.map.setCaption("No drive selected");
-            return;
-        }
-        const WorkflowState state = workflow_.state();
-        std::string caption = driveLabel() + ": " + mapCaptions.at(static_cast<std::size_t>(state));
-        const bool analysis = state == WorkflowState::Analyzing || state == WorkflowState::Analyzed;
-        if (analysis && services_.fakeDrives()) {
-            caption += " (synthetic volume)";
-        }
-        if (!core::canMove(*drive_) && core::canOptimize(*drive_)) {
-            caption += " (moves blocked)";
-        }
-        widgets_.map.setCaption(wxString::FromUTF8(caption));
     }
 
     core::ScreenAspect WorkflowBinding::screenAspect() const {

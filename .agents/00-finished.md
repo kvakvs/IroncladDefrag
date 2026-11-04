@@ -415,3 +415,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   shown on SSD rows ("trimmed 11 days ago", same as Optimize Drives' "Last run"); after a TRIM the status line says how
   much Windows trimmed (`TrimResult`, `trimResult()`) and the row updates. Last analysed column widened.
   `OptimizeStatisticsTest`, `TrimJobTest`, `DriveInfoTest`.
+- T124 Map colors tab - `ui/panels/MapColorsPage.*`: the bottom panel's Map colors tab with the color mode switch and
+  the legend (now scrolled); the strip under the map, the color choice and the state caption above it are gone (the
+  caption repeated the status line), so the map is taller; `MapPanel::attachColors()` (weak reference),
+  `syncColors()`; View > Map colors and legend (Ctrl+L) shows the tab.
