@@ -29,6 +29,10 @@ namespace icd::ui {
     // How a shortcut is written: "Ctrl+R", "Shift+F5".
     [[nodiscard]] wxString shortcutText(const Shortcut& shortcut);
 
+    // A popup menu label with the command's shortcut after a tab, so context menus show the same keys as the menu
+    // bar; the label alone for commands without one.
+    [[nodiscard]] wxString withShortcut(int id, const wxString& label);
+
     // A control's tooltip for a command: its description and shortcut, "Analyze the selected drive (F5)"; empty
     // for commands without one.
     [[nodiscard]] wxString commandTip(int id);

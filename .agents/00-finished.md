@@ -437,3 +437,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   shared with planned levels, `WorkflowAction::DefragmentFile` (after analysis, review or a run; not where moves are
   blocked), `ID_DEFRAG_FILE` in Optimize, the File tab and the map's file menu, confirmation, "File defragmented"
   status. Checked on T:: 13 extents -> 1, hash unchanged. `FileDefragTest`, `WorkflowTest.DefragmentFile`.
+- T129 Defragment file shortcut - Ctrl+D for `ID_DEFRAG_FILE` in the shortcut table (works with focus on the map,
+  follows the workflow's enable rule, listed under Optimize in F1), `withShortcut()` puts the key on popup menu labels
+  (map file menu, drive menu), File tab button tooltip from `commandTip()`. Checked on T:: 7 extents -> 1 via Ctrl+D.

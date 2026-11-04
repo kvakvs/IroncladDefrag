@@ -955,11 +955,8 @@ namespace icd::ui {
     void WorkflowBinding::showDriveMenu() {
         const bool paused = workflow_.state() == WorkflowState::Paused;
         wxMenu menu;
-        const auto add = [&](int id, wxString label) {
-            if (const auto shortcut = shortcutFor(id); shortcut) {
-                label += "\t" + shortcutText(*shortcut);
-            }
-            menu.Append(id, label);
+        const auto add = [&](int id, const wxString& label) {
+            menu.Append(id, withShortcut(id, label));
             menu.Enable(id, commandEnabled(id));
         };
         for (const WorkflowCommand& command : workflowCommands()) {

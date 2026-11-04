@@ -911,7 +911,7 @@ All analysis checks passed.
   Explorer, Copy path and previous / next fragment (the View commands). It replaced the row above the map, so the map
   panel is only the canvas and its rulers. `MapPanel::attachFile()` (weak reference like the Map colors tab) feeds it
   from the selection observer; a newly selected file brings the tab to the front unless a job runs.
-- Defragment this file (T128): Optimize > Defragment selected file, the File tab's button and the map's file menu
+- Defragment this file (T128): Optimize > Defragment selected file (Ctrl+D, T129), the File tab's button and the map's file menu
   (all `ID_DEFRAG_FILE`, enabled by the workflow) run `WorkflowAction::DefragmentFile`, allowed after an analysis,
   while reviewing and after a run (state Executing, job Execute, ends in Executed like a plan; blocked where moves are
   blocked and on the fake drive list). `services::planFileDefrag()` plans the selected file on the shown map's snapshot

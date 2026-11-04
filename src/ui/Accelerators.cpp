@@ -23,6 +23,7 @@ namespace icd::ui {
             Shortcut{ID_BUILD_PLAN, wxACCEL_NORMAL, WXK_F7, "Build the plan"},
             Shortcut{ID_REVIEW_PLAN, wxACCEL_NORMAL, WXK_F8, "Review the plan on the map"},
             Shortcut{ID_EXECUTE, wxACCEL_NORMAL, WXK_F9, "Execute the plan (asks first)"},
+            Shortcut{ID_DEFRAG_FILE, wxACCEL_CTRL, 'D', "Defragment the selected file (asks first)"},
             Shortcut{ID_PAUSE, wxACCEL_NORMAL, WXK_PAUSE, "Pause or resume execution"},
             Shortcut{ID_CANCEL, wxACCEL_NORMAL, WXK_ESCAPE, "Cancel the running job"},
             Shortcut{ID_COLOR_CLASS, wxACCEL_ALT, '1', "Color the map by file class"},
@@ -87,6 +88,11 @@ namespace icd::ui {
 
     wxString shortcutText(const Shortcut& shortcut) {
         return wxAcceleratorEntry(shortcut.flags, shortcut.keyCode, shortcut.id).ToString();
+    }
+
+    wxString withShortcut(int id, const wxString& label) {
+        const auto shortcut = shortcutFor(id);
+        return shortcut ? label + "\t" + shortcutText(*shortcut) : label;
     }
 
     wxString commandTip(int id) {

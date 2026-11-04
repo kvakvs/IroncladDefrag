@@ -84,8 +84,8 @@ namespace icd::ui {
 
         // Its command id lets the frame's command handler and enable rule cover it like the menu item.
         defrag_ = new wxButton(this, ID_DEFRAG_FILE, "Defra&gment this file...");
-        defrag_->SetToolTip(
-            "Move this file into one piece (or a few large ones) now, checked against the volume first");
+        defrag_->SetToolTip(commandTip(ID_DEFRAG_FILE) +
+                            "\nMoves it into one piece (or a few large ones), checked against the volume first");
         defrag_->Disable();
 
         auto* bar = new wxBoxSizer(wxHORIZONTAL);
