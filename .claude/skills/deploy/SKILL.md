@@ -47,7 +47,10 @@ go-ahead for that one deploy, but always show the dry run first and stop to ask 
    The site answers 200, and each uploaded installer's served SHA-256 equals its `.sha256` file (which the site's
    download section shows).
 
-## One-time server setup (already done 2026-11-04; rerun only to repair)
+## One-time server setup (before the first deploy; rerun only to repair)
+
+If `https://ironclad.clau.se/` does not answer, the setup has not been run yet. It changes the server as root, so the
+user runs it (or approves it) themselves.
 
 ```
 wsl -e bash deploy/setup-server.sh
