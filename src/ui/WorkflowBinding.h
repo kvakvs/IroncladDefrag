@@ -83,6 +83,12 @@ namespace icd::ui {
         // optimization or puts it back.
         void onScheduleCommand(wxCommandEvent& event);
 
+        // Settings > Preferences / Resources: edits, saves and applies the settings while no job runs.
+        void onSettingsCommand(wxCommandEvent& event);
+
+        // Computes the caps again and shows them on the Progress tab, before a job and after a settings change.
+        void refreshResources();
+
         // Whether the selected drive's Windows schedule can be changed now: an optimizable drive whose schedule is
         // known, with no job running.
         [[nodiscard]] bool scheduleChangeable() const;

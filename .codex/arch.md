@@ -53,7 +53,7 @@ this file records what is actually built and the decisions made along the way.
 ## Jobs and the UI
 
 - `services::AppServices` is the composition root (created by `App` after logging, destroyed in
-  `OnExit` before the shutdown line): caps, then the `ThreadPool`, then the `JobRunner`. The runner is
+  `OnExit` before the shutdown line): the settings, caps from them, then the `ThreadPool`, then the `JobRunner`. The runner is
   destroyed first, cancelling and waiting for jobs while the pool still exists.
 - A job is a function of `JobContext` (token, throttled progress sink, executor). The runner runs it
   as a pool task, logs start and end, and reports exactly one `JobResult` (Succeeded, Cancelled when
@@ -283,7 +283,7 @@ this file records what is actually built and the decisions made along the way.
 ## Settings
 
 - `services::SettingsStore` (owned by `AppServices`, UI thread only) keeps `%LOCALAPPDATA%\IroncladDefrag\settings.json`:
-  versioned JSON (`version` 1; other versions are refused, not migrated), read once at start-up, written whole after
+  versioned JSON (`version` 2; version 1 files, drive choices only, are read as is; other versions are refused), read once at start-up, written whole after
   each change through a `.tmp` and a rename. A missing file gives defaults; a damaged one is logged, kept as
   `settings.json.bad` and replaced by defaults, so it never blocks start-up. Drive entries that cannot be used are
   dropped one by one; unknown members are ignored.
@@ -293,7 +293,18 @@ this file records what is actually built and the decisions made along the way.
   stable `ZoneScript::id` (a built-in preset, `builtinPresetIndex()`), never by display name.
 - `WorkflowBinding` restores the remembered choice when a drive is selected (unknown preset -> default preset, effort
   kept) and remembers the Strategy tab after each user change. Quick still runs the default preset at Fast without
-  touching the remembered choice. T130/T131 extend the same file (budget multiplier, caps, custom strategies).
+  touching the remembered choice.
+- T130: `fastBudgetMultiplier` (x1/x2/x4/x10, `fastBudgetMultipliers()`; the GUI's plan request carries it, `icd-cli`
+  stays at x1 so scripts are reproducible) and `resources` (`core::ResourceSettings`, 0 = Auto). A value that is not
+  usable keeps its default. Settings > Preferences / Resources (Ctrl+,) open `ui::SettingsDialog` (Planning and
+  Resources pages, live "In effect" preview through `computeCaps()`), enabled only while no job runs; `editSettings()`
+  saves through `AppServices::applySettings()`.
+- Caps apply without a restart: `AppServices` starts the pool with one thread per usable processor
+  (`ThreadPool::capacity()`) and `ThreadPool::setConcurrency()` lets only the first N workers take tasks (inactive ones
+  finish their task and sleep; their queued work is stolen; wake-ups go to all sleepers while some are inactive, so
+  none is lost). `AppServices::refreshCaps()` re-detects resources and applies the settings' caps; the GUI calls it
+  before every job and after a settings change, and the Progress tab's resources line follows. The CLI's
+  `AppServices` reads the same file, so manual caps apply there too (`--threads` still overrides).
 
 ## USN catch-up
 
@@ -1492,7 +1503,7 @@ All analysis checks passed.
 ## Parallel execution
 
 - Core algorithms take a `core::Executor&` and never create threads. Services owns one
-  `ThreadPool` sized from `ResourceCaps::workerThreads`; tests use `InlineExecutor` as the reference.
+  `ThreadPool` (a thread per processor, `ResourceCaps::workerThreads` of them active); tests use `InlineExecutor` as the reference.
 - `parallelFor(ChunkedRange{count, grain}, body)` cuts the range by `grain` only, so the work split
   never depends on the thread count; `parallelReduce` combines per-chunk results in chunk order. This
   is how parallel runs give bit-identical results to serial ones (plan.md 6.2.8).

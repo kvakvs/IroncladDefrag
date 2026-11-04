@@ -3,8 +3,10 @@
 #include "core/format/Json.h"
 #include "core/format/JsonReader.h"
 
+#include <algorithm>
 #include <array>
 #include <format>
+#include <limits>
 
 namespace icd::services {
 
@@ -12,6 +14,12 @@ namespace icd::services {
 
         // Settings-file spellings of the effort levels, in EffortLevel order.
         constexpr std::array effortIds{"fast", "moderate", "maximum"};
+
+        // The multipliers fastBudgetMultipliers() offers.
+        constexpr std::array<std::uint32_t, 4> multipliers{1, 2, 4, 10};
+
+        // Oldest settings-file version still read.
+        constexpr std::uint64_t oldestVersion = 1;
 
         // A string member, or nullopt when it is absent or of another kind.
         std::optional<std::string> stringMember(const core::JsonValue& object, std::string_view key) {
@@ -42,6 +50,41 @@ namespace icd::services {
             }
         }
 
+        // An unsigned member, or nullopt when it is absent or not a non-negative whole number.
+        std::optional<std::uint64_t> unsignedMember(const core::JsonValue& object, std::string_view key) {
+            const core::JsonValue* member = object.find(key);
+            if (member == nullptr || !member->isNumber()) {
+                return std::nullopt;
+            }
+            try {
+                return member->asUnsigned();
+            }
+            catch (const core::JsonError&) {
+                return std::nullopt;
+            }
+        }
+
+        // Reads the Fast budget multiplier; values Settings does not offer keep the default.
+        void readMultiplier(const core::JsonValue& root, Settings& settings) {
+            const std::optional<std::uint64_t> value = unsignedMember(root, "fastBudgetMultiplier");
+            if (value && std::ranges::contains(multipliers, *value)) {
+                settings.fastBudgetMultiplier = static_cast<std::uint32_t>(*value);
+            }
+        }
+
+        // Reads the "resources" object; a member that is not a usable number stays Auto.
+        void readResources(const core::JsonValue& root, Settings& settings) {
+            const core::JsonValue* resources = root.find("resources");
+            if (resources == nullptr || !resources->isObject()) {
+                return;
+            }
+            const std::optional<std::uint64_t> threads = unsignedMember(*resources, "workerThreads");
+            if (threads && *threads <= std::numeric_limits<std::uint32_t>::max()) {
+                settings.resources.workerThreads = static_cast<std::uint32_t>(*threads);
+            }
+            settings.resources.memoryBudgetBytes = unsignedMember(*resources, "memoryBudgetBytes").value_or(0);
+        }
+
         // Checks the version member before anything else is read.
         void checkVersion(const core::JsonValue& root) {
             const core::JsonValue* version = root.find("version");
@@ -49,9 +92,9 @@ namespace icd::services {
                 throw SettingsError("settings file has no version");
             }
             const std::uint64_t number = version->asUnsigned();
-            if (number != settingsVersion) {
-                throw SettingsError(
-                    std::format("settings file version {} is not supported (expected {})", number, settingsVersion));
+            if (number < oldestVersion || number > settingsVersion) {
+                throw SettingsError(std::format("settings file version {} is not supported (expected {} to {})", number,
+                                                oldestVersion, settingsVersion));
             }
         }
 
@@ -65,9 +108,16 @@ namespace icd::services {
             out.key("strategy").value(choice.preset).key("effort").value(effortId(choice.effort));
             out.endObject();
         }
+        out.endObject();
+        out.key("fastBudgetMultiplier").value(std::uint64_t{settings.fastBudgetMultiplier});
+        out.key("resources").beginObject();
+        out.key("workerThreads").value(std::uint64_t{settings.resources.workerThreads});
+        out.key("memoryBudgetBytes").value(settings.resources.memoryBudgetBytes);
         out.endObject().endObject();
         return out.str() + "\n";
     }
+
+    std::span<const std::uint32_t> fastBudgetMultipliers() { return multipliers; }
 
     Settings parseSettings(std::string_view text) {
         try {
@@ -80,6 +130,8 @@ namespace icd::services {
             if (const core::JsonValue* drives = root.find("drives")) {
                 readDrives(*drives, settings);
             }
+            readMultiplier(root, settings);
+            readResources(root, settings);
             return settings;
         }
         catch (const core::JsonError& error) {

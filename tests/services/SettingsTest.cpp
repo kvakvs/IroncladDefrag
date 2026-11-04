@@ -1,7 +1,9 @@
-// Settings file (per-drive strategy memory): JSON round trip, refused documents, lenient drive entries, drive keys,
-// and the store's load / save / damaged-file behaviour in a temporary directory.
+// Settings file (per-drive strategy memory, Fast budget multiplier, manual caps): JSON round trip, refused documents,
+// lenient entries, drive keys, the store's load / save / damaged-file behaviour in a temporary directory, and caps
+// from saved settings applied by AppServices now and after a restart.
 
 #include "core/strategy/Presets.h"
+#include "services/AppServices.h"
 #include "services/settings/Settings.h"
 #include "services/settings/SettingsStore.h"
 #include "services/workflow/FakeResults.h"
@@ -9,6 +11,7 @@
 #include <gtest/gtest.h>
 
 #include <filesystem>
+#include <format>
 #include <fstream>
 #include <string>
 
@@ -22,6 +25,14 @@ namespace icd::services { namespace {
         Settings settings;
         settings.driveStrategies[volumeD] = {"photos", EffortLevel::Maximum};
         settings.driveStrategies["E:\\"] = {"defrag-only", EffortLevel::Moderate};
+        return settings;
+    }
+
+    // The sample with a non-default multiplier and manual caps.
+    Settings tuned() {
+        Settings settings = sample();
+        settings.fastBudgetMultiplier = 4;
+        settings.resources = {.workerThreads = 3, .memoryBudgetBytes = 5ULL << 30U};
         return settings;
     }
 
@@ -41,10 +52,37 @@ namespace icd::services { namespace {
     TEST(Settings, RoundTripsThroughJson) {
         const Settings settings = sample();
         const std::string json = settingsJson(settings);
-        EXPECT_NE(json.find("\"version\": 1"), std::string::npos);
+        EXPECT_NE(json.find("\"version\": 2"), std::string::npos);
         EXPECT_NE(json.find("\"maximum\""), std::string::npos);
         EXPECT_EQ(parseSettings(json), settings);
         EXPECT_EQ(parseSettings(settingsJson({})), Settings{});
+        EXPECT_EQ(parseSettings(settingsJson(tuned())), tuned());
+    }
+
+    TEST(Settings, ReadsVersionOneFiles) {
+        const Settings settings =
+            parseSettings(R"({"version": 1, "drives": {"E:\\": {"strategy": "defrag-only", "effort": "moderate"}}})");
+        EXPECT_EQ(settings.driveStrategies.at("E:\\"), (DriveStrategy{"defrag-only", EffortLevel::Moderate}));
+        EXPECT_EQ(settings.fastBudgetMultiplier, 1U);
+        EXPECT_EQ(settings.resources, core::ResourceSettings{});
+    }
+
+    TEST(Settings, UnusableMultiplierAndCapsKeepDefaults) {
+        for (const char* bad : {"3", "0", "-2", "2.5", "\"4\"", "null"}) {
+            const std::string json = std::format(
+                R"({{"version": 2, "fastBudgetMultiplier": {0}, "resources": {{"workerThreads": {0}, "memoryBudgetBytes": "x"}}}})",
+                bad);
+            const Settings settings = parseSettings(json);
+            EXPECT_EQ(settings.fastBudgetMultiplier, 1U) << bad;
+            EXPECT_EQ(settings.resources.memoryBudgetBytes, 0U) << bad;
+        }
+        EXPECT_EQ(
+            parseSettings(R"({"version": 2, "resources": {"workerThreads": 4294967296}})").resources.workerThreads, 0U);
+        EXPECT_EQ(parseSettings(R"({"version": 2, "resources": 7})").resources, core::ResourceSettings{});
+        for (const std::uint32_t multiplier : fastBudgetMultipliers()) {
+            const std::string json = std::format(R"({{"version": 2, "fastBudgetMultiplier": {}}})", multiplier);
+            EXPECT_EQ(parseSettings(json).fastBudgetMultiplier, multiplier);
+        }
     }
 
     TEST(Settings, RefusesUnusableDocuments) {
@@ -52,7 +90,8 @@ namespace icd::services { namespace {
         EXPECT_THROW((void)parseSettings("{\"version\": 1"), SettingsError);
         EXPECT_THROW((void)parseSettings("[]"), SettingsError);
         EXPECT_THROW((void)parseSettings("{}"), SettingsError);
-        EXPECT_THROW((void)parseSettings("{\"version\": 2}"), SettingsError);
+        EXPECT_THROW((void)parseSettings("{\"version\": 3}"), SettingsError);
+        EXPECT_THROW((void)parseSettings("{\"version\": 0}"), SettingsError);
         EXPECT_THROW((void)parseSettings("{\"version\": \"1\"}"), SettingsError);
         EXPECT_THROW((void)parseSettings("{\"version\": 1, \"drives\": []}"), SettingsError);
         EXPECT_EQ(parseSettings("{\"version\": 1}"), Settings{});
@@ -141,6 +180,42 @@ namespace icd::services { namespace {
         SettingsStore store(dir / "settings.json");
         EXPECT_FALSE(store.rememberDriveStrategy(volumeD, {"video", EffortLevel::Moderate}));
         EXPECT_EQ(store.driveStrategy(volumeD), (DriveStrategy{"video", EffortLevel::Moderate}));
+    }
+
+    TEST(SettingsStore, TunedValuesSurviveRestarts) {
+        const auto dir = freshDirectory("tuned");
+        const auto file = dir / "settings.json";
+        EXPECT_TRUE(SettingsStore(file).update(tuned()));
+        EXPECT_EQ(SettingsStore(file).current(), tuned());
+    }
+
+    // Manual caps saved in one run size the pool of the next one, and a change applies without a restart.
+    TEST(AppServicesSettings, ManualCapsApplyNowAndAfterRestart) {
+        const auto dir = freshDirectory("caps");
+        const auto file = dir / "settings.json";
+        std::size_t capacity = 0;
+        {
+            AppServices services(DriveSource::Fake, file);
+            capacity = services.pool().capacity();
+            EXPECT_NE(services.caps().workerReason, core::CapReason::Manual);
+            Settings next = services.settings().current();
+            next.resources = {.workerThreads = 1, .memoryBudgetBytes = 1ULL << 20U};
+            EXPECT_TRUE(services.applySettings(next));
+            EXPECT_EQ(services.caps().workerThreads, 1U);
+            EXPECT_EQ(services.pool().concurrency(), 1U);
+            EXPECT_EQ(services.caps().memoryBudgetBytes, 1ULL << 20U);
+            EXPECT_EQ(services.caps().memoryReason, core::CapReason::Manual);
+        }
+        AppServices restarted(DriveSource::Fake, file);
+        EXPECT_EQ(restarted.caps().workerThreads, 1U);
+        EXPECT_EQ(restarted.pool().concurrency(), 1U);
+        EXPECT_EQ(restarted.caps().memoryBudgetBytes, 1ULL << 20U);
+        EXPECT_EQ(restarted.pool().capacity(), capacity); // Room for a higher manual cap without a new pool.
+        Settings automatic = restarted.settings().current();
+        automatic.resources = {};
+        EXPECT_TRUE(restarted.applySettings(automatic));
+        EXPECT_NE(restarted.caps().workerReason, core::CapReason::Manual);
+        EXPECT_EQ(restarted.pool().concurrency(), restarted.caps().workerThreads);
     }
 
 }} // namespace icd::services

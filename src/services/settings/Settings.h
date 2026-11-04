@@ -1,11 +1,13 @@
 #pragma once
 
 #include "core/model/DriveInfo.h"
+#include "core/resources/ResourceCaps.h"
 #include "services/workflow/FakeResults.h"
 
 #include <cstdint>
 #include <map>
 #include <optional>
+#include <span>
 #include <stdexcept>
 #include <string>
 #include <string_view>
@@ -15,24 +17,31 @@ namespace icd::services {
     // A strategy choice remembered for one drive, so selecting the drive again (also after a restart) shows the
     // preset and effort level the user last picked for it.
     struct DriveStrategy {
-        std::string preset; // core::strategy::ZoneScript::id of a built-in preset; an id no longer known falls back to the default preset.
+        std::string preset; // core::strategy::ZoneScript::id of a built-in preset; an id no longer known falls back to
+                            // the default preset.
         EffortLevel effort = EffortLevel::Fast; // Last chosen effort level.
 
         // Field-wise equality, so an unchanged choice is not written again.
         bool operator==(const DriveStrategy&) const = default;
     };
 
-    // Everything the app keeps between runs (plan.md Phase 10: versioned JSON). T130 and T131 add the Fast budget
-    // multiplier, manual caps and custom strategies here.
+    // Everything the app keeps between runs (plan.md Phase 10: versioned JSON).
     struct Settings {
         std::map<std::string, DriveStrategy> driveStrategies; // Per drive, by driveSettingsKey().
+        std::uint32_t fastBudgetMultiplier =
+            1; // Scales the Fast level's budget (plan.md 9.2.1): one of fastBudgetMultipliers().
+        core::ResourceSettings resources; // Manual thread and memory caps (plan.md 6.6); 0 is Auto.
 
         // Field-wise equality, for round-trip checks.
         bool operator==(const Settings&) const = default;
     };
 
-    // Format version written to the settings file; files of other versions are refused, not guessed at.
-    inline constexpr std::uint64_t settingsVersion = 1;
+    // Format version written to the settings file. Version 1 (drive choices only) is still read; files of other
+    // versions are refused, not guessed at.
+    inline constexpr std::uint64_t settingsVersion = 2;
+
+    // The Fast budget multipliers Settings offers (plan.md 14 decision 5), smallest first.
+    [[nodiscard]] std::span<const std::uint32_t> fastBudgetMultipliers();
 
     // A settings file that cannot be used (malformed JSON, wrong shape, other version); the message says why.
     class SettingsError : public std::runtime_error {
@@ -44,7 +53,8 @@ namespace icd::services {
     [[nodiscard]] std::string settingsJson(const Settings& settings);
 
     // Settings from a JSON document. Throws SettingsError when the document is malformed, of another version or of
-    // the wrong shape; a drive entry with an unknown effort level is dropped, so one bad entry keeps the rest.
+    // the wrong shape; a drive entry with an unknown effort level is dropped, so one bad entry keeps the rest, and
+    // a multiplier or cap that is not a usable number keeps its default.
     [[nodiscard]] Settings parseSettings(std::string_view text);
 
     // The key a drive's settings are stored under: the volume GUID name, which survives drive-letter changes, or

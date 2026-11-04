@@ -397,3 +397,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   moves", `ui/dialogs/VssWarning.*` before Execute, `icd-cli plan|execute --block-unaligned`, unaligned counts in the
   plan JSON, `tests/integration/vss/check-vss.ps1`. On the `vss` scenario blocked Moderate grew shadow storage by 2.1 MB
   for 51 moves (file system records only) against 34-37 MB unblocked; "unchanged" is impossible once any file moves.
+- T130 Settings store and dialog - settings file version 2 (version 1 still read): `fastBudgetMultiplier` (x1/x2/x4/x10,
+  into the GUI's plan requests) and manual caps `resources` (0 = Auto); `ui/dialogs/SettingsDialog.*` (Settings >
+  Preferences / Resources, Planning and Resources pages, live "In effect" caps), enabled while no job runs. Caps apply
+  without a restart: the pool starts a thread per processor and `ThreadPool::setConcurrency()` activates the capped
+  count; `AppServices::refreshCaps()` / `applySettings()` before each job and after a change; Progress tab line follows.
+  `SettingsTest` (round trip, v1, bad values, caps now and after restart), `ThreadPoolTest` (active count, drained queues).

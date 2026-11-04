@@ -24,7 +24,7 @@ namespace icd::ui {
         // Label and value rows of the dialog.
         std::vector<std::pair<std::string, std::string>> facts(const services::AppServices& services) {
             const core::DetectedResources now = services.detectResources();
-            const core::DetectedResources& atStart = services.resources();
+            const core::DetectedResources& capped = services.resources(); // What the caps were computed from.
             return {
                 {"Version", std::string(services::appVersion())},
                 {"Build", services::buildDescription() + ", wxWidgets " + wxVERSION_NUM_DOT_STRING},
@@ -32,7 +32,7 @@ namespace icd::ui {
                 {"Memory",
                  std::format("{} installed, {} available now", core::formatBytes(now.totalMemoryBytes),
                              core::formatBytes(now.availableMemoryBytes))},
-                {"Active caps", core::describeCaps(atStart, services.caps())},
+                {"Active caps", core::describeCaps(capped, services.caps())},
             };
         }
 

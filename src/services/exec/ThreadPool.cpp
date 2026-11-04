@@ -83,6 +83,7 @@ namespace icd::services {
         for (std::size_t i = 0; i < count; ++i) {
             queues_.push_back(std::make_unique<WorkerQueue>());
         }
+        active_ = count;
         workers_.reserve(count);
         for (std::size_t i = 0; i < count; ++i) {
             workers_.emplace_back([this, i](const std::stop_token& stop) { run(i, stop); });
@@ -93,21 +94,42 @@ namespace icd::services {
         workers_.clear(); // Requests stop (which also wakes sleeping workers) and joins.
     }
 
+    void ThreadPool::setConcurrency(std::size_t workers) {
+        active_ = std::clamp<std::size_t>(workers, 1, queues_.size());
+        {
+            const std::scoped_lock lock(sleepMutex_); // Orders the change before the sleepers' predicate checks.
+        }
+        wake_.notify_all(); // Newly active workers pick up queued tasks.
+    }
+
+    void ThreadPool::wakeWorkers() {
+        {
+            const std::scoped_lock lock(sleepMutex_); // Orders this wake-up after a worker's predicate check.
+        }
+        if (concurrency() < queues_.size()) {
+            wake_.notify_all();
+        }
+        else {
+            wake_.notify_one();
+        }
+    }
+
     void ThreadPool::submit(Task task) {
+        // Outside submissions go to active queues only; an inactive worker's own queue is drained by stealing.
         const std::size_t index =
-            currentPool == this ? currentWorker : nextQueue_.fetch_add(1, std::memory_order_relaxed) % queues_.size();
+            currentPool == this ? currentWorker : nextQueue_.fetch_add(1, std::memory_order_relaxed) % concurrency();
         {
             const std::scoped_lock lock(queues_[index]->mutex);
             queues_[index]->tasks.push_back(std::move(task));
         }
         pending_.fetch_add(1);
-        {
-            const std::scoped_lock lock(sleepMutex_); // Orders this wake-up after a worker's predicate check.
-        }
-        wake_.notify_one();
+        wakeWorkers();
     }
 
     std::optional<ThreadPool::Task> ThreadPool::take(std::size_t index) {
+        if (!active(index)) {
+            return std::nullopt;
+        }
         const std::size_t n = queues_.size();
         for (std::size_t k = 0; k < n; ++k) {
             WorkerQueue& queue = *queues_[(index + k) % n];
@@ -139,7 +161,7 @@ namespace icd::services {
                 continue;
             }
             std::unique_lock lock(sleepMutex_);
-            wake_.wait(lock, stop, [this] { return pending_.load() > 0; });
+            wake_.wait(lock, stop, [this, index] { return pending_.load() > 0 && active(index); });
         }
     }
 

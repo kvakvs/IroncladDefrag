@@ -407,6 +407,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/dialogs/GoToFileDialog.h
     src/ui/dialogs/ScheduleDialog.cpp
     src/ui/dialogs/ScheduleDialog.h
+    src/ui/dialogs/SettingsDialog.cpp
+    src/ui/dialogs/SettingsDialog.h
     src/ui/dialogs/ShortcutsDialog.cpp
     src/ui/dialogs/ShortcutsDialog.h
     src/ui/dialogs/VssWarning.cpp

@@ -32,11 +32,15 @@ namespace icd::ui {
         // Shows the fields; default-constructed details clear them.
         void show(const ProgressDetails& details);
 
+        // Replaces the resources and caps line after the caps were computed again (Settings, job start).
+        void setResources(const wxString& resourcesText);
+
     private:
         // Number of fields (ProgressDetails members), shown two per row.
         static constexpr std::size_t rows = 8;
 
         std::array<wxStaticText*, rows> values_{}; // Value labels in field order; children owned by wx.
+        wxStaticText* resources_ = nullptr; // The resources and caps line.
     };
 
 } // namespace icd::ui

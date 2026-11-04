@@ -27,8 +27,8 @@ namespace icd::services {
     // so neither builds services itself.
     class AppServices {
     public:
-        // Detects resources, applies the Auto caps, starts the pool, picks the drive list and loads the settings
-        // file (tests pass their own).
+        // Loads the settings file (tests pass their own), detects resources, applies the caps from the settings,
+        // starts the pool and picks the drive list.
         explicit AppServices(DriveSource drives = DriveSource::System,
                              std::filesystem::path settingsFile = SettingsStore::defaultPath());
 
@@ -38,7 +38,7 @@ namespace icd::services {
         AppServices(const AppServices&) = delete;
         AppServices& operator=(const AppServices&) = delete;
 
-        // What the machine offered at start-up.
+        // What the machine offered when the caps were last computed.
         [[nodiscard]] const core::DetectedResources& resources() const { return resources_; }
 
         // What the machine offers right now (free memory changes), for the About box and before jobs.
@@ -46,6 +46,14 @@ namespace icd::services {
 
         // Worker count and memory budget in force.
         [[nodiscard]] const core::ResourceCaps& caps() const { return caps_; }
+
+        // Detects resources again and applies the caps from the settings to the pool, so the next job gets what
+        // the machine offers now (plan.md 6.6: detected at start-up and again before each job). Call between jobs.
+        void refreshCaps();
+
+        // Saves new settings and applies their caps (refreshCaps()). False when the file could not be written; the
+        // settings still apply for this run.
+        bool applySettings(Settings settings);
 
         // The shared pool.
         [[nodiscard]] ThreadPool& pool() { return *pool_; }
@@ -63,13 +71,13 @@ namespace icd::services {
         [[nodiscard]] bool fakeDrives() const { return driveSource_ == DriveSource::Fake; }
 
     private:
-        core::DetectedResources resources_; // Detected at construction.
-        core::ResourceCaps caps_; // From resources_ and the (default) settings.
+        SettingsStore settings_; // The settings file; first, since the caps come from it.
+        core::DetectedResources resources_; // Detected at construction and by refreshCaps().
+        core::ResourceCaps caps_; // From resources_ and the settings' manual caps.
         std::unique_ptr<ThreadPool> pool_; // Created before and destroyed after jobs_.
         std::unique_ptr<JobRunner> jobs_; // Runs jobs on pool_.
         DriveSource driveSource_; // Real or fake drives.
         std::unique_ptr<IDriveProvider> drives_; // Drive list source.
-        SettingsStore settings_; // The settings file.
     };
 
 } // namespace icd::services

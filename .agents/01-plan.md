@@ -62,14 +62,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 10 - Settings and custom strategies (§13 Phase 10)
 
-### T130 - Settings store and dialog
-
-- Depends: T007, T091
-- Owns: `src/services/settings/*`, `src/ui/dialogs/SettingsDialog.*`
-- Do: extend the settings file from T075 (`services/settings/SettingsStore`); Fast budget multiplier
-  ×1/×2/×4/×10; thread and memory caps (Auto by default); the Settings dialog.
-- Done when: settings persist across restarts and affect the next plan and job.
-
 ### T131 - Custom strategies
 
 - Depends: T130, T097

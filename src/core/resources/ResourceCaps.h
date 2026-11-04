@@ -17,6 +17,9 @@ namespace icd::core {
     struct ResourceSettings {
         std::uint32_t workerThreads = 0; // Manual worker count, or 0 for Auto.
         std::uint64_t memoryBudgetBytes = 0; // Manual memory budget, or 0 for Auto.
+
+        // Field-wise equality, so the settings file can tell whether the caps changed.
+        bool operator==(const ResourceSettings&) const = default;
     };
 
     // Design targets that Auto aims for; tests and benchmarks can change them.

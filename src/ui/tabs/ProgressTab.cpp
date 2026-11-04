@@ -32,12 +32,20 @@ namespace icd::ui {
         }
         auto* resources = new wxBoxSizer(wxHORIZONTAL);
         resources->Add(new wxStaticText(this, wxID_ANY, "Resources:"), wxSizerFlags().Border(wxRIGHT, FromDIP(12)));
-        resources->Add(new wxStaticText(this, wxID_ANY, resourcesText), wxSizerFlags(1));
+        resources_ = new wxStaticText(this, wxID_ANY, resourcesText);
+        resources->Add(resources_, wxSizerFlags(1));
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(grid, wxSizerFlags().Expand().Border(wxALL, FromDIP(12)));
         sizer->Add(resources, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, FromDIP(12)));
         SetSizer(sizer);
+    }
+
+    void ProgressTab::setResources(const wxString& resourcesText) {
+        if (resources_->GetLabel() != resourcesText) {
+            resources_->SetLabel(resourcesText);
+            Layout();
+        }
     }
 
     void ProgressTab::show(const ProgressDetails& details) {

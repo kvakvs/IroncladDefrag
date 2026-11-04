@@ -6,6 +6,8 @@
 #include <chrono>
 #include <cmath>
 #include <latch>
+#include <mutex>
+#include <set>
 #include <stdexcept>
 #include <thread>
 #include <vector>
@@ -162,6 +164,68 @@ namespace icd::services { namespace {
     TEST(ThreadPool, Concurrency) {
         EXPECT_EQ(ThreadPool(0).concurrency(), 1u);
         EXPECT_EQ(ThreadPool(3).concurrency(), 3u);
+    }
+
+    // A lower thread cap takes effect without a new pool: only the active workers run tasks, every task still runs,
+    // and raising the cap again brings the sleeping workers back.
+    TEST(ThreadPool, SetConcurrencyLimitsActiveWorkers) {
+        ThreadPool pool(4);
+        EXPECT_EQ(pool.capacity(), 4u);
+        pool.setConcurrency(0);
+        EXPECT_EQ(pool.concurrency(), 1u);
+        pool.setConcurrency(9);
+        EXPECT_EQ(pool.concurrency(), 4u);
+
+        pool.setConcurrency(2);
+        constexpr int tasks = 16;
+        std::latch finished(tasks);
+        std::mutex mutex;
+        std::set<std::thread::id> threads;
+        for (int i = 0; i < tasks; ++i) {
+            pool.submit([&] {
+                {
+                    const std::scoped_lock lock(mutex);
+                    threads.insert(std::this_thread::get_id());
+                }
+                std::this_thread::sleep_for(1ms);
+                finished.count_down();
+            });
+        }
+        finished.wait();
+        EXPECT_LE(threads.size(), 2u);
+
+        pool.setConcurrency(4);
+        std::latch all(4);
+        for (int i = 0; i < 4; ++i) {
+            pool.submit([&] { all.arrive_and_wait(); }); // Returns only once four workers run at the same time.
+        }
+        all.wait();
+    }
+
+    // Lowering the cap while tasks run on the workers it deactivates loses nothing: the work they queue on their own
+    // queues is taken by the active worker.
+    TEST(ThreadPool, LoweredConcurrencyDrainsDeactivatedQueues) {
+        ThreadPool pool(4);
+        std::latch started(4);
+        std::latch release(1);
+        std::latch finished(4 * 10);
+        for (int i = 0; i < 4; ++i) {
+            pool.submit([&] {
+                started.count_down();
+                release.wait();
+                for (int k = 0; k < 10; ++k) {
+                    pool.submit([&] { finished.count_down(); }); // Lands on this worker's own queue.
+                }
+            });
+        }
+        started.wait();
+        pool.setConcurrency(1);
+        release.count_down();
+        finished.wait();
+        std::atomic<std::size_t> items{0};
+        pool.parallelFor({.count = 1000, .grain = 10},
+                         [&](std::size_t begin, std::size_t end) { items += end - begin; });
+        EXPECT_EQ(items.load(), 1000u);
     }
 
     // Busy time counts running tasks up to now and finished ones in full, so two samples give the utilisation.

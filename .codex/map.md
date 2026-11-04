@@ -90,7 +90,7 @@ changes (see `AGENTS.md`).
 | `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType` (HDD, SSD, Virtual, Unknown), `StorageFacts`, `VolumeLayout`; `classifyMedia()`, `canOptimize()` (NTFS, not SSD), `isSsd()`, `MoveBlock` and `moveBlocks()` / `canMove()` (RAID, Storage Spaces, dynamic disks, removable, BitLocker). |
 | `src/core/model/VolumeLayout.h` | `VolumeLayout` (volume GUID name, sector/cluster size, cluster counts, disk number, partition offset, disk size, extent count) and `NtfsLayout` (serial, version, record size, MFT/mirror/zone, reserved). |
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce` and `parallelSort` (chunks sorted in parallel, then merged pairwise). |
-| `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware); `busyTime()` (worker time in tasks, running ones up to now) for the Progress tab's utilisation. |
+| `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware); `busyTime()` (worker time in tasks, running ones up to now) for the Progress tab's utilisation; `capacity()` / `setConcurrency()` (active workers for a changed thread cap, no new pool). |
 | `src/core/job/CancelToken.*` | `CancelSource`/`CancelToken` over `std::stop_source`, parent-linked sources, `OperationCancelled`. |
 | `src/core/job/PauseGate.*` | `PauseGate`: workers wait between items while paused; cancellation releases them. |
 | `src/core/job/StageClock.*` | Job elapsed time and a linear per-stage time-left estimate for the Progress tab. |
@@ -171,7 +171,7 @@ changes (see `AGENTS.md`).
 | `src/services/ShellActions.*` | `volumePath()` (volume root plus snapshot path), `showInExplorer()` for the map's context menu. |
 | `src/services/Elevation.*` | `runningElevated()`, `restartElevated()`: the GUI's elevation flow without Win32 in `ui`. |
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
-| `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`), `SettingsStore`. |
+| `src/services/AppServices.*` | Service composition root: `SettingsStore`, resources (and `detectResources()` for a fresh reading), caps from the settings (`refreshCaps()`, `applySettings()`), `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`). |
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI; `setScheduledOptimization()` (take a drive out of Windows' schedule or put it back). |
 | `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge); the system-wide last-access badge on NTFS drives; `addTopology()` (removable, dynamic disk, BitLocker facts); `SystemFacts` (asked once per listing: rights, last access, BitLocker, Windows schedule, shadow copies) and `driveOf()`. |
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target; a simulated Windows schedule. |
@@ -197,7 +197,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/MoveFile.*` | `moveClusters()` (one `FSCTL_MOVE_FILE`), `moveClustersChunked()` (calls of at most N clusters, `keepGoing` between them), `classifyMoveError()` / `MoveError` / `moveErrorKey()`, `openVolumeForMoves()`, `openStreamForMove()` (stream ordinal: 0 main or directory index, 1..n named streams by path, same file id checked), `fileReferenceOf()`, `finalPathOf()`, `freeRunsIn()` (bitmap of one range), `setBackgroundIo()`. |
 | `src/services/snapshot/UsnCatchUp.*` | `catchUpSnapshot()` (journal from the saved cursor, changed and metadata records re-read, the saved snapshot patched or, when the patch refuses, every file finished again; dirty ranges), `catchUpBlocker()` (rescan rules), `CatchUpResult` (with `patched`). |
 | `src/services/snapshot/MappedStorage.*` | `storageFor()` (mapped files on the last memory rung), `MemoryGovernor` (low-memory signal steps the plan down), `defaultCacheDirectory()`. |
-| `src/services/settings/Settings.*` | `Settings` (per-drive `DriveStrategy`: preset id and effort), `settingsJson()`, `parseSettings()` (versioned, `SettingsError`, bad drive entries skipped), `driveSettingsKey()` (volume GUID, else root), `effortId()` / `effortFromId()`. |
+| `src/services/settings/Settings.*` | `Settings` (per-drive `DriveStrategy`: preset id and effort; `fastBudgetMultiplier`, `fastBudgetMultipliers()`; manual caps `resources`), `settingsJson()`, `parseSettings()` (versioned, `SettingsError`, bad drive entries skipped), `driveSettingsKey()` (volume GUID, else root), `effortId()` / `effortFromId()`. |
 | `src/services/settings/SettingsStore.*` | `SettingsStore`: `%LOCALAPPDATA%\IroncladDefrag\settings.json` loaded at start (damaged file kept as `.bad`), atomic save after each change, `driveStrategy()`, `rememberDriveStrategy()`. |
 | `src/services/snapshot/SnapshotStore.*` | `SnapshotStore`: per-volume snapshot files under `%LOCALAPPDATA%\IroncladDefrag\snapshots`, atomic save, `peek()`, `load()` with a reason when rejected, `remove()`. |
 | `src/services/scan/Classification.*` | `classifyVolume()` (built-in catalog plus churn flags: classes per file and per-class rows), `classSummary()` (files and bytes on disk per class, parallel). |
@@ -225,6 +225,7 @@ changes (see `AGENTS.md`).
 | `src/ui/ExecutionView.*` | Follows one real execution for the UI: its job, Progress fields (bytes, throughput, time left, current file, move counts), Log rows, final status. |
 | `src/ui/dialogs/ScheduleDialog.*` | Drive > Windows schedule: why Windows' scheduled optimization may undo zones, Remove / Put back; Cancel is the default button. |
 | `src/ui/dialogs/ConfirmExecuteDialog.*` | Execute confirmation: the level's figures and warnings, safety note, low I/O priority and throughput limit; Cancel is the default button. |
+| `src/ui/dialogs/SettingsDialog.*` | Settings > Preferences / Resources: Planning page (Fast budget multiplier) and Resources page (Auto or manual threads and memory, live "In effect" caps); `editSettings()` saves and applies after OK. |
 | `src/ui/dialogs/AboutDialog.*` | Help > About: version, build, detected resources (re-detected), active caps. |
 | `src/ui/dialogs/ShortcutsDialog.*` | Help > Keyboard shortcuts (F1): `shortcutLines()` groups the shortcut table by the menu holding each command, then the map keys (keys of one action on one line); shown as a list with bold headings. |
 | `src/ui/dialogs/GoToFileDialog.*` | View > Go to file: search field and match list (path, size, fragments); searches on the pool as the user types (200 ms pause, cancelled when replaced), results through a detachable mailbox. |
@@ -273,7 +274,7 @@ changes (see `AGENTS.md`).
 | `tests/services/MftMergeTest.cpp` | Rows and merge on handcrafted records: names, links, stale parents, metadata, pinned, streams, extra attributes, sparse, sizes; same snapshot for any executor and chunking; damaged records counted. |
 | `tests/services/PlanJobTest.cpp` | Parallel plans = serial plans move for move (levels in parallel and one after another), summary figures, the job's output, overlays and progress, the job classifying a request without classes |
 | `tests/services/PlanReportTest.cpp` | CLI report = GUI job's report for the same snapshot; levels, figures and move list in the JSON; text report. |
-| `tests/services/SettingsTest.cpp` | Settings JSON round trip, refused documents, skipped drive entries, effort spellings, drive keys, built-in preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file. |
+| `tests/services/SettingsTest.cpp` | Settings JSON round trip, version 1 files, refused documents, skipped drive entries, unusable multiplier and caps, effort spellings, drive keys, built-in preset ids; store in a temp directory: defaults, restart, damaged file kept aside, unwritable file; manual caps applied by `AppServices` now and after a restart. |
 | `tests/services/SnapshotStoreTest.cpp` | Save/load round trips (XPRESS, block sizes, executors give the same bytes), meta-only reads, other versions and foreign files, damage to every header byte and random payload bytes, truncation, the store's files. |
 | `tests/services/ChurnStatsTest.cpp` | Sessions from close records, deletes where the file lived (POSIX delete into $Deleted) and before their close record, directory churn rule, small folders with churning siblings, flags below churning directories. |
 | `tests/services/ClassificationTest.cpp` | Class rows add up to the volume (files, bytes), catalog order, any executor; churn turns content into temp. |
@@ -339,7 +340,7 @@ changes (see `AGENTS.md`).
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 | `tests/platform/MoveFileTest.cpp` | Move error mapping; on a writable ICD-TEST volume (slow, elevated): a file, a named stream and a directory index moved in 7-cluster chunks, runs re-read, bytes read back unbuffered unchanged, a move onto used clusters refused; a refused 4,096-cluster call keeps the prefix before the taken cluster. |
 | `tests/services/JobRunnerTest.cpp` | Job outcomes, cancel, destructor wait, progress throttling, fake job. |
-| `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops, busy time. |
+| `tests/services/ThreadPoolTest.cpp` | Identical reductions for 1..N threads, coverage, errors, fast cancel, nested loops, busy time, active worker count changed and deactivated queues drained. |
 | `tests/services/PlannedBed.h` | A planned synthetic volume with its classes and plan and a `SimVolume` to run it on (feed and live map tests). |
 | `tests/services/LiveMapTest.cpp` | Moves applied in batches equal a full build of the snapshot after them; rebase on a changed volume, then the rest; nothing to apply and a patch that does not fit. |
 | `tests/services/ShellActionsTest.cpp` | Full paths from volume roots (letters, mount folders) and snapshot paths. |

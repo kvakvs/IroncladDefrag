@@ -22,6 +22,7 @@
 #include "ui/MainMenu.h"
 #include "ui/bridge/JobEvents.h"
 #include "ui/dialogs/ScheduleDialog.h"
+#include "ui/dialogs/SettingsDialog.h"
 #include "ui/dialogs/VssWarning.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
@@ -207,6 +208,8 @@ namespace icd::ui {
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_COLOR_CLASS, ID_ZOOM_CLUSTER);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_GOTO_FILE, ID_PREVIOUS_FRAGMENT);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onScheduleCommand, this, ID_WINDOWS_SCHEDULE);
+        frame_.Bind(wxEVT_MENU, &WorkflowBinding::onSettingsCommand, this, ID_RESOURCES);
+        frame_.Bind(wxEVT_MENU, &WorkflowBinding::onSettingsCommand, this, wxID_PREFERENCES);
         frame_.Bind(jobProgressEvent(), &WorkflowBinding::onJobProgress, this);
         frame_.Bind(jobFinishedEvent(), &WorkflowBinding::onJobFinished, this);
     }
@@ -234,6 +237,24 @@ namespace icd::ui {
             return;
         }
         perform(*action);
+    }
+
+    void WorkflowBinding::onSettingsCommand(wxCommandEvent& event) {
+        if (!commandEnabled(event.GetId())) {
+            return; // The accelerator arrives even while a job runs.
+        }
+        const SettingsPage page = event.GetId() == ID_RESOURCES ? SettingsPage::Resources : SettingsPage::Planning;
+        wxString status;
+        if (editSettings(&frame_, services_, page, status)) {
+            refreshResources();
+            widgets_.bottom.setStatus(status);
+        }
+    }
+
+    void WorkflowBinding::refreshResources() {
+        services_.refreshCaps();
+        widgets_.bottom.progress().setResources(
+            wxString::FromUTF8(core::describeCaps(services_.resources(), services_.caps())));
     }
 
     bool WorkflowBinding::scheduleChangeable() const {
@@ -423,6 +444,7 @@ namespace icd::ui {
         }
         const core::DriveInfo& drive = *drive_;
         resetFor(job);
+        refreshResources(); // The job gets the caps for what the machine offers now.
         const StepText& text = textOf(job);
         clock_.emplace(std::chrono::steady_clock::now());
         activeKind_ = job;
@@ -519,6 +541,7 @@ namespace icd::ui {
         services::PlanRequest request = services::makePlanRequest(
             drive, std::move(snapshot), {classes.begin(), classes.end()}, widgets_.bottom.strategy().script());
         request.blockUnaligned = widgets_.bottom.plan().blockUnaligned();
+        request.fastBudgetMultiplier = services_.settings().current().fastBudgetMultiplier;
         return services::makePlanJob(std::move(request), planOutput_);
     }
 
@@ -926,6 +949,9 @@ namespace icd::ui {
     bool WorkflowBinding::commandEnabled(int id) const {
         if (id == ID_WINDOWS_SCHEDULE) {
             return scheduleChangeable();
+        }
+        if (id == ID_RESOURCES || id == wxID_PREFERENCES) {
+            return !workflow_.busy(); // Caps change only between jobs.
         }
         if (isMapCommand(id)) {
             return widgets_.map.hasMap() && widgets_.map.commandAvailable(id);
