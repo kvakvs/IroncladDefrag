@@ -19,6 +19,9 @@ namespace icd::services {
         // The multipliers fastBudgetMultipliers() offers.
         constexpr std::array<std::uint32_t, 4> multipliers{1, 2, 4, 10};
 
+        // Settings-file spellings of the appearances, in Appearance order.
+        constexpr std::array appearanceIds{"system", "light", "dark"};
+
         // Oldest settings-file version still read.
         constexpr std::uint64_t oldestVersion = 1;
 
@@ -164,11 +167,20 @@ namespace icd::services {
         out.key("memoryBudgetBytes").value(settings.resources.memoryBudgetBytes);
         out.endObject();
         writeMapColors(out, settings.mapColors);
+        out.key("appearance").value(appearanceId(settings.appearance));
         out.endObject();
         return out.str() + "\n";
     }
 
     std::span<const std::uint32_t> fastBudgetMultipliers() { return multipliers; }
+
+    const char* appearanceId(Appearance appearance) { return appearanceIds.at(static_cast<std::size_t>(appearance)); }
+
+    std::optional<Appearance> appearanceFromId(std::string_view id) {
+        const auto found = std::ranges::find(appearanceIds, id);
+        return found == appearanceIds.end() ? std::nullopt
+                                            : std::optional(static_cast<Appearance>(found - appearanceIds.begin()));
+    }
 
     core::ColorScheme colorSchemeOf(const MapColorSettings& colors) {
         const auto found = colors.custom.find(colors.preset);
@@ -204,6 +216,9 @@ namespace icd::services {
             readMultiplier(root, settings);
             readResources(root, settings);
             readMapColors(root, settings);
+            if (const auto appearance = stringMember(root, "appearance"); appearance) {
+                settings.appearance = appearanceFromId(*appearance).value_or(Appearance::System);
+            }
             return settings;
         }
         catch (const core::JsonError& error) {

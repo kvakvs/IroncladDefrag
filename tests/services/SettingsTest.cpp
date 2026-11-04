@@ -33,6 +33,7 @@ namespace icd::services { namespace {
         Settings settings = sample();
         settings.fastBudgetMultiplier = 4;
         settings.resources = {.workerThreads = 3, .memoryBudgetBytes = 5ULL << 30U};
+        settings.appearance = Appearance::Dark;
         settings.mapColors.preset = core::ColorPreset::Dark;
         settings.mapColors.custom[core::ColorPreset::Dark] = {{"class.photos", core::rgb(1, 2, 255)}};
         settings.mapColors.custom[core::ColorPreset::Standard] = {{"free", core::rgb(255, 255, 255)}};
@@ -109,6 +110,16 @@ namespace icd::services { namespace {
         EXPECT_EQ(scheme.color("class.photos"), core::rgb(1, 2, 255));
         EXPECT_EQ(scheme.color("free"),
                   core::presetColor(core::ColorPreset::Dark, "free")); // Standard's edit stays there.
+    }
+
+    TEST(Settings, Appearance) {
+        for (const Appearance appearance : {Appearance::System, Appearance::Light, Appearance::Dark}) {
+            EXPECT_EQ(appearanceFromId(appearanceId(appearance)), appearance);
+        }
+        EXPECT_FALSE(appearanceFromId("Dark"));
+        EXPECT_EQ(parseSettings(R"({"version": 2, "appearance": "light"})").appearance, Appearance::Light);
+        EXPECT_EQ(parseSettings(R"({"version": 2, "appearance": "neon"})").appearance, Appearance::System);
+        EXPECT_EQ(parseSettings(R"({"version": 2})").appearance, Appearance::System);
     }
 
     TEST(Settings, RefusesUnusableDocuments) {

@@ -8,6 +8,7 @@
 #include <wx/choice.h>
 #include <wx/grid.h>
 #include <wx/radiobox.h>
+#include <wx/settings.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 
@@ -159,7 +160,8 @@ namespace icd::ui {
             zones_->SetColSize(c, FromDIP(columns.at(static_cast<std::size_t>(c)).second));
         }
         problemsText_ = new wxStaticText(this, wxID_ANY, "");
-        problemsText_->SetForegroundColour(wxColour(190, 30, 30));
+        const bool dark = wxSystemSettings::GetAppearance().IsUsingDarkBackground();
+        problemsText_->SetForegroundColour(dark ? wxColour(255, 120, 110) : wxColour(190, 30, 30)); // Readable red.
 
         auto* top = new wxBoxSizer(wxHORIZONTAL);
         top->Add(new wxStaticText(this, wxID_ANY, "Preset:"), wxSizerFlags().CenterVertical());

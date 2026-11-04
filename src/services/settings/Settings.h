@@ -45,6 +45,19 @@ namespace icd::services {
     // The opaque color of "#RRGGBB" (case-insensitive); nullopt for anything else.
     [[nodiscard]] std::optional<core::Rgba> colorFromText(std::string_view text);
 
+    // Light or dark windows (T126); applied when the app starts.
+    enum class Appearance : std::uint8_t {
+        System, // Follow Windows' app mode (Settings > Personalization > Colors).
+        Light, // Always light.
+        Dark, // Always dark.
+    };
+
+    // Stable spelling of an appearance in the settings file ("system", "light", "dark").
+    [[nodiscard]] const char* appearanceId(Appearance appearance);
+
+    // The appearance of a settings-file spelling; nullopt for anything else.
+    [[nodiscard]] std::optional<Appearance> appearanceFromId(std::string_view id);
+
     // Everything the app keeps between runs (plan.md Phase 10: versioned JSON).
     struct Settings {
         std::map<std::string, DriveStrategy> driveStrategies; // Per drive, by driveSettingsKey().
@@ -52,6 +65,7 @@ namespace icd::services {
             1; // Scales the Fast level's budget (plan.md 9.2.1): one of fastBudgetMultipliers().
         core::ResourceSettings resources; // Manual thread and memory caps (plan.md 6.6); 0 is Auto.
         MapColorSettings mapColors; // Map color preset and the user's colors.
+        Appearance appearance = Appearance::System; // Light or dark windows, from the next start.
 
         // Field-wise equality, for round-trip checks.
         bool operator==(const Settings&) const = default;

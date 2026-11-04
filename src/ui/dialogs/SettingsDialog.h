@@ -9,6 +9,7 @@
 
 class wxCheckBox;
 class wxChoice;
+class wxRadioBox;
 class wxSpinCtrl;
 class wxStaticText;
 
@@ -22,6 +23,7 @@ namespace icd::ui {
     enum class SettingsPage : std::uint8_t {
         Planning, // Fast budget multiplier.
         Resources, // Thread and memory caps.
+        Appearance, // Light or dark windows.
     };
 
     // What the Resources page needs to know about the machine to offer and preview caps.
@@ -30,9 +32,10 @@ namespace icd::ui {
         std::uint32_t maxThreads = 1; // Most worker threads a manual cap may ask for (the pool's capacity).
     };
 
-    // Settings > Preferences and Settings > Resources (plan.md 13 Phase 10): the Fast budget multiplier (9.2.1) and
-    // manual thread and memory caps (6.6, Auto by default) with a preview of the caps they give. Edits a copy of the
-    // settings; the caller saves and applies settings() after OK.
+    // Settings > Preferences and Settings > Resources (plan.md 13 Phase 10): the Fast budget multiplier (9.2.1),
+    // manual thread and memory caps (6.6, Auto by default) with a preview of the caps they give, and light or dark
+    // windows (applied at the next start). Edits a copy of the settings; the caller saves and applies settings() after
+    // OK.
     class SettingsDialog : public wxDialog {
     public:
         // Builds the dialog on a copy of settings, showing page first.
@@ -49,6 +52,9 @@ namespace icd::ui {
         // The Resources page: Auto or manual threads and memory, and the caps they give.
         wxWindow* createResourcesPage(wxWindow* parent);
 
+        // The Appearance page: System, Light or Dark windows.
+        wxWindow* createAppearancePage(wxWindow* parent);
+
         // The manual caps as chosen (0 for Auto).
         [[nodiscard]] core::ResourceSettings resourceChoice() const;
 
@@ -63,10 +69,12 @@ namespace icd::ui {
         wxCheckBox* autoMemory_ = nullptr; // Auto memory budget.
         wxSpinCtrl* memoryGb_ = nullptr; // Manual memory budget in GB.
         wxStaticText* preview_ = nullptr; // The caps the choice gives, as describeCaps() words them.
+        wxRadioBox* appearance_ = nullptr; // System / Light / Dark.
     };
 
     // Shows the Settings dialog for services' settings and, after OK, saves and applies the changes (caps take
-    // effect for the next job). Returns false when nothing changed; status receives what the status line says.
+    // effect for the next job, the appearance at the next start). Returns false when nothing changed; status receives
+    // what the status line says.
     bool editSettings(wxWindow* parent, services::AppServices& services, SettingsPage page, wxString& status);
 
 } // namespace icd::ui

@@ -155,8 +155,9 @@ namespace icd::ui {
         private:
             // Frame and used part of the bar.
             static void drawBar(wxDC& dc, const wxRect& bar, double used) {
-                dc.SetPen(wxPen(wxColour(160, 160, 160)));
-                dc.SetBrush(wxBrush(wxColour(230, 230, 230)));
+                const bool dark = wxSystemSettings::GetAppearance().IsUsingDarkBackground();
+                dc.SetPen(wxPen(dark ? wxColour(110, 110, 110) : wxColour(160, 160, 160)));
+                dc.SetBrush(wxBrush(dark ? wxColour(60, 60, 60) : wxColour(230, 230, 230))); // The free part.
                 dc.DrawRectangle(bar);
                 const int fill = static_cast<int>(used * (bar.width - 2));
                 dc.SetPen(*wxTRANSPARENT_PEN);

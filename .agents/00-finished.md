@@ -425,3 +425,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   per preset as "#RRGGBB"); Map colors tab: preset picker, Reset colors, click a legend entry to pick its color.
   `ColorModesTest` (tiles = legend colors for every preset and a custom scheme, standard = original, presets cover
   every key distinctly), `SettingsTest` (map colors).
+- T126 Light and dark windows - Settings > Preferences > Appearance (System / Light / Dark, `Settings::appearance`),
+  applied at start through `wxApp::MSWEnableDarkMode()`; dark variants for the drive space bars and the Strategy tab's
+  problem text. Checked in forced dark mode on the fake drive list (window, tabs, grid, rulers, Settings dialog).

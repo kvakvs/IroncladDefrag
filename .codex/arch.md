@@ -96,6 +96,12 @@ this file records what is actually built and the decisions made along the way.
   under review (`MapPanel::commandAvailable()`). The color mode switch (Map colors tab) posts the same View command
   as the menu, so check marks, map and switch always agree; `MapPanel::syncColors()` shows the mode in it and
   enables the modes that can be shown.
+- Light and dark windows (T126): Settings > Preferences > Appearance (System, Light, Dark; `Settings::appearance`,
+  System by default) is applied once in `App::OnInit()` before the first window through wx 3.3's
+  `wxApp::MSWEnableDarkMode()` (Auto follows Windows' app mode, Always, Never), so a change needs a restart. wx then
+  themes the standard controls and returns dark system colors, which our own drawing already uses; the two fixed
+  colors (drive space bar frame and free part, the Strategy tab's problem text) pick a dark variant by
+  `wxSystemSettings::GetAppearance().IsUsingDarkBackground()`. The map keeps its own color scheme (T125).
 - Map colors tab (T124): the bottom panel's last tab, `ui::MapColorsPage`, holds the color mode switch and the legend.
   The legend used to be a strip under the map and the color choice and a state caption sat above it; the file class
   legend has 16 entries and took several lines of the map's height, and the caption repeated the status line. The

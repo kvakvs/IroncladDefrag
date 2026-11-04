@@ -18,10 +18,25 @@ namespace icd {
         }
         services::initAppLogging("IroncladDefrag");
         services_ = std::make_unique<services::AppServices>(services::driveSourceFromEnvironment());
+        applyAppearance(services_->settings().current().appearance); // Before the first window.
         // wx owns top-level windows and deletes them on close.
         auto* frame = new MainFrame(*services_, initialDrive_);
         frame->Show();
         return true;
+    }
+
+    void App::applyAppearance(services::Appearance appearance) {
+        switch (appearance) {
+        case services::Appearance::Light:
+            MSWEnableDarkMode(DarkMode_Never);
+            return;
+        case services::Appearance::Dark:
+            MSWEnableDarkMode(DarkMode_Always);
+            return;
+        case services::Appearance::System:
+            break;
+        }
+        MSWEnableDarkMode(DarkMode_Auto);
     }
 
     void App::OnInitCmdLine(wxCmdLineParser& parser) {

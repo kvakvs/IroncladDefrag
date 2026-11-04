@@ -9,12 +9,14 @@
 #include <wx/choice.h>
 #include <wx/notebook.h>
 #include <wx/panel.h>
+#include <wx/radiobox.h>
 #include <wx/settings.h>
 #include <wx/sizer.h>
 #include <wx/spinctrl.h>
 #include <wx/stattext.h>
 
 #include <algorithm>
+#include <array>
 #include <format>
 #include <string>
 
@@ -48,6 +50,11 @@ namespace icd::ui {
             return label;
         }
 
+        // What the appearance choice does.
+        constexpr const char* appearanceNote =
+            "System follows Windows (Settings > Personalization > Colors > Choose your app mode). The change "
+            "applies the next time Ironclad Defrag starts. The map's own colors are chosen in the Map colors tab.";
+
         // Whole GB of a byte count for the memory field, at least 1.
         int gigabytes(std::uint64_t bytes) {
             return static_cast<int>(std::clamp<std::uint64_t>(bytes / gigabyte, 1, 1U << 20U));
@@ -78,6 +85,7 @@ namespace icd::ui {
         auto* notebook = new wxNotebook(this, wxID_ANY);
         notebook->AddPage(createPlanningPage(notebook), "Planning");
         notebook->AddPage(createResourcesPage(notebook), "Resources");
+        notebook->AddPage(createAppearancePage(notebook), "Appearance");
         notebook->SetSelection(static_cast<std::size_t>(page));
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
@@ -146,6 +154,20 @@ namespace icd::ui {
         return page;
     }
 
+    wxWindow* SettingsDialog::createAppearancePage(wxWindow* parent) {
+        auto* page = new wxPanel(parent);
+        const std::array<wxString, 3> choices{"&System", "&Light", "&Dark"};
+        appearance_ = new wxRadioBox(page, wxID_ANY, "Windows", wxDefaultPosition, wxDefaultSize,
+                                     static_cast<int>(choices.size()), choices.data(), 1, wxRA_SPECIFY_COLS);
+        appearance_->SetSelection(static_cast<int>(settings_.appearance));
+        auto* sizer = new wxBoxSizer(wxVERTICAL);
+        const int border = FromDIP(12);
+        sizer->Add(appearance_, wxSizerFlags().Border(wxALL, border));
+        sizer->Add(note(page, appearanceNote), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
+        page->SetSizer(sizer);
+        return page;
+    }
+
     core::ResourceSettings SettingsDialog::resourceChoice() const {
         core::ResourceSettings choice;
         if (!autoThreads_->GetValue()) {
@@ -183,6 +205,7 @@ namespace icd::ui {
         const auto index = static_cast<std::size_t>(std::max(multiplier_->GetSelection(), 0));
         result.fastBudgetMultiplier = multipliers[std::min(index, multipliers.size() - 1)];
         result.resources = resourceChoice();
+        result.appearance = static_cast<services::Appearance>(std::clamp(appearance_->GetSelection(), 0, 2));
         return result;
     }
 
@@ -197,9 +220,13 @@ namespace icd::ui {
         if (next == services.settings().current()) {
             return false;
         }
+        const bool restart = next.appearance != services.settings().current().appearance;
         const bool saved = services.applySettings(std::move(next));
         status = saved ? wxString("Settings saved; they apply to the next plan and job")
                        : wxString("Settings apply to this run but could not be saved (see the log)");
+        if (saved && restart) {
+            status += "; the new appearance applies after a restart";
+        }
         return true;
     }
 

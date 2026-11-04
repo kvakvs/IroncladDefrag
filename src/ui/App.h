@@ -2,12 +2,14 @@
 
 #include <wx/app.h>
 
+#include <cstdint>
 #include <memory>
 #include <string>
 
 namespace icd::services {
     class AppServices;
-}
+    enum class Appearance : std::uint8_t;
+} // namespace icd::services
 
 namespace icd {
 
@@ -33,6 +35,9 @@ namespace icd {
         bool OnCmdLineParsed(wxCmdLineParser& parser) override;
 
     private:
+        // Light or dark windows from the saved setting (wx's Windows dark mode); must run before any window exists.
+        void applyAppearance(services::Appearance appearance);
+
         std::unique_ptr<services::AppServices> services_; // Pool and job runner; outlives the main window.
         std::string initialDrive_; // Root given with --drive; empty for none.
     };
