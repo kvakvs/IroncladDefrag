@@ -22,6 +22,55 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ---
 
+## Phase 5 follow-up - Classification of churning files (§8.2, §8.3)
+
+### T076 - Churn file types and project build directories across languages
+
+- Depends: T074
+- Owns: `data/classes.json`, project-marker support in `src/core/classify/Catalog.*` and `RuleEngine.*`,
+  `tests/core/CatalogTest.cpp`, the `dev` scenario in `tools/testvol/gen-scenario/Scenarios.*`
+- Why: the catalog knows only a few ecosystems (MSBuild/CMake folders, `node_modules`, a list of package caches,
+  `.tmp`/`.swp`). Files that are rewritten or deleted all the time (build output, caches, logs, dumps, debug info)
+  belong in the churn zone and gap (plan.md 8.3); missed ones stay "unknown" and get packed among cold data, where
+  they fragment again. Generic folder names are also too broad today: `**/bin/**`, `**/build/**`, `**/out/**`,
+  `**/Debug/**`, `**/x64/**` match `C:\Program Files\App\bin` as build output.
+- Do:
+  - Project markers: let a rule require a marker file in the directory that holds the matched folder (`Cargo.toml` ->
+    `target/`, `mix.exs` -> `_build/` and `deps/`, `rebar.config` -> `_build/`, `package.json` -> `node_modules/`,
+    `dist/`, `.next/`, `.nuxt/`, `.svelte-kit/`, `.turbo/`, `.parcel-cache/`, `pyproject.toml` / `setup.py` /
+    `setup.cfg` -> `build/`, `dist/`, `*.egg-info/`, `.eggs/`, `pom.xml` -> `target/`, `build.gradle(.kts)` -> `build/`,
+    `.gradle/`, `CMakeLists.txt` -> `build*/`, `cmake-build-*/`, `out/`, `*.sln` / `*.*proj` -> `bin/`, `obj/`, `.vs/`,
+    `stack.yaml` / `*.cabal` -> `.stack-work/`, `dist-newstyle/`, `dune-project` -> `_build/`, `build.zig` ->
+    `zig-out/`, `.zig-cache/`, `Package.swift` -> `.build/`, `go.mod` -> `vendor/`, `WORKSPACE` / `MODULE.bazel` ->
+    `bazel-*/`, `pubspec.yaml` -> `.dart_tool/`, `build/`, `*.xcodeproj` -> `DerivedData/`). Generic names count as build
+    output only with their marker; unambiguous names (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
+    `.tox`, `.nox`, `.ipynb_checkpoints`, `CMakeFiles`, `.terraform`, `.angular/cache`) need none. Keep the check cheap:
+    markers come from the snapshot's directory listing, one lookup per directory, never extra disk reads.
+  - File types (extensions and names): Python `pyc`, `pyo`; Java `class`; Erlang/Elixir `beam`; Haskell `hi`, `dyn_hi`,
+    `dyn_o`; OCaml `cmi`, `cmo`, `cmx`, `cmt`; C/C++ `gch`, `pcm`, `ifc`, `exp`, `tlog` (have), `pdb` (have), `ilk`
+    (have); TypeScript `tsbuildinfo`; JS source maps `*.js.map` / `*.css.map` in build folders; editor and merge
+    leftovers `*~`, `#*#`, `.#*`, `*.orig`, `*.rej`, `.DS_Store`; partial downloads `crdownload`, `part`, `partial`;
+    logs `log`, `etl`, `*.log.N`; dumps `dmp`, `mdmp`, `hdmp`, `core`, `MEMORY.DMP`, `CrashDumps/`, `Minidump/`, `WER/`
+    reports; debug information `pdb`, `dSYM/`, `*.debug`, `sym`. Windows and app caches: `AppData\Local\Temp`,
+    `Windows\Temp`, browser `Cache`, `Code Cache`, `GPUCache`, `ShaderCache`.
+  - `node_modules` and other dependency trees: they are rewritten wholesale by `npm ci` / `pip install` but not
+    between installs. Look at the USN churn of the `dev` scenario (and a real dev folder, read-only, on E: or X:) and
+    decide with the user whether they stay `dependencies` (placed next to the sources) or join the churn zone; same for
+    `.venv` / `venv`.
+  - Decide whether logs, dumps and debug information get their own classes (logs: appended, fragment, belong by the
+    churn gap; dumps: large, written once and rarely read, cold) or map onto `temp` / `build`; update the presets that
+    name these classes (`development`, `mixed`) and the class colors and legend if classes are added.
+  - Watch for clashes before adding an extension: `.d` (D source vs make dependency files), `.lib` / `.a` (built or
+    shipped), `.map` (source map vs game map), `.bin` (build folder vs disc image, already split), `.log` written by
+    a database in place (churn by the journal anyway).
+- Done when: `CatalogTest` has typical and false-positive cases per ecosystem (a marker-less `bin/` under Program Files
+  is not build output; `target/` without `Cargo.toml` or `pom.xml` is not either); the `dev` scenario gains Rust,
+  Python, Elixir/Erlang and Node projects with build/clean cycles and `check-classes.ps1` / `check-churn.ps1` find every
+  churning folder and file type and nothing else; classifying a 6 M-file synthetic volume is not measurably slower;
+  the class summary of a real development folder has been reviewed with the user.
+
+---
+
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
 ### T095d - Sorted zones within 1.1 x at Maximum
@@ -68,12 +117,51 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 11 - Deployment (§13 Phase 11)
 
-### T140 - Installer
+### T141 - App icon
 
 - Depends: T002
+- Needs from the user: the icon. **Gate:** ask for it (a multi-size `.ico` with 16, 20, 24, 32, 48, 64 and 256 px, or a
+  square PNG/SVG master of at least 256 px to build it from) before starting; do not draw one.
+- Owns: `res/IroncladDefrag.ico`, the icon lines of `res/IroncladDefrag.rc`, the frame icon in `src/ui/MainFrame.*`
+- Do: embed the icon as the executable's first icon resource (Explorer, taskbar, Alt+Tab, shortcuts and the installer
+  use it); set it on the main frame and the dialogs through `wxIconBundle` so every size is sharp at any DPI; keep the
+  source file in the repository and note its origin.
+- Done when: Explorer, the taskbar, the title bar and Alt+Tab show the icon at 100% and 150-200% scaling, with no wx
+  default icon left anywhere.
+
+### T142 - Version 1.0
+
+- Depends: T002
+- Owns: `project(VERSION)` in `CMakeLists.txt`, `src/core/Version.h.in`, version text in `.codex/arch.md`
+- Do: set the product version to 1.0.0 (it is 0.1.0 now; plan.md 14 decision 11: plain `MAJOR.MINOR.PATCH`, no
+  year/month numbers). The short git hash is build metadata only (About box, log start line, installer file name),
+  with a "-dirty" mark for builds from a changed tree.
+- Done when: the title bar, About box, `icd-cli --version`, the executable's file properties and the log start line all
+  say 1.0.0 (plus the hash where build metadata is shown).
+
+### T140 - Installer
+
+- Depends: T002, T141, T142
 - Owns: `installer/*.nsi`, `make-installer.bat`
-- Do: NSIS installer with `YYYY.MM.N` + short git hash, all DLLs, output in `dist/`.
+- Do: NSIS installer with the product version (T142) + short git hash, the app icon (T141), all DLLs, output in
+  `dist/`.
 - Done when: install, start from the install folder and uninstall all work. **Phase 11 exit check.**
+
+### T143 - Product web page
+
+- Depends: T140, T141
+- Needs from the user: the domain, how to publish to the hosting (SFTP/SSH, FTP, a git push, a control panel upload),
+  where the installer download is served from, and the contact / license / privacy text to show. **Gate:** ask before
+  starting; publishing is public and needs the user's go-ahead for each upload.
+- Owns: `web/` (static site sources and assets), `tools/publish-web.*`
+- Do: a small static site (no framework, no tracking, works without JavaScript): what the app does and for whom
+  (HDDs, zone strategies, least movement), screenshots of the map, strategies, plan review and live execution taken
+  from the fake drive list, the safety model (dry-run plans, revalidation, Windows move API, pause/cancel, logs),
+  system requirements (Windows 10 22H2+, x64, NTFS HDDs; SSDs get TRIM only), download with version, size and SHA-256
+  of the installer, release notes, and the icon as favicon. Page text in the project's plain style. A publish script
+  that uploads `web/` with credentials kept outside the repository.
+- Done when: the user has reviewed the page locally, it is published at the domain with the current installer, the
+  download's SHA-256 matches `dist/`, and the page reads well on a phone and a desktop.
 
 ---
 
@@ -89,6 +177,22 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Do: on drive selection, find the volume's unfinished log and offer "Resume the interrupted run" (with how many moves
   are left); run it with the same job, Progress, Log and live map.
 - Done when: a run cancelled in the GUI is resumed from the GUI and the volume ends as after an uninterrupted run.
+
+### T114 - Read and write animation (consider)
+
+- Depends: T111
+- Owns: a read/write activity layer in `src/ui/map/*` fed from the analysis and execution progress
+- Why: during analysis and execution the map changes in jumps; showing where the disk is reading and writing right
+  now makes progress visible and tells a working run from a stalled one.
+- Decide first (with the user, from a short mock-up or screenshots): what is shown (analysis: the MFT or bitmap region
+  being read; execution: the source extent glowing as it is read, the destination as it is written, maybe a short trail
+  between them), and how (map overlay with fading highlights, a small read/write indicator by the progress line, or
+  both).
+- Constraints: driven by the existing throttled progress (~10 Hz) and the live map feed, never by the disk I/O path;
+  repaints only the changed tiles and stays within the 7.5 frame budget; off during Pause; respects the Windows
+  "Show animations" setting; a View menu toggle.
+- Done when: the chosen design runs on the fake drive list and a test VHDX without lowering execution throughput or
+  map frame rate (measured before and after).
 
 ### T150 - Churn gap size after measuring NTFS allocation (TODO)
 

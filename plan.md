@@ -768,7 +768,8 @@ Each phase ends only when every exit criterion has been checked, and the result 
 
 ### Phase 11 - Deployment
 - NSIS installer (`C:\Program Files (x86)\NSIS\makensis.exe`),
-  `YYYY.MM.N` versioning plus the short git hash, `make-installer.bat`, output in `dist/`.
+  semantic product version (1.0.0 for the first release, decision 11) plus the short git hash as build metadata,
+  `make-installer.bat`, output in `dist/`.
 - **Exit:** the installer installs, the app starts from the install folder, and uninstall removes it.
 
 ### First real-drive run
@@ -794,6 +795,11 @@ Answered on 2026-10-31:
    not recalculated when the window moves to another screen (7.1).
 10. **Resource caps:** threads and memory are detected automatically and capped to what is available;
     the 8 GB / 8-core figures are targets, not requirements (6.6).
+
+Answered on 2026-11-04:
+
+11. **Versioning:** the product is versioned 1.0 (`MAJOR.MINOR.PATCH`, first release 1.0.0); releases are few, so
+    no year/month numbers. The short git hash is build metadata only.
 
 ## Sources
 
