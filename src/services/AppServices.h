@@ -5,6 +5,7 @@
 #include "services/exec/ThreadPool.h"
 #include "services/job/JobRunner.h"
 #include "services/settings/SettingsStore.h"
+#include "services/settings/StrategyLibrary.h"
 
 #include <cstdint>
 #include <filesystem>
@@ -27,8 +28,8 @@ namespace icd::services {
     // so neither builds services itself.
     class AppServices {
     public:
-        // Loads the settings file (tests pass their own), detects resources, applies the caps from the settings,
-        // starts the pool and picks the drive list.
+        // Loads the settings file (tests pass their own) and the custom strategies beside it, detects resources,
+        // applies the caps from the settings, starts the pool and picks the drive list.
         explicit AppServices(DriveSource drives = DriveSource::System,
                              std::filesystem::path settingsFile = SettingsStore::defaultPath());
 
@@ -67,11 +68,15 @@ namespace icd::services {
         // Settings kept between runs (UI thread only).
         [[nodiscard]] SettingsStore& settings() { return settings_; }
 
+        // Built-in and custom strategies (UI thread only).
+        [[nodiscard]] StrategyLibrary& strategies() { return strategies_; }
+
         // Whether the drive list is the fake one (analysis then stays synthetic).
         [[nodiscard]] bool fakeDrives() const { return driveSource_ == DriveSource::Fake; }
 
     private:
         SettingsStore settings_; // The settings file; first, since the caps come from it.
+        StrategyLibrary strategies_; // Custom strategies in the "strategies" directory beside the settings file.
         core::DetectedResources resources_; // Detected at construction and by refreshCaps().
         core::ResourceCaps caps_; // From resources_ and the settings' manual caps.
         std::unique_ptr<ThreadPool> pool_; // Created before and destroyed after jobs_.

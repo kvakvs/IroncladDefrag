@@ -5,8 +5,16 @@
 #include <filesystem>
 #include <optional>
 #include <string>
+#include <string_view>
 
 namespace icd::services {
+
+    // Writes text to file through "<file>.tmp" and a rename, creating the directory, so a crash mid-save keeps the old
+    // file whole. Shared by the settings file and the strategy library. Throws on I/O errors.
+    void writeFileAtomically(const std::filesystem::path& file, std::string_view text);
+
+    // The whole file as text; nullopt when it does not exist or cannot be opened.
+    [[nodiscard]] std::optional<std::string> readTextFile(const std::filesystem::path& file);
 
     // The settings file: read once at start-up, written whole after each change. The file is a few hundred bytes,
     // so a save is cheap enough for the UI thread; it writes a temporary file and renames it over the old one, so

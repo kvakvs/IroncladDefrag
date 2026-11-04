@@ -12,15 +12,6 @@ namespace icd::services {
 
     namespace {
 
-        // The whole file as text; nullopt when it does not exist or cannot be opened.
-        std::optional<std::string> readText(const std::filesystem::path& file) {
-            std::ifstream in(file, std::ios::binary);
-            if (!in) {
-                return std::nullopt;
-            }
-            return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
-        }
-
         // Moves an unusable settings file aside so the next save does not destroy it.
         void keepBadFile(const std::filesystem::path& file) {
             std::filesystem::path bad = file;
@@ -31,6 +22,29 @@ namespace icd::services {
 
     } // namespace
 
+    std::optional<std::string> readTextFile(const std::filesystem::path& file) {
+        std::ifstream in(file, std::ios::binary);
+        if (!in) {
+            return std::nullopt;
+        }
+        return std::string(std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>());
+    }
+
+    void writeFileAtomically(const std::filesystem::path& file, std::string_view text) {
+        std::filesystem::create_directories(file.parent_path());
+        std::filesystem::path temporary = file;
+        temporary += ".tmp";
+        {
+            std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
+            out << text;
+            out.flush();
+            if (!out) {
+                throw std::runtime_error("cannot write " + temporary.string());
+            }
+        }
+        std::filesystem::rename(temporary, file); // Replaces the old file in one step.
+    }
+
     SettingsStore::SettingsStore(std::filesystem::path file) : file_(std::move(file)) { load(); }
 
     std::filesystem::path SettingsStore::defaultPath() {
@@ -38,7 +52,7 @@ namespace icd::services {
     }
 
     void SettingsStore::load() {
-        const std::optional<std::string> text = readText(file_);
+        const std::optional<std::string> text = readTextFile(file_);
         if (!text) {
             return; // First run: defaults.
         }
@@ -52,20 +66,7 @@ namespace icd::services {
         }
     }
 
-    void SettingsStore::save() const {
-        std::filesystem::create_directories(file_.parent_path());
-        std::filesystem::path temporary = file_;
-        temporary += ".tmp";
-        {
-            std::ofstream out(temporary, std::ios::binary | std::ios::trunc);
-            out << settingsJson(settings_);
-            out.flush();
-            if (!out) {
-                throw std::runtime_error("cannot write " + temporary.string());
-            }
-        }
-        std::filesystem::rename(temporary, file_); // Replaces the old file in one step.
-    }
+    void SettingsStore::save() const { writeFileAtomically(file_, settingsJson(settings_)); }
 
     bool SettingsStore::update(Settings settings) {
         settings_ = std::move(settings);

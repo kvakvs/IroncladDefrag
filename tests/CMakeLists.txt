@@ -104,6 +104,7 @@ add_executable(icd_tests
     services/SimDevice.h
     services/SimVolume.h
     services/SettingsTest.cpp
+    services/StrategyLibraryTest.cpp
     services/ShellActionsTest.cpp
     services/SnapshotStoreTest.cpp
     services/ThreadPoolTest.cpp

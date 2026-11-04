@@ -62,13 +62,7 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 10 - Settings and custom strategies (§13 Phase 10)
 
-### T131 - Custom strategies
-
-- Depends: T130, T097
-- Owns: `src/services/settings/StrategyLibrary.*`
-- Do: save user zone scripts, import/export. Per-drive strategy memory exists (T075); custom strategies
-  get ids that fit `DriveStrategy::preset`.
-- Done when: a custom strategy survives a restart and produces the same plan. **Phase 10 exit check.**
+> Phase 10 finished 2026-11-04 (T130, T131).
 
 ---
 

@@ -4,6 +4,8 @@
 #include "platform/win/TextConvert.h"
 #include "platform/win/Volumes.h"
 #include "services/exec/ThreadPool.h"
+#include "services/settings/SettingsStore.h"
+#include "services/settings/StrategyLibrary.h"
 
 #include <algorithm>
 #include <cctype>
@@ -82,15 +84,25 @@ namespace icd::cli {
         return std::nullopt;
     }
 
-    const core::strategy::ZoneScript* presetNamed(const std::string& id) {
-        const auto index = core::strategy::builtinPresetIndex(id);
-        return index ? &core::strategy::builtinPresets()[*index] : nullptr;
+    namespace {
+
+        // The library the GUI saves custom strategies to (beside the settings file).
+        services::StrategyLibrary userLibrary() {
+            return services::StrategyLibrary(services::SettingsStore::defaultPath().parent_path() / L"strategies");
+        }
+
+    } // namespace
+
+    std::optional<core::strategy::ZoneScript> presetNamed(const std::string& id) {
+        const services::StrategyLibrary library = userLibrary();
+        const core::strategy::ZoneScript* script = library.find(id);
+        return script != nullptr ? std::optional(*script) : std::nullopt;
     }
 
     std::string presetIds() {
         std::string ids;
-        for (const auto& p : core::strategy::builtinPresets()) {
-            ids += (ids.empty() ? "" : ", ") + p.id;
+        for (const auto* p : userLibrary().all()) {
+            ids += (ids.empty() ? "" : ", ") + p->id;
         }
         return ids;
     }

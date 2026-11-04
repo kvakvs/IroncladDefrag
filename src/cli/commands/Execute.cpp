@@ -252,8 +252,8 @@ namespace icd::cli {
 
         // Analyses and plans the volume now.
         Prepared planNow(const ExecuteArgs& args, const core::DriveInfo& drive, services::JobContext& context) {
-            const core::strategy::ZoneScript* script = presetNamed(args.strategy);
-            if (script == nullptr) {
+            const std::optional<core::strategy::ZoneScript> script = presetNamed(args.strategy);
+            if (!script) {
                 throw std::runtime_error("unknown strategy \"" + args.strategy + "\" (use " + presetIds() + ")");
             }
             services::AnalysisResult analysis = services::analyzeVolume(drive, context, {}, {});

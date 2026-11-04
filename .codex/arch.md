@@ -305,6 +305,24 @@ this file records what is actually built and the decisions made along the way.
   none is lost). `AppServices::refreshCaps()` re-detects resources and applies the settings' caps; the GUI calls it
   before every job and after a settings change, and the Progress tab's resources line follows. The CLI's
   `AppServices` reads the same file, so manual caps apply there too (`--threads` still overrides).
+- T131 custom strategies: `services::StrategyLibrary` (owned by `AppServices`, UI thread only) keeps one zone script
+  file per custom strategy (the `data/strategies` format, `zoneScriptJson()`) in `strategies\` beside the settings
+  file, written through `writeFileAtomically()` (shared with `SettingsStore`). Custom ids are `custom-` plus a slug of
+  the name (`customStrategyId()`, `-2`, `-3` when taken), so they never collide with built-in ids and are stored in
+  `DriveStrategy::preset` like them; a deleted strategy falls back to the default preset on restore. Saving under an
+  existing custom name replaces it in place (same id); an import never replaces (name "X (2)"). Files that do not parse,
+  validate, carry a non-custom id or repeat an id are logged and skipped. `find()` / `all()` cover built-ins first, then
+  custom strategies by name; `icd-cli plan|execute --strategy` resolve ids through the same library.
+- Strategy tab buttons (Save as, Delete, Import, Export) are reported as `StrategyCommand`s; `ui::StrategyActions`
+  runs the dialogs and the library and `WorkflowBinding` only remembers the new selection. Save as and Export take the
+  shown script with its edits; Save as is disabled while the script has problems; Save as has no mnemonic (its letters
+  are taken by the menu bar and the workflow buttons). Custom strategies show as "Custom: name" in the picker.
+- Phase 10 exit (2026-11-04): `StrategyLibraryTest.CustomStrategySurvivesRestartAndGivesTheSamePlan` saves an edited
+  photo preset through one `AppServices`, remembers it for a drive, and a second `AppServices` on the same files finds
+  the same script whose three levels plan move for move as before (and differently from the built-in preset). Across
+  processes: a custom file planned twice by `icd-cli plan --synthetic 20000 --json` gave identical output except
+  `planningSeconds`. In the GUI (fake drives, driven by UI Automation) Save as showed "Custom: ..." and wrote the file;
+  Delete removed it and went back to the default preset.
 
 ## USN catch-up
 
@@ -1092,7 +1110,7 @@ All analysis checks passed.
   `orderNamed()`), so the churn gap is edited like "5% volume, 2x build+temp". Every edit re-runs `validateScript()`;
   unreadable cells and issues show in red under the table, and `WorkflowBinding::allowed()` keeps Build plan disabled
   until there are none. `script()` is what the next plan runs; edits drop a built plan like a preset change. Choosing
-  another preset discards edits (custom strategies are T131).
+  another preset discards edits unless they were kept with Save as (T131, see Settings).
 
 ## Planner
 

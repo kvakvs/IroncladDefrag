@@ -2,13 +2,16 @@
 
 #include "core/classify/Catalog.h"
 #include "core/strategy/Presets.h"
+#include "services/settings/StrategyLibrary.h"
 
+#include <wx/button.h>
 #include <wx/choice.h>
 #include <wx/grid.h>
 #include <wx/radiobox.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 
+#include <algorithm>
 #include <array>
 #include <cstdint>
 #include <format>
@@ -107,6 +110,12 @@ namespace icd::ui {
             return text == sameOrder || order.has_value();
         }
 
+        // The picker's label of a strategy: custom ones are marked, so a copy of a preset is told from the original.
+        wxString pickerLabel(const core::strategy::ZoneScript& script) {
+            const std::string prefix = services::isCustomStrategyId(script.id) ? "Custom: " : "";
+            return wxString::FromUTF8(prefix + script.name);
+        }
+
         // Applies a free-text cell; false when the text cannot be read.
         bool applyText(core::strategy::Zone& z, int column, const std::string& text) {
             switch (column) {
@@ -133,10 +142,10 @@ namespace icd::ui {
 
     } // namespace
 
-    StrategyPage::StrategyPage(wxWindow* parent) : wxPanel(parent) {
+    StrategyPage::StrategyPage(wxWindow* parent) : wxPanel(parent), strategies_(core::strategy::builtinPresets()) {
         preset_ = new wxChoice(this, wxID_ANY);
-        for (const auto& preset : core::strategy::builtinPresets()) {
-            preset_->Append(wxString::FromUTF8(preset.name));
+        for (const auto& strategy : strategies_) {
+            preset_->Append(pickerLabel(strategy));
         }
         const std::array<wxString, 3> levels{"Fast", "Moderate", "Maximum"};
         effort_ = new wxRadioBox(this, wxID_ANY, "Effort", wxDefaultPosition, wxDefaultSize, levels.size(),
@@ -156,6 +165,7 @@ namespace icd::ui {
         top->Add(new wxStaticText(this, wxID_ANY, "Preset:"), wxSizerFlags().CenterVertical());
         top->Add(preset_, wxSizerFlags().CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(8)));
         top->Add(effort_, wxSizerFlags().CenterVertical());
+        top->Add(createButtons(), wxSizerFlags().CenterVertical().Border(wxLEFT, FromDIP(16)));
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(top, wxSizerFlags().Border(wxALL, FromDIP(8)));
         sizer->Add(description_, wxSizerFlags().Expand().Border(wxLEFT | wxRIGHT | wxBOTTOM, FromDIP(8)));
@@ -173,32 +183,90 @@ namespace icd::ui {
         setEditable(false);
     }
 
+    wxSizer* StrategyPage::createButtons() {
+        saveAs_ = new wxButton(this, wxID_ANY,
+                               "Save as..."); // No mnemonic: its letters belong to the menus and workflow buttons.
+        delete_ = new wxButton(this, wxID_ANY, "De&lete");
+        import_ = new wxButton(this, wxID_ANY, "&Import...");
+        export_ = new wxButton(this, wxID_ANY, "E&xport...");
+        saveAs_->SetToolTip("Keep the shown strategy, with your edits, as a custom strategy");
+        delete_->SetToolTip("Delete the selected custom strategy");
+        import_->SetToolTip("Add a custom strategy from a zone script file (.json)");
+        export_->SetToolTip("Write the shown strategy, with your edits, to a zone script file (.json)");
+        auto* row = new wxBoxSizer(wxHORIZONTAL);
+        const std::array<std::pair<wxButton*, StrategyCommand>, 4> buttons{{
+            {saveAs_, StrategyCommand::SaveAs},
+            {delete_, StrategyCommand::Delete},
+            {import_, StrategyCommand::Import},
+            {export_, StrategyCommand::Export},
+        }};
+        for (const auto& [button, command] : buttons) {
+            row->Add(button, wxSizerFlags().Border(wxRIGHT, FromDIP(4)));
+            button->Bind(wxEVT_BUTTON, [this, command](wxCommandEvent&) {
+                if (onCommand_) {
+                    onCommand_(command);
+                }
+            });
+        }
+        return row;
+    }
+
+    void StrategyPage::setStrategies(std::vector<core::strategy::ZoneScript> strategies) {
+        if (strategies.empty()) {
+            strategies = core::strategy::builtinPresets(); // The picker is never empty.
+        }
+        strategies_ = std::move(strategies);
+        preset_->Clear();
+        for (const auto& strategy : strategies_) {
+            preset_->Append(pickerLabel(strategy));
+        }
+        selectIndex(0, effort());
+    }
+
     std::size_t StrategyPage::preset() const {
         const int selection = preset_->GetSelection();
         return selection == wxNOT_FOUND ? 0 : static_cast<std::size_t>(selection);
     }
 
+    const std::string& StrategyPage::presetId() const { return strategies_.at(preset()).id; }
+
+    bool StrategyPage::customSelected() const { return services::isCustomStrategyId(presetId()); }
+
     services::EffortLevel StrategyPage::effort() const {
         return static_cast<services::EffortLevel>(effort_->GetSelection());
     }
 
-    void StrategyPage::reset() { select(0, services::EffortLevel::Fast); }
+    void StrategyPage::reset() { selectIndex(0, services::EffortLevel::Fast); }
 
-    void StrategyPage::select(std::size_t preset, services::EffortLevel effort) {
-        const bool known = preset < core::strategy::builtinPresets().size();
-        preset_->SetSelection(known ? static_cast<int>(preset) : 0);
+    void StrategyPage::select(std::string_view id, services::EffortLevel effort) {
+        const auto found = std::ranges::find(strategies_, id, &core::strategy::ZoneScript::id);
+        selectIndex(static_cast<std::size_t>(found - strategies_.begin()), effort);
+    }
+
+    void StrategyPage::selectIndex(std::size_t index, services::EffortLevel effort) {
+        preset_->SetSelection(index < strategies_.size() ? static_cast<int>(index) : 0);
         effort_->SetSelection(static_cast<int>(effort));
         loadPreset();
     }
 
     void StrategyPage::setEditable(bool editable) {
+        editable_ = editable;
         preset_->Enable(editable);
         effort_->Enable(editable);
         zones_->EnableEditing(editable);
+        refreshButtons();
+    }
+
+    void StrategyPage::refreshButtons() {
+        const bool usable = problems_.empty();
+        saveAs_->Enable(editable_ && usable);
+        delete_->Enable(editable_ && customSelected());
+        import_->Enable(editable_);
+        export_->Enable(usable); // Writes a file only; a broken script would not import again.
     }
 
     void StrategyPage::loadPreset() {
-        script_ = core::strategy::builtinPresets().at(preset());
+        script_ = strategies_.at(preset());
         cellProblems_.clear();
         description_->SetLabelText(wxString::FromUTF8(script_.description));
         description_->Wrap(FromDIP(900));
@@ -245,6 +313,7 @@ namespace icd::ui {
             text += (text.empty() ? "" : "\n") + p;
         }
         problemsText_->SetLabelText(wxString::FromUTF8(text));
+        refreshButtons();
         Layout();
     }
 

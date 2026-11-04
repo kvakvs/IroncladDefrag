@@ -207,8 +207,8 @@ namespace icd::cli {
             std::fprintf(stderr, "Usage: %s\n", planUsage());
             return 2;
         }
-        const core::strategy::ZoneScript* script = presetNamed(parsed->strategy);
-        if (script == nullptr) {
+        const std::optional<core::strategy::ZoneScript> script = presetNamed(parsed->strategy);
+        if (!script) {
             std::fprintf(stderr, "icd-cli plan: unknown strategy \"%s\" (use %s)\n", parsed->strategy.c_str(),
                          presetIds().c_str());
             return 2;

@@ -360,6 +360,8 @@ add_library(icd_services STATIC
     src/services/settings/Settings.h
     src/services/settings/SettingsStore.cpp
     src/services/settings/SettingsStore.h
+    src/services/settings/StrategyLibrary.cpp
+    src/services/settings/StrategyLibrary.h
     src/services/snapshot/MappedStorage.cpp
     src/services/snapshot/MappedStorage.h
     src/services/snapshot/SnapshotStore.cpp
@@ -395,6 +397,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/MainFrame.h
     src/ui/MainMenu.cpp
     src/ui/MainMenu.h
+    src/ui/StrategyActions.cpp
+    src/ui/StrategyActions.h
     src/ui/WorkflowBinding.cpp
     src/ui/WorkflowBinding.h
     src/ui/bridge/JobEvents.cpp

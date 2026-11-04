@@ -403,3 +403,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   without a restart: the pool starts a thread per processor and `ThreadPool::setConcurrency()` activates the capped
   count; `AppServices::refreshCaps()` / `applySettings()` before each job and after a change; Progress tab line follows.
   `SettingsTest` (round trip, v1, bad values, caps now and after restart), `ThreadPoolTest` (active count, drained queues).
+- T131 Custom strategies - `services/settings/StrategyLibrary.*` (one zone script file per custom strategy in
+  `strategies\` beside the settings file, `custom-<name>` ids that fit `DriveStrategy::preset`, save / replace by name,
+  delete, import that never replaces, export, unusable files skipped), owned by `AppServices`; Strategy tab picker over
+  built-in and custom strategies with Save as / Delete / Import / Export (`ui/StrategyActions.*`); `icd-cli plan|execute
+  --strategy` find custom ids. `StrategyLibraryTest`. **Phase 10 exit:** a custom strategy survives a restart and gives
+  the same plan at every level (unit test; two `icd-cli plan` processes gave identical plans; GUI Save as / Delete
+  checked through UI Automation).

@@ -41,10 +41,10 @@ namespace icd::cli {
     // The effort level named "fast", "moderate", "max" or "maximum", or nullopt.
     [[nodiscard]] std::optional<core::strategy::Effort> effortNamed(std::wstring_view name);
 
-    // The built-in preset with this id, or null.
-    [[nodiscard]] const core::strategy::ZoneScript* presetNamed(const std::string& id);
+    // The built-in preset or the user's custom strategy (saved from the GUI) with this id, or nullopt.
+    [[nodiscard]] std::optional<core::strategy::ZoneScript> presetNamed(const std::string& id);
 
-    // The ids of the built-in presets, comma separated, for messages.
+    // The ids of the built-in presets and custom strategies, comma separated, for messages.
     [[nodiscard]] std::string presetIds();
 
     // The scanner named "api" or "mft", or nullopt.

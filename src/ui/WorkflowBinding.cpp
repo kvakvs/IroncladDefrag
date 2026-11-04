@@ -181,11 +181,19 @@ namespace icd::ui {
 
     WorkflowBinding::WorkflowBinding(wxFrame& frame, services::AppServices& services, Widgets widgets) :
         frame_(frame), services_(services), widgets_(widgets), execution_(widgets.bottom),
-        live_(widgets.map, services.pool()), bridge_(std::make_shared<JobEventBridge>(&frame)) {
+        strategyActions_(frame, widgets.bottom.strategy(), services.strategies()), live_(widgets.map, services.pool()),
+        bridge_(std::make_shared<JobEventBridge>(&frame)) {
         bindEvents();
         widgets_.drives.setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
         widgets_.drives.setContextMenuHandler([this] { showDriveMenu(); });
-        widgets_.bottom.strategy().setChangeHandler([this] { onStrategyChanged(); });
+        StrategyPage& strategy = widgets_.bottom.strategy();
+        strategy.setChangeHandler([this] { onStrategyChanged(); });
+        strategy.setCommandHandler([this](StrategyCommand command) {
+            if (strategyActions_.run(command)) {
+                onStrategyChanged();
+            }
+        });
+        strategyActions_.showLibrary({});
         widgets_.bottom.plan().setVssHandler([this] { onVssOptionChanged(); });
         widgets_.drives.setDrives(services_.drives().listDrives());
         refresh();
@@ -891,8 +899,8 @@ namespace icd::ui {
             page.reset();
             return;
         }
-        // A preset that no longer exists falls back to the default; the effort level still applies.
-        page.select(core::strategy::builtinPresetIndex(saved->preset).value_or(0), saved->effort);
+        // A strategy that no longer exists (a deleted custom one) falls back to the default; the effort level applies.
+        page.select(saved->preset, saved->effort);
     }
 
     void WorkflowBinding::rememberStrategy() {
@@ -900,7 +908,7 @@ namespace icd::ui {
             return;
         }
         const StrategyPage& page = widgets_.bottom.strategy();
-        const services::DriveStrategy choice{core::strategy::builtinPresets().at(page.preset()).id, page.effort()};
+        const services::DriveStrategy choice{page.presetId(), page.effort()};
         services_.settings().rememberDriveStrategy(services::driveSettingsKey(*drive_), choice);
     }
 

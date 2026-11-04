@@ -37,7 +37,8 @@ namespace icd::services {
     }
 
     AppServices::AppServices(DriveSource drives, std::filesystem::path settingsFile) :
-        settings_(std::move(settingsFile)), resources_(platform::detectSystemResources()),
+        settings_(std::move(settingsFile)), strategies_(settings_.path().parent_path() / L"strategies"),
+        resources_(platform::detectSystemResources()),
         caps_(core::computeCaps(resources_, settings_.current().resources)),
         pool_(std::make_unique<ThreadPool>(poolCapacity(resources_, caps_))),
         jobs_(std::make_unique<JobRunner>(*pool_)), driveSource_(drives), drives_(makeDriveProvider(drives)) {
