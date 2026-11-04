@@ -428,3 +428,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T126 Light and dark windows - Settings > Preferences > Appearance (System / Light / Dark, `Settings::appearance`),
   applied at start through `wxApp::MSWEnableDarkMode()`; dark variants for the drive space bars and the Strategy tab's
   problem text. Checked in forced dark mode on the fake drive list (window, tabs, grid, rulers, Settings dialog).
+- T127 File tab - `ui/panels/FilePage.*`: the selected file's path and facts (`core::describeFile()`), "Find file",
+  Show in Explorer, Copy path, previous / next fragment; the row above the map is gone (the map panel is only canvas and
+  rulers); `MapPanel::attachFile()`, `selectedFile()`, `setSelectionHandler()`; a newly selected file brings the tab
+  forward when no job runs. `HitTestTest.DescribeFile`.

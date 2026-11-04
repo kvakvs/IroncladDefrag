@@ -2,6 +2,7 @@
 
 #include "ui/Accelerators.h"
 #include "ui/Commands.h"
+#include "ui/panels/FilePage.h"
 #include "ui/panels/MapColorsPage.h"
 #include "ui/panels/PlanPage.h"
 #include "ui/panels/StrategyPage.h"
@@ -44,6 +45,8 @@ namespace icd::ui {
         notebook_->AddPage(log_, "Log");
         mapColors_ = new MapColorsPage(notebook_, executor);
         notebook_->AddPage(mapColors_, "Map colors");
+        file_ = new FilePage(notebook_);
+        notebook_->AddPage(file_, "File");
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(notebook_, wxSizerFlags(1).Expand());
@@ -73,6 +76,8 @@ namespace icd::ui {
     }
 
     void BottomPanel::showTab(BottomTab tab) { notebook_->SetSelection(static_cast<std::size_t>(tab)); }
+
+    bool BottomPanel::tabShown(BottomTab tab) const { return notebook_->GetSelection() == static_cast<int>(tab); }
 
     void BottomPanel::setStatus(const wxString& text) { status_->SetLabelText(text); }
 

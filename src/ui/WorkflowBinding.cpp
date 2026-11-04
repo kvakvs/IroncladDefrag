@@ -193,6 +193,7 @@ namespace icd::ui {
         });
         strategyActions_.showLibrary({});
         widgets_.bottom.plan().setVssHandler([this] { onVssOptionChanged(); });
+        widgets_.map.setSelectionHandler([this] { onFileSelected(); });
         widgets_.drives.setDrives(services_.drives().listDrives());
         refresh();
     }
@@ -218,6 +219,14 @@ namespace icd::ui {
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onSettingsCommand, this, wxID_PREFERENCES);
         frame_.Bind(jobProgressEvent(), &WorkflowBinding::onJobProgress, this);
         frame_.Bind(jobFinishedEvent(), &WorkflowBinding::onJobFinished, this);
+    }
+
+    void WorkflowBinding::onFileSelected() {
+        const std::optional<core::FileIndex> file = widgets_.map.selectedFile();
+        if (file && file != selectedFile_ && !workflow_.busy()) {
+            widgets_.bottom.showTab(BottomTab::File); // A newly picked file: show what it is. Not during a job.
+        }
+        selectedFile_ = file;
     }
 
     void WorkflowBinding::onViewCommand(wxCommandEvent& event) {

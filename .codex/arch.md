@@ -105,7 +105,8 @@ this file records what is actually built and the decisions made along the way.
 - Map colors tab (T124): the bottom panel's last tab, `ui::MapColorsPage`, holds the color mode switch and the legend.
   The legend used to be a strip under the map and the color choice and a state caption sat above it; the file class
   legend has 16 entries and took several lines of the map's height, and the caption repeated the status line. The
-  map's top row keeps the selected file and the search field. `MainFrame` attaches the page to the map panel
+  map's top row kept the selected file and the search field until T127 moved them to the File tab. `MainFrame`
+  attaches the page to the map panel
   (`MapPanel::attachColors()`), which holds it by `wxWeakRef`, so either may be destroyed first. View > Map colors and
   legend (Ctrl+L, formerly the legend toggle) brings the tab to the front.
 - UI numbers use `core::formatCount()` rather than the C locale, which would also change printf output.
@@ -905,7 +906,12 @@ All analysis checks passed.
   (with a selection version); a dirty tile is still drawn and re-requested, and the mark clears when a
   tile drawn with that version or newer arrives. Nothing flickers and untouched tiles stay cached. Tests
   check that the refreshed tiles are exactly the tiles whose pixels change.
-- "Go to file" (Ctrl+F, or Enter in the toolbar's "Find file") is a dialog: `core::searchFiles()` runs on
+- File tab (T127, `ui::FilePage`, the bottom panel's last tab): the file last clicked or found, with
+  `core::describeFile()` facts (size, allocated, fragments, type and flags, class, times), "Find file", Show in
+  Explorer, Copy path and previous / next fragment (the View commands). It replaced the row above the map, so the map
+  panel is only the canvas and its rulers. `MapPanel::attachFile()` (weak reference like the Map colors tab) feeds it
+  from the selection observer; a newly selected file brings the tab to the front unless a job runs.
+- "Go to file" (Ctrl+F, or Enter in the File tab's "Find file") is a dialog: `core::searchFiles()` runs on
   the pool as the user types, ranks exact names, then prefixes, then other matches, and lists up to 500.
   Without a backslash the query matches names; with one it matches path pieces (the last part starts the
   name, the rest ends the parent's path, compared name by name up the parent chain without building

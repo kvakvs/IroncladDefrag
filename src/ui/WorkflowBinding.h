@@ -74,6 +74,9 @@ namespace icd::ui {
         // Binds menu and button commands and job events on the frame.
         void bindEvents();
 
+        // The map's selection changed: a newly selected file brings the File tab to the front (when no job runs).
+        void onFileSelected();
+
         // View menu and map keys: stubs until the map engine (Phase 2) owns them.
         void onViewCommand(wxCommandEvent& event);
 
@@ -247,6 +250,7 @@ namespace icd::ui {
         std::shared_ptr<core::PauseGate> pause_; // Pause control of the running execution.
         std::optional<core::StageClock> clock_; // Timing of the running job.
         std::optional<core::DriveInfo> drive_; // Selected drive, copied so a refresh cannot change it mid-job.
+        std::optional<core::FileIndex> selectedFile_; // File selected on the map, to tell a new pick from a refresh.
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
         std::shared_ptr<services::PlanOutput> planOutput_; // Where the running plan job leaves its outcome.

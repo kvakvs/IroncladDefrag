@@ -443,6 +443,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/panels/DrivesPanel.h
     src/ui/panels/BottomPanel.cpp
     src/ui/panels/BottomPanel.h
+    src/ui/panels/FilePage.cpp
+    src/ui/panels/FilePage.h
     src/ui/panels/MapColorsPage.cpp
     src/ui/panels/MapColorsPage.h
     src/ui/panels/MapPanel.cpp

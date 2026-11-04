@@ -64,6 +64,7 @@ namespace icd {
         const wxString resources = wxString::FromUTF8(core::describeCaps(services_.resources(), services_.caps()));
         bottom_ = new ui::BottomPanel(splitter_, resources, services_.pool());
         map_->attachColors(bottom_->mapColors());
+        map_->attachFile(bottom_->file());
         const services::MapColorSettings& colors = services_.settings().current().mapColors;
         map_->setColorScheme(services::colorSchemeOf(colors));
         bottom_->mapColors().setColors(colors);

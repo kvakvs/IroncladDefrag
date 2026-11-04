@@ -54,10 +54,9 @@ namespace icd::core {
             return {static_cast<std::uint64_t>(clippedFirst), static_cast<std::uint64_t>(clippedLast - clippedFirst)};
         }
 
-        // "Type: file, compressed, unmovable": the kind from the flags, then the notable flags. File classes
-        // (plan.md 8.2) take over this line once classification exists.
-        std::string typeLine(const FileTable& files, FileIndex file) {
-            std::string line = "Type: ";
+        // "file, compressed, unmovable": the kind from the flags, then the notable flags.
+        std::string typeText(const FileTable& files, FileIndex file) {
+            std::string line;
             if (files.has(file, FileMetadata)) {
                 line += "NTFS metadata";
             }
@@ -74,6 +73,15 @@ namespace icd::core {
                 }
             }
             return line;
+        }
+
+        // "Type: file, compressed, unmovable" for the tooltip.
+        std::string typeLine(const FileTable& files, FileIndex file) { return "Type: " + typeText(files, file); }
+
+        // The name of a catalog class value, as the class legend shows it.
+        std::string_view className(std::uint8_t kind) {
+            const auto legend = legendOf(ColorMode::FileClass);
+            return legend[legendCategory(ColorMode::FileClass, PieceOwner{.kind = kind})].label;
         }
 
         // "Stream: main data" for the record's stream.
@@ -116,11 +124,8 @@ namespace icd::core {
             if (!hit.record || *hit.record >= extentKinds.size()) {
                 return;
             }
-            const PieceOwner owner{.kind = extentKinds[*hit.record]};
-            const auto legend = legendOf(ColorMode::FileClass);
-            const std::string line =
-                std::format("Class: {}", legend[legendCategory(ColorMode::FileClass, owner)].label);
-            lines.insert(lines.end() - 1, line); // Before the times line.
+            lines.insert(lines.end() - 1,
+                         std::format("Class: {}", className(extentKinds[*hit.record]))); // Before times.
         }
 
         // The line about the free run holding the cluster.
@@ -224,6 +229,26 @@ namespace icd::core {
             return std::format("{:%Y-%m-%d %H:%M} UTC", minutes);
         }
         return std::format("{:%Y-%m-%d %H:%M}", zone->to_local(minutes));
+    }
+
+    std::vector<FileFact> describeFile(const Snapshot& snapshot, FileIndex file, const std::chrono::time_zone* zone,
+                                       std::span<const std::uint8_t> fileClasses) {
+        const FileTable& files = snapshot.files;
+        const std::size_t fragments = snapshot.extents.fragmentCount(file);
+        std::vector<FileFact> facts{
+            {"Size", formatBytes(files.sizeBytes(file))},
+            {"Allocated", formatBytes(bytesOf(snapshot, files.allocatedClusters(file)))},
+            {"Fragments", fragments == 0 ? std::string("none (data in the MFT record)") : formatCount(fragments)},
+            {"Type", typeText(files, file)},
+        };
+        if (file < fileClasses.size()) {
+            facts.push_back({"Class", std::string(className(fileClasses[file]))});
+        }
+        const FileTimes& times = files.times(file);
+        facts.push_back({"Modified", formatFileTime(times.modified, zone)});
+        facts.push_back({"Created", formatFileTime(times.created, zone)});
+        facts.push_back({"Accessed", formatFileTime(times.accessed, zone)});
+        return facts;
     }
 
     std::vector<std::string> describeHit(const Snapshot& snapshot, const MapHit& hit,

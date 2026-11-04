@@ -269,4 +269,26 @@ namespace icd::core { namespace {
         EXPECT_EQ(wideLines.back().rfind("This pixel: ", 0), 0U);
     }
 
+    // The File tab's facts (T127): the same figures as the tooltip, one per label, the class only with classes.
+    TEST(HitTest, DescribeFile) {
+        const HitVolume v = hitVolume();
+        const ExtentRecord* record = v.snapshot.extents.find(505); // The photo file of DescribeHit.
+        ASSERT_NE(record, nullptr);
+        const FileIndex file = record->file();
+        const auto value = [](const std::vector<FileFact>& facts, std::string_view label) {
+            const auto found = std::ranges::find(facts, label, &FileFact::label);
+            return found == facts.end() ? std::string("(missing)") : found->value;
+        };
+        const std::vector<FileFact> facts = describeFile(v.snapshot, file, nullptr);
+        EXPECT_EQ(value(facts, "Size"), "97.7 KB");
+        EXPECT_EQ(value(facts, "Allocated"), "140 KB");
+        EXPECT_EQ(value(facts, "Fragments"), "2");
+        EXPECT_EQ(value(facts, "Type"), "file, compressed");
+        EXPECT_EQ(value(facts, "Modified"), "2026-01-01 00:00 UTC");
+        EXPECT_EQ(value(facts, "Class"), "(missing)");
+        std::vector<std::uint8_t> classes(v.snapshot.files.size(), 0);
+        classes[file] = 12; // "Photos" in the built-in catalog.
+        EXPECT_EQ(value(describeFile(v.snapshot, file, nullptr, classes), "Class"), "Photos");
+    }
+
 }} // namespace icd::core

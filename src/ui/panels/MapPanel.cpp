@@ -10,6 +10,7 @@
 #include "ui/map/MapNavigator.h"
 #include "ui/map/MapSelection.h"
 #include "ui/map/Ruler.h"
+#include "ui/panels/FilePage.h"
 #include "ui/panels/MapColorsPage.h"
 
 #include <wx/clipbrd.h>
@@ -36,20 +37,20 @@ namespace icd::ui {
             return found == items.end() ? ID_COLOR_FRAGMENTATION : found->command;
         }
 
-        // The toolbar text for a selected file: its path and where in its fragments the view is.
-        std::string selectionText(const std::string& path, std::size_t fragment, std::size_t count) {
-            if (count == 0) {
-                return path + ": no clusters on disk";
+        // The time zone file times are shown in; null (UTC) when the system's cannot be found.
+        const std::chrono::time_zone* localZone() {
+            try {
+                return std::chrono::current_zone();
             }
-            if (count == 1) {
-                return path + ": 1 fragment";
+            catch (const std::exception&) {
+                return nullptr;
             }
-            return std::format("{}: fragment {} of {}", path, fragment + 1, count);
         }
 
     } // namespace
 
-    MapPanel::MapPanel(wxWindow* parent, core::Executor& executor) : wxPanel(parent), executor_(executor) {
+    MapPanel::MapPanel(wxWindow* parent, core::Executor& executor) :
+        wxPanel(parent), executor_(executor), zone_(localZone()) {
         canvas_ = new MapCanvas(this, executor);
         auto* rows = new Ruler(this, *canvas_, Ruler::Orientation::Vertical);
         rows_ = rows;
@@ -72,9 +73,9 @@ namespace icd::ui {
         map->Add(canvas_, wxSizerFlags().Expand());
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
-        sizer->Add(createToolbar(), wxSizerFlags().Expand().Border(wxALL, FromDIP(4)));
-        sizer->Add(map, wxSizerFlags(1).Expand());
+        sizer->Add(map, wxSizerFlags(1).Expand().Border(wxTOP, FromDIP(4)));
         SetSizer(sizer);
+        canvas_->selection().setObserver([this] { showSelection(); });
 
         // The release itself, not wxEVT_CONTEXT_MENU: the canvas does not get that from a mouse click.
         canvas_->Bind(wxEVT_RIGHT_UP, &MapPanel::onRightUp, this);
@@ -85,23 +86,50 @@ namespace icd::ui {
 
     MapPanel::~MapPanel() {
         canvas_->setViewObserver({}); // The rulers may be destroyed before the canvas.
-        canvas_->selection().setObserver({}); // So may the toolbar label.
+        canvas_->selection().setObserver({}); // So may the File tab.
     }
 
-    wxSizer* MapPanel::createToolbar() {
-        auto* bar = new wxBoxSizer(wxHORIZONTAL);
-        search_ = new wxSearchCtrl(this, wxID_ANY, "", wxDefaultPosition, FromDIP(wxSize(220, -1)), wxTE_PROCESS_ENTER);
-        search_->SetDescriptiveText("Find file");
-        search_->SetToolTip(commandTip(ID_GOTO_FILE));
-        search_->Bind(wxEVT_SEARCH, [this](wxCommandEvent&) { goToFile(search_->GetValue()); });
-        search_->Disable(); // Until a map is shown.
-        selectionLabel_ = new wxStaticText(this, wxID_ANY, "", wxDefaultPosition, wxDefaultSize,
-                                           wxST_NO_AUTORESIZE | wxST_ELLIPSIZE_MIDDLE);
-        canvas_->selection().setObserver([this] { updateSelectionLabel(); });
+    void MapPanel::attachFile(FilePage& page) {
+        filePage_ = &page;
+        page.setActions({.search = [this](const wxString& query) { goToFile(query); },
+                         .showInExplorer = [this] { showSelectedInExplorer(); },
+                         .copyPath = [this] { copySelectedPath(); }});
+        page.setSearchEnabled(map_ != nullptr);
+        showSelection();
+    }
 
-        bar->Add(selectionLabel_, wxSizerFlags(1).CenterVertical().Border(wxRIGHT, FromDIP(12)));
-        bar->Add(search_, wxSizerFlags().CenterVertical());
-        return bar;
+    void MapPanel::showSelection() {
+        if (FilePage* page = filePage_.get(); page != nullptr) {
+            const std::optional<FileView> view = selectionView();
+            if (view) {
+                page->showFile(*view);
+            }
+            else {
+                page->clear();
+            }
+        }
+        if (onSelection_) {
+            onSelection_();
+        }
+    }
+
+    std::optional<FileView> MapPanel::selectionView() const {
+        const MapSelection& selection = canvas_->selection();
+        const auto file = selection.file();
+        if (!file || map_ == nullptr) {
+            return std::nullopt;
+        }
+        const core::Snapshot& snapshot = map_->snapshot();
+        const std::string full = selectedPath();
+        return FileView{.path = full.empty() ? snapshot.path(*file) : full,
+                        .facts = core::describeFile(snapshot, *file, zone_, map_->fileClasses()),
+                        .fragment = selection.fragment(),
+                        .fragments = selection.fragmentCount(),
+                        .openable = !full.empty() && !snapshot.files.has(*file, core::FileMetadata)};
+    }
+
+    std::optional<core::FileIndex> MapPanel::selectedFile() const {
+        return map_ != nullptr ? canvas_->selection().file() : std::nullopt;
     }
 
     void MapPanel::attachColors(MapColorsPage& page) {
@@ -172,17 +200,22 @@ namespace icd::ui {
 
     void MapPanel::setMap(std::shared_ptr<const core::MapData> map) {
         map_ = map;
-        search_->Enable(map_ != nullptr);
+        if (FilePage* page = filePage_.get(); page != nullptr) {
+            page->setSearchEnabled(map_ != nullptr);
+        }
         if (Legend* counts = legend(); counts != nullptr) {
             counts->setMap(map); // Before the canvas, which reports its first view.
         }
         canvas_->setMap(std::move(map));
         syncColors();
+        showSelection(); // A new map starts without a selection.
     }
 
     void MapPanel::updateMap(std::shared_ptr<const core::MapData> map) {
         map_ = map;
-        search_->Enable(map_ != nullptr);
+        if (FilePage* page = filePage_.get(); page != nullptr) {
+            page->setSearchEnabled(map_ != nullptr);
+        }
         if (Legend* counts = legend(); counts != nullptr) {
             counts->updateMap(map);
         }
@@ -212,19 +245,6 @@ namespace icd::ui {
             canvas_->selection().goTo(*file);
             canvas_->SetFocus(); // Map keys and F3 work on from here.
         }
-    }
-
-    void MapPanel::updateSelectionLabel() {
-        const MapSelection& selection = canvas_->selection();
-        const auto file = selection.file();
-        if (!file || map_ == nullptr) {
-            selectionLabel_->SetLabelText("");
-            return;
-        }
-        const std::string text =
-            selectionText(map_->snapshot().path(*file), selection.fragment(), selection.fragmentCount());
-        selectionLabel_->SetLabelText(wxString::FromUTF8(text));
-        selectionLabel_->SetToolTip(wxString::FromUTF8(text)); // The label may be cut in the middle.
     }
 
     void MapPanel::onRightUp(wxMouseEvent& event) {
@@ -266,15 +286,25 @@ namespace icd::ui {
     }
 
     void MapPanel::onFileCommand(wxCommandEvent& event) {
+        if (event.GetId() == ID_COPY_PATH) {
+            copySelectedPath();
+        }
+        else {
+            showSelectedInExplorer();
+        }
+    }
+
+    void MapPanel::copySelectedPath() {
+        const std::string path = selectedPath();
+        if (!path.empty() && wxTheClipboard->Open()) {
+            wxTheClipboard->SetData(new wxTextDataObject(wxString::FromUTF8(path))); // The clipboard owns it.
+            wxTheClipboard->Close();
+        }
+    }
+
+    void MapPanel::showSelectedInExplorer() {
         const std::string path = selectedPath();
         if (path.empty()) {
-            return;
-        }
-        if (event.GetId() == ID_COPY_PATH) {
-            if (wxTheClipboard->Open()) {
-                wxTheClipboard->SetData(new wxTextDataObject(wxString::FromUTF8(path))); // The clipboard owns it.
-                wxTheClipboard->Close();
-            }
             return;
         }
         if (!services::showInExplorer(path)) {
@@ -325,7 +355,7 @@ namespace icd::ui {
             navigator.zoomToScale(1.0);
             return true;
         case ID_GOTO_FILE:
-            goToFile(search_->GetValue());
+            goToFile(filePage_.get() != nullptr ? filePage_->query() : wxString());
             return true;
         case ID_NEXT_FRAGMENT:
             canvas_->selection().nextFragment();

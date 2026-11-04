@@ -15,6 +15,7 @@ namespace icd::core {
 
 namespace icd::ui {
 
+    class FilePage;
     class LogTab;
     class MapColorsPage;
     class PlanPage;
@@ -24,7 +25,7 @@ namespace icd::ui {
 
     // Tabs of the bottom notebook in display order (plan.md section 11); the same tabs stay for the whole
     // workflow, only their content changes.
-    enum class BottomTab : std::uint8_t { Summary, Strategy, Plan, Progress, Log, MapColors };
+    enum class BottomTab : std::uint8_t { Summary, Strategy, Plan, Progress, Log, MapColors, File };
 
     // Bottom area of the main window: the tab notebook, the workflow buttons and the one status line of the
     // application. Status text lives only here (plan.md section 11), so there is no status bar.
@@ -62,6 +63,12 @@ namespace icd::ui {
         // The Map colors tab (color mode switch and legend).
         [[nodiscard]] MapColorsPage& mapColors() const { return *mapColors_; }
 
+        // The File tab (selected file, search, file actions).
+        [[nodiscard]] FilePage& file() const { return *file_; }
+
+        // Whether a tab is in front.
+        [[nodiscard]] bool tabShown(BottomTab tab) const;
+
         // Shows Pause or Resume on the pause button.
         void setPauseLabel(bool paused);
 
@@ -76,6 +83,7 @@ namespace icd::ui {
         ProgressTab* progress_ = nullptr; // Progress tab; owned by the notebook.
         LogTab* log_ = nullptr; // Log tab; owned by the notebook.
         MapColorsPage* mapColors_ = nullptr; // Map colors tab; child owned by wx.
+        FilePage* file_ = nullptr; // File tab; child owned by wx.
         wxStaticText* status_ = nullptr; // The single status line.
         wxGauge* gauge_ = nullptr; // Job progress next to the status line.
         wxStaticText* percent_ = nullptr; // Progress as a number, beside the gauge.
