@@ -2,6 +2,9 @@
 
 #include <algorithm>
 #include <array>
+#include <format>
+#include <map>
+#include <unordered_set>
 #include <utility>
 
 namespace icd::core::planner {
@@ -77,6 +80,85 @@ namespace icd::core::planner {
             return tryShifts(d, pool, layout, sortedRuns(runs), order);
         }
 
+        // Clusters taken out of play by dropped moves (their sources stay where they are), LCN-sorted and merged.
+        class StayingRuns {
+        public:
+            // Adds the runs of a dropped move.
+            void add(std::span<const ClusterRun> runs) {
+                for (const ClusterRun& r : runs) {
+                    ends_[r.start] = std::max(ends_[r.start], r.end());
+                    maxLength_ = std::max(maxLength_, r.length);
+                }
+            }
+
+            // Whether any of `runs` overlaps a staying run.
+            [[nodiscard]] bool hits(std::span<const ClusterRun> runs) const {
+                return std::ranges::any_of(runs, [&](const ClusterRun& r) {
+                    auto it = ends_.lower_bound(r.end());
+                    while (it != ends_.begin()) {
+                        --it;
+                        if (it->second > r.start) {
+                            return true;
+                        }
+                        if (it->first + maxLength_ <= r.start) {
+                            break;
+                        }
+                    }
+                    return false;
+                });
+            }
+
+        private:
+            std::map<Lcn, Lcn> ends_; // Start -> furthest end of the runs starting there.
+            ClusterCount maxLength_ = 0; // Longest run added: no run starting further back can reach a query.
+        };
+
+        // What dropping has decided so far.
+        struct Dropping {
+            std::vector<std::uint8_t> dropped; // Per move.
+            std::vector<std::uint8_t> unaligned; // Per move: dropped for itself (else for a move it waited on).
+            std::unordered_set<FileIndex> files; // Files with a dropped move: all their moves go.
+        };
+
+        // One pass in plan order: a move goes when its file lost a move or it lands on the sources of a dropped one.
+        // Returns whether anything new was dropped (a parked file's earlier move may need another pass).
+        bool dropForward(const Plan& plan, Dropping& d) {
+            StayingRuns staying;
+            bool changed = false;
+            for (std::size_t i = 0; i < plan.moves.size(); ++i) {
+                const Move& m = plan.moves[i];
+                if (d.dropped[i] == 0 && (d.files.contains(m.file) || staying.hits(plan.destinations(m)))) {
+                    d.dropped[i] = 1;
+                    d.files.insert(m.file);
+                    changed = true;
+                }
+                if (d.dropped[i] != 0) {
+                    staying.add(plan.sources(m));
+                }
+            }
+            return changed;
+        }
+
+        // The plan without the dropped moves; needed ones become skipped files.
+        void removeDropped(Plan& plan, const Dropping& d) {
+            const std::vector<Move> moves = std::exchange(plan.moves, {});
+            const std::vector<ClusterRun> runs = std::exchange(plan.runs, {});
+            plan.extra = 0;
+            for (std::size_t i = 0; i < moves.size(); ++i) {
+                const Move& m = moves[i];
+                if (d.dropped[i] == 0) {
+                    plan.add(m, std::span(runs).subspan(m.firstSource, m.sourceCount),
+                             std::span(runs).subspan(m.firstDestination, m.destinationCount));
+                    plan.extra += m.extra ? m.clusters : 0;
+                }
+                else if (!m.extra) {
+                    const SkipReason reason = d.unaligned[i] != 0 ? SkipReason::Unaligned : SkipReason::Dependency;
+                    plan.skipped.push_back({.file = m.file, .reason = reason, .clusters = m.clusters});
+                    plan.skippedClusters += m.clusters;
+                }
+            }
+        }
+
     } // namespace
 
     ClusterCount vssUnit(std::uint32_t bytesPerCluster) {
@@ -124,6 +206,34 @@ namespace icd::core::planner {
             }
         }
         return out;
+    }
+
+    std::size_t dropUnaligned(Plan& plan, std::uint32_t bytesPerCluster) {
+        const VssGeometry geometry{.unit = vssUnit(bytesPerCluster), .bytesPerCluster = bytesPerCluster};
+        Dropping d{.dropped = std::vector<std::uint8_t>(plan.moves.size(), 0),
+                   .unaligned = std::vector<std::uint8_t>(plan.moves.size(), 0),
+                   .files = {}};
+        for (std::size_t i = 0; i < plan.moves.size(); ++i) {
+            const Move& m = plan.moves[i];
+            if (!movesAligned(plan.sources(m), plan.destinations(m), geometry)) {
+                d.dropped[i] = 1;
+                d.unaligned[i] = 1;
+                d.files.insert(m.file);
+            }
+        }
+        while (dropForward(plan, d)) {}
+        const auto count = static_cast<std::size_t>(std::ranges::count(d.dropped, 1));
+        if (count != 0) {
+            removeDropped(plan, d);
+        }
+        return count;
+    }
+
+    void blockUnalignedMoves(Plan& plan, std::uint32_t bytesPerCluster) {
+        if (const std::size_t dropped = dropUnaligned(plan, bytesPerCluster); dropped != 0) {
+            plan.notes.push_back(std::format(
+                "{} moves are left out because they are not aligned to shadow-copy blocks (or wait on one).", dropped));
+        }
     }
 
     std::size_t alignDestinations(const Snapshot& snapshot, std::vector<Destination>& destinations, HoleSet& pool,

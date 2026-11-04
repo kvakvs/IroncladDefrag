@@ -1222,6 +1222,20 @@ All analysis checks passed.
   `alignDestinations()` shifts an unaligned single-run destination by up to unit - 1 clusters into after-plan free
   space when it stays in its zone and off the file's own runs; `vssReport()` counts unaligned moves and estimates
   shadow storage growth as the bytes they rewrite.
+- VSS in use (T121): the drive list runs `vssadmin list shadows` once and sets each drive's VSS badge from it (T090
+  had the listing but nothing called it, so no plan ever aligned). Every level aligns on such a drive (Fast too).
+  "Block unaligned moves" (`PlanInput::blockUnaligned`, the Plan tab's check box shown only with shadow copies,
+  `icd-cli plan|execute --block-unaligned`) runs `dropUnaligned()` after the budget: unaligned moves go, with every
+  later move that lands on clusters a dropped move leaves taken and both moves of a parked file, until nothing depends
+  on a dropped move; needed ones become skipped (Unaligned / Dependency) and the plan still validates. The Plan tab
+  counts each level's unaligned moves and growth; Execute on a plan with unaligned moves and no block first shows
+  `VssWarningDialog` (block and plan again, execute anyway, or cancel). Measured on the `vss` scenario (2 GB,
+  `tests/integration/vss/check-vss.ps1`, shadow storage from `Win32_ShadowStorage.UsedSpace`, as `vssadmin list
+  shadowstorage` prints it): Moderate unblocked moved 222 MB in 794 moves (720 unaligned, estimate 219 MB) and grew
+  shadow storage by 34-37 MB; blocked it moved 51 moves (+2.1 MB), Maximum blocked 24 moves (+1.3 MB). The rest is
+  not data: every move rewrites the file's MFT record and bitmap blocks, which are copied on write too (about 40 KB
+  per move), so the check allows 1 MB plus 48 KB per move rather than "unchanged". `growthBytes` is an upper bound
+  (Windows copied about a sixth of it). Blocking is costly on packed layouts (Moderate kept 51 of 794 moves).
 
 - Levels (T091, `LevelPlanner`): `PlanInput` (snapshot, script, catalog, classes, churn, now, reserved MFT zone, shadow
   copies, Fast budget multiplier, time model) is shared by the levels; `assignInput()` assigns once. `planZones()` is

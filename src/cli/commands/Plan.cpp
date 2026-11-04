@@ -34,6 +34,7 @@ namespace icd::cli {
             std::optional<core::strategy::Effort> level; // One level, or all.
             bool json = false; // Machine-readable output.
             bool moves = false; // Every move.
+            bool blockUnaligned = false; // With shadow copies: leave out moves not aligned to their blocks.
             std::size_t threads = 0; // Own pool of N workers; 0 uses the app's pool.
             std::uint32_t synthetic = 0; // Files of a synthetic volume instead of a real one; 0: real.
             std::wstring save; // Where to save the chosen level's plan for icd-cli execute --plan; empty: nowhere.
@@ -74,6 +75,10 @@ namespace icd::cli {
         bool parseFlag(std::wstring_view arg, PlanArgs& out) {
             if (arg == L"--json" || arg == L"--moves") {
                 (arg == L"--json" ? out.json : out.moves) = true;
+                return true;
+            }
+            if (arg == L"--block-unaligned") {
+                out.blockUnaligned = true;
                 return true;
             }
             if (!arg.starts_with(L"--") && out.volume.empty()) {
@@ -179,6 +184,7 @@ namespace icd::cli {
                     return 1;
                 }
                 request = volumeRequest(*drive, script, context);
+                request->blockUnaligned = args.blockUnaligned;
             }
             const services::PlanOutcome outcome = services::planLevels(*request, executor, cancel.token(), &progress);
             ConsoleProgress::finish();
@@ -192,7 +198,7 @@ namespace icd::cli {
 
     const char* planUsage() {
         return "icd-cli plan <volume> [--strategy ID] [--level fast|moderate|max] [--json] [--moves] [--threads N] "
-               "[--synthetic FILES] [--save FILE (with --level)]";
+               "[--synthetic FILES] [--save FILE (with --level)] [--block-unaligned]";
     }
 
     int runPlan(std::span<const std::wstring_view> args) {

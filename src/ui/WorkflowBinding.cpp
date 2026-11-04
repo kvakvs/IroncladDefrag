@@ -22,6 +22,7 @@
 #include "ui/MainMenu.h"
 #include "ui/bridge/JobEvents.h"
 #include "ui/dialogs/ScheduleDialog.h"
+#include "ui/dialogs/VssWarning.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
 #include "ui/panels/MapPanel.h"
@@ -184,6 +185,7 @@ namespace icd::ui {
         widgets_.drives.setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
         widgets_.drives.setContextMenuHandler([this] { showDriveMenu(); });
         widgets_.bottom.strategy().setChangeHandler([this] { onStrategyChanged(); });
+        widgets_.bottom.plan().setVssHandler([this] { onVssOptionChanged(); });
         widgets_.drives.setDrives(services_.drives().listDrives());
         refresh();
     }
@@ -331,7 +333,7 @@ namespace icd::ui {
     }
 
     bool WorkflowBinding::confirmExecute() {
-        if (!plan_) {
+        if (!plan_ || !confirmShadowCopies(*plan_)) {
             return false;
         }
         ConfirmExecuteDialog dialog(&frame_, confirmation(*plan_));
@@ -343,6 +345,41 @@ namespace icd::ui {
             "execution confirmed",
             {{"lowPriority", executeChoices_.lowPriority}, {"limitMbPerSecond", executeChoices_.limitMbPerSecond}});
         return true;
+    }
+
+    bool WorkflowBinding::confirmShadowCopies(const services::PlanSummary& plan) {
+        const services::PlanLevel& level =
+            plan.levels.at(static_cast<std::size_t>(widgets_.bottom.strategy().effort()));
+        if (!plan.shadowCopies || plan.unalignedBlocked || level.unalignedMoves == 0) {
+            return true;
+        }
+        VssWarningDialog dialog(&frame_,
+                                {.drive = driveLabel(),
+                                 .unalignedMoves = level.unalignedMoves,
+                                 .moves = level.moves,
+                                 .growthBytes = level.shadowGrowthBytes});
+        const int choice = dialog.ShowModal();
+        core::logging::info("vss warning", {{"unaligned", level.unalignedMoves}, {"choice", choice}});
+        if (choice == VssWarningDialog::blockAndReplan) {
+            widgets_.bottom.plan().setBlockUnaligned(true);
+            onVssOptionChanged();
+            frame_.CallAfter([this] { perform(WorkflowAction::BuildPlan); }); // After this Execute has returned.
+            return false;
+        }
+        return choice == wxID_OK;
+    }
+
+    void WorkflowBinding::onVssOptionChanged() {
+        if (!workflow_.can(WorkflowAction::ChooseStrategy)) {
+            return;
+        }
+        const bool hadPlan = workflow_.state() == WorkflowState::Reviewing;
+        workflow_.apply(WorkflowAction::ChooseStrategy);
+        if (hadPlan) {
+            dropPlan("The VSS option changed: build the plan again.");
+            widgets_.bottom.setStatus("VSS option changed; the previous plan was dropped");
+        }
+        refresh();
     }
 
     ExecuteConfirmation WorkflowBinding::confirmation(const services::PlanSummary& plan) const {
@@ -479,10 +516,10 @@ namespace icd::ui {
         std::shared_ptr<const core::Snapshot> snapshot(map, &map->snapshot());
         const auto classes = map->fileClasses();
         planOutput_ = std::make_shared<services::PlanOutput>();
-        return services::makePlanJob(services::makePlanRequest(drive, std::move(snapshot),
-                                                               {classes.begin(), classes.end()},
-                                                               widgets_.bottom.strategy().script()),
-                                     planOutput_);
+        services::PlanRequest request = services::makePlanRequest(
+            drive, std::move(snapshot), {classes.begin(), classes.end()}, widgets_.bottom.strategy().script());
+        request.blockUnaligned = widgets_.bottom.plan().blockUnaligned();
+        return services::makePlanJob(std::move(request), planOutput_);
     }
 
     services::JobFunction WorkflowBinding::makeExecuteJob(const core::DriveInfo& drive) {
@@ -790,6 +827,7 @@ namespace icd::ui {
         dropPlan("Build a plan after the analysis.");
         BottomPanel& bottom = widgets_.bottom;
         bottom.summary().clear(summaryHint(kind));
+        bottom.plan().setShadowCopies(drive_ && drive_->badges.vssPresent);
         restoreStrategy();
         refresh();
     }

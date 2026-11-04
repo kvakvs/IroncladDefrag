@@ -1,9 +1,11 @@
 #pragma once
 
+#include "platform/win/ScheduledOptimize.h"
 #include "platform/win/Volumes.h"
 #include "services/drives/IDriveProvider.h"
 
 #include <map>
+#include <optional>
 #include <string>
 
 namespace icd::services {
@@ -27,6 +29,18 @@ namespace icd::services {
     // its BitLocker state from `encrypted` (platform::encryptedVolumes(), asked once per listing).
     void addTopology(const platform::VolumeRecord& volume, const std::map<std::wstring, bool>& encrypted,
                      core::StorageFacts& storage);
+
+    // Machine-wide facts a drive listing asks for once and shares among the volumes.
+    struct SystemFacts {
+        bool elevated = false; // The process has administrator rights.
+        std::optional<bool> lastAccess; // NTFS last-access updates (system-wide); empty when unknown.
+        std::map<std::wstring, bool> encrypted; // BitLocker state by volume key (platform::encryptedVolumes()).
+        std::optional<platform::ScheduleState> schedule; // Windows' scheduled optimization; empty when unreadable.
+        std::optional<std::string> shadows; // `vssadmin list shadows` output; empty without rights.
+    };
+
+    // One enumerated volume with its media, setups that block moves and badges.
+    [[nodiscard]] core::DriveInfo driveOf(const platform::VolumeRecord& volume, const SystemFacts& facts);
 
     // The names Windows' schedule may list a volume by: its GUID path and its mount paths.
     [[nodiscard]] std::vector<std::wstring> namesOf(const platform::VolumeRecord& volume);

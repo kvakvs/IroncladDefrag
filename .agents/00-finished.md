@@ -391,3 +391,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   "Auto-optimize on/off" badge from the task, Drive > Windows schedule... with `ui/dialogs/ScheduleDialog.*`,
   `icd-cli schedule <volume> [--remove | --restore]`, `tests/integration/schedule/check-schedule.ps1`. Opt-out and
   restore checked on a test VHDX: Optimize Drives showed it unchecked, the task XML was identical after restore.
+- T121 VSS user interface - shadow copies detected for real (`listShadowCopies()` once per drive list; T090 never
+  called it), every level aligns on such drives (Fast too), `dropUnaligned()` / `PlanInput::blockUnaligned` (unaligned
+  moves dropped with their dependents and parked pairs, needed ones skipped), Plan tab VSS row and "Block unaligned
+  moves", `ui/dialogs/VssWarning.*` before Execute, `icd-cli plan|execute --block-unaligned`, unaligned counts in the
+  plan JSON, `tests/integration/vss/check-vss.ps1`. On the `vss` scenario blocked Moderate grew shadow storage by 2.1 MB
+  for 51 moves (file system records only) against 34-37 MB unblocked; "unchanged" is impossible once any file moves.

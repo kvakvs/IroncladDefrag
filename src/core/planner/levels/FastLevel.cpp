@@ -3,6 +3,7 @@
 #include "core/planner/FastFill.h"
 #include "core/planner/MoveOrdering.h"
 #include "core/planner/Placement.h"
+#include "core/planner/VssAlign.h"
 #include "core/snapshot/Stripes.h"
 
 #include <algorithm>
@@ -400,11 +401,19 @@ namespace icd::core::planner {
             void finish(std::vector<Destination>& destinations) {
                 Plan& plan = result_.plan;
                 plan.effort = strategy::Effort::Fast;
+                if (input_.shadowCopies) {
+                    const StageScope align(result_.stages, "vss align");
+                    (void)alignDestinations(snapshot_, destinations, pool_, &result_.layout);
+                }
                 std::optional<StageScope> stage(std::in_place, result_.stages, "order");
                 (void)orderMoves(snapshot_, destinations, {.allowParking = false, .scratch = {}, .executor = executor_},
                                  plan);
                 stage.emplace(result_.stages, "budget");
                 applyBudget(snapshot_, plan, policy_.budget, executor_);
+                if (input_.shadowCopies && input_.blockUnaligned) {
+                    stage.emplace(result_.stages, "vss block");
+                    blockUnalignedMoves(plan, snapshot_.geometry.bytesPerCluster);
+                }
                 finishTotals(plan, snapshot_);
                 plan.notes.emplace_back(
                     "Fast works on the busiest areas first: run it again to keep improving the drive.");

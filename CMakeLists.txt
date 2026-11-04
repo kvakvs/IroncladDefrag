@@ -409,6 +409,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/dialogs/ScheduleDialog.h
     src/ui/dialogs/ShortcutsDialog.cpp
     src/ui/dialogs/ShortcutsDialog.h
+    src/ui/dialogs/VssWarning.cpp
+    src/ui/dialogs/VssWarning.h
     src/ui/map/D2DRenderer.cpp
     src/ui/map/D2DRenderer.h
     src/ui/map/Legend.cpp

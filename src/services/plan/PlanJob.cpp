@@ -2,10 +2,12 @@
 
 #include "core/classify/Catalog.h"
 #include "core/classify/RuleEngine.h"
+#include "core/format/ByteSize.h"
 #include "core/format/Count.h"
 #include "core/map/ZoneFitColorMode.h"
 #include "core/planner/SortZone.h"
 #include "core/planner/Validator.h"
+#include "core/planner/VssAlign.h"
 #include "core/planner/levels/FastLevel.h"
 #include "core/planner/levels/MaximumLevel.h"
 #include "core/planner/levels/ModerateLevel.h"
@@ -54,8 +56,8 @@ namespace icd::services {
             return out;
         }
 
-        // The Plan tab column of one level.
-        PlanLevel levelOf(const LevelOutcome& o, std::uint32_t bytesPerCluster, EffortLevel level) {
+        // The Plan tab column of one level (VSS figures only with shadow copies).
+        PlanLevel levelOf(const LevelOutcome& o, std::uint32_t bytesPerCluster, EffortLevel level, bool shadowCopies) {
             const auto& plan = o.result.plan;
             PlanLevel out;
             out.level = level;
@@ -65,7 +67,25 @@ namespace icd::services {
             out.estimate = std::chrono::seconds(std::llround(o.result.metrics.seconds));
             out.fragmentationAfter = o.result.metrics.fragmentedAfter;
             out.zoneFitAfter = o.result.metrics.zoneFitAfter;
+            out.moves = plan.moves.size();
+            if (shadowCopies) {
+                const core::planner::VssReport vss = core::planner::vssReport(plan, bytesPerCluster);
+                out.unalignedMoves = vss.unaligned;
+                out.shadowGrowthBytes = vss.growthBytes;
+            }
             return out;
+        }
+
+        // The VSS warning of one level: how many moves will grow shadow storage, and what that may cost.
+        void vssWarningOf(const PlanLevel& level, const std::string& name, std::vector<std::string>& out) {
+            if (level.unalignedMoves == 0) {
+                return;
+            }
+            out.push_back(
+                std::format("{}: {} of {} moves are not aligned to shadow-copy blocks; shadow storage may grow "
+                            "by up to {} (Windows deletes the oldest shadow copies when it is full).",
+                            name, core::formatCount(level.unalignedMoves), core::formatCount(level.moves),
+                            core::formatBytes(level.shadowGrowthBytes)));
         }
 
         // The warnings of one level.
@@ -120,6 +140,7 @@ namespace icd::services {
                                              .now = request.now,
                                              .reserved = request.reserved,
                                              .shadowCopies = request.shadowCopies,
+                                             .blockUnaligned = request.blockUnaligned,
                                              .fastBudgetMultiplier = request.fastBudgetMultiplier,
                                              .time = {},
                                              .sortKeys = &sortKeys};
@@ -134,6 +155,8 @@ namespace icd::services {
         outcome.assignment = core::planner::assignInput(input, executor, token);
         const core::planner::ZoneAssignment& assignment = outcome.assignment;
         outcome.bytesPerCluster = snapshot.geometry.bytesPerCluster;
+        outcome.shadowCopies = request.shadowCopies;
+        outcome.blockUnaligned = request.blockUnaligned;
         executor.parallelFor(
             {.count = 3, .grain = request.parallelLevels ? 1U : 3U},
             [&](std::size_t begin, std::size_t end) {
@@ -159,9 +182,12 @@ namespace icd::services {
         constexpr std::array levels{EffortLevel::Fast, EffortLevel::Moderate, EffortLevel::Maximum};
         for (std::size_t i = 0; i < levels.size(); ++i) {
             const LevelOutcome& o = outcome.levels.at(i);
-            out.levels.at(i) = levelOf(o, outcome.bytesPerCluster, levels.at(i));
+            out.levels.at(i) = levelOf(o, outcome.bytesPerCluster, levels.at(i), outcome.shadowCopies);
             warningsOf(o, effortName(levels.at(i)), out.warnings);
+            vssWarningOf(out.levels.at(i), effortName(levels.at(i)), out.warnings);
         }
+        out.shadowCopies = outcome.shadowCopies;
+        out.unalignedBlocked = outcome.shadowCopies && outcome.blockUnaligned;
         return out;
     }
 

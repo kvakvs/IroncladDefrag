@@ -4,6 +4,7 @@
 #include "core/format/Count.h"
 #include "core/format/Duration.h"
 #include "core/format/Json.h"
+#include "core/planner/VssAlign.h"
 
 #include <chrono>
 #include <cmath>
@@ -79,6 +80,12 @@ namespace icd::services {
             w.key("skippedBytes").value(p.skippedClusters * cluster);
             w.key("skippedFiles").value(std::uint64_t{p.skipped.size()});
             w.key("deferredBytes").value(p.deferredClusters * cluster);
+            if (request.shadowCopies) {
+                const core::planner::VssReport vss =
+                    core::planner::vssReport(p, request.snapshot->geometry.bytesPerCluster);
+                w.key("unalignedMoves").value(std::uint64_t{vss.unaligned});
+                w.key("shadowGrowthBytes").value(vss.growthBytes);
+            }
             w.key("fragmentsBefore")
                 .value(p.totals.fragmentsBefore)
                 .key("fragmentsAfter")
@@ -108,6 +115,7 @@ namespace icd::services {
         w.key("strategy").beginObject().key("id").value(request.script.id).key("name").value(request.script.name);
         w.endObject();
         w.key("bytesPerCluster").value(std::uint64_t{request.snapshot->geometry.bytesPerCluster});
+        w.key("shadowCopies").value(request.shadowCopies).key("blockUnaligned").value(request.blockUnaligned);
         if (options.timing) {
             w.key("planningSeconds").value(outcome.seconds);
         }

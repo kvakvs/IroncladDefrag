@@ -3,6 +3,7 @@
 #include "core/log/Log.h"
 #include "platform/win/LastAccessSetting.h"
 #include "platform/win/ScheduledOptimize.h"
+#include "platform/win/ShadowCopies.h"
 #include "platform/win/StorageProperties.h"
 #include "platform/win/TextConvert.h"
 #include "platform/win/VolumeTopology.h"
@@ -74,10 +75,11 @@ namespace icd::services {
     }
 
     std::vector<core::DriveInfo> SystemDriveProvider::listDrives() {
-        const bool elevated = platform::isElevated();
-        const std::optional<bool> lastAccess = platform::readLastAccessSetting().updatesEnabled; // System-wide.
-        const std::map<std::wstring, bool> encrypted = platform::encryptedVolumes(); // One WMI query for all.
-        const std::optional<platform::ScheduleState> schedule = platform::readSchedule(); // One for all drives.
+        const SystemFacts facts{.elevated = platform::isElevated(),
+                                .lastAccess = platform::readLastAccessSetting().updatesEnabled,
+                                .encrypted = platform::encryptedVolumes(),
+                                .schedule = platform::readSchedule(),
+                                .shadows = platform::listShadowCopies()};
         std::vector<core::DriveInfo> drives;
         for (const platform::VolumeRecord& volume : platform::enumerateVolumes()) {
             if (!volume.problem.empty()) {
@@ -85,19 +87,27 @@ namespace icd::services {
                     "volume query incomplete",
                     {{"volume", platform::toUtf8(volume.volumeName)}, {"problem", platform::toUtf8(volume.problem)}});
             }
-            core::DriveInfo drive = toDriveInfo(volume, elevated);
-            drive.storage = volume.layout.diskNumber ? platform::queryDiskStorage(*volume.layout.diskNumber)
-                                                     : platform::queryVolumeStorage(volume.volumeName);
-            addTopology(volume, encrypted, drive.storage);
-            drive.media = core::classifyMedia(drive.storage);
-            drive.badges.lastAccessTracking = volume.fileSystem == L"NTFS" ? lastAccess : std::nullopt;
-            if (schedule) {
-                drive.badges.scheduledOptimization =
-                    schedule->taskEnabled && platform::scheduleCovers(schedule->selection, namesOf(volume));
-            }
-            drives.push_back(std::move(drive));
+            drives.push_back(driveOf(volume, facts));
         }
         return drives;
+    }
+
+    core::DriveInfo driveOf(const platform::VolumeRecord& volume, const SystemFacts& facts) {
+        core::DriveInfo drive = toDriveInfo(volume, facts.elevated);
+        drive.storage = volume.layout.diskNumber ? platform::queryDiskStorage(*volume.layout.diskNumber)
+                                                 : platform::queryVolumeStorage(volume.volumeName);
+        addTopology(volume, facts.encrypted, drive.storage);
+        drive.media = core::classifyMedia(drive.storage);
+        drive.badges.lastAccessTracking = volume.fileSystem == L"NTFS" ? facts.lastAccess : std::nullopt;
+        if (facts.shadows) {
+            drive.badges.vssPresent =
+                platform::countShadowsInListing({.text = *facts.shadows}, drive.layout.volumeName) > 0;
+        }
+        if (facts.schedule) {
+            drive.badges.scheduledOptimization =
+                facts.schedule->taskEnabled && platform::scheduleCovers(facts.schedule->selection, namesOf(volume));
+        }
+        return drive;
     }
 
 } // namespace icd::services

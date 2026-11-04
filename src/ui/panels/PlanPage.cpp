@@ -4,6 +4,7 @@
 #include "core/format/Count.h"
 #include "core/format/Duration.h"
 
+#include <wx/checkbox.h>
 #include <wx/listctrl.h>
 #include <wx/settings.h>
 #include <wx/sizer.h>
@@ -38,6 +39,15 @@ namespace icd::ui {
             }};
         }
 
+        // The VSS row: unaligned moves of all moves and the shadow storage they may add.
+        std::string unalignedText(const services::PlanLevel& l) {
+            if (l.unalignedMoves == 0) {
+                return std::format("0 of {}", core::formatCount(l.moves));
+            }
+            return std::format("{} of {} (+{})", core::formatCount(l.unalignedMoves), core::formatCount(l.moves),
+                               core::formatBytes(l.shadowGrowthBytes));
+        }
+
         // Lines of a warning list, or a note that there are none.
         wxString warningText(const std::vector<std::string>& warnings) {
             if (warnings.empty()) {
@@ -61,10 +71,22 @@ namespace icd::ui {
             levels_->AppendColumn("", wxLIST_FORMAT_RIGHT, FromDIP(130));
         }
         warnings_ = new wxStaticText(this, wxID_ANY, "");
+        blockUnaligned_ = new wxCheckBox(this, wxID_ANY,
+                                         "&Block unaligned moves (shadow copies exist; unaligned moves "
+                                         "grow shadow storage)");
+        blockUnaligned_->Bind(wxEVT_CHECKBOX, [this](wxCommandEvent&) {
+            if (vssChanged_) {
+                vssChanged_();
+            }
+        });
+        blockUnaligned_->Hide();
 
+        auto* side = new wxBoxSizer(wxVERTICAL);
+        side->Add(warnings_, wxSizerFlags(1).Expand());
+        side->Add(blockUnaligned_, wxSizerFlags().Border(wxTOP, FromDIP(8)));
         auto* body = new wxBoxSizer(wxHORIZONTAL);
         body->Add(levels_, wxSizerFlags(0).Expand().Border(wxRIGHT, FromDIP(12)));
-        body->Add(warnings_, wxSizerFlags(1));
+        body->Add(side, wxSizerFlags(1).Expand());
         levels_->SetMinSize(FromDIP(wxSize(570, -1)));
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         sizer->Add(hint_, wxSizerFlags().Border(wxALL, FromDIP(8)));
@@ -97,6 +119,13 @@ namespace icd::ui {
                                  wxString::FromUTF8(row.value(plan.levels.at(level))));
             }
         }
+        if (plan.shadowCopies) {
+            const long index = levels_->InsertItem(levels_->GetItemCount(), "Unaligned moves (VSS)");
+            for (std::size_t level = 0; level < plan.levels.size(); ++level) {
+                levels_->SetItem(index, static_cast<long>(level) + 1,
+                                 wxString::FromUTF8(unalignedText(plan.levels.at(level))));
+            }
+        }
         warnings_->SetLabelText(warningText(plan.warnings));
         hint_->Hide();
         Layout();
@@ -110,5 +139,14 @@ namespace icd::ui {
         hint_->Show();
         Layout();
     }
+
+    void PlanPage::setShadowCopies(bool present) {
+        blockUnaligned_->Show(present);
+        Layout();
+    }
+
+    bool PlanPage::blockUnaligned() const { return blockUnaligned_->IsShown() && blockUnaligned_->GetValue(); }
+
+    void PlanPage::setBlockUnaligned(bool block) { blockUnaligned_->SetValue(block); }
 
 } // namespace icd::ui

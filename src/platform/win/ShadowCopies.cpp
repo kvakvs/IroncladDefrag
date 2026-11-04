@@ -35,6 +35,14 @@ namespace icd::platform {
 
     std::optional<std::size_t> countShadowCopies(const std::wstring& volumeGuidPath,
                                                  const std::function<bool()>& cancelled) {
+        const std::optional<std::string> text = listShadowCopies(cancelled);
+        if (!text) {
+            return std::nullopt;
+        }
+        return countShadowsInListing({.text = *text}, toUtf8(volumeGuidPath));
+    }
+
+    std::optional<std::string> listShadowCopies(const std::function<bool()>& cancelled) {
         std::string output;
         try {
             const std::wstring command = L"\"" + systemProgram(L"vssadmin.exe") + L"\" list shadows";
@@ -49,8 +57,7 @@ namespace icd::platform {
         catch (const std::exception&) {
             return std::nullopt;
         }
-        const std::string text = oemToUtf8(output);
-        return countShadowsInListing({.text = text}, toUtf8(volumeGuidPath));
+        return oemToUtf8(output);
     }
 
 } // namespace icd::platform

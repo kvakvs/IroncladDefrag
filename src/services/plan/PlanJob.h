@@ -30,6 +30,7 @@ namespace icd::services {
         std::int64_t now = 0; // FILETIME ages are measured from (the scan time).
         std::vector<core::ClusterRun> reserved; // The MFT zone, kept free when possible.
         bool shadowCopies = false; // The volume has shadow copies (plan.md 9.4).
+        bool blockUnaligned = false; // With shadow copies: leave out moves that are not block-aligned (plan.md 9.4).
         double fastBudgetMultiplier = 1.0; // Settings x1/x2/x4/x10 (plan.md 9.2.1).
         bool parallelLevels = true; // Plan the three levels at once (false when memory is short, plan.md 6.6).
         bool validate = true; // Replay every plan through the validator (plan.md 6.4 step 6).
@@ -64,6 +65,8 @@ namespace icd::services {
         std::array<LevelOverlays, 3> overlays; // By Effort; filled by the GUI's plan job only (null otherwise).
         double seconds = 0.0; // Wall time of the whole request.
         std::uint32_t bytesPerCluster = 4096; // Of the planned volume, for byte figures.
+        bool shadowCopies = false; // The request's volume has shadow copies (the VSS figures apply).
+        bool blockUnaligned = false; // The request blocked unaligned moves.
     };
 
     // Plans all three levels (plan.md 6.4): zones assigned once, then the levels in parallel (or one after another),

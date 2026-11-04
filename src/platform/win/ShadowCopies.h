@@ -14,6 +14,10 @@ namespace icd::platform {
     [[nodiscard]] std::optional<std::size_t> countShadowCopies(const std::wstring& volumeGuidPath,
                                                                const std::function<bool()>& cancelled = {});
 
+    // The whole `vssadmin list shadows` output (UTF-8), so a drive list asks once for all volumes; nullopt when it
+    // cannot be run or fails (no administrator rights).
+    [[nodiscard]] std::optional<std::string> listShadowCopies(const std::function<bool()>& cancelled = {});
+
     // The text `vssadmin list shadows` printed.
     struct ShadowListing {
         std::string_view text; // The whole output, UTF-8.

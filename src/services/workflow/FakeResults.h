@@ -69,12 +69,17 @@ namespace icd::services {
         std::chrono::seconds estimate{}; // Estimated execution time.
         double fragmentationAfter = 0.0; // Fragmentation percent after execution.
         double zoneFitAfter = 0.0; // Percent of bytes in their target zone after execution.
+        std::uint64_t moves = 0; // Moves of file data (a parked file counts twice).
+        std::uint64_t unalignedMoves = 0; // Moves not aligned to shadow-copy blocks (0 without shadow copies).
+        std::uint64_t shadowGrowthBytes = 0; // Estimated shadow storage growth from those moves.
     };
 
     // What planning reports (Plan tab).
     struct PlanSummary {
         std::array<PlanLevel, 3> levels; // Fast, Moderate, Maximum.
         std::vector<std::string> warnings; // VSS, low free space, skipped files.
+        bool shadowCopies = false; // The volume has shadow copies, so the VSS figures apply (plan.md 9.4).
+        bool unalignedBlocked = false; // The plan was built with unaligned moves blocked.
     };
 
     // Fake analysis of a drive.

@@ -43,6 +43,7 @@ namespace icd::cli {
             bool lowPriority = false; // Background I/O priority.
             bool noPrefetch = false; // No prefetch helper.
             bool checkRescan = false; // Scan again afterwards and compare.
+            bool blockUnaligned = false; // When planning now with shadow copies: leave out unaligned moves.
             std::uint64_t chunkMb = 16; // Largest move call.
             std::uint64_t limitMbps = 0; // Throughput limit in MB/s; 0: none.
             std::uint64_t maxAgeHours = 24; // Oldest plan accepted.
@@ -55,13 +56,14 @@ namespace icd::cli {
         };
 
         // Flags and the field each sets.
-        constexpr std::array<std::pair<std::wstring_view, bool ExecuteArgs::*>, 6> flags{{
+        constexpr std::array<std::pair<std::wstring_view, bool ExecuteArgs::*>, 7> flags{{
             {L"--resume", &ExecuteArgs::resume},
             {L"--json", &ExecuteArgs::json},
             {L"--moves", &ExecuteArgs::moves},
             {L"--low-priority", &ExecuteArgs::lowPriority},
             {L"--no-prefetch", &ExecuteArgs::noPrefetch},
             {L"--check-rescan", &ExecuteArgs::checkRescan},
+            {L"--block-unaligned", &ExecuteArgs::blockUnaligned},
         }};
 
         // Number options and the field each sets.
@@ -256,8 +258,9 @@ namespace icd::cli {
             }
             services::AnalysisResult analysis = services::analyzeVolume(drive, context, {}, {});
             auto snapshot = std::make_shared<core::Snapshot>(std::move(analysis.snapshot));
-            const services::PlanRequest request =
+            services::PlanRequest request =
                 services::makePlanRequest(drive, std::move(snapshot), std::move(analysis.classes), *script);
+            request.blockUnaligned = args.blockUnaligned;
             const services::PlanOutcome outcome =
                 services::planLevels(request, context.executor, context.token, &context.progress);
             const auto& issues = outcome.levels.at(static_cast<std::size_t>(args.level)).issues;
@@ -351,7 +354,7 @@ namespace icd::cli {
         return "icd-cli execute <volume> [--strategy ID] [--level fast|moderate|max] | [--plan FILE] | [--resume "
                "[--log FILE]] [--json] [--moves] [--chunk-mb N] [--low-priority] [--limit-mbps N] [--max-age-hours H] "
                "[--no-prefetch] [--check-rescan] [--threads N] [--pause-after N --pause-ms M] [--cancel-after N] "
-               "[--take-destination MOVE] [--max-moves N]";
+               "[--take-destination MOVE] [--max-moves N] [--block-unaligned]";
     }
 
     int runExecute(std::span<const std::wstring_view> args) {

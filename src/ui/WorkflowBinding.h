@@ -100,6 +100,13 @@ namespace icd::ui {
         // Asks the user to confirm execution of the reviewed plan; keeps the chosen options.
         [[nodiscard]] bool confirmExecute();
 
+        // With shadow copies and unaligned moves in the chosen level: warns, and offers to block them and plan again
+        // (which starts the new plan) or to execute anyway. True when execution may go on.
+        [[nodiscard]] bool confirmShadowCopies(const services::PlanSummary& plan);
+
+        // "Block unaligned moves" changed: a built plan no longer matches, so it is dropped.
+        void onVssOptionChanged();
+
         // What the confirmation shows for the reviewed plan at the chosen level.
         [[nodiscard]] ExecuteConfirmation confirmation(const services::PlanSummary& plan) const;
 

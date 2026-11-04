@@ -602,6 +602,10 @@ namespace icd::core::planner {
                 }
                 stage.emplace(result_.stages, "budget");
                 applyBudget(snapshot_, plan, policy_.budget, executor_);
+                if (input_.shadowCopies && input_.blockUnaligned) {
+                    stage.emplace(result_.stages, "vss block");
+                    blockUnalignedMoves(plan, snapshot_.geometry.bytesPerCluster);
+                }
                 finishTotals(plan, snapshot_);
                 plan.notes.insert(plan.notes.end(), result_.layout.notes.begin(), result_.layout.notes.end());
                 stage.emplace(result_.stages, "measure");

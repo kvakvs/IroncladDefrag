@@ -32,6 +32,7 @@ namespace icd::core::planner {
         std::int64_t now = 0; // FILETIME ages are measured from (the scan time).
         std::vector<ClusterRun> reserved{}; // The MFT zone, kept free when possible.
         bool shadowCopies = false; // The volume has shadow copies: prefer aligned destinations (plan.md 9.4).
+        bool blockUnaligned = false; // With shadow copies: leave out moves that are not block-aligned (plan.md 9.4).
         double fastBudgetMultiplier = 1.0; // Settings: x1, x2, x4, x10 (plan.md 9.2.1 step 7).
         TimeModel time{}; // Time estimates.
         SortKeyCache* sortKeys =

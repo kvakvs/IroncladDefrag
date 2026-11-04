@@ -56,12 +56,7 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 9 - VSS and Windows integration (§13 Phase 9)
 
-### T121 - VSS user interface
-
-- Depends: T090, T098
-- Owns: VSS section of `PlanTab`, `src/ui/dialogs/VssWarning.*`
-- Do: warnings, unaligned-move count, "block unaligned moves" option.
-- Done when: on the `vss` scenario aligned execution leaves `vssadmin list shadowstorage` unchanged.
+> Phase 9 finished 2026-11-04 (T120, T121, T122).
 
 ---
 
