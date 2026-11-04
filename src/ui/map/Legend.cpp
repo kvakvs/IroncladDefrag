@@ -107,6 +107,18 @@ namespace icd::ui {
         startCount();
     }
 
+    void Legend::setScheme(const core::ColorScheme& scheme) {
+        if (scheme == scheme_) {
+            return;
+        }
+        scheme_ = scheme;
+        const std::span<const core::LegendEntry> legend = core::legendOf(mode_);
+        for (std::size_t index = 0; index < entries_.size() && index < legend.size(); ++index) {
+            entries_[index].swatch->SetBackgroundColour(colourOf(scheme_.color(legend[index].key)));
+            entries_[index].swatch->Refresh();
+        }
+    }
+
     void Legend::setView(const core::Viewport& view) {
         view_ = view;
         restTimer_.StartOnce(restMilliseconds);
@@ -118,8 +130,18 @@ namespace icd::ui {
         const int square = FromDIP(12);
         for (const core::LegendEntry& entry : core::legendOf(mode_)) {
             auto* swatch = new wxWindow(this, wxID_ANY, wxDefaultPosition, wxSize(square, square), wxBORDER_SIMPLE);
-            swatch->SetBackgroundColour(colourOf(entry.color));
+            swatch->SetBackgroundColour(colourOf(scheme_.color(entry.key)));
             auto* text = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(std::string(entry.label)));
+            // A click on the swatch or its text changes the color; the key outlives the entry (static legend data).
+            for (wxWindow* window : {swatch, static_cast<wxWindow*>(text)}) {
+                window->SetCursor(wxCursor(wxCURSOR_HAND));
+                window->SetToolTip("Click to change this color");
+                window->Bind(wxEVT_LEFT_UP, [this, key = entry.key](wxMouseEvent&) {
+                    if (onColor_) {
+                        onColor_(key, scheme_.color(key));
+                    }
+                });
+            }
             auto* row = new wxBoxSizer(wxHORIZONTAL);
             row->Add(swatch, wxSizerFlags().CenterVertical());
             row->Add(text, wxSizerFlags().CenterVertical().Border(wxLEFT, FromDIP(4)));

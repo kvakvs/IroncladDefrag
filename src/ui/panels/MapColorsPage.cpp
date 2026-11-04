@@ -4,8 +4,13 @@
 #include "ui/Commands.h"
 #include "ui/map/Legend.h"
 
+#include <wx/button.h>
+#include <wx/choice.h>
+#include <wx/colordlg.h>
 #include <wx/radiobox.h>
+#include <wx/settings.h>
 #include <wx/sizer.h>
+#include <wx/stattext.h>
 #include <wx/toplevel.h>
 
 #include <algorithm>
@@ -64,11 +69,85 @@ namespace icd::ui {
             }
         });
         legend_ = new Legend(this, executor);
+        legend_->setColorHandler([this](std::string_view key, core::Rgba color) { pickColor(key, color); });
 
+        auto* right = new wxBoxSizer(wxVERTICAL);
+        right->Add(createPresetRow(), wxSizerFlags().Border(wxBOTTOM, FromDIP(8)));
+        right->Add(legend_, wxSizerFlags(1).Expand());
         auto* sizer = new wxBoxSizer(wxHORIZONTAL);
         sizer->Add(modes_, wxSizerFlags().Top().Border(wxALL, FromDIP(8)));
-        sizer->Add(legend_, wxSizerFlags(1).Expand().Border(wxTOP | wxRIGHT | wxBOTTOM, FromDIP(8)));
+        sizer->Add(right, wxSizerFlags(1).Expand().Border(wxTOP | wxRIGHT | wxBOTTOM, FromDIP(8)));
         SetSizer(sizer);
+        showColors();
+    }
+
+    wxSizer* MapColorsPage::createPresetRow() {
+        preset_ = new wxChoice(this, wxID_ANY);
+        for (const core::ColorPreset preset : core::colorPresets()) {
+            preset_->Append(wxString::FromUTF8(std::string(core::presetName(preset))));
+        }
+        preset_->Bind(wxEVT_CHOICE, [this](wxCommandEvent& event) {
+            const auto presets = core::colorPresets();
+            const auto index = static_cast<std::size_t>(std::max(event.GetSelection(), 0));
+            services::MapColorSettings next = colors_;
+            next.preset = presets[std::min(index, presets.size() - 1)];
+            changeColors(std::move(next));
+        });
+        reset_ = new wxButton(this, wxID_ANY, "Reset colors");
+        reset_->SetToolTip("Go back to the preset's own colors");
+        reset_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) {
+            services::MapColorSettings next = colors_;
+            next.custom.erase(next.preset);
+            changeColors(std::move(next));
+        });
+        auto* hint = new wxStaticText(this, wxID_ANY, "Click a color below to change it.");
+        hint->SetForegroundColour(wxSystemSettings::GetColour(wxSYS_COLOUR_GRAYTEXT));
+        auto* row = new wxBoxSizer(wxHORIZONTAL);
+        row->Add(new wxStaticText(this, wxID_ANY, "Colors:"), wxSizerFlags().CenterVertical());
+        row->Add(preset_, wxSizerFlags().CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(6)));
+        row->Add(reset_, wxSizerFlags().CenterVertical().Border(wxRIGHT, FromDIP(12)));
+        row->Add(hint, wxSizerFlags().CenterVertical());
+        return row;
+    }
+
+    void MapColorsPage::setColors(const services::MapColorSettings& colors) {
+        colors_ = colors;
+        showColors();
+    }
+
+    void MapColorsPage::showColors() {
+        const auto presets = core::colorPresets();
+        const auto found = std::ranges::find(presets, colors_.preset);
+        preset_->SetSelection(found == presets.end() ? 0 : static_cast<int>(found - presets.begin()));
+        const auto custom = colors_.custom.find(colors_.preset);
+        reset_->Enable(custom != colors_.custom.end() && !custom->second.empty());
+    }
+
+    void MapColorsPage::pickColor(std::string_view key, core::Rgba current) {
+        wxColourData data;
+        data.SetChooseFull(true);
+        data.SetColour(wxColour(static_cast<unsigned char>(current >> 16U), static_cast<unsigned char>(current >> 8U),
+                                static_cast<unsigned char>(current)));
+        wxColourDialog dialog(this, &data);
+        dialog.SetTitle("Map color");
+        if (dialog.ShowModal() != wxID_OK) {
+            return;
+        }
+        const wxColour chosen = dialog.GetColourData().GetColour();
+        services::MapColorSettings next = colors_;
+        next.custom[next.preset][std::string(key)] = core::rgb(chosen.Red(), chosen.Green(), chosen.Blue());
+        changeColors(std::move(next));
+    }
+
+    void MapColorsPage::changeColors(services::MapColorSettings colors) {
+        if (colors == colors_) {
+            return;
+        }
+        colors_ = std::move(colors);
+        showColors();
+        if (onColors_) {
+            onColors_(colors_);
+        }
     }
 
     void MapColorsPage::showMode(core::ColorMode mode) { modes_->SetSelection(modeIndex(mode)); }

@@ -921,6 +921,16 @@ All analysis checks passed.
   activity signals (plan.md 8.2) can feed the same byte.
 - Switching modes changes only the palette: the canvas marks every cached and rendering tile dirty
   (the selection-change path), keeps showing them until each re-renders, and never rebuilds map data.
+- Color schemes (T125, `core/map/ColorScheme`): every legend entry has a stable key (`LegendEntry::key`: "free",
+  "fragmentation.contiguous", "age.0"-"age.5", "size.0"-"size.5", "class.<catalog id>"). A `ColorScheme` is a
+  `ColorPreset` (Standard = the original colors, so the legend tables keep them; Colorblind-safe = Okabe-Ito,
+  viridis/cividis ramps and Paul Tol's sets; Dark = dark free space and background) plus the user's colors by key.
+  `paletteFor(mode, scheme)` and `legendColors(mode, scheme)` resolve the colors once per palette, so tiles still
+  equal legend colors in every scheme (tested for each preset and a custom one). The scheme's background is
+  `Palette::outside()`, which the canvas also clears with. Plan overlay colors and the selection highlight are fixed.
+  Settings keep `mapColors` (preset id and custom colors per preset as "#RRGGBB"), so switching presets keeps each
+  preset's edits; the Map colors tab has the preset picker, Reset colors (drops the preset's edits) and opens
+  `wxColourDialog` on a click on a legend entry; `MainFrame` saves and calls `MapPanel::setColorScheme()`.
 - The legend (`ui::Legend`, in the Map colors tab, scrolled when its wrapped entries do not fit) counts clusters per entry
   exactly from the extent index (`countLegend()`): the visible cell rectangle becomes one LCN range
   for whole rows or one per row, cut into 4 M-cluster pieces summed in parallel; equal to a per-cluster

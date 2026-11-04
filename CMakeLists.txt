@@ -104,6 +104,8 @@ add_library(icd_core STATIC
     src/core/map/BinSummary.h
     src/core/map/ColorModes.cpp
     src/core/map/ColorModes.h
+    src/core/map/ColorScheme.cpp
+    src/core/map/ColorScheme.h
     src/core/map/Grid.cpp
     src/core/map/Grid.h
     src/core/map/HitTest.cpp

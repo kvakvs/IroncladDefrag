@@ -1,5 +1,6 @@
 #pragma once
 
+#include "core/map/ColorScheme.h"
 #include "core/model/DriveInfo.h"
 #include "core/resources/ResourceCaps.h"
 #include "services/workflow/FakeResults.h"
@@ -25,12 +26,32 @@ namespace icd::services {
         bool operator==(const DriveStrategy&) const = default;
     };
 
+    // The map's colors (T125): the chosen preset and the user's own colors for each preset, so switching presets keeps
+    // every preset's edits.
+    struct MapColorSettings {
+        core::ColorPreset preset = core::ColorPreset::Standard; // The preset in use.
+        std::map<core::ColorPreset, core::ColorScheme::Custom> custom; // Per preset: the user's colors by legend key.
+
+        // Field-wise equality, so an unchanged choice is not written again.
+        bool operator==(const MapColorSettings&) const = default;
+    };
+
+    // The colors the map draws with for these settings.
+    [[nodiscard]] core::ColorScheme colorSchemeOf(const MapColorSettings& colors);
+
+    // "#RRGGBB" of a color (the alpha byte is left out).
+    [[nodiscard]] std::string colorText(core::Rgba color);
+
+    // The opaque color of "#RRGGBB" (case-insensitive); nullopt for anything else.
+    [[nodiscard]] std::optional<core::Rgba> colorFromText(std::string_view text);
+
     // Everything the app keeps between runs (plan.md Phase 10: versioned JSON).
     struct Settings {
         std::map<std::string, DriveStrategy> driveStrategies; // Per drive, by driveSettingsKey().
         std::uint32_t fastBudgetMultiplier =
             1; // Scales the Fast level's budget (plan.md 9.2.1): one of fastBudgetMultipliers().
         core::ResourceSettings resources; // Manual thread and memory caps (plan.md 6.6); 0 is Auto.
+        MapColorSettings mapColors; // Map color preset and the user's colors.
 
         // Field-wise equality, for round-trip checks.
         bool operator==(const Settings&) const = default;
@@ -54,7 +75,8 @@ namespace icd::services {
 
     // Settings from a JSON document. Throws SettingsError when the document is malformed, of another version or of
     // the wrong shape; a drive entry with an unknown effort level is dropped, so one bad entry keeps the rest, and
-    // a multiplier or cap that is not a usable number keeps its default.
+    // a multiplier or cap that is not a usable number keeps its default, and so do an unknown color preset and
+    // colors that are not "#RRGGBB".
     [[nodiscard]] Settings parseSettings(std::string_view text);
 
     // The key a drive's settings are stored under: the volume GUID name, which survives drive-letter changes, or

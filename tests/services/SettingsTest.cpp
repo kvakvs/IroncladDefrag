@@ -33,6 +33,9 @@ namespace icd::services { namespace {
         Settings settings = sample();
         settings.fastBudgetMultiplier = 4;
         settings.resources = {.workerThreads = 3, .memoryBudgetBytes = 5ULL << 30U};
+        settings.mapColors.preset = core::ColorPreset::Dark;
+        settings.mapColors.custom[core::ColorPreset::Dark] = {{"class.photos", core::rgb(1, 2, 255)}};
+        settings.mapColors.custom[core::ColorPreset::Standard] = {{"free", core::rgb(255, 255, 255)}};
         return settings;
     }
 
@@ -83,6 +86,29 @@ namespace icd::services { namespace {
             const std::string json = std::format(R"({{"version": 2, "fastBudgetMultiplier": {}}})", multiplier);
             EXPECT_EQ(parseSettings(json).fastBudgetMultiplier, multiplier);
         }
+    }
+
+    TEST(Settings, MapColors) {
+        EXPECT_EQ(colorText(core::rgb(1, 0xAB, 255)), "#01ABFF");
+        EXPECT_EQ(colorFromText("#01abff"), core::rgb(1, 0xAB, 255));
+        for (const char* bad : {"", "#", "01ABFF", "#01ABF", "#01ABFFF", "#GGGGGG", "#-1ABFF", "# 1ABFF"}) {
+            EXPECT_FALSE(colorFromText(bad)) << bad;
+        }
+        const Settings settings = parseSettings(R"({"version": 2, "mapColors": {"preset": "colorblind", "custom": {
+            "colorblind": {"free": "#000000", "age.1": "red", "size.2": 7},
+            "neon": {"free": "#FFFFFF"}}}})");
+        EXPECT_EQ(settings.mapColors.preset, core::ColorPreset::ColorblindSafe);
+        ASSERT_EQ(settings.mapColors.custom.size(), 1U);
+        EXPECT_EQ(settings.mapColors.custom.at(core::ColorPreset::ColorblindSafe),
+                  (core::ColorScheme::Custom{{"free", core::rgb(0, 0, 0)}}));
+        EXPECT_EQ(parseSettings(R"({"version": 2, "mapColors": {"preset": "neon"}})").mapColors.preset,
+                  core::ColorPreset::Standard);
+
+        const core::ColorScheme scheme = colorSchemeOf(tuned().mapColors);
+        EXPECT_EQ(scheme.preset(), core::ColorPreset::Dark);
+        EXPECT_EQ(scheme.color("class.photos"), core::rgb(1, 2, 255));
+        EXPECT_EQ(scheme.color("free"),
+                  core::presetColor(core::ColorPreset::Dark, "free")); // Standard's edit stays there.
     }
 
     TEST(Settings, RefusesUnusableDocuments) {

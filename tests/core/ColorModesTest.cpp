@@ -161,15 +161,72 @@ namespace icd::core { namespace {
         }
     }
 
-    // At one cluster per cell, every tile pixel of a used cell has exactly its legend entry's color, in every mode.
+    // Checks that tiles of every mode use exactly the legend colors of scheme.
+    void expectTileColorsAreLegendColors(const ColorScheme& scheme);
+
+    // At one cluster per cell, every tile pixel of a used cell has exactly its legend entry's color, in every mode and
+    // every color scheme: each preset, and one with the user's own colors (T125).
     TEST(ColorModes, TileColorsAreLegendColors) {
+        std::vector<ColorScheme> schemes;
+        for (const ColorPreset preset : colorPresets()) {
+            schemes.emplace_back(preset);
+        }
+        schemes.emplace_back(ColorPreset::Dark,
+                             ColorScheme::Custom{{"free", rgb(1, 2, 3)},
+                                                 {"class.photos", rgb(4, 5, 6)},
+                                                 {"age.2", rgb(7, 8, 9)},
+                                                 {"fragmentation.fragmented", rgb(10, 11, 12)}});
+        for (const ColorScheme& scheme : schemes) {
+            SCOPED_TRACE(presetId(scheme.preset()));
+            expectTileColorsAreLegendColors(scheme);
+        }
+    }
+
+    // The standard preset is the map's original colors (the legend tables' own), so nothing changed for users who never
+    // pick another one.
+    TEST(ColorModes, StandardPresetIsTheOriginalColors) {
+        const ColorScheme standard;
+        for (const ColorMode mode : modes) {
+            const std::span<const LegendEntry> legend = legendOf(mode);
+            const std::vector<Rgba> colors = legendColors(mode, standard);
+            ASSERT_EQ(colors.size(), legend.size());
+            for (std::size_t entry = 0; entry < legend.size(); ++entry) {
+                EXPECT_EQ(colors[entry], legend[entry].color) << legend[entry].key;
+            }
+        }
+    }
+
+    // Every preset has its own color for every legend key, and the colors of a mode are told apart.
+    TEST(ColorModes, PresetsColorEveryKeyDistinctly) {
+        for (const ColorPreset preset : colorPresets()) {
+            EXPECT_EQ(presetFromId(presetId(preset)), preset);
+            EXPECT_FALSE(presetName(preset).empty());
+            for (const ColorMode mode : modes) {
+                std::vector<Rgba> colors = legendColors(mode, ColorScheme(preset));
+                for (const LegendEntry& entry : legendOf(mode)) {
+                    EXPECT_NE(presetColor(preset, entry.key), rgb(128, 128, 128))
+                        << presetId(preset) << " " << entry.key;
+                }
+                std::ranges::sort(colors);
+                EXPECT_EQ(std::ranges::adjacent_find(colors), colors.end()) << presetId(preset);
+            }
+        }
+        EXPECT_FALSE(presetFromId("neon"));
+        const ColorScheme custom(ColorPreset::ColorblindSafe, {{"size.1", rgb(9, 9, 9)}});
+        EXPECT_EQ(custom.color("size.1"), rgb(9, 9, 9));
+        EXPECT_EQ(custom.color("size.2"), presetColor(ColorPreset::ColorblindSafe, "size.2"));
+        EXPECT_NE(ColorScheme(ColorPreset::Dark).outside(), ColorScheme().outside());
+    }
+
+    // The body of TileColorsAreLegendColors for one scheme.
+    void expectTileColorsAreLegendColors(const ColorScheme& scheme) {
         InlineExecutor serial;
         const auto map = smallMap(serial);
         const World& world = map->world();
         const int level = -1; // Two pixels per cell.
         for (const ColorMode mode : modes) {
-            const auto palette = paletteFor(mode);
-            const std::span<const LegendEntry> legend = legendOf(mode);
+            const auto palette = paletteFor(mode, scheme);
+            const std::vector<Rgba> legend = legendColors(mode, scheme);
             const TileId tile{level, 1, 0};
             const std::vector<Rgba> pixels = renderTile(map->source(), tile, *palette);
             const CellRect rect = world.tileCells(tile);
@@ -181,7 +238,7 @@ namespace icd::core { namespace {
                     }
                     const ExtentRecord* record = map->snapshot().extents.find(*lcn);
                     const std::size_t entry = record == nullptr ? 0 : expectedEntry(*map, mode, *record);
-                    ASSERT_EQ(pixels[(2 * y) * World::tileSize + 2 * x], legend[entry].color)
+                    ASSERT_EQ(pixels[(2 * y) * World::tileSize + 2 * x], legend[entry])
                         << static_cast<int>(mode) << " cell " << x << "," << y;
                 }
             }

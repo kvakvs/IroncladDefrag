@@ -32,9 +32,6 @@ namespace icd::ui {
 
     namespace {
 
-        // Background where there is no map or no tile yet.
-        constexpr core::Rgba background = core::rgb(200, 200, 200);
-
         // Bytes one cached tile takes on the GPU.
         constexpr std::size_t tileBytes = core::tilePixels * sizeof(core::Rgba);
 
@@ -348,7 +345,7 @@ namespace icd::ui {
         }
         uploadArrived();
         missingTiles_ = 0;
-        renderer_->clear(background);
+        renderer_->clear(palette_->outside()); // Around the map and under missing tiles, in the scheme's color.
         if (map_ != nullptr) {
             drawTiles();
             drawGrid();

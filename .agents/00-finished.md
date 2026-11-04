@@ -419,3 +419,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   the legend (now scrolled); the strip under the map, the color choice and the state caption above it are gone (the
   caption repeated the status line), so the map is taller; `MapPanel::attachColors()` (weak reference),
   `syncColors()`; View > Map colors and legend (Ctrl+L) shows the tab.
+- T125 Map color presets and custom colors - `core/map/ColorScheme.*` (Standard = original colors, Colorblind-safe,
+  Dark; custom colors per legend key), keys on `LegendEntry`, `paletteFor(mode, scheme)`, `legendColors()`,
+  `OccupancyPalette` with scheme colors, canvas background from the scheme; settings `mapColors` (preset, custom colors
+  per preset as "#RRGGBB"); Map colors tab: preset picker, Reset colors, click a legend entry to pick its color.
+  `ColorModesTest` (tiles = legend colors for every preset and a custom scheme, standard = original, presets cover
+  every key distinctly), `SettingsTest` (map colors).

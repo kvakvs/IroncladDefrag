@@ -5,6 +5,7 @@
 
 #include <algorithm>
 #include <array>
+#include <charconv>
 #include <format>
 #include <limits>
 
@@ -85,6 +86,54 @@ namespace icd::services {
             settings.resources.memoryBudgetBytes = unsignedMember(*resources, "memoryBudgetBytes").value_or(0);
         }
 
+        // Reads one preset's custom colors; entries that are not "#RRGGBB" are skipped.
+        core::ColorScheme::Custom readCustomColors(const core::JsonValue& colors) {
+            core::ColorScheme::Custom custom;
+            for (const auto& [key, value] : colors.asObject()) {
+                const std::optional<core::Rgba> color =
+                    value.isString() ? colorFromText(value.asString()) : std::nullopt;
+                if (color) {
+                    custom[key] = *color;
+                }
+            }
+            return custom;
+        }
+
+        // Reads the "mapColors" object; an unknown preset stays the default, unknown presets' colors are dropped.
+        void readMapColors(const core::JsonValue& root, Settings& settings) {
+            const core::JsonValue* colors = root.find("mapColors");
+            if (colors == nullptr || !colors->isObject()) {
+                return;
+            }
+            if (const auto preset = stringMember(*colors, "preset"); preset) {
+                settings.mapColors.preset = core::presetFromId(*preset).value_or(core::ColorPreset::Standard);
+            }
+            const core::JsonValue* custom = colors->find("custom");
+            if (custom == nullptr || !custom->isObject()) {
+                return;
+            }
+            for (const auto& [id, entries] : custom->asObject()) {
+                const std::optional<core::ColorPreset> preset = core::presetFromId(id);
+                if (preset && entries.isObject()) {
+                    settings.mapColors.custom[*preset] = readCustomColors(entries);
+                }
+            }
+        }
+
+        // Writes the "mapColors" object.
+        void writeMapColors(core::JsonWriter& out, const MapColorSettings& colors) {
+            out.key("mapColors").beginObject().key("preset").value(core::presetId(colors.preset));
+            out.key("custom").beginObject();
+            for (const auto& [preset, custom] : colors.custom) {
+                out.key(core::presetId(preset)).beginObject();
+                for (const auto& [key, color] : custom) {
+                    out.key(key).value(colorText(color));
+                }
+                out.endObject();
+            }
+            out.endObject().endObject();
+        }
+
         // Checks the version member before anything else is read.
         void checkVersion(const core::JsonValue& root) {
             const core::JsonValue* version = root.find("version");
@@ -113,11 +162,33 @@ namespace icd::services {
         out.key("resources").beginObject();
         out.key("workerThreads").value(std::uint64_t{settings.resources.workerThreads});
         out.key("memoryBudgetBytes").value(settings.resources.memoryBudgetBytes);
-        out.endObject().endObject();
+        out.endObject();
+        writeMapColors(out, settings.mapColors);
+        out.endObject();
         return out.str() + "\n";
     }
 
     std::span<const std::uint32_t> fastBudgetMultipliers() { return multipliers; }
+
+    core::ColorScheme colorSchemeOf(const MapColorSettings& colors) {
+        const auto found = colors.custom.find(colors.preset);
+        return core::ColorScheme(colors.preset,
+                                 found == colors.custom.end() ? core::ColorScheme::Custom{} : found->second);
+    }
+
+    std::string colorText(core::Rgba color) { return std::format("#{:06X}", color & 0xFF'FFFFU); }
+
+    std::optional<core::Rgba> colorFromText(std::string_view text) {
+        if (text.size() != 7 || text.front() != '#') {
+            return std::nullopt;
+        }
+        std::uint32_t value = 0;
+        const auto [end, error] = std::from_chars(text.data() + 1, text.data() + text.size(), value, 16);
+        if (error != std::errc{} || end != text.data() + text.size()) {
+            return std::nullopt;
+        }
+        return 0xFF00'0000U | value;
+    }
 
     Settings parseSettings(std::string_view text) {
         try {
@@ -132,6 +203,7 @@ namespace icd::services {
             }
             readMultiplier(root, settings);
             readResources(root, settings);
+            readMapColors(root, settings);
             return settings;
         }
         catch (const core::JsonError& error) {

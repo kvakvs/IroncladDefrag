@@ -106,6 +106,7 @@ namespace icd::ui {
 
     void MapPanel::attachColors(MapColorsPage& page) {
         colors_ = &page;
+        page.legend().setScheme(scheme_);
         page.legend().setMode(mode_);
         page.legend().setMap(map_);
         if (canvas_->hasMap()) {
@@ -142,7 +143,7 @@ namespace icd::ui {
             mode = core::ColorMode::Fragmentation; // No plan yet: the overlay modes have nothing to show.
         }
         mode_ = mode;
-        canvas_->setPalette(core::paletteFor(mode));
+        canvas_->setPalette(core::paletteFor(mode, scheme_));
         canvas_->setOverlay(mode == core::ColorMode::ZoneFit           ? zoneFit_
                                 : mode == core::ColorMode::PlanPreview ? preview_
                                                                        : nullptr);
@@ -150,6 +151,14 @@ namespace icd::ui {
             counts->setMode(mode);
         }
         syncColors();
+    }
+
+    void MapPanel::setColorScheme(const core::ColorScheme& scheme) {
+        scheme_ = scheme;
+        if (Legend* counts = legend(); counts != nullptr) {
+            counts->setScheme(scheme_);
+        }
+        setColorMode(mode_); // Repaints with the new palette.
     }
 
     void MapPanel::setPlanOverlays(std::shared_ptr<const core::MapOverlay> zoneFit,

@@ -54,6 +54,9 @@ namespace icd::ui {
         void setPlanOverlays(std::shared_ptr<const core::MapOverlay> zoneFit,
                              std::shared_ptr<const core::MapOverlay> preview);
 
+        // Draws the map and the legend in a color scheme (preset and the user's colors).
+        void setColorScheme(const core::ColorScheme& scheme);
+
         // Colors the map and the legend by a mode and shows it in the mode switch.
         void setColorMode(core::ColorMode mode);
 
@@ -133,6 +136,7 @@ namespace icd::ui {
         wxWeakRef<MapColorsPage> colors_; // The Map colors tab; becomes null when wx destroys it.
         Ruler* rows_ = nullptr; // Row ruler left of the map; child window owned by wx.
         core::ColorMode mode_ = core::ColorMode::Fragmentation; // Current color mode.
+        core::ColorScheme scheme_; // Colors of every mode.
         std::shared_ptr<const core::MapOverlay> zoneFit_; // Zone-fit overlay of the plan, or null.
         std::shared_ptr<const core::MapOverlay> preview_; // Plan-preview overlay of the plan, or null.
         wxStaticText* selectionLabel_ = nullptr; // Selected file and fragment; child window owned by wx.

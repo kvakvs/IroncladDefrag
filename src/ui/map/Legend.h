@@ -2,14 +2,17 @@
 
 #include "core/job/CancelToken.h"
 #include "core/map/ColorModes.h"
+#include "core/map/ColorScheme.h"
 #include "core/map/Viewport.h"
 
 #include <wx/scrolwin.h>
 #include <wx/timer.h>
 
 #include <cstdint>
+#include <functional>
 #include <memory>
 #include <optional>
+#include <string_view>
 #include <vector>
 
 class wxStaticText;
@@ -50,6 +53,14 @@ namespace icd::ui {
         // Switches to the entries of a mode and counts them again.
         void setMode(core::ColorMode mode);
 
+        // Shows the colors of a scheme (the counts stay).
+        void setScheme(const core::ColorScheme& scheme);
+
+        // Receives clicks on an entry (its color key and current color), to change the color.
+        void setColorHandler(std::function<void(std::string_view key, core::Rgba color)> handler) {
+            onColor_ = std::move(handler);
+        }
+
         // The view changed: counts again once it has rested.
         void setView(const core::Viewport& view);
 
@@ -79,6 +90,8 @@ namespace icd::ui {
         std::shared_ptr<LegendMailbox> mailbox_; // Route from workers back to this window.
         std::shared_ptr<const core::MapData> map_; // What is counted; null for none.
         core::ColorMode mode_ = core::ColorMode::Fragmentation; // Entries shown.
+        core::ColorScheme scheme_; // Their colors.
+        std::function<void(std::string_view, core::Rgba)> onColor_; // Receiver of entry clicks.
         std::optional<core::Viewport> view_; // Last view seen.
         std::vector<EntryControls> entries_; // Controls per legend entry.
         std::optional<core::LegendCounts> counts_; // Counts of the current view, or nullopt while counting.

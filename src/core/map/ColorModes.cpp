@@ -28,26 +28,32 @@ namespace icd::core {
 
         // Legend of the fragmentation mode: the occupancy palette's colors.
         constexpr std::array fragmentationLegend{
-            LegendEntry{"Free", OccupancyPalette::freeColor},
-            LegendEntry{"Contiguous", OccupancyPalette::usedColor},
-            LegendEntry{"Fragmented", OccupancyPalette::fragmentedColor},
-            LegendEntry{"Unmovable", OccupancyPalette::unmovableColor},
+            LegendEntry{"Free", OccupancyPalette::freeColor, "free"},
+            LegendEntry{"Contiguous", OccupancyPalette::usedColor, "fragmentation.contiguous"},
+            LegendEntry{"Fragmented", OccupancyPalette::fragmentedColor, "fragmentation.fragmented"},
+            LegendEntry{"Unmovable", OccupancyPalette::unmovableColor, "fragmentation.unmovable"},
         };
 
         // Legend of the age mode, newest (warm) to oldest (cool).
         constexpr std::array ageLegend{
-            LegendEntry{"Free", OccupancyPalette::freeColor}, LegendEntry{"Under a day", rgb(214, 48, 49)},
-            LegendEntry{"Under a week", rgb(238, 130, 38)},   LegendEntry{"Under a month", rgb(222, 186, 40)},
-            LegendEntry{"Under a year", rgb(96, 172, 110)},   LegendEntry{"Under 3 years", rgb(60, 124, 196)},
-            LegendEntry{"3 years or more", rgb(88, 64, 150)},
+            LegendEntry{"Free", OccupancyPalette::freeColor, "free"},
+            LegendEntry{"Under a day", rgb(214, 48, 49), "age.0"},
+            LegendEntry{"Under a week", rgb(238, 130, 38), "age.1"},
+            LegendEntry{"Under a month", rgb(222, 186, 40), "age.2"},
+            LegendEntry{"Under a year", rgb(96, 172, 110), "age.3"},
+            LegendEntry{"Under 3 years", rgb(60, 124, 196), "age.4"},
+            LegendEntry{"3 years or more", rgb(88, 64, 150), "age.5"},
         };
 
         // Legend of the size mode, small (light) to large (dark).
         constexpr std::array sizeLegend{
-            LegendEntry{"Free", OccupancyPalette::freeColor}, LegendEntry{"Under 64 KB", rgb(140, 200, 236)},
-            LegendEntry{"64 KB - 1 MB", rgb(84, 160, 220)},   LegendEntry{"1 - 16 MB", rgb(48, 116, 196)},
-            LegendEntry{"16 - 256 MB", rgb(40, 78, 164)},     LegendEntry{"256 MB - 4 GB", rgb(44, 44, 122)},
-            LegendEntry{"4 GB or more", rgb(34, 18, 70)},
+            LegendEntry{"Free", OccupancyPalette::freeColor, "free"},
+            LegendEntry{"Under 64 KB", rgb(140, 200, 236), "size.0"},
+            LegendEntry{"64 KB - 1 MB", rgb(84, 160, 220), "size.1"},
+            LegendEntry{"1 - 16 MB", rgb(48, 116, 196), "size.2"},
+            LegendEntry{"16 - 256 MB", rgb(40, 78, 164), "size.3"},
+            LegendEntry{"256 MB - 4 GB", rgb(44, 44, 122), "size.4"},
+            LegendEntry{"4 GB or more", rgb(34, 18, 70), "size.5"},
         };
 
         static_assert(ageLegend.size() == valueBuckets + 1 && sizeLegend.size() == valueBuckets + 1,
@@ -63,32 +69,46 @@ namespace icd::core {
         class BucketPalette : public Palette {
         public:
             // A palette for the age or the size mode.
-            explicit BucketPalette(ColorMode mode) : mode_(mode), legend_(legendOf(mode)) {}
+            BucketPalette(ColorMode mode, const ColorScheme& scheme) :
+                mode_(mode), colors_(legendColors(mode, scheme)), outside_(scheme.outside()) {}
 
             // The bucket color of the bin's value.
             [[nodiscard]] Rgba color(const PixelSummary& summary) const override {
                 const MapBin& bin = summary.bin;
                 if (bin.used == 0) {
-                    return legend_.front().color;
+                    return colors_.front();
                 }
                 const auto value = static_cast<std::uint8_t>(mode_ == ColorMode::Age ? bin.heat : bin.size);
-                return blendColors({.from = legend_.front().color,
-                                    .to = legend_[entryOfValue(mode_, value)].color,
-                                    .share = usedShare(summary)});
+                return blendColors(
+                    {.from = colors_.front(), .to = colors_[entryOfValue(mode_, value)], .share = usedShare(summary)});
             }
+
+            // The scheme's background past the volume.
+            [[nodiscard]] Rgba outside() const override { return outside_; }
 
         private:
             ColorMode mode_; // Age or size.
-            std::span<const LegendEntry> legend_; // Its colors.
+            std::vector<Rgba> colors_; // Legend colors in the scheme.
+            Rgba outside_; // Past the volume.
         };
 
-        // Legend of the class mode: free space, then every class of the built-in catalog in its color.
+        // Legend of the class mode: free space, then every class of the built-in catalog in its color, keyed
+        // "class.<id>" (the keys are kept here for the program's life, like the catalog the labels point into).
         std::span<const LegendEntry> classLegend() {
-            static const std::vector<LegendEntry> legend = [] {
-                std::vector<LegendEntry> out{LegendEntry{"Free", OccupancyPalette::freeColor}};
+            static const std::vector<std::string> keys = [] {
+                std::vector<std::string> out;
                 for (const classify::ClassInfo& info : classify::builtinCatalog().classes) {
+                    out.push_back("class." + info.id);
+                }
+                return out;
+            }();
+            static const std::vector<LegendEntry> legend = [] {
+                std::vector<LegendEntry> out{LegendEntry{"Free", OccupancyPalette::freeColor, "free"}};
+                const auto& classes = classify::builtinCatalog().classes;
+                for (std::size_t index = 0; index < classes.size(); ++index) {
+                    const classify::ClassInfo& info = classes[index];
                     const auto channel = [&](unsigned shift) { return static_cast<std::uint8_t>(info.color >> shift); };
-                    out.push_back({info.name, rgb(channel(16), channel(8), channel(0))});
+                    out.push_back({info.name, rgb(channel(16), channel(8), channel(0)), keys[index]});
                 }
                 return out;
             }();
@@ -104,16 +124,26 @@ namespace icd::core {
         // Colors a bin by the class of its largest contributor, blended with free space by how full it is.
         class ClassPalette : public Palette {
         public:
+            // The class colors of a scheme.
+            explicit ClassPalette(const ColorScheme& scheme) :
+                colors_(legendColors(ColorMode::FileClass, scheme)), outside_(scheme.outside()) {}
+
             // The class color of the bin's dominant class.
             [[nodiscard]] Rgba color(const PixelSummary& summary) const override {
-                const auto legend = classLegend();
                 if (summary.bin.used == 0) {
-                    return legend.front().color;
+                    return colors_.front();
                 }
-                return blendColors({.from = legend.front().color,
-                                    .to = legend[entryOfClass(summary.bin.kind)].color,
+                return blendColors({.from = colors_.front(),
+                                    .to = colors_[entryOfClass(summary.bin.kind)],
                                     .share = usedShare(summary)});
             }
+
+            // The scheme's background past the volume.
+            [[nodiscard]] Rgba outside() const override { return outside_; }
+
+        private:
+            std::vector<Rgba> colors_; // Legend colors in the scheme.
+            Rgba outside_; // Past the volume.
         };
 
         // The LCN ranges of the clusters inside a cell rectangle, cut into pieces of at most legendPieceClusters.
@@ -268,14 +298,28 @@ namespace icd::core {
         return fragmentationLegend;
     }
 
-    std::shared_ptr<const Palette> paletteFor(ColorMode mode) {
+    std::vector<Rgba> legendColors(ColorMode mode, const ColorScheme& scheme) {
+        std::vector<Rgba> colors;
+        for (const LegendEntry& entry : legendOf(mode)) {
+            colors.push_back(scheme.color(entry.key));
+        }
+        return colors;
+    }
+
+    std::shared_ptr<const Palette> paletteFor(ColorMode mode, const ColorScheme& scheme) {
         if (mode == ColorMode::Fragmentation || mode == ColorMode::ZoneFit || mode == ColorMode::PlanPreview) {
-            return std::make_shared<OccupancyPalette>(); // Overlay modes paint their runs over this base.
+            // Overlay modes paint their runs over this base.
+            return std::make_shared<OccupancyPalette>(
+                OccupancyColors{.free = scheme.color("free"),
+                                .used = scheme.color("fragmentation.contiguous"),
+                                .fragmented = scheme.color("fragmentation.fragmented"),
+                                .unmovable = scheme.color("fragmentation.unmovable"),
+                                .outside = scheme.outside()});
         }
         if (mode == ColorMode::FileClass) {
-            return std::make_shared<ClassPalette>();
+            return std::make_shared<ClassPalette>(scheme);
         }
-        return std::make_shared<BucketPalette>(mode);
+        return std::make_shared<BucketPalette>(mode, scheme);
     }
 
     std::size_t legendCategory(ColorMode mode, const PieceOwner& owner) {

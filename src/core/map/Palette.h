@@ -60,6 +60,9 @@ namespace icd::core {
         [[nodiscard]] virtual Rgba selection() const { return rgb(255, 196, 0); }
     };
 
+    // The colors of the occupancy palette; the defaults are the standard preset's.
+    struct OccupancyColors;
+
     // Used versus free space, with fragmented and unmovable data highlighted: the fragmentation color mode
     // (core::ColorMode::Fragmentation) and a stable palette for tests.
     class OccupancyPalette : public Palette {
@@ -76,8 +79,32 @@ namespace icd::core {
         // Unmovable data.
         static constexpr Rgba unmovableColor = rgb(46, 150, 82);
 
+        // The standard colors.
+        OccupancyPalette();
+
+        // Other colors (a color scheme's).
+        explicit OccupancyPalette(const OccupancyColors& colors);
+
         // Blends from free to the data color by the used share of the block.
         [[nodiscard]] Rgba color(const PixelSummary& summary) const override;
+
+        // The scheme's background past the volume.
+        [[nodiscard]] Rgba outside() const override { return outside_; }
+
+    private:
+        Rgba free_ = freeColor; // Free cells.
+        Rgba used_ = usedColor; // Contiguous data.
+        Rgba fragmented_ = fragmentedColor; // Fragmented files' data.
+        Rgba unmovable_ = unmovableColor; // Unmovable data.
+        Rgba outside_ = rgb(200, 200, 200); // Past the volume.
+    };
+
+    struct OccupancyColors {
+        Rgba free = OccupancyPalette::freeColor; // Free cells.
+        Rgba used = OccupancyPalette::usedColor; // Contiguous data.
+        Rgba fragmented = OccupancyPalette::fragmentedColor; // Fragmented files' data.
+        Rgba unmovable = OccupancyPalette::unmovableColor; // Unmovable data.
+        Rgba outside = rgb(200, 200, 200); // Past the volume.
     };
 
 } // namespace icd::core

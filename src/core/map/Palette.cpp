@@ -29,19 +29,25 @@ namespace icd::core {
         return static_cast<std::uint32_t>(std::min<ClusterCount>(256, (used * 256 + whole / 2) / whole));
     }
 
+    OccupancyPalette::OccupancyPalette() = default;
+
+    OccupancyPalette::OccupancyPalette(const OccupancyColors& colors) :
+        free_(colors.free), used_(colors.used), fragmented_(colors.fragmented), unmovable_(colors.unmovable),
+        outside_(colors.outside) {}
+
     Rgba OccupancyPalette::color(const PixelSummary& summary) const {
         const MapBin& bin = summary.bin;
         if (bin.used == 0) {
-            return freeColor;
+            return free_;
         }
-        Rgba data = usedColor;
+        Rgba data = used_;
         if ((bin.flags & BinUnmovable) != 0) {
-            data = unmovableColor;
+            data = unmovable_;
         }
         else if (bin.fragmented >= 128) {
-            data = fragmentedColor;
+            data = fragmented_;
         }
-        return blendColors({.from = freeColor, .to = data, .share = usedShare(summary)});
+        return blendColors({.from = free_, .to = data, .share = usedShare(summary)});
     }
 
 } // namespace icd::core

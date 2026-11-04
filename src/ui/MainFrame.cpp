@@ -11,6 +11,7 @@
 #include "ui/dialogs/ShortcutsDialog.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
+#include "ui/panels/MapColorsPage.h"
 #include "ui/panels/MapPanel.h"
 
 #include <wx/menu.h>
@@ -63,6 +64,15 @@ namespace icd {
         const wxString resources = wxString::FromUTF8(core::describeCaps(services_.resources(), services_.caps()));
         bottom_ = new ui::BottomPanel(splitter_, resources, services_.pool());
         map_->attachColors(bottom_->mapColors());
+        const services::MapColorSettings& colors = services_.settings().current().mapColors;
+        map_->setColorScheme(services::colorSchemeOf(colors));
+        bottom_->mapColors().setColors(colors);
+        bottom_->mapColors().setColorsHandler([this](const services::MapColorSettings& changed) {
+            services::Settings next = services_.settings().current();
+            next.mapColors = changed;
+            services_.settings().update(std::move(next)); // A failed save is logged; the colors still apply.
+            map_->setColorScheme(services::colorSchemeOf(changed));
+        });
         splitter_->SetSashGravity(1.0); // Window growth goes to the map.
         splitter_->SetMinimumPaneSize(FromDIP(140));
         splitter_->SplitHorizontally(map_, bottom_);

@@ -3,6 +3,7 @@
 #include "core/exec/Executor.h"
 #include "core/job/CancelToken.h"
 #include "core/map/BinSummary.h"
+#include "core/map/ColorScheme.h"
 #include "core/map/Palette.h"
 #include "core/map/Viewport.h"
 #include "core/map/World.h"
@@ -78,15 +79,19 @@ namespace icd::core {
     // One row of the map legend.
     struct LegendEntry {
         std::string_view label; // What the color means.
-        Rgba color = 0; // The color, as tiles draw it for a block fully used by that category.
+        Rgba color = 0; // The standard preset's color, as tiles draw it for a block fully used by that category.
+        std::string_view key; // Stable name of the color in color schemes and the settings file (ColorScheme).
     };
 
     // The legend of a mode; entry 0 is always free space. The class mode lists the built-in catalog's classes in
     // ClassId order after it (its labels point into the catalog, which lives for the whole program).
     [[nodiscard]] std::span<const LegendEntry> legendOf(ColorMode mode);
 
-    // The palette that draws a mode; its colors are the legend's.
-    [[nodiscard]] std::shared_ptr<const Palette> paletteFor(ColorMode mode);
+    // The colors of a mode's legend entries in a scheme, in legendOf() order.
+    [[nodiscard]] std::vector<Rgba> legendColors(ColorMode mode, const ColorScheme& scheme);
+
+    // The palette that draws a mode in a scheme (default: the standard preset); its colors are the legend's.
+    [[nodiscard]] std::shared_ptr<const Palette> paletteFor(ColorMode mode, const ColorScheme& scheme = ColorScheme());
 
     // The legend entry (1 and up) a used cluster falls in, from its owner.
     [[nodiscard]] std::size_t legendCategory(ColorMode mode, const PieceOwner& owner);
