@@ -28,7 +28,8 @@ namespace icd::core {
     // (they are never analysed).
     std::string describeFragmentation(const DriveInfo& drive);
 
-    // "3 h ago" or "never"; empty for SSDs and unsupported volumes.
+    // "3 h ago" or "never"; for SSDs the last TRIM by Windows' optimizer ("trimmed 3 h ago", "never trimmed");
+    // empty for unsupported volumes.
     std::string describeLastAnalysed(const DriveInfo& drive, std::chrono::system_clock::time_point now);
 
     // Short name of a move block for the badge: "RAID", "Storage Spaces", "dynamic disk", "removable", "BitLocker".

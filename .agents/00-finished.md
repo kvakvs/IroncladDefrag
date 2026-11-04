@@ -410,3 +410,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   --strategy` find custom ids. `StrategyLibraryTest`. **Phase 10 exit:** a custom strategy survives a restart and gives
   the same plan at every level (unit test; two `icd-cli plan` processes gave identical plans; GUI Save as / Delete
   checked through UI Automation).
+- T123 Last TRIM date and trimmed bytes - `platform/win/OptimizeStatistics.*` reads Windows' optimizer statistics
+  (`Dfrg\Statistics\Volume{GUID}`: LastRunTime as local SYSTEMTIME, LastRunClustersTrimmed); `DriveInfo::lastOptimized`
+  shown on SSD rows ("trimmed 11 days ago", same as Optimize Drives' "Last run"); after a TRIM the status line says how
+  much Windows trimmed (`TrimResult`, `trimResult()`) and the row updates. Last analysed column widened.
+  `OptimizeStatisticsTest`, `TrimJobTest`, `DriveInfoTest`.

@@ -110,7 +110,9 @@ namespace icd::core { namespace {
 
         drive.media = MediaType::Ssd;
         EXPECT_EQ(describeFragmentation(drive), "");
-        EXPECT_EQ(describeLastAnalysed(drive, now), "");
+        EXPECT_EQ(describeLastAnalysed(drive, now), "never trimmed");
+        drive.lastOptimized = now - 50h;
+        EXPECT_EQ(describeLastAnalysed(drive, now), "trimmed 2 days ago");
         drive = hdd();
         drive.fileSystem = "FAT32";
         EXPECT_EQ(describeFragmentation(drive), "not supported");

@@ -173,6 +173,15 @@ this file records what is actually built and the decisions made along the way.
   buffers its output when it writes to a pipe, so in practice the lines arrive together when it finishes.
 - Only SSD rows show the TRIM button and only `SsdReady` allows the action, so HDD, virtual and unknown drives
   never offer it.
+- Last TRIM and trimmed bytes (T123): Windows' optimizer keeps per-volume statistics in
+  `HKLM\SOFTWARE\Microsoft\Dfrg\Statistics\Volume{GUID}`; `LastRunTime` (REG_BINARY SYSTEMTIME in local time) is
+  Optimize Drives' "Last run", `LastRunClustersTrimmed` (REG_QWORD) times `BytesPerCluster` the free space the last
+  retrim trimmed (checked: a retrim of the T: VHDX wrote 16384 x 4 KB = the 64 MB defrag printed). Every run of the
+  optimizer updates them, the scheduled task and Optimize Drives too. `platform::readOptimizeStatistics()` reads them
+  (no rights needed); `SystemDriveProvider` fills `DriveInfo::lastOptimized`, and SSD rows show it in the Last
+  analysed column ("trimmed 3 h ago", "never trimmed"). After a TRIM the job reads them again: the status line says
+  "Windows trimmed 189 GB of free space" when the last run is this one (`trimResult()`), and the row shows the new
+  date. A retrim of an NVMe SSD takes about a second, so without this the action looked like it did nothing.
 
 ## Workflow
 

@@ -245,6 +245,8 @@ add_library(icd_platform STATIC
     src/platform/win/Console.cpp
     src/platform/win/LastAccessSetting.cpp
     src/platform/win/LastAccessSetting.h
+    src/platform/win/OptimizeStatistics.cpp
+    src/platform/win/OptimizeStatistics.h
     src/platform/win/Compression.cpp
     src/platform/win/Compression.h
     src/platform/win/Console.h

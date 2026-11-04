@@ -177,6 +177,20 @@ namespace icd::ui {
             return std::format("{:.1f} s", static_cast<double>(result.elapsed.count()) / 1000.0);
         }
 
+        // The status line after a TRIM: how much Windows trimmed when it recorded it, since a retrim of a fast SSD
+        // ends in about a second and would otherwise look like nothing happened.
+        std::string trimDoneText(const std::string& drive, const services::JobResult& result,
+                                 const std::optional<services::TrimResult>& trim) {
+            const std::string done = std::format("TRIM of {} finished in {}", drive, seconds(result));
+            if (!trim || !trim->bytesTrimmed) {
+                return done + " (Windows output in the Log tab)";
+            }
+            if (*trim->bytesTrimmed == 0) {
+                return done + ": Windows found no free space that needed trimming";
+            }
+            return std::format("{}: Windows trimmed {} of free space", done, core::formatBytes(*trim->bytesTrimmed));
+        }
+
     } // namespace
 
     WorkflowBinding::WorkflowBinding(wxFrame& frame, services::AppServices& services, Widgets widgets) :
@@ -508,7 +522,8 @@ namespace icd::ui {
                                              services_.caps().memoryBudgetBytes);
         case WorkflowJob::Trim:
             trimOutput_ = std::make_shared<services::TrimOutput>();
-            return services::makeTrimJob(drive.root, trimOutput_);
+            trimResult_.reset();
+            return services::makeTrimJob(drive.root, drive.layout.volumeName, trimOutput_);
         case WorkflowJob::Plan:
             return makePlanJob(drive);
         case WorkflowJob::Execute:
@@ -700,6 +715,9 @@ namespace icd::ui {
             showExecution(*drive_);
         }
         else if (job == WorkflowJob::Trim) {
+            if (trimResult_ && trimResult_->lastRun) {
+                drive_->lastOptimized = trimResult_->lastRun; // The row's "trimmed just now".
+            }
             widgets_.bottom.showTab(BottomTab::Log);
         }
         widgets_.drives.updateDrive(*drive_);
@@ -791,6 +809,9 @@ namespace icd::ui {
         for (const std::string& line : trimOutput_->take()) {
             widgets_.bottom.log().add(drive, "TRIM", wxString::FromUTF8(line));
         }
+        if (auto result = trimOutput_->result(); result) {
+            trimResult_ = result;
+        }
     }
 
     std::string WorkflowBinding::successText(WorkflowJob job, const services::JobResult& result) const {
@@ -804,7 +825,7 @@ namespace icd::ui {
         case WorkflowJob::Execute:
             return std::format("Plan executed on {} in {}; some files were skipped (see Log)", label, seconds(result));
         case WorkflowJob::Trim:
-            return std::format("TRIM of {} finished in {} (Windows output in the Log tab)", label, seconds(result));
+            return trimDoneText(label, result, trimResult_);
         case WorkflowJob::None:
             break;
         }

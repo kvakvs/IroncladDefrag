@@ -39,6 +39,25 @@ namespace {
         output.push("b");
         EXPECT_EQ(output.take(), (std::vector<std::string>{"a", "b"}));
         EXPECT_TRUE(output.take().empty());
+        EXPECT_FALSE(output.result());
+        output.finish({.lastRun = std::nullopt, .bytesTrimmed = 5});
+        EXPECT_EQ(output.result()->bytesTrimmed, 5U);
+    }
+
+    // Trimmed bytes are reported only when the statistics were written by this TRIM (T123); an older "Last run"
+    // (Windows did not record this run) keeps the date but not the amount.
+    TEST(TrimJob, ResultCountsOnlyThisRun) {
+        using namespace std::chrono_literals;
+        const auto started = std::chrono::system_clock::time_point(1000h);
+        const auto now = icd::services::trimResult(started + 900ms, 4096, started);
+        EXPECT_EQ(now.lastRun, started + 900ms);
+        EXPECT_EQ(now.bytesTrimmed, 4096U);
+        // LastRunTime has millisecond steps and may round below the start by a little.
+        EXPECT_EQ(icd::services::trimResult(started - 500ms, 0, started).bytesTrimmed, 0U);
+        const auto old = icd::services::trimResult(started - 6 * 24h, 4096, started);
+        EXPECT_EQ(old.lastRun, started - 6 * 24h);
+        EXPECT_FALSE(old.bytesTrimmed);
+        EXPECT_FALSE(icd::services::trimResult(std::nullopt, 4096, started).bytesTrimmed);
     }
 
 } // namespace

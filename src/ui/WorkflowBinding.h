@@ -182,7 +182,7 @@ namespace icd::ui {
         // dropped. Returns the status line (the run's own, or `status` without a real run).
         [[nodiscard]] std::string executionEnded(const std::string& status);
 
-        // Moves TRIM output collected so far into the Log tab.
+        // Moves TRIM output collected so far into the Log tab, and the result once the TRIM has ended.
         void takeTrimOutput();
 
         // Shows the newest map a running analysis has left (bitmap first, then partial scans).
@@ -257,6 +257,8 @@ namespace icd::ui {
         std::shared_ptr<const services::PlanRequest> planRequest_; // What it was planned from, for Execute.
         std::shared_ptr<services::AnalysisOutput> analysisOutput_; // Where the running analysis leaves its map.
         std::shared_ptr<services::TrimOutput> trimOutput_; // Output lines of the running TRIM.
+        std::optional<services::TrimResult>
+            trimResult_; // What Windows recorded for the last TRIM, for its status line.
     };
 
 } // namespace icd::ui

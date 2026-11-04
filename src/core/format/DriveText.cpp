@@ -109,6 +109,9 @@ namespace icd::core {
     }
 
     std::string describeLastAnalysed(const DriveInfo& drive, std::chrono::system_clock::time_point now) {
+        if (isSsd(drive)) {
+            return drive.lastOptimized ? "trimmed " + formatAge(ageOf(*drive.lastOptimized, now)) : "never trimmed";
+        }
         if (!canOptimize(drive)) {
             return {};
         }

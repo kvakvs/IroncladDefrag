@@ -2,6 +2,7 @@
 
 #include "core/log/Log.h"
 #include "platform/win/ChildProcess.h"
+#include "platform/win/OptimizeStatistics.h"
 #include "platform/win/TextConvert.h"
 
 #include <charconv>
@@ -121,8 +122,26 @@ namespace icd::services {
         return std::exchange(lines_, {});
     }
 
-    JobFunction makeTrimJob(std::string root, std::shared_ptr<TrimOutput> output) {
-        return [root = std::move(root), output = std::move(output)](JobContext& context) {
+    void TrimOutput::finish(TrimResult result) {
+        const std::scoped_lock lock(mutex_);
+        result_ = result;
+    }
+
+    std::optional<TrimResult> TrimOutput::result() {
+        const std::scoped_lock lock(mutex_);
+        return result_;
+    }
+
+    TrimResult trimResult(std::optional<std::chrono::system_clock::time_point> lastRun, std::uint64_t bytesTrimmed,
+                          std::chrono::system_clock::time_point started) {
+        const bool thisRun = lastRun && *lastRun + std::chrono::seconds(1) >= started;
+        return {.lastRun = lastRun, .bytesTrimmed = thisRun ? std::optional(bytesTrimmed) : std::nullopt};
+    }
+
+    JobFunction makeTrimJob(std::string root, std::string volumeName, std::shared_ptr<TrimOutput> output) {
+        return [root = std::move(root), volumeName = std::move(volumeName),
+                output = std::move(output)](JobContext& context) {
+            const auto started = std::chrono::system_clock::now();
             const std::wstring command =
                 std::format(L"\"{}\" {} /L /U /V", platform::systemProgram(L"defrag.exe"), volumeArgument(root));
             core::logging::info("trim start", {{"root", root}});
@@ -142,6 +161,9 @@ namespace icd::services {
             if (code != 0) {
                 throw std::runtime_error(std::format("defrag exited with code 0x{:x}: {}", code, reporter.last()));
             }
+            const auto statistics = platform::readOptimizeStatistics(platform::fromUtf8(volumeName));
+            output->finish(statistics ? trimResult(statistics->lastRun, statistics->bytesTrimmed(), started)
+                                      : TrimResult{});
         };
     }
 

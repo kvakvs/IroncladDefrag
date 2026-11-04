@@ -2,6 +2,7 @@
 
 #include "core/log/Log.h"
 #include "platform/win/LastAccessSetting.h"
+#include "platform/win/OptimizeStatistics.h"
 #include "platform/win/ScheduledOptimize.h"
 #include "platform/win/ShadowCopies.h"
 #include "platform/win/StorageProperties.h"
@@ -98,6 +99,9 @@ namespace icd::services {
                                                  : platform::queryVolumeStorage(volume.volumeName);
         addTopology(volume, facts.encrypted, drive.storage);
         drive.media = core::classifyMedia(drive.storage);
+        if (const auto statistics = platform::readOptimizeStatistics(volume.volumeName); statistics) {
+            drive.lastOptimized = statistics->lastRun;
+        }
         drive.badges.lastAccessTracking = volume.fileSystem == L"NTFS" ? facts.lastAccess : std::nullopt;
         if (facts.shadows) {
             drive.badges.vssPresent =

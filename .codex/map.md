@@ -86,7 +86,7 @@ changes (see `AGENTS.md`).
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
 | `src/core/format/Json.*` | `JsonWriter` (streaming, indented, RFC 8259 escaping), `jsonQuote()`. |
 | `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
-| `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeStorage()` (media with bus), `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`, `blockName()` / `blockReason()` / `movesBlockedText()` (setups that block moves). |
+| `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeStorage()` (media with bus), `describeFragmentation()`, `describeLastAnalysed()` (SSDs: last TRIM), `badgeLabels()`, `blockName()` / `blockReason()` / `movesBlockedText()` (setups that block moves). |
 | `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType` (HDD, SSD, Virtual, Unknown), `StorageFacts`, `VolumeLayout`; `classifyMedia()`, `canOptimize()` (NTFS, not SSD), `isSsd()`, `MoveBlock` and `moveBlocks()` / `canMove()` (RAID, Storage Spaces, dynamic disks, removable, BitLocker). |
 | `src/core/model/VolumeLayout.h` | `VolumeLayout` (volume GUID name, sector/cluster size, cluster counts, disk number, partition offset, disk size, extent count) and `NtfsLayout` (serial, version, record size, MFT/mirror/zone, reserved). |
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce` and `parallelSort` (chunks sorted in parallel, then merged pairwise). |
@@ -165,6 +165,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/VolumeBitmap.*` | `readVolumeBitmap()` (chunked `FSCTL_GET_VOLUME_BITMAP`), `readFreeRuns()` (32 MB pieces converted in parallel into a `FreeRunList`, progress callback). |
 | `src/platform/win/Volumes.*` | `VolumeRecord`, `listVolumeNames()`, `mountPathsOf()`, `openVolume()`, `queryVolume()` (basics, disk extents and disk size, NTFS volume data; failures noted, never thrown), `enumerateVolumes()`, `isElevated()`. |
 | `src/platform/win/WinError.*` | `formatWinError()`, `lastWinError()`: Win32 error text. |
+| `src/platform/win/OptimizeStatistics.*` | Windows optimizer statistics per volume (`Dfrg\Statistics\Volume{GUID}`): `readOptimizeStatistics()` (last run, clusters trimmed, cluster size), `decodeLastRunTime()` (local SYSTEMTIME), `statisticsKeyName()`. |
 | `src/platform/win/LastAccessSetting.*` | `readLastAccessSetting()` (NtfsDisableLastAccessUpdate from the registry), `decodeLastAccessSetting()` (user or system managed, on or off, legacy values). |
 | `src/platform/win/LogSinks.*` | `FileSink` (rotating `<name>.log`, flushed per line), `DebugOutputSink`, `defaultLogDirectory()`. |
 | `src/services/activity/ChurnStats.*` | `collectChurn()` (whole retained journal: sessions per file and per directory, deletes counted from their first record in the directory the file lived in), `directoryChurns()`, `churnFlags()` (churning files, directories and all below), `churnDirectories()`. |
@@ -210,7 +211,7 @@ changes (see `AGENTS.md`).
 | `src/services/scan/ScanStats.h` | `ScanStats` (shared by both scanners), `ScannerKind`, `MftReadFigures`. |
 | `src/services/scan/ScanCompare.*` | `compareWithApi()` (MFT scan against the API reference), `compareExact()` (snapshot equality), `ScanComparison`. |
 | `src/services/scan/ApiScanner.*` | `scanFilesApi()`: reference scan (enumeration, open by id in MFT order, metadata and retrieval pointers per stream, special-case flags, reconcile, snapshot with USN cursor); statistics in `ScanStats`. |
-| `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
+| `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab, `TrimResult` at the end), `trimResult()` (trimmed bytes only from this run). |
 | `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start; `DriveKind::AnalyzeOnly` never executes); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Analysis of fake drives: synthetic snapshot shaped like the drive, then `MapData` on the job's executor, handed over through `AnalysisOutput`. |
 | `src/services/workflow/FakeResults.*` | `AnalysisSummary` (with `ScanFigures` from a real scan), `PlanSummary`, fake analysis for fake drives, fake three-level plan (UI shell without a map) and skipped files. |
@@ -308,7 +309,7 @@ changes (see `AGENTS.md`).
 | `tests/core/TileRasterizerTest.cpp` | Capacity, deep-zoom cells (no grid) on a hand volume, pyramid = extents at the base level, golden checksums, record block index = search and tiles with it = tiles without. |
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
-| `tests/services/TrimJobTest.cpp` | Line splitting across chunks (CR, CRLF), retrim percentages, output queue. |
+| `tests/services/TrimJobTest.cpp` | Line splitting across chunks (CR, CRLF), retrim percentages, output queue, trimmed bytes counted only from this run. |
 | `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions, analyse-only drives. |
 | `tests/core/OptimalityTest.cpp` | Exhaustive minimum on tiny volumes against Maximum plans and the lower bound; plan / lower-bound ratios of every preset and level on synthetic volumes (1.1, presets that sort large zones 1.5 at Maximum). |
 | `tests/core/CycleGuardTest.cpp` | Swaps and longer cycles reported before they are taken, `cycleEnd()` past the file that closes one, waits recorded against the order still found after its repair. |
@@ -339,6 +340,7 @@ changes (see `AGENTS.md`).
 | `tests/core/JsonTest.cpp` | JSON structure and indentation, one-line output, string escaping, non-finite numbers. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |
 | `tests/platform/ChildProcessTest.cpp` | Output and exit code capture, cancel terminates the child, start failure. |
+| `tests/platform/OptimizeStatisticsTest.cpp` | Statistics key names, LastRunTime decoding as local time (never run, bad sizes and dates), unknown volumes. |
 | `tests/platform/LastAccessSettingTest.cpp` | Every NtfsDisableLastAccessUpdate value decoded; the registry reading equals `fsutil behavior query disablelastaccess`. |
 | `tests/platform/LogSinksTest.cpp` | File sink writing, rotation and reopen in a temp directory. |
 | `tests/platform/MoveFileTest.cpp` | Move error mapping; on a writable ICD-TEST volume (slow, elevated): a file, a named stream and a directory index moved in 7-cluster chunks, runs re-read, bytes read back unbuffered unchanged, a move onto used clusters refused; a refused 4,096-cluster call keeps the prefix before the taken cluster. |

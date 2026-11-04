@@ -41,6 +41,7 @@ namespace icd::services {
             makeDrive("C:\\", "System", {.total = 931 * GB, .free = 402 * GB}, "NTFS", MediaType::Ssd);
         system.badges.vssPresent = true;
         system.badges.scheduledOptimization = true;
+        system.lastOptimized = now_ - 24h * 6;
 
         core::DriveInfo data = makeDrive("D:\\", "Data", {.total = 4 * TB, .free = 1126 * GB}, "NTFS", MediaType::Hdd);
         data.fragmentationPercent = 12.4;

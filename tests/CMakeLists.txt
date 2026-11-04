@@ -70,6 +70,7 @@ add_executable(icd_tests
     core/ZoneScriptTest.cpp
     platform/ChildProcessTest.cpp
     platform/LastAccessSettingTest.cpp
+    platform/OptimizeStatisticsTest.cpp
     platform/LogSinksTest.cpp
     platform/MoveFileTest.cpp
     platform/ScheduledOptimizeTest.cpp

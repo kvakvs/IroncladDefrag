@@ -258,8 +258,8 @@ namespace icd::ui {
         text("File system", ColumnFileSystem, 80);
         text("Media", ColumnMedia, 110);
         text("Fragmentation", ColumnFragmentation, 100);
-        text("Last analysed", ColumnLastAnalysed, 100);
-        text("Badges", ColumnBadges, 360);
+        text("Last analysed", ColumnLastAnalysed, 140); // SSD rows show "trimmed 12 days ago" here.
+        text("Badges", ColumnBadges, 320);
         auto* trim = new TrimRenderer([this](std::size_t row) { requestTrim(row); });
         view_->AppendColumn(new wxDataViewColumn("Action", trim, ColumnAction, FromDIP(90), wxALIGN_CENTER));
     }

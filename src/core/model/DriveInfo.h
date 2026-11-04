@@ -66,6 +66,8 @@ namespace icd::core {
         StorageFacts storage; // Raw media facts behind `media` (real drives only).
         std::optional<double> fragmentationPercent; // From the last analysis; empty before one.
         std::optional<std::chrono::system_clock::time_point> lastAnalysed; // When it was last analysed.
+        // When Windows' optimizer last ran on the volume (Optimize Drives' "Last run"): an SSD's last TRIM.
+        std::optional<std::chrono::system_clock::time_point> lastOptimized;
         DriveBadges badges; // Extra facts for the badges column.
         VolumeLayout layout; // Disk placement, clusters and NTFS data (real drives only).
 
