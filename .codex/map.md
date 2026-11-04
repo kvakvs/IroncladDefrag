@@ -22,6 +22,7 @@ changes (see `AGENTS.md`).
 | `test.bat` | `test.bat [Debug|Release|All] [fast|slow|all]` (default All fast): `build.bat`, then `ctest -L fast` (no real volumes, seconds), `-L slow` (real volumes and disks, on demand) or both. |
 | `run-elevated.bat` | `run-elevated.bat [Debug|Release]`: starts the GUI through the shell (UAC prompt). |
 | `tools/dev-env.cmd` | Shared by the scripts: `ICD_BUILD_DIR`, vcvars64 once, LLVM first on `PATH`. |
+| `cmake/BuildCommit.cmake` | Writes `generated/core/BuildCommit.h` (`ICD_BUILD_COMMIT`: short git hash, "-dirty" for a changed tree) on every build, only when its text changes. |
 | `res/IroncladDefrag.manifest` | Embedded manifest: `requireAdministrator`, Common Controls v6, PerMonitorV2 DPI, long paths, Win10+. |
 | `res/IroncladDefrag.rc` | wx standard resources (`wx/msw/wx.rc`, its manifest off), the app icon `APPICON` and `VERSIONINFO`. |
 | `res/IroncladDefrag.ico` | The app icon (16-256 px), built by `tools/make-icon.ps1` from `res/icon/hdd-color.png`. |

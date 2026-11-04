@@ -1,5 +1,6 @@
 #include "services/AppInfo.h"
 
+#include "core/BuildCommit.h"
 #include "core/Version.h"
 
 #include <format>
@@ -9,6 +10,13 @@ namespace icd::services {
     std::string_view appName() { return "Ironclad Defrag"; }
 
     std::string_view appVersion() { return ICD_VERSION_STRING; }
+
+    std::string_view buildCommit() { return ICD_BUILD_COMMIT; }
+
+    std::string versionWithCommit() {
+        const std::string_view commit = buildCommit();
+        return commit.empty() ? std::string(appVersion()) : std::format("{} ({})", appVersion(), commit);
+    }
 
     namespace {
 

@@ -469,3 +469,7 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `tools/make-icon.ps1` (ImageMagick), embedded as `APPICON` ahead of wx.rc's `wxICON_AAA`; `ui::appIcons()`
   (`src/ui/AppIcon.*`) sets the bundle on the main frame and all seven dialogs. Checked: the exe's first icon group,
   shell extraction at 16-256 px, the frame's small and big icons and its title bar at 100%.
+- T142 Version 1.0 - `project(VERSION 1.0.0)`; `cmake/BuildCommit.cmake` (target `icd_build_commit`, every build,
+  header rewritten only on change) gives `ICD_BUILD_COMMIT` (short hash, "-dirty"); `services::buildCommit()` /
+  `versionWithCommit()` in the About box, `icd-cli --version` and the log start line (`commit=`); title bar and file
+  properties stay the bare 1.0.0. Checked all five places.

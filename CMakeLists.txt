@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.28)
-project(IroncladDefrag VERSION 0.1.0 LANGUAGES CXX RC)
+project(IroncladDefrag VERSION 1.0.0 LANGUAGES CXX RC)
 
 if(NOT MSVC OR NOT CMAKE_SIZEOF_VOID_P EQUAL 8)
     message(FATAL_ERROR "IroncladDefrag builds only with MSVC for Windows x64.")
@@ -25,6 +25,19 @@ include(IcdWxWidgets)
 
 # Version header generated from project(VERSION), shared by code and resource scripts.
 configure_file(src/core/Version.h.in "${CMAKE_BINARY_DIR}/generated/core/Version.h" @ONLY)
+
+# The short git hash as build metadata (About box, log start line, --version), refreshed on every build: only
+# services/AppInfo.cpp includes it, so a new commit rebuilds one file.
+set(ICD_BUILD_COMMIT_HEADER "${CMAKE_BINARY_DIR}/generated/core/BuildCommit.h")
+# Written once at configure time too, so trees that are only configured (clang-tidy's) have the header.
+execute_process(COMMAND "${CMAKE_COMMAND}" -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -DOUTPUT=${ICD_BUILD_COMMIT_HEADER}
+                        -P ${CMAKE_SOURCE_DIR}/cmake/BuildCommit.cmake)
+add_custom_target(icd_build_commit
+    COMMAND "${CMAKE_COMMAND}" -DSOURCE_DIR=${CMAKE_SOURCE_DIR} -DOUTPUT=${ICD_BUILD_COMMIT_HEADER}
+            -P ${CMAKE_SOURCE_DIR}/cmake/BuildCommit.cmake
+    BYPRODUCTS "${ICD_BUILD_COMMIT_HEADER}"
+    COMMENT "Reading the git commit"
+    VERBATIM)
 
 # The built-in class catalog (data/classes.json) compiled into icd_core, so no data file is looked up at run time.
 set(ICD_CATALOG_SOURCE "${CMAKE_BINARY_DIR}/generated/core/classify/BuiltinCatalog.cpp")
@@ -386,6 +399,7 @@ add_library(icd_services STATIC
     src/services/workflow/Workflow.h
 )
 target_link_libraries(icd_services PUBLIC icd_core icd_platform)
+add_dependencies(icd_services icd_build_commit)
 icd_target_defaults(icd_services)
 
 # --- IroncladDefrag: wxWidgets GUI ---------------------------------------------------------------

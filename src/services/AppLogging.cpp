@@ -39,6 +39,7 @@ namespace icd::services {
         core::logging::info("startup",
                             {{"app", executableName},
                              {"version", appVersion()},
+                             {"commit", buildCommit().empty() ? std::string_view("-") : buildCommit()},
                              {"log", logFile.empty() ? std::string("-") : pathUtf8(logFile)}});
         if (!fileError.empty()) {
             core::logging::warning("log file unavailable", {{"reason", fileError}});

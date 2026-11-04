@@ -27,7 +27,7 @@ namespace icd::ui {
             const core::DetectedResources now = services.detectResources();
             const core::DetectedResources& capped = services.resources(); // What the caps were computed from.
             return {
-                {"Version", std::string(services::appVersion())},
+                {"Version", services::versionWithCommit()},
                 {"Build", services::buildDescription() + ", wxWidgets " + wxVERSION_NUM_DOT_STRING},
                 {"Processors", std::format("{} usable, {} physical cores", now.logicalProcessors, now.physicalCores)},
                 {"Memory",

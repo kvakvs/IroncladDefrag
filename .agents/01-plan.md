@@ -87,16 +87,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 11 - Deployment (§13 Phase 11)
 
-### T142 - Version 1.0
-
-- Depends: T002
-- Owns: `project(VERSION)` in `CMakeLists.txt`, `src/core/Version.h.in`, version text in `.codex/arch.md`
-- Do: set the product version to 1.0.0 (it is 0.1.0 now; plan.md 14 decision 11: plain `MAJOR.MINOR.PATCH`, no
-  year/month numbers). The short git hash is build metadata only (About box, log start line, installer file name),
-  with a "-dirty" mark for builds from a changed tree.
-- Done when: the title bar, About box, `icd-cli --version`, the executable's file properties and the log start line all
-  say 1.0.0 (plus the hash where build metadata is shown).
-
 ### T140 - Installer
 
 - Depends: T002, T141, T142

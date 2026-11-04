@@ -22,8 +22,13 @@ this file records what is actually built and the decisions made along the way.
 - wx is linked through imported targets, not wx's `#pragma comment(lib)` auto-linking (only
   `include/`, not `include/msvc/`, is on the include path). This lets the post-build step copy exactly
   the runtime DLLs of the active configuration with `$<TARGET_RUNTIME_DLLS>`.
-- The version comes from `project(VERSION)`: CMake generates `core/Version.h` (plain macros) that
-  both C++ code and `res/IroncladDefrag.rc` include.
+- The version comes from `project(VERSION)` (1.0.0 since T142; plain `MAJOR.MINOR.PATCH`, plan.md 14 decision
+  11): CMake generates `core/Version.h` (plain macros) that both C++ code and `res/IroncladDefrag.rc` include, so the
+  title bar, file properties and `VERSIONINFO` say the bare version. The short git hash is build metadata only:
+  `cmake/BuildCommit.cmake` runs on every build (target `icd_build_commit`) and rewrites `core/BuildCommit.h` only
+  when the hash or its "-dirty" mark (uncommitted changes to tracked files) changes; only `services/AppInfo.cpp`
+  includes it. `services::versionWithCommit()` ("1.0.0 (abc1234)") feeds the About box and `icd-cli --version`, and
+  the log start line has a `commit` field; the installer file name will use it too (T140).
 - The app icon (T141) is `APPICON` in `res/IroncladDefrag.rc`: named groups are sorted, so it precedes wx.rc's
   `wxICON_AAA` and Explorer, the taskbar, shortcuts and the installer show it. `ui::appIcons()` loads every size
   through the public `wxIcon(name, wxBITMAP_TYPE_ICO_RESOURCE, w, h)` (no Win32 call in `ui`); the main frame and

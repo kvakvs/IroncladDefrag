@@ -55,8 +55,7 @@ namespace {
         }
         const std::wstring_view arg = argv[1];
         if (arg == L"--version") {
-            std::printf("icd-cli %.*s\n", static_cast<int>(icd::services::appVersion().size()),
-                        icd::services::appVersion().data());
+            std::printf("icd-cli %s\n", icd::services::versionWithCommit().c_str());
             return 0;
         }
         if (arg == L"--help" || arg == L"-h") {
