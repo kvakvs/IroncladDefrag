@@ -432,3 +432,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   Show in Explorer, Copy path, previous / next fragment; the row above the map is gone (the map panel is only canvas and
   rulers); `MapPanel::attachFile()`, `selectedFile()`, `setSelectionHandler()`; a newly selected file brings the tab
   forward when no job runs. `HitTestTest.DescribeFile`.
+- T128 Defragment this file - `services/execute/FileDefrag.*` (`planFileDefrag()`: nearest whole free run, else 64 MB+
+  pieces when that leaves fewer fragments, MFT zone kept free, validated; `makeFileDefragJob()`), `runGuiExecution()`
+  shared with planned levels, `WorkflowAction::DefragmentFile` (after analysis, review or a run; not where moves are
+  blocked), `ID_DEFRAG_FILE` in Optimize, the File tab and the map's file menu, confirmation, "File defragmented"
+  status. Checked on T:: 13 extents -> 1, hash unchanged. `FileDefragTest`, `WorkflowTest.DefragmentFile`.

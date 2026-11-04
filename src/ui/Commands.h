@@ -52,6 +52,9 @@ namespace icd::ui {
 
         // Drive > Windows schedule: takes the drive out of Windows' scheduled optimization or puts it back (T120).
         ID_WINDOWS_SCHEDULE,
+
+        // Optimize > Defragment selected file, the File tab's button and the map's file menu (T128).
+        ID_DEFRAG_FILE,
     };
 
     // A workflow command as the bottom panel's buttons and the drive list's context menu show it, so both list the

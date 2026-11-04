@@ -63,7 +63,8 @@ namespace icd::services {
 
         // "12 moves done (1.2 GB)".
         std::string movedText(const ExecutionSummary& s) {
-            return std::format("{} moves done ({})", core::formatCount(s.totals.moved + s.totals.alreadyDone),
+            const std::uint64_t moves = s.totals.moved + s.totals.alreadyDone;
+            return std::format("{} {} done ({})", core::formatCount(moves), moves == 1 ? "move" : "moves",
                                core::formatBytes(s.totals.clustersMoved * s.bytesPerCluster));
         }
 
@@ -133,7 +134,7 @@ namespace icd::services {
         return out;
     }
 
-    std::string summaryStatus(const ExecutionSummary& s, std::string_view drive) {
+    std::string summaryStatus(const ExecutionSummary& s, std::string_view drive, std::string_view what) {
         if (s.refused) {
             return std::format("The plan for {} was not run: {}", drive, *s.refused);
         }
@@ -143,10 +144,10 @@ namespace icd::services {
                                s.seconds, done);
         }
         if (problems(s) == 0) {
-            return std::format("Plan executed on {} in {:.1f} s: {}", drive, s.seconds, done);
+            return std::format("{} on {} in {:.1f} s: {}", what, drive, s.seconds, done);
         }
-        return std::format("Plan executed on {} in {:.1f} s: {}; {} did not go as planned (see Log)", drive, s.seconds,
-                           done, core::formatCount(problems(s)));
+        return std::format("{} on {} in {:.1f} s: {}; {} did not go as planned (see Log)", what, drive, s.seconds, done,
+                           core::formatCount(problems(s)));
     }
 
     std::shared_ptr<const core::execute::ExecutionPlan> ExecutionFeed::plan() const {
@@ -272,6 +273,20 @@ namespace icd::services {
         }
     }
 
+    void runGuiExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan, const ExecuteOptions& options,
+                         ExecutionFeed& feed, core::PauseGate* pause, JobContext& context) {
+        auto run = std::make_shared<ExecutionRequest>(freshExecution(drive, std::move(plan)));
+        run->options = options;
+        run->observers = feed.hooks();
+        run->onRevalidated = [&feed](const Revalidation& v) { feed.revalidated(v); };
+        feed.setPlan(std::shared_ptr<const core::execute::ExecutionPlan>(run, &run->plan));
+        const ExecutionOutcome outcome = runExecution(*run, context, pause);
+        feed.finish(outcome);
+        if (outcome.revalidation.refused) {
+            throw std::runtime_error("the plan cannot run: " + *outcome.revalidation.refused);
+        }
+    }
+
     JobFunction makeExecuteJob(ExecuteJobRequest request, std::shared_ptr<ExecutionFeed> feed,
                                std::shared_ptr<core::PauseGate> pause) {
         return [r = std::move(request), feed = std::move(feed), pause = std::move(pause)](JobContext& context) {
@@ -279,17 +294,8 @@ namespace icd::services {
                 throw std::runtime_error("the plan failed validation: " + issues.front());
             }
             context.progress.report({.stage = "Preparing the moves", .done = 0, .total = 0, .message = {}});
-            auto run = std::make_shared<ExecutionRequest>(
-                freshExecution(r.drive, executionPlanFor(*r.outcome, *r.plan, r.drive, r.level)));
-            run->options = r.options;
-            run->observers = feed->hooks();
-            run->onRevalidated = [&feed](const Revalidation& v) { feed->revalidated(v); };
-            feed->setPlan(std::shared_ptr<const core::execute::ExecutionPlan>(run, &run->plan));
-            const ExecutionOutcome outcome = runExecution(*run, context, pause.get());
-            feed->finish(outcome);
-            if (outcome.revalidation.refused) {
-                throw std::runtime_error("the plan cannot run: " + *outcome.revalidation.refused);
-            }
+            runGuiExecution(r.drive, executionPlanFor(*r.outcome, *r.plan, r.drive, r.level), r.options, *feed,
+                            pause.get(), context);
         };
     }
 

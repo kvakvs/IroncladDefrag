@@ -12,8 +12,8 @@ namespace icd::services { namespace {
     using enum WorkflowAction;
 
     // Every action, for exhaustive checks.
-    constexpr std::array allActions{SelectDrive, RefreshDrives, Analyze, Quick, Trim,   ChooseStrategy,
-                                    BuildPlan,   Review,        Execute, Pause, Resume, Cancel};
+    constexpr std::array allActions{SelectDrive, RefreshDrives, Analyze, Quick,  Trim,   ChooseStrategy, BuildPlan,
+                                    Review,      Execute,       Pause,   Resume, Cancel, DefragmentFile};
 
     // A workflow with an HDD selected and analysed.
     Workflow analyzed() {
@@ -251,6 +251,30 @@ namespace icd::services { namespace {
                 EXPECT_EQ(flow.state(), before) << static_cast<int>(action);
             }
         }
+    }
+
+    // One file can be defragmented after an analysis, while reviewing and after a run, never while a job runs, before
+    // an analysis or where moves are blocked (T128); it runs as an execution and ends like one.
+    TEST(Workflow, DefragmentFile) {
+        Workflow flow = analyzed();
+        ASSERT_TRUE(flow.can(DefragmentFile));
+        EXPECT_EQ(flow.apply(DefragmentFile), WorkflowJob::Execute);
+        EXPECT_EQ(flow.state(), Executing);
+        EXPECT_FALSE(flow.can(DefragmentFile));
+        EXPECT_TRUE(flow.can(Pause));
+        flow.finish(JobOutcome::Succeeded);
+        EXPECT_EQ(flow.state(), Executed);
+        EXPECT_TRUE(flow.can(DefragmentFile)); // The next file.
+        EXPECT_TRUE(reviewing().can(DefragmentFile));
+
+        Workflow fresh;
+        fresh.selectDrive(DriveKind::Hdd);
+        EXPECT_FALSE(fresh.can(DefragmentFile));
+        Workflow blocked;
+        blocked.selectDrive(DriveKind::AnalyzeOnly);
+        blocked.apply(Analyze);
+        blocked.finish(JobOutcome::Succeeded);
+        EXPECT_FALSE(blocked.can(DefragmentFile));
     }
 
     // Finishing with no job running changes nothing.

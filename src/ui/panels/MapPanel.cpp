@@ -14,6 +14,7 @@
 #include "ui/panels/MapColorsPage.h"
 
 #include <wx/clipbrd.h>
+#include <wx/frame.h>
 #include <wx/menu.h>
 #include <wx/msgdlg.h>
 #include <wx/sizer.h>
@@ -272,8 +273,14 @@ namespace icd::ui {
         wxMenu menu;
         menu.Append(ID_SHOW_IN_EXPLORER, "Show in &Explorer");
         menu.Append(ID_COPY_PATH, "&Copy path");
+        menu.AppendSeparator();
+        menu.Append(ID_DEFRAG_FILE, "&Defragment this file...");
         menu.Enable(ID_SHOW_IN_EXPLORER, !metadata && !root_.empty());
         menu.Enable(ID_COPY_PATH, !root_.empty());
+        // The workflow keeps the menu bar item's state; the selection above already refreshed it.
+        const auto* frame = dynamic_cast<const wxFrame*>(wxGetTopLevelParent(this));
+        const wxMenuBar* bar = frame != nullptr ? frame->GetMenuBar() : nullptr;
+        menu.Enable(ID_DEFRAG_FILE, bar != nullptr && bar->IsEnabled(ID_DEFRAG_FILE));
         canvas_->PopupMenu(&menu);
     }
 

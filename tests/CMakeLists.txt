@@ -92,6 +92,7 @@ add_executable(icd_tests
     services/ExecutionLogTest.cpp
     services/ExecutorTest.cpp
     services/FakeDriveProviderTest.cpp
+    services/FileDefragTest.cpp
     services/JobRunnerTest.cpp
     services/LiveMapTest.cpp
     services/MemoryModesTest.cpp

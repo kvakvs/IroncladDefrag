@@ -2,6 +2,7 @@
 
 #include "core/job/RateMeter.h"
 #include "services/execute/ExecuteJob.h"
+#include "services/execute/FileDefrag.h"
 #include "services/job/JobRunner.h"
 #include "ui/CallbackTimer.h"
 
@@ -39,6 +40,13 @@ namespace icd::ui {
         [[nodiscard]] services::JobFunction start(services::ExecuteJobRequest request,
                                                   std::shared_ptr<core::PauseGate> pause);
 
+        // A job that defragments one file with pause (T128); followed like start()'s run.
+        [[nodiscard]] services::JobFunction startFile(services::FileDefragRequest request,
+                                                      std::shared_ptr<core::PauseGate> pause);
+
+        // Whether the followed run is a single file (its status line says so).
+        [[nodiscard]] bool fileRun() const { return fileRun_; }
+
         // Whether a run started by start() is followed.
         [[nodiscard]] bool active() const { return feed_ != nullptr; }
 
@@ -65,6 +73,7 @@ namespace icd::ui {
 
         BottomPanel& bottom_; // Log tab.
         std::shared_ptr<services::ExecutionFeed> feed_; // The followed run; null when none.
+        bool fileRun_ = false; // The followed run defragments one file (startFile()).
         core::RateMeter throughput_; // Bytes moved per second over the last seconds.
         CallbackTimer rows_; // Takes new rows while the run is followed, also while paused (no progress then).
     };

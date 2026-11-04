@@ -69,6 +69,7 @@ namespace icd::ui {
         wxButton* copy_ = nullptr; // Copy path.
         wxButton* previous_ = nullptr; // Previous fragment.
         wxButton* next_ = nullptr; // Next fragment.
+        wxButton* defrag_ = nullptr; // Defragment this file (ID_DEFRAG_FILE; enabled by the workflow).
         wxStaticText* path_ = nullptr; // The file's path, or the hint without one.
         wxFlexGridSizer* facts_ = nullptr; // Label / value pairs.
     };

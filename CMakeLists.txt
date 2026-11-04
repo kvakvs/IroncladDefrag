@@ -314,6 +314,8 @@ add_library(icd_services STATIC
     src/services/exec/ThreadPool.h
     src/services/execute/ExecuteJob.cpp
     src/services/execute/ExecuteJob.h
+    src/services/execute/FileDefrag.cpp
+    src/services/execute/FileDefrag.h
     src/services/execute/ExecuteReport.cpp
     src/services/execute/ExecuteReport.h
     src/services/execute/ExecutedSnapshot.cpp

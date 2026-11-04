@@ -146,6 +146,12 @@ namespace icd::services { namespace {
         s.totals.clustersMoved = 256; // 1 MB at 4 KB clusters.
         s.seconds = 2.0;
         EXPECT_EQ(summaryStatus(s, "T:"), "Plan executed on T: in 2.0 s: 3 moves done (1.00 MB)");
+        ExecutionSummary one = s;
+        one.totals.moved = 1;
+        one.totals.alreadyDone = 0;
+        EXPECT_EQ(
+            summaryStatus(one, "T:", "File defragmented").rfind("File defragmented on T: in 2.0 s: 1 move done", 0),
+            0U);
         s.cancelled = true;
         EXPECT_NE(summaryStatus(s, "T:").find("cancelled after 2.0 s"), std::string::npos);
         EXPECT_TRUE(std::ranges::any_of(summaryLines(s),

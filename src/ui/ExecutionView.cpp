@@ -71,9 +71,19 @@ namespace icd::ui {
     services::JobFunction ExecutionView::start(services::ExecuteJobRequest request,
                                                std::shared_ptr<core::PauseGate> pause) {
         feed_ = std::make_shared<services::ExecutionFeed>();
+        fileRun_ = false;
         throughput_.reset();
         rows_.Start(rowsMs);
         return services::makeExecuteJob(std::move(request), feed_, std::move(pause));
+    }
+
+    services::JobFunction ExecutionView::startFile(services::FileDefragRequest request,
+                                                   std::shared_ptr<core::PauseGate> pause) {
+        feed_ = std::make_shared<services::ExecutionFeed>();
+        fileRun_ = true;
+        throughput_.reset();
+        rows_.Start(rowsMs);
+        return services::makeFileDefragJob(std::move(request), feed_, std::move(pause));
     }
 
     void ExecutionView::fill(ProgressDetails& details, std::optional<double>& fraction,
@@ -114,7 +124,7 @@ namespace icd::ui {
             bottom_.log().add(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
                               wxString::FromUTF8(line.details), whenOf(line));
         }
-        return services::summaryStatus(*summary, drive);
+        return services::summaryStatus(*summary, drive, fileRun_ ? "File defragmented" : "Plan executed");
     }
 
     void ExecutionView::takeLines() {

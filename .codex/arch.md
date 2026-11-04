@@ -911,6 +911,16 @@ All analysis checks passed.
   Explorer, Copy path and previous / next fragment (the View commands). It replaced the row above the map, so the map
   panel is only the canvas and its rulers. `MapPanel::attachFile()` (weak reference like the Map colors tab) feeds it
   from the selection observer; a newly selected file brings the tab to the front unless a job runs.
+- Defragment this file (T128): Optimize > Defragment selected file, the File tab's button and the map's file menu
+  (all `ID_DEFRAG_FILE`, enabled by the workflow) run `WorkflowAction::DefragmentFile`, allowed after an analysis,
+  while reviewing and after a run (state Executing, job Execute, ends in Executed like a plan; blocked where moves are
+  blocked and on the fake drive list). `services::planFileDefrag()` plans the selected file on the shown map's snapshot
+  (the analysis, or the live map after a run): `planDefragment()` into the free run nearest its start that holds it
+  whole, else pieces of at least 64 MB when that leaves fewer fragments, never into the MFT zone; the validator checks
+  it. `makeFileDefragJob()` turns it into an execution plan (strategy "single-file") and runs it through
+  `runGuiExecution()`, the path planned levels take (fresh log, revalidation against the volume now, pause, cancel,
+  snapshot after), with the Progress tab, Log tab and live map of a normal run. Checked on the T: VHDX: a file written
+  in 13 extents ended in 1, hash unchanged, status "File defragmented on T: ... 1 move done".
 - "Go to file" (Ctrl+F, or Enter in the File tab's "Find file") is a dialog: `core::searchFiles()` runs on
   the pool as the user types, ranks exact names, then prefixes, then other matches, and lists up to 500.
   Without a backslash the query matches names; with one it matches path pieces (the last part starts the

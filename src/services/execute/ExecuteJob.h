@@ -81,8 +81,9 @@ namespace icd::services {
     // The Log tab lines about a whole run: totals, cancel or refusal, the snapshot, where the log is.
     [[nodiscard]] std::vector<ExecutionLogLine> summaryLines(const ExecutionSummary& summary);
 
-    // The status line after a run.
-    [[nodiscard]] std::string summaryStatus(const ExecutionSummary& summary, std::string_view drive);
+    // The status line after a run; `what` names it ("Plan executed", "File defragmented").
+    [[nodiscard]] std::string summaryStatus(const ExecutionSummary& summary, std::string_view drive,
+                                            std::string_view what = "Plan executed");
 
     // The live side of a running execution: the job writes from its threads (revalidation, mover), the UI takes
     // counters, Log tab lines and finished moves (for the map) from its own. Thread-safe.
@@ -142,6 +143,12 @@ namespace icd::services {
         std::optional<ExecutionSummary> summary_; // How the run ended.
         std::shared_ptr<const core::Snapshot> volumeNow_; // A copy of revalidation's snapshot, until taken.
     };
+
+    // Runs an execution plan from the GUI (job thread): a fresh log, then runExecution() (revalidation, moves, snapshot
+    // after) with `pause`, reporting into `feed`. Throws when the volume refuses the plan. Shared by planned levels
+    // and Defragment this file.
+    void runGuiExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan, const ExecuteOptions& options,
+                         ExecutionFeed& feed, core::PauseGate* pause, JobContext& context);
 
     // A job that executes a planned level (plan.md 10.3-10.4): builds the execution plan, refuses one that failed
     // validation, then runExecution() (revalidation, log, moves, snapshot after) with `pause`, reporting into `feed`.

@@ -40,6 +40,8 @@ namespace icd::ui {
             ItemSpec{ID_REVIEW_PLAN, "&Review plan on map"},
             ItemSpec{ID_EXECUTE, "&Execute plan..."},
             separator,
+            ItemSpec{ID_DEFRAG_FILE, "&Defragment selected file..."},
+            separator,
             ItemSpec{ID_PAUSE, "&Pause", wxITEM_CHECK},
             ItemSpec{ID_CANCEL, "&Cancel"},
         };
@@ -107,6 +109,7 @@ namespace icd::ui {
             int{ID_NEXT_FRAGMENT},
             int{ID_PREVIOUS_FRAGMENT},
             int{ID_WINDOWS_SCHEDULE},
+            int{ID_DEFRAG_FILE},
         };
 
         // Appends items to menu in order.

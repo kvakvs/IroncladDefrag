@@ -12,6 +12,7 @@
 #include "services/Elevation.h"
 #include "services/exec/ThreadPool.h"
 #include "services/execute/ExecuteJob.h"
+#include "services/execute/FileDefrag.h"
 #include "services/job/FakeJob.h"
 #include "services/plan/PlanJob.h"
 #include "services/scan/AnalysisJob.h"
@@ -69,6 +70,7 @@ namespace icd::ui {
             CommandAction{ID_PAUSE, WorkflowAction::Pause},
             CommandAction{ID_CANCEL, WorkflowAction::Cancel},
             CommandAction{ID_REFRESH_DRIVES, WorkflowAction::RefreshDrives},
+            CommandAction{ID_DEFRAG_FILE, WorkflowAction::DefragmentFile},
         };
 
         // The action of a command in the current state (Pause becomes Resume while paused), if it has one.
@@ -144,7 +146,8 @@ namespace icd::ui {
         // Whether an action reads volumes or moves files, which needs administrator rights (plan.md 4).
         bool needsAdministrator(WorkflowAction action) {
             return action == WorkflowAction::Analyze || action == WorkflowAction::Quick ||
-                action == WorkflowAction::Trim || action == WorkflowAction::Execute;
+                action == WorkflowAction::Trim || action == WorkflowAction::Execute ||
+                action == WorkflowAction::DefragmentFile;
         }
 
         // Whether a warning of the Plan tab belongs to a level: general ones and the level's own ("Fast: ...").
@@ -227,6 +230,7 @@ namespace icd::ui {
             widgets_.bottom.showTab(BottomTab::File); // A newly picked file: show what it is. Not during a job.
         }
         selectedFile_ = file;
+        refreshCommands(); // Defragment this file follows the selection.
     }
 
     void WorkflowBinding::onViewCommand(wxCommandEvent& event) {
@@ -324,7 +328,7 @@ namespace icd::ui {
             widgets_.bottom.showTab(BottomTab::Strategy); // The change itself happens on the tab.
             return;
         }
-        if (!allowed(action) || !elevationReady(action) || (action == WorkflowAction::Execute && !confirmExecute())) {
+        if (!allowed(action) || !elevationReady(action) || !confirmed(action)) {
             return;
         }
         core::logging::info("workflow action",
@@ -478,6 +482,7 @@ namespace icd::ui {
     }
 
     void WorkflowBinding::resetFor(WorkflowJob job) {
+        fileRun_ = false; // Set again when this job is a single-file run.
         BottomPanel& bottom = widgets_.bottom;
         if (job != WorkflowJob::Execute) {
             live_.stop(); // A new analysis or plan replaces what the live map follows.
@@ -564,7 +569,29 @@ namespace icd::ui {
         return services::makePlanJob(std::move(request), planOutput_);
     }
 
+    services::JobFunction WorkflowBinding::makeFileDefragJob(const core::DriveInfo& drive) {
+        const std::shared_ptr<const core::MapData> map = widgets_.map.currentMap();
+        const core::FileIndex file = *std::exchange(fileToDefrag_, std::nullopt);
+        if (map == nullptr) {
+            return {};
+        }
+        services::FileDefragRequest request;
+        request.drive = drive;
+        request.snapshot = std::shared_ptr<const core::Snapshot>(map, &map->snapshot()); // Lives with the map.
+        request.file = file;
+        request.now = services::fileTimeNow();
+        request.options.lowPriority = executeChoices_.lowPriority;
+        request.options.throughputLimit = executeChoices_.limitMbPerSecond << 20U;
+        fileRun_ = true;
+        services::JobFunction job = execution_.startFile(std::move(request), pause_);
+        live_.follow(execution_.feed());
+        return job;
+    }
+
     services::JobFunction WorkflowBinding::makeExecuteJob(const core::DriveInfo& drive) {
+        if (fileToDefrag_) {
+            return makeFileDefragJob(drive);
+        }
         if (services_.fakeDrives() || !planOutcome_ || !planRequest_) {
             return {}; // The fake drive list simulates execution.
         }
@@ -769,12 +796,57 @@ namespace icd::ui {
         if (action == WorkflowAction::BuildPlan && !widgets_.bottom.strategy().problems().empty()) {
             return false; // The Strategy tab lists what to fix first.
         }
+        if (action == WorkflowAction::DefragmentFile && !fileDefragTarget()) {
+            return false; // No real, fragmented, movable file selected.
+        }
         return workflow_.can(action);
+    }
+
+    bool WorkflowBinding::confirmed(WorkflowAction action) {
+        if (action == WorkflowAction::Execute) {
+            return confirmExecute();
+        }
+        return action != WorkflowAction::DefragmentFile || confirmFileDefrag();
+    }
+
+    std::optional<core::FileIndex> WorkflowBinding::fileDefragTarget() const {
+        const std::shared_ptr<const core::MapData> map = widgets_.map.currentMap();
+        const std::optional<core::FileIndex> file = widgets_.map.selectedFile();
+        if (services_.fakeDrives() || !drive_ || map == nullptr || !file ||
+            services::fileDefragRefusal(map->snapshot(), *file)) {
+            return std::nullopt; // The fake drive list has no files to move.
+        }
+        return file;
+    }
+
+    bool WorkflowBinding::confirmFileDefrag() {
+        const std::shared_ptr<const core::MapData> map = widgets_.map.currentMap();
+        const std::optional<core::FileIndex> file = fileDefragTarget();
+        if (map == nullptr || !file) {
+            return false;
+        }
+        const core::Snapshot& snapshot = map->snapshot();
+        const std::string path = widgets_.map.selectedPath();
+        const std::string question = std::format(
+            "Defragment this file now?\n\n{}\n{} in {} fragments\n\nIt moves into one free run near where it starts, "
+            "or "
+            "a few runs of 64 MB or more when no run is large enough. The volume is checked first: a file that changed "
+            "since the analysis is left alone. The move can be paused or cancelled, and it is logged.",
+            path.empty() ? snapshot.path(*file) : path,
+            core::formatBytes(snapshot.files.allocatedClusters(*file) * snapshot.geometry.bytesPerCluster),
+            core::formatCount(core::planner::movableFragments(snapshot, *file)));
+        const int answer = wxMessageBox(wxString::FromUTF8(question), "Defragment file",
+                                        wxYES_NO | wxNO_DEFAULT | wxICON_QUESTION, &frame_);
+        if (answer != wxYES) {
+            return false;
+        }
+        fileToDefrag_ = file;
+        return true;
     }
 
     void WorkflowBinding::showExecution(core::DriveInfo& drive) {
         BottomPanel& bottom = widgets_.bottom;
-        if (!planOutcome_) { // The simulated run of the fake drive list.
+        if (!planOutcome_ && !fileRun_) { // The simulated run of the fake drive list.
             for (const auto& [file, reason] : services::fakeSkippedFiles(drive)) {
                 bottom.log().add(wxString::FromUTF8(file), "skipped", wxString::FromUTF8(reason));
             }

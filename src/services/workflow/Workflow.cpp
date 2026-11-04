@@ -24,6 +24,12 @@ namespace icd::services {
         // States in which a strategy can be chosen and a plan built.
         constexpr StateMask planable = bit(WorkflowState::Analyzed) | bit(WorkflowState::Reviewing);
 
+        // States in which one file may be defragmented: after an analysis, while a plan is reviewed (the plan is then
+        // dropped, the layout changes) and after a run (the live map is the volume now), so files can follow each
+        // other.
+        constexpr StateMask fileDefragmentable =
+            bit(WorkflowState::Analyzed) | bit(WorkflowState::Reviewing) | bit(WorkflowState::Executed);
+
         // Every state.
         constexpr StateMask allStates = bit(WorkflowState::Executed) * 2 - 1;
 
@@ -35,7 +41,7 @@ namespace icd::services {
         };
 
         // Rules indexed by WorkflowAction.
-        constexpr std::array<Rule, 12> rules{{
+        constexpr std::array<Rule, 13> rules{{
             {allStates & ~busyStates, std::nullopt, WorkflowJob::None}, // SelectDrive
             {allStates & ~busyStates, std::nullopt, WorkflowJob::None}, // RefreshDrives
             {analyzable, WorkflowState::Analyzing, WorkflowJob::Analyze}, // Analyze
@@ -48,6 +54,7 @@ namespace icd::services {
             {bit(WorkflowState::Executing), WorkflowState::Paused, WorkflowJob::None}, // Pause
             {bit(WorkflowState::Paused), WorkflowState::Executing, WorkflowJob::None}, // Resume
             {busyStates, std::nullopt, WorkflowJob::None}, // Cancel
+            {fileDefragmentable, WorkflowState::Executing, WorkflowJob::Execute}, // DefragmentFile
         }};
 
         // The rule of an action.
@@ -90,7 +97,7 @@ namespace icd::services {
         if (action == WorkflowAction::Cancel && cancelRequested_) {
             return false; // Already asked; the job is stopping.
         }
-        if (action == WorkflowAction::Execute && movesBlocked_) {
+        if ((action == WorkflowAction::Execute || action == WorkflowAction::DefragmentFile) && movesBlocked_) {
             return false;
         }
         return (ruleOf(action).allowed & bit(state_)) != 0;

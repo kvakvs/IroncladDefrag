@@ -82,11 +82,18 @@ namespace icd::ui {
         next_->SetToolTip(commandTip(ID_NEXT_FRAGMENT));
         next_->Bind(wxEVT_BUTTON, [this](wxCommandEvent&) { postCommand(this, ID_NEXT_FRAGMENT); });
 
+        // Its command id lets the frame's command handler and enable rule cover it like the menu item.
+        defrag_ = new wxButton(this, ID_DEFRAG_FILE, "Defra&gment this file...");
+        defrag_->SetToolTip(
+            "Move this file into one piece (or a few large ones) now, checked against the volume first");
+        defrag_->Disable();
+
         auto* bar = new wxBoxSizer(wxHORIZONTAL);
         bar->Add(search_, wxSizerFlags().CenterVertical().Border(wxRIGHT, FromDIP(16)));
         for (wxButton* button : {explorer_, copy_, previous_, next_}) {
             bar->Add(button, wxSizerFlags().CenterVertical().Border(wxRIGHT, FromDIP(4)));
         }
+        bar->Add(defrag_, wxSizerFlags().CenterVertical().Border(wxLEFT, FromDIP(12)));
         return bar;
     }
 

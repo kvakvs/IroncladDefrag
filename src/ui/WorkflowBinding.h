@@ -107,6 +107,18 @@ namespace icd::ui {
         // Side effects of an applied action (pause gate, cancel request, tabs).
         void afterAction(services::WorkflowAction action);
 
+        // Asks for what an action needs confirmed (Execute, Defragment this file); true when it may go on.
+        [[nodiscard]] bool confirmed(services::WorkflowAction action);
+
+        // The selected file when Defragment this file applies to it: a real drive, a map, a fragmented movable file.
+        [[nodiscard]] std::optional<core::FileIndex> fileDefragTarget() const;
+
+        // Asks before defragmenting the selected file and keeps it for the job.
+        [[nodiscard]] bool confirmFileDefrag();
+
+        // The job for the file kept by confirmFileDefrag(), followed like an execution.
+        [[nodiscard]] services::JobFunction makeFileDefragJob(const core::DriveInfo& drive);
+
         // Asks the user to confirm execution of the reviewed plan; keeps the chosen options.
         [[nodiscard]] bool confirmExecute();
 
@@ -251,6 +263,8 @@ namespace icd::ui {
         std::optional<core::StageClock> clock_; // Timing of the running job.
         std::optional<core::DriveInfo> drive_; // Selected drive, copied so a refresh cannot change it mid-job.
         std::optional<core::FileIndex> selectedFile_; // File selected on the map, to tell a new pick from a refresh.
+        std::optional<core::FileIndex> fileToDefrag_; // Confirmed file for the Execute job being started.
+        bool fileRun_ = false; // The running or last execution is a single-file run (it has no plan).
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
         std::shared_ptr<services::PlanOutput> planOutput_; // Where the running plan job leaves its outcome.

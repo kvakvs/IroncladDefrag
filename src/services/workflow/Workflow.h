@@ -38,6 +38,7 @@ namespace icd::services {
         Pause, // Pause execution.
         Resume, // Continue a paused execution.
         Cancel, // Stop the running job.
+        DefragmentFile, // Defragment the file selected on the map on its own (T128); runs like an execution.
     };
 
     // Background job the caller must start after an action or a finished step.
