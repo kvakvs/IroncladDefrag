@@ -22,6 +22,11 @@ changes (see `AGENTS.md`).
 | `test.bat` | `test.bat [Debug|Release|All] [fast|slow|all]` (default All fast): `build.bat`, then `ctest -L fast` (no real volumes, seconds), `-L slow` (real volumes and disks, on demand) or both. |
 | `run-elevated.bat` | `run-elevated.bat [Debug|Release]`: starts the GUI through the shell (UAC prompt). |
 | `tools/dev-env.cmd` | Shared by the scripts: `ICD_BUILD_DIR`, vcvars64 once, LLVM first on `PATH`. |
+| `deploy/nginx/ironclad.clau.se` | nginx host of the product site on pupa (static Next.js export, `/downloads/` as attachments, hashed assets cached); certbot adds TLS on the server copy. |
+| `deploy/setup-server.sh` | One-time, rerunnable server setup over WSL ssh: user `defrag`, `www/` and `www/downloads/`, ACL for nginx, placeholder page, nginx host, certificate. |
+| `deploy/publish-web.sh` | `[--dry-run] site\|downloads\|all`: rsync of `web/out/` (deleting remote extras, `downloads/` excluded) and of `dist/*-setup.exe` plus `.sha256` (never deleting). |
+| `deploy/placeholder/index.html` | The page served until the first site deploy. |
+| `.claude/skills/deploy/SKILL.md` | The `/deploy` skill: checks inputs, dry run, publish, verify (HTTP 200, served SHA-256 = `.sha256`). |
 | `installer/IroncladDefrag.nsi` | NSIS installer: per-machine into Program Files, the two programs, wx DLLs and the app-local VC++ runtime, Start menu (and optional desktop) shortcut, Installed apps entry (version, icon, size), uninstaller that removes only its own files and keeps `%LOCALAPPDATA%\IroncladDefrag` unless asked. |
 | `make-installer.bat` | Release build, then `makensis` with the version, commit, bin and CRT folders: `dist\IroncladDefrag-<version>-<commit>-setup.exe`. |
 | `cmake/BuildCommit.cmake` | Writes `generated/core/BuildCommit.h` (`ICD_BUILD_COMMIT`: short git hash, "-dirty" for a changed tree) on every build, only when its text changes. |

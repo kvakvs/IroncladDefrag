@@ -1,0 +1,53 @@
+# ironclad.clau.se: the Ironclad Defrag product site (T143) on pupa. A static Next.js export in /home/defrag/www,
+# uploaded by deploy/publish-web.sh; installers in /home/defrag/www/downloads, which site deploys never delete.
+# Installed once by deploy/setup-server.sh as /etc/nginx/sites-available/ironclad.clau.se; certbot then adds the
+# TLS lines and the HTTP -> HTTPS redirect to the server copy, so the copy on the server is the live one.
+
+server {
+    server_name ironclad.clau.se;
+    listen 80;
+    listen [::]:80;
+
+    root /home/defrag/www;
+    index index.html;
+
+    access_log /var/log/nginx/ironclad.clau.se-access.log;
+    error_log  /var/log/nginx/ironclad.clau.se-error.log error;
+
+    # Text compresses well; nginx.conf turns gzip on for HTML only.
+    gzip_vary on;
+    gzip_types text/plain text/css text/xml application/javascript application/json application/xml
+               application/manifest+json image/svg+xml;
+
+    # Headers for every response. A location with its own add_header drops these, so those repeat them.
+    add_header X-Content-Type-Options nosniff always;
+    add_header Referrer-Policy strict-origin-when-cross-origin always;
+
+    # Next.js static export: /features is features.html (or features/index.html with trailingSlash), else its 404 page.
+    location / {
+        try_files $uri $uri.html $uri/ =404;
+    }
+    error_page 404 /404.html;
+
+    # Hashed build assets never change under the same name.
+    location /_next/static/ {
+        add_header Cache-Control "public, max-age=31536000, immutable";
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        try_files $uri =404;
+    }
+
+    # Installers and their .sha256 files: always a download, never a listing.
+    location /downloads/ {
+        autoindex off;
+        add_header Content-Disposition attachment;
+        add_header X-Content-Type-Options nosniff always;
+        add_header Referrer-Policy strict-origin-when-cross-origin always;
+        try_files $uri =404;
+    }
+
+    # No dotfiles (certbot's challenge location is an exact match and still wins).
+    location ~ /\. {
+        deny all;
+    }
+}

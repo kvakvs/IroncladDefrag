@@ -90,16 +90,19 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 ### T143 - Product web page
 
 - Depends: T140, T141
-- Needs from the user: the domain, how to publish to the hosting (SFTP/SSH, FTP, a git push, a control panel upload),
-  where the installer download is served from, and the contact / license / privacy text to show. **Gate:** ask before
-  starting; publishing is public and needs the user's go-ahead for each upload.
-- Owns: `web/` (static site sources and assets), `tools/publish-web.*`
-- Do: a small static site (no framework, no tracking, works without JavaScript): what the app does and for whom
+- Decided with the user (2026-11-04): a static Next.js site (`output: 'export'` into `web/out/`) at
+  https://ironclad.clau.se on the server pupa (`/home/defrag/www`, nginx, certbot), installers under `/downloads/`.
+  Published by the `/deploy` skill (`.claude/skills/deploy/SKILL.md`, `deploy/publish-web.sh` over WSL ssh + rsync:
+  the site with deletion of remote extras, the installers separately without, so they survive redeploys); server
+  setup in `deploy/setup-server.sh` and `deploy/nginx/ironclad.clau.se`. Still needed from the user: the contact /
+  license / privacy text. **Gate:** publishing is public; each upload needs the user's go-ahead (invoking /deploy).
+- Owns: `web/` (Next.js sources and assets), `deploy/`
+- Do: a small static site (no tracking, readable without JavaScript: static export, no client-only content): what the app does and for whom
   (HDDs, zone strategies, least movement), screenshots of the map, strategies, plan review and live execution taken
   from the fake drive list, the safety model (dry-run plans, revalidation, Windows move API, pause/cancel, logs),
   system requirements (Windows 10 22H2+, x64, NTFS HDDs; SSDs get TRIM only), download with version, size and SHA-256
-  of the installer, release notes, and the icon as favicon. Page text in the project's plain style. A publish script
-  that uploads `web/` with credentials kept outside the repository.
+  of the installer (from the `.sha256` next to it), release notes, and the icon as favicon. Page text in the
+  project's plain style.
 - Done when: the user has reviewed the page locally, it is published at the domain with the current installer, the
   download's SHA-256 matches `dist/`, and the page reads well on a phone and a desktop.
 
