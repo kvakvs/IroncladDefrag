@@ -440,3 +440,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T129 Defragment file shortcut - Ctrl+D for `ID_DEFRAG_FILE` in the shortcut table (works with focus on the map,
   follows the workflow's enable rule, listed under Optimize in F1), `withShortcut()` puts the key on popup menu labels
   (map file menu, drive menu), File tab button tooltip from `commandTip()`. Checked on T:: 7 extents -> 1 via Ctrl+D.
+- T132 Video formats - `data/classes.json`: video at any size (the 100 MB limit left clips unknown) with more formats
+  (m4v, flv, mpg, 3gp, ogv, mxf, ...), DVD / HD DVD / Blu-ray streams (vob, vro, evo, m2ts, ssif), and from 10 MB the
+  extensions shared with code (ts, mts, mod) and GIF animations; small .mts / .cts are TypeScript sources.
+  `CatalogTest.Video`, check-classes.ps1 (passes on 4 GB). The video preset at Maximum now parks 1.16 x on one
+  OptimalityTest volume (a fuller sorted zone), so it joins photos outside `tightPreset()` until T095d.

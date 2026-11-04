@@ -47,7 +47,6 @@ namespace icd::core::classify { namespace {
     TEST(Catalog, Unknown) {
         EXPECT_EQ(classOf("\\Documents\\report.docx"), "unknown");
         EXPECT_EQ(classOf("\\data\\blob"), "unknown");
-        EXPECT_EQ(classOf("\\clips\\short.mp4", 50 * mb), "unknown"); // Videos under 100 MB are not "Video".
     }
 
     TEST(Catalog, NtfsMetadata) {
@@ -152,9 +151,23 @@ namespace icd::core::classify { namespace {
 
     TEST(Catalog, Video) {
         EXPECT_EQ(classOf("\\Videos\\holiday.mp4", 1500 * mb), "video");
-        EXPECT_EQ(classOf("\\Videos\\exact.mkv", 100 * mb), "video"); // 100 MB is enough.
-        EXPECT_EQ(classOf("\\Videos\\almost.mkv", 100 * mb - 1), "unknown");
+        EXPECT_EQ(classOf("\\clips\\short.mp4", 3 * mb), "video"); // Any size.
+        for (const char* name : {"a.MOV", "b.webm", "c.m4v", "d.avi", "e.wmv", "f.flv", "g.mpg", "h.3gp", "i.mkv"}) {
+            EXPECT_EQ(classOf(std::string("\\Videos\\") + name, 2 * mb), "video") << name;
+        }
+        // Discs copied to the drive: DVD and DVD-VR, HD DVD and Blu-ray streams.
+        for (const char* path :
+             {"\\Movie\\VIDEO_TS\\VTS_01_1.VOB", "\\Rec\\DVD_RTAV\\VR_MOVIE.VRO", "\\HD\\HVDVD_TS\\FEATURE_1.EVO",
+              "\\BD\\BDMV\\STREAM\\00001.m2ts", "\\BD3D\\BDMV\\STREAM\\SSIF\\00001.ssif"}) {
+            EXPECT_EQ(classOf(path, 1000 * mb), "video") << path;
+        }
         EXPECT_EQ(classOf("\\TV\\recording.ts", 4000 * mb), "video"); // A large .ts is a transport stream.
+        EXPECT_EQ(classOf("\\AVCHD\\BDMV\\STREAM\\00000.MTS", 50 * mb), "video"); // Camcorder clip.
+        EXPECT_EQ(classOf("\\Camera\\MOV001.MOD", 50 * mb), "video");
+        EXPECT_EQ(classOf("\\web\\module.mts", 8 * 1024), "source"); // TypeScript, not a camcorder clip.
+        EXPECT_EQ(classOf("\\proj\\go.mod", 2 * 1024), "unknown"); // A Go module file, not a camcorder clip.
+        EXPECT_EQ(classOf("\\Memes\\loop.gif", 10 * mb), "video"); // A large GIF is an animation.
+        EXPECT_EQ(classOf("\\web\\icon.gif", 10 * mb - 1), "unknown"); // A small one is just an image.
     }
 
     // A catalog with one class and one rule, changed by `edit` to test errors.

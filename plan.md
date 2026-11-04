@@ -450,9 +450,12 @@ Rules:
 - The zone is packed without holes, with a small gap after it (default 2% of free space) for new
   imports.
 
-### 8.6 Video storage (large files, 100 MB-8 GB+)
+### 8.6 Video storage (mostly large files, up to 8 GB+)
 
-- Classes: `.mp4 .mkv .mov .avi .m2ts .mts .ts .wmv .webm .vob`, with size 100 MB or more.
+- Classes: video of any size (`.mp4 .m4v .mkv .mov .avi .wmv .webm .flv .mpg .3gp .ogv .mxf` and more), disc streams
+  (`.vob .vro` DVD, `.evo` HD DVD, `.m2ts .ssif` Blu-ray), and from 10 MB the extensions that small files share with
+  code (`.ts .mts` transport streams, `.mod` camcorder clips) and GIF animations. Smaller videos were once left
+  unknown (100 MB limit); T132 counts them as video, since clips are written once and read whole like large ones.
 - `pack-to-back`: contiguous and packed against the end of the volume.
 - Order depends on the effort level:
   - **Fast and Moderate:** no order, only packing. A video moves only if it is outside the back zone,

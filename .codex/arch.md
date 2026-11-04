@@ -1084,8 +1084,8 @@ All analysis checks passed.
   `classify::builtinCatalog()` parses it once. `parseCatalog()` refuses unknown keys, classes, flags, bad sizes, colors
   and patterns and other format versions with a message saying where.
 - Notable rule decisions: loose `.git/objects/xx/*` files are temp (churn), packs repository data; a `bin` folder is
-  build output but a `.bin` file elsewhere is a disc image; videos count as video from 100 MB, smaller ones stay
-  unknown; a large `.ts` is video, a small one TypeScript; anything the journal shows as churn is temp, unless an
+  build output but a `.bin` file elsewhere is a disc image; videos of any size count as video (T132, with DVD / HD DVD /
+  Blu-ray streams); `.ts`, `.mts`, `.mod` and `.gif` only from 10 MB, smaller ones are TypeScript, Go modules or images; anything the journal shows as churn is temp, unless an
   earlier rule (packs, build output) already matched. `CatalogTest` has one test per class with typical and edge cases.
 - `core/format/JsonReader` is the JSON reader the data files need (a small value tree with members in file order,
   RFC 8259 numbers and escapes, line and column in errors, 64 levels deep at most).
@@ -1130,8 +1130,8 @@ All analysis checks passed.
   re-read the folder), so an updated map still equals a fresh build. The hover tooltip adds a "Class:" line.
 - `tests/integration/classes/check-classes.ps1` (Phase 5 exit): on a read-only `mixed` volume every file below `\mixed`
   has the class the scenario's layout calls for (written out independently of the rule engine), the summary's bytes
-  per class equal the dumped files' clusters, and the class counts cover every file. On 2 GB volumes the scenario's
-  videos stay under 100 MB and are rightly unknown; 4 GB volumes have video. Tile colors equal legend colors in the
+  per class equal the dumped files' clusters, and the class counts cover every file. Videos are video at any size
+  (T132); only a small `.ts` is TypeScript. Tile colors equal legend colors in the
   class mode (`ColorModesTest`).
 
 ## Strategies (zone scripts)

@@ -185,9 +185,10 @@ namespace icd::core::planner { namespace {
 
     // The presets held to the plan.md 9.3.1 ratio at every level: the storage presets the test-bed scenarios are
     // planned with and the presets that fill zones without sorting them. Mixed and photos sort photos at Maximum and on
-    // one of these volumes park 1.10-1.15 x (T095d).
+    // one of these volumes park 1.10-1.15 x, and video, which sorts its zone by age at Maximum, 1.16 x since videos of
+    // any size count (T132; T095d).
     bool tightPreset(std::string_view id) {
-        return id == "archive" || id == "video" || id == "development" || id == "defrag-only" || id == "free-space" ||
+        return id == "archive" || id == "development" || id == "defrag-only" || id == "free-space" ||
             id == "hot-zone" || id == "cold-zone" || id == "type-segregation";
     }
 

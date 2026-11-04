@@ -80,7 +80,8 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   in `src/core/planner/levels/MaximumLevel.*`
 - Do: after T095c (cycles give up the moves with the fewest clusters per wait, unneeded breaks are kept in place),
   Maximum still parks too much where large files block each other: on the OptimalityTest volumes access-time 1.30 x the
-  lower bound, directory-clustering and read-ahead 1.18-1.23, size-placement 1.08-1.18, photos 1.15, mixed 1.10; on
+  lower bound, directory-clustering and read-ahead 1.18-1.23, size-placement 1.08-1.18, photos 1.15, video 1.16 (since
+  T132 counts videos of any size; back in `tightPreset()` once fixed), mixed 1.10; on
   the test bed `check-planner.ps1 -Scenarios all` fails only on `archive` at Maximum (14 moves of ISOs / VHDXs,
   1.216; was 1.377 before T095c). The cycles come from placement, not from how they are broken: a packed sorted zone's
   layout is forced, so large movers land on each other's sources. Ideas: place large files where no other mover's

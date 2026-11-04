@@ -8,7 +8,7 @@
     runs "icd-cli analyze --json --dump-extents". Each dumped file below \mixed is checked against the class the
     scenario's layout and plan.md 8.3-8.6 give it, written out here independently of the rule engine (sources,
     dependencies, build output, temp, repository packs, photos, the catalog, archives, disc images, VM disks, video of
-    100 MB or more, unknown). The summary's bytes per class must equal the sum of the dumped files' runs of that class,
+    any size (.ts from 10 MB), unknown). The summary's bytes per class must equal the sum of the dumped files' runs of that class,
     and its file counts must cover every file. The class colors themselves are checked by ColorModesTest (tiles in the
     class mode show exactly the legend's colors).
 
@@ -65,9 +65,8 @@ function Get-ExpectedClass([string]$Path, [uint64]$Size) {
         '\\photos\\' { return 'photos' }
     }
     if ($Path -match '\\video\\') {
-        if ($Size -ge 100MB) { return 'video' }
-        if ($ext -eq 'ts') { return 'source' } # A small .ts is TypeScript.
-        return 'unknown'
+        if ($ext -ne 'ts' -or $Size -ge 10MB) { return 'video' } # Videos of any size; .ts from 10 MB.
+        return 'source' # A small .ts is TypeScript.
     }
     $byExtension = @{ iso = 'disc-images'; bin = 'disc-images'; zip = 'archives'; '7z' = 'archives'; vhdx = 'vm-disks' }
     if ($byExtension.ContainsKey($ext)) { return $byExtension[$ext] }
@@ -94,8 +93,8 @@ try {
     Check 'every file of the scenario has its class' ($wrong.Count -eq 0) "($($wrong.Count) wrong: $sample)"
     $seen = @($mine | Group-Object class | ForEach-Object { $_.Name })
     $expectedSeen = @('directories', 'source', 'repository', 'dependencies', 'build', 'temp', 'photos', 'catalogs', 'archives', 'disc-images', 'vm-disks')
-    # Small volumes scale the videos below 100 MB; then they are unknown and there is no video class to see.
-    if (@($mine | Where-Object { $_.path -like '\mixed\video\*' -and [uint64]$_.size -ge 100MB }).Count -gt 0) { $expectedSeen += 'video' }
+    # Videos are video at any size, but a volume with only small .ts files would have none.
+    if (@($mine | Where-Object { $_.path -like '\mixed\video\*' -and (& $expectedOf $_) -eq 'video' }).Count -gt 0) { $expectedSeen += 'video' }
     $missing = @($expectedSeen | Where-Object { $_ -notin $seen })
     Check 'the scenario covers its classes' ($missing.Count -eq 0) ($missing -join ', ')
     $byClass = @{}

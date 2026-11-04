@@ -31,7 +31,7 @@
     { "id": "catalogs", "name": "Catalogs and thumbnails", "color": "#E85C8A",
       "description": "Photo catalogs, previews and thumbnail caches: hot, placed in the fast zone." },
     { "id": "video", "name": "Video", "color": "#8A5CE8",
-      "description": "Videos of 100 MB or more: packed at the end of the volume." }
+      "description": "Videos of any size and large GIF animations: packed at the end of the volume." }
   ],
   "fallback": "unknown",
   "rules": [
@@ -60,8 +60,12 @@
     { "name": "Photos", "class": "photos",
       "extensions": ["jpg", "jpeg", "png", "heic", "heif", "webp", "tif", "tiff", "psd", "cr2", "cr3", "nef", "arw",
                      "orf", "raf", "rw2", "dng", "xmp"] },
-    { "name": "Video", "class": "video", "minSize": "100 MB",
-      "extensions": ["mp4", "mkv", "mov", "avi", "m2ts", "mts", "ts", "wmv", "webm", "vob"] },
+    { "name": "Video", "class": "video",
+      "extensions": ["mp4", "m4v", "mkv", "mk3d", "mov", "qt", "avi", "divx", "wmv", "asf", "webm", "flv", "f4v",
+                     "mpg", "mpeg", "m2v", "m2p", "m2ts", "m2t", "3gp", "3g2", "ogv", "mxf", "dv", "rmvb", "tod"] },
+    { "name": "DVD, HD DVD and Blu-ray streams", "class": "video", "extensions": ["vob", "vro", "evo", "ssif"] },
+    { "name": "Streams named like code", "class": "video", "minSize": "10 MB", "extensions": ["ts", "mts", "mod"] },
+    { "name": "GIF animations", "class": "video", "minSize": "10 MB", "extensions": ["gif"] },
     { "name": "Archives", "class": "archives",
       "extensions": ["zip", "7z", "rar", "tar", "gz", "tgz", "bz2", "xz", "zst", "cab"] },
     { "name": "Disc images", "class": "disc-images",
@@ -74,8 +78,8 @@
     { "name": "Source and config", "class": "source",
       "extensions": ["c", "cc", "cpp", "cxx", "h", "hh", "hpp", "hxx", "inl", "ipp", "ixx", "cppm", "cs", "vb", "fs",
                      "java", "kt", "kts", "scala", "go", "rs", "swift", "m", "mm", "py", "pyi", "rb", "php", "pl",
-                     "pm", "lua", "js", "jsx", "ts", "tsx", "mjs", "cjs", "vue", "svelte", "css", "scss", "sass",
-                     "less", "html", "htm", "xml", "xaml", "json", "yaml", "yml", "toml", "ini", "cfg", "conf",
+                     "pm", "lua", "js", "jsx", "ts", "tsx", "mts", "cts", "mjs", "cjs", "vue", "svelte", "css", "scss",
+                     "sass", "less", "html", "htm", "xml", "xaml", "json", "yaml", "yml", "toml", "ini", "cfg", "conf",
                      "config", "props", "targets", "sln", "slnx", "vcxproj", "csproj", "fsproj", "vbproj", "filters",
                      "cmake", "mk", "gradle", "sh", "bash", "zsh", "ps1", "psm1", "psd1", "bat", "cmd", "sql", "md",
                      "markdown", "rst", "txt", "adoc", "tex", "rc", "def", "idl", "proto"] }
