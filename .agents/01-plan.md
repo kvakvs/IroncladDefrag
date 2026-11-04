@@ -87,14 +87,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 11 - Deployment (§13 Phase 11)
 
-### T140 - Installer
-
-- Depends: T002, T141, T142
-- Owns: `installer/*.nsi`, `make-installer.bat`
-- Do: NSIS installer with the product version (T142) + short git hash, the app icon (T141), all DLLs, output in
-  `dist/`.
-- Done when: install, start from the install folder and uninstall all work. **Phase 11 exit check.**
-
 ### T143 - Product web page
 
 - Depends: T140, T141

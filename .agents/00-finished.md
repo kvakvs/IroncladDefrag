@@ -473,3 +473,10 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   header rewritten only on change) gives `ICD_BUILD_COMMIT` (short hash, "-dirty"); `services::buildCommit()` /
   `versionWithCommit()` in the About box, `icd-cli --version` and the log start line (`commit=`); title bar and file
   properties stay the bare 1.0.0. Checked all five places.
+- T140 Installer - `installer/IroncladDefrag.nsi` (NSIS 3.12, MUI2: per machine into Program Files, GUI, icd-cli,
+  wx DLLs, app-local VC++ runtime, Start menu and optional desktop shortcut, Installed apps entry, uninstaller keeping
+  user data unless asked) and `make-installer.bat` (Release build, version and commit from the generated headers,
+  CRT from `VCToolsRedistDir`) writing `dist/IroncladDefrag-1.0.0-<commit>-setup.exe` (4.7 MB). Checked without
+  elevation: silent install into a folder, icd-cli and the GUI start from it at 1.0.0, silent uninstall removes it and
+  keeps user data, nothing left in HKLM or the Start menu. The elevated install (Program Files, Installed apps) is the
+  user's Phase 11 exit check.

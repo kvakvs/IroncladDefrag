@@ -3,3 +3,4 @@
 /3rdparty/
 /.venv-quality/
 /build-msvc/
+/dist/

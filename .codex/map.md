@@ -22,6 +22,8 @@ changes (see `AGENTS.md`).
 | `test.bat` | `test.bat [Debug|Release|All] [fast|slow|all]` (default All fast): `build.bat`, then `ctest -L fast` (no real volumes, seconds), `-L slow` (real volumes and disks, on demand) or both. |
 | `run-elevated.bat` | `run-elevated.bat [Debug|Release]`: starts the GUI through the shell (UAC prompt). |
 | `tools/dev-env.cmd` | Shared by the scripts: `ICD_BUILD_DIR`, vcvars64 once, LLVM first on `PATH`. |
+| `installer/IroncladDefrag.nsi` | NSIS installer: per-machine into Program Files, the two programs, wx DLLs and the app-local VC++ runtime, Start menu (and optional desktop) shortcut, Installed apps entry (version, icon, size), uninstaller that removes only its own files and keeps `%LOCALAPPDATA%\IroncladDefrag` unless asked. |
+| `make-installer.bat` | Release build, then `makensis` with the version, commit, bin and CRT folders: `dist\IroncladDefrag-<version>-<commit>-setup.exe`. |
 | `cmake/BuildCommit.cmake` | Writes `generated/core/BuildCommit.h` (`ICD_BUILD_COMMIT`: short git hash, "-dirty" for a changed tree) on every build, only when its text changes. |
 | `res/IroncladDefrag.manifest` | Embedded manifest: `requireAdministrator`, Common Controls v6, PerMonitorV2 DPI, long paths, Win10+. |
 | `res/IroncladDefrag.rc` | wx standard resources (`wx/msw/wx.rc`, its manifest off), the app icon `APPICON` and `VERSIONINFO`. |
