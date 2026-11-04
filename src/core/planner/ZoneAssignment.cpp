@@ -49,7 +49,12 @@ namespace icd::core::planner {
             }
             classify::RuleSet rules;
             rules.classNames = {"other", "zone"};
-            rules.rules.push_back({.name = "zone", .target = 1, .paths = s.paths, .extensions = s.extensions});
+            rules.rules.push_back({.name = "zone",
+                                   .target = 1,
+                                   .paths = s.paths,
+                                   .extensions = s.extensions,
+                                   .markers = {},
+                                   .folders = {}});
             const classify::RuleEngine engine(std::move(rules));
             return engine.classify(snapshot, {.now = inputs.now, .churn = {}}, executor, token);
         }

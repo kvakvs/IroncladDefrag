@@ -6,10 +6,11 @@
   "zones": [
     { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
       "order": "directory+name" },
-    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Churn", "select": { "classes": ["build", "temp", "logs"] }, "action": "keep-in-place" },
     { "name": "Small files", "select": { "classes": ["source", "repository", "dependencies", "catalogs", "photos"] },
       "action": "fast-fill" },
-    { "name": "Archives and images", "select": { "classes": ["archives", "disc-images", "backups", "video"] },
+    { "name": "Archives and images",
+      "select": { "classes": ["archives", "disc-images", "backups", "dumps", "video"] },
       "action": "fast-fill" },
     { "name": "VM disks", "select": { "classes": ["vm-disks"] }, "action": "fast-fill",
       "gapAfter": { "freePercent": 5 } },

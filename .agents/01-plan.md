@@ -24,50 +24,27 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 5 follow-up - Classification of churning files (§8.2, §8.3)
 
-### T076 - Churn file types and project build directories across languages
+### T076b - Dev scenario with Rust, Python, Elixir/Erlang and Node projects
 
-- Depends: T074
-- Owns: `data/classes.json`, project-marker support in `src/core/classify/Catalog.*` and `RuleEngine.*`,
-  `tests/core/CatalogTest.cpp`, the `dev` scenario in `tools/testvol/gen-scenario/Scenarios.*`
-- Why: the catalog knows only a few ecosystems (MSBuild/CMake folders, `node_modules`, a list of package caches,
-  `.tmp`/`.swp`). Files that are rewritten or deleted all the time (build output, caches, logs, dumps, debug info)
-  belong in the churn zone and gap (plan.md 8.3); missed ones stay "unknown" and get packed among cold data, where
-  they fragment again. Generic folder names are also too broad today: `**/bin/**`, `**/build/**`, `**/out/**`,
-  `**/Debug/**`, `**/x64/**` match `C:\Program Files\App\bin` as build output.
-- Do:
-  - Project markers: let a rule require a marker file in the directory that holds the matched folder (`Cargo.toml` ->
-    `target/`, `mix.exs` -> `_build/` and `deps/`, `rebar.config` -> `_build/`, `package.json` -> `node_modules/`,
-    `dist/`, `.next/`, `.nuxt/`, `.svelte-kit/`, `.turbo/`, `.parcel-cache/`, `pyproject.toml` / `setup.py` /
-    `setup.cfg` -> `build/`, `dist/`, `*.egg-info/`, `.eggs/`, `pom.xml` -> `target/`, `build.gradle(.kts)` -> `build/`,
-    `.gradle/`, `CMakeLists.txt` -> `build*/`, `cmake-build-*/`, `out/`, `*.sln` / `*.*proj` -> `bin/`, `obj/`, `.vs/`,
-    `stack.yaml` / `*.cabal` -> `.stack-work/`, `dist-newstyle/`, `dune-project` -> `_build/`, `build.zig` ->
-    `zig-out/`, `.zig-cache/`, `Package.swift` -> `.build/`, `go.mod` -> `vendor/`, `WORKSPACE` / `MODULE.bazel` ->
-    `bazel-*/`, `pubspec.yaml` -> `.dart_tool/`, `build/`, `*.xcodeproj` -> `DerivedData/`). Generic names count as build
-    output only with their marker; unambiguous names (`__pycache__`, `.pytest_cache`, `.mypy_cache`, `.ruff_cache`,
-    `.tox`, `.nox`, `.ipynb_checkpoints`, `CMakeFiles`, `.terraform`, `.angular/cache`) need none. Keep the check cheap:
-    markers come from the snapshot's directory listing, one lookup per directory, never extra disk reads.
-  - File types (extensions and names): Python `pyc`, `pyo`; Java `class`; Erlang/Elixir `beam`; Haskell `hi`, `dyn_hi`,
-    `dyn_o`; OCaml `cmi`, `cmo`, `cmx`, `cmt`; C/C++ `gch`, `pcm`, `ifc`, `exp`, `tlog` (have), `pdb` (have), `ilk`
-    (have); TypeScript `tsbuildinfo`; JS source maps `*.js.map` / `*.css.map` in build folders; editor and merge
-    leftovers `*~`, `#*#`, `.#*`, `*.orig`, `*.rej`, `.DS_Store`; partial downloads `crdownload`, `part`, `partial`;
-    logs `log`, `etl`, `*.log.N`; dumps `dmp`, `mdmp`, `hdmp`, `core`, `MEMORY.DMP`, `CrashDumps/`, `Minidump/`, `WER/`
-    reports; debug information `pdb`, `dSYM/`, `*.debug`, `sym`. Windows and app caches: `AppData\Local\Temp`,
-    `Windows\Temp`, browser `Cache`, `Code Cache`, `GPUCache`, `ShaderCache`.
-  - `node_modules` and other dependency trees: they are rewritten wholesale by `npm ci` / `pip install` but not
-    between installs. Look at the USN churn of the `dev` scenario (and a real dev folder, read-only, on E: or X:) and
-    decide with the user whether they stay `dependencies` (placed next to the sources) or join the churn zone; same for
-    `.venv` / `venv`.
-  - Decide whether logs, dumps and debug information get their own classes (logs: appended, fragment, belong by the
-    churn gap; dumps: large, written once and rarely read, cold) or map onto `temp` / `build`; update the presets that
-    name these classes (`development`, `mixed`) and the class colors and legend if classes are added.
-  - Watch for clashes before adding an extension: `.d` (D source vs make dependency files), `.lib` / `.a` (built or
-    shipped), `.map` (source map vs game map), `.bin` (build folder vs disc image, already split), `.log` written by
-    a database in place (churn by the journal anyway).
-- Done when: `CatalogTest` has typical and false-positive cases per ecosystem (a marker-less `bin/` under Program Files
-  is not build output; `target/` without `Cargo.toml` or `pom.xml` is not either); the `dev` scenario gains Rust,
-  Python, Elixir/Erlang and Node projects with build/clean cycles and `check-classes.ps1` / `check-churn.ps1` find every
-  churning folder and file type and nothing else; classifying a 6 M-file synthetic volume is not measurably slower;
-  the class summary of a real development folder has been reviewed with the user.
+- Depends: T076a
+- Owns: the `dev` scenario in `tools/testvol/gen-scenario/Scenarios.*`, `tests/integration/classes/check-classes.ps1`,
+  `tests/integration/churn/check-churn.ps1`
+- Do: the `dev` scenario gains Rust, Python, Elixir/Erlang and Node projects (with their marker files) with
+  build/clean cycles, logs and dumps; the C++ repositories get their `CMakeLists.txt`.
+- Since T076a: development types count only inside projects, so `repo-N\build\` needs a marker beside it (today
+  `build\build.log` is Logs and `build\obj\*.lib` Unknown), and in `check-classes.ps1` a small `.ts` under `\video`
+  (no project) is Unknown, not Source; Logs and Dumps join its expected classes.
+- Done when: `check-classes.ps1` / `check-churn.ps1` find every churning folder and file type and nothing else;
+  classifying a 6 M-file synthetic volume is not measurably slower than before T076a.
+
+### T076c - Class summary of a real development folder
+
+- Depends: T076a
+- Owns: `icd-cli classify <folder>` (`src/cli/commands/Classify.*`)
+- Do: a read-only folder walk (ordinary directory listing, no volume handle) that builds a snapshot without extents and
+  prints the class summary through the same rule engine; run it on `F:\ESL` and `F:\Projects` (the user's choice; maybe
+  also `F:\Projects\Simlunky` copied to a mechanical drive and analysed there); fix the catalog where it is wrong.
+- Done when: the class summary of those folders has been reviewed with the user.
 
 ---
 

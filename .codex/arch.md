@@ -1074,17 +1074,41 @@ All analysis checks passed.
 - Per-directory overrides (plan.md 8.2): a directory path and a class; the deepest override above a regular file beats
   every rule. Directories keep their rule class, because directory indexes are placed by their own rules (plan.md 8.3).
   Overrides are found by walking names from the roots and inherited down the same level pass.
-- `classifyPath()` classifies one path with facts, by the same automaton and override rules; tests require it to give
-  every file of a snapshot exactly what `classify()` gives (hand-made dev tree and a 20 K-file synthetic volume).
+- Project markers (T076a, plan.md 8.3): a rule's `markers` (one-name globs such as `Cargo.toml`, `*.sln`, `.git`) make
+  it hold only in or below a directory that has such an entry; with `folders` (`target`, `build-*`) only in or below
+  such a folder whose parent has one, so `target` is build output next to `Cargo.toml` but not under Program Files.
+  Each distinct marker glob is one bit (at most 64), each rule with markers one bit of a per-directory "inside" mask
+  (at most 64). One parallel pass over the names flags the marker names, one over the files collects the marker bits
+  per directory (a sorted list: one lookup per directory), and the level pass gives each directory
+  `inside = parent's inside | rules it enters itself`; files take their directory's mask. Nothing is read from disk.
+- `classifyPath()` classifies one path with facts, by the same automaton, override and marker rules (markers come from
+  a list of the volume's other entries); tests require it to give every file of a snapshot exactly what `classify()`
+  gives (hand-made dev and project trees, 20 K- and 3 K-file synthetic volumes, the latter with marker rules).
 - The classes are data (T071): `data/classes.json` lists the classes of plan.md 8.3-8.6 (source and config, repository
-  data, dependencies, build output, temp, archives, disc images, VM disks, backups, photos, catalogs and thumbnails,
-  video, unknown) plus NTFS metadata and directories, each with an id, display name, color and description, and the
-  ordered rules (paths, extensions, sizes as bytes or "100 MB", flags, churn). CMake embeds the file into `icd_core`
+  data, dependencies, build output, temp, logs, archives, disc images, VM disks, backups, dumps, photos, catalogs and
+  thumbnails, video, unknown) plus NTFS metadata and directories, each with an id, display name, color and
+  description, and the ordered rules (paths, extensions, markers, folders, sizes as bytes or "100 MB", flags, churn).
+  A top-level `projectMarkers` list (`.git`, `.hg`, `.svn`, `Makefile`, `CMakeLists.txt`, `*.sln`, `*.*proj`,
+  `Cargo.toml`, `package.json`, `go.mod`, `pyproject.toml`, `mix.exs`, `rebar.config`, `pom.xml`, Gradle, Stack/Cabal,
+  dune, Zig, SwiftPM, Bazel, pubspec, Xcode, Gemfile, composer and more) is added to every rule with
+  `"inProject": true`. CMake embeds the file into `icd_core`
   (`cmake/EmbedText.cmake` writes a char array, so no data file is looked up at run time and an edit rebuilds it);
   `classify::builtinCatalog()` parses it once. `parseCatalog()` refuses unknown keys, classes, flags, bad sizes, colors
   and patterns and other format versions with a message saying where.
-- Notable rule decisions: loose `.git/objects/xx/*` files are temp (churn), packs repository data; a `bin` folder is
-  build output but a `.bin` file elsewhere is a disc image; videos of any size count as video (T132, with DVD / HD DVD /
+- Notable rule decisions: development file types count only inside a software project (T076a, the user's call):
+  source and config extensions, build extensions (`obj`, `o`, `class`, `pyc`, `beam`, `hi`, `cmi`, `tsbuildinfo`...),
+  debug information (`pdb`, `dSYM`, `.debug`) and source maps need a project marker above them, otherwise they are
+  unknown; generic build folder names (`bin`, `obj`, `build`, `out`, `dist`, `target`, `_build`, `Debug`, `x64`...)
+  need their ecosystem's marker beside them, while unambiguous ones (`__pycache__`, `.pytest_cache`, `.mypy_cache`,
+  `.tox`, `CMakeFiles`, `.terraform`, `.vs`...) need none; dependency trees (`node_modules`, virtual environments by
+  their `pyvenv.cfg`, `vendor` beside `go.mod` / `composer.json`, Mix `deps`) stay dependencies (decided with the user:
+  rewritten only by installs); logs (`log`, `etl`, `evtx`, rotated `*.log.N`) are their own class kept in place with
+  the churn; dumps (`dmp`, `mdmp`, `hdmp`, `hprof`, `erl_crash.dump`, `hs_err_pid*.log`, `core`, CrashDumps, Crashpad,
+  Minidump, WER folders) match anywhere, even in build folders, since programs crash wherever they run, and are placed
+  cold with archives; `.lib`, `.a`, `.d` and `.map` are left alone (built or shipped, D or make, game or source map).
+  The synthetic volume has one empty `.git` folder at its root, so its sources stay sources. Loose
+  `.git/objects/xx/*` files are temp (churn), packs repository data; a project's `bin` folder is build output but a
+  `.bin` file elsewhere is a disc image; videos of any size count as video (T132, with DVD / HD DVD /
   Blu-ray streams); `.ts`, `.mts`, `.mod` and `.gif` only from 10 MB, smaller ones are TypeScript, Go modules or images; anything the journal shows as churn is temp, unless an
   earlier rule (packs, build output) already matched. `CatalogTest` has one test per class with typical and edge cases.
 - `core/format/JsonReader` is the JSON reader the data files need (a small value tree with members in file order,

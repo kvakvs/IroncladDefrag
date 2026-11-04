@@ -6,10 +6,10 @@
   "zones": [
     { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
       "order": "directory+name" },
-    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Churn", "select": { "classes": ["build", "temp", "logs"] }, "action": "keep-in-place" },
     { "name": "Projects and other files",
       "select": { "classes": ["unknown", "source", "repository", "dependencies", "archives", "disc-images", "vm-disks",
-                              "backups", "photos", "catalogs"] },
+                              "backups", "dumps", "photos", "catalogs"] },
       "action": "fast-fill" },
     { "name": "Video", "select": { "classes": ["video"] }, "action": "pack-to-back", "anchor": "back",
       "orderByLevel": { "maximum": "age" } }

@@ -137,13 +137,23 @@ namespace icd::services { namespace {
         const platform::XpressCodec codec;
         const core::SnapshotFileOptions small{.blockBytes = 2048, .batchBlocks = 2};
         const auto bytes = saved(s, codec, serial, small);
+        // XPRESS ignores a few flipped bits (code lengths of unused symbols, padding at a block's end): such a block
+        // still decodes to the very bytes its checksum covers, so the damage is harmless. Any other damage is refused.
         std::mt19937 random(5);
+        int harmless = 0;
         for (int round = 0; round < 400; ++round) {
             auto damaged = bytes;
             const std::size_t at = random() % damaged.size();
             damaged[at] ^= static_cast<std::byte>(1 + random() % 255);
-            EXPECT_THROW(loaded(damaged, codec, serial, small), SnapshotFormatError) << "byte " << at;
+            try {
+                const core::LoadedSnapshot back = loaded(damaged, codec, serial, small);
+                EXPECT_TRUE(compareExact(s, back.snapshot).same()) << "byte " << at;
+                ++harmless;
+            }
+            catch (const SnapshotFormatError&) { // Refused, as it should be.
+            }
         }
+        EXPECT_LT(harmless, 40); // Nearly every damaged byte is caught.
         for (std::size_t at = 0; at < 160; ++at) { // Every byte of the header, meta and first block header.
             auto damaged = bytes;
             damaged[at] ^= std::byte{0x10};

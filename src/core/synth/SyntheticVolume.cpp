@@ -276,6 +276,7 @@ namespace icd::core {
                 addFiles(drawn);
                 queue_.insert(queue_.begin(), {mft, mftClusters, 1, ExtentUnmovable, 0});
                 layOut();
+                addProjectMarker(root);
                 return std::move(builder_).build();
             }
 
@@ -306,6 +307,17 @@ namespace icd::core {
                 entry.times = randomTimes(random_);
                 entry.fileReference = next_++;
                 return builder_.addFile(entry);
+            }
+
+            // Adds an empty resident ".git" folder to the root, last and without random draws so layouts stay the
+            // same: the volume is one software project, so its sources classify as sources (plan.md 8.3).
+            void addProjectMarker(FileIndex root) {
+                FileEntry entry;
+                entry.name = ".git";
+                entry.parent = root;
+                entry.flags = FileDirectory | FileResident;
+                entry.fileReference = next_++;
+                builder_.addFile(entry);
             }
 
             // Adds the directory tree; each directory gets a small index allocation.

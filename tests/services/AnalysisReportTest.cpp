@@ -31,7 +31,7 @@ namespace {
         result.summary.scan->directories = 1;
         result.summary.classes = {
             {.id = "photos", .name = "Photos", .files = 1, .bytes = 7 * 4096, .inZonePercent = {}}};
-        result.classes = std::vector<std::uint8_t>(result.snapshot.files.size(), 12); // 12: "photos".
+        result.classes = std::vector<std::uint8_t>(result.snapshot.files.size(), 14); // 14: "photos".
         result.snapshot.usn = core::UsnCursor{0xABC, 77};
         return result;
     }

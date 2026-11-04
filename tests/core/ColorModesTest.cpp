@@ -61,7 +61,7 @@ namespace icd::core { namespace {
             EXPECT_EQ(legendOf(mode).front().label, "Free");
         }
         EXPECT_EQ(legendOf(ColorMode::FileClass).size(), classify::builtinCatalog().classes.size() + 1);
-        EXPECT_EQ(legendOf(ColorMode::FileClass)[13].label, "Photos"); // ClassId 12, after free space.
+        EXPECT_EQ(legendOf(ColorMode::FileClass)[15].label, "Photos"); // ClassId 14, after free space.
     }
 
     // A small synthetic volume with a wide spread of sizes, ages and classes.

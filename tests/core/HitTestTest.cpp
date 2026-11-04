@@ -248,8 +248,8 @@ namespace icd::core { namespace {
         EXPECT_EQ(lines[4], "Size 97.7 KB; allocated 140 KB");
         EXPECT_EQ(lines[5], "Type: file, compressed");
         EXPECT_EQ(lines[6], "Modified 2026-01-01 00:00 UTC; created -; accessed -");
-        // With classes the class follows the type (12 is "Photos" in the built-in catalog).
-        const std::vector<std::uint8_t> kinds(v.snapshot.extents.size(), 12);
+        // With classes the class follows the type (14 is "Photos" in the built-in catalog).
+        const std::vector<std::uint8_t> kinds(v.snapshot.extents.size(), 14);
         const std::vector<std::string> classed = describeHit(v.snapshot, *used, nullptr, kinds);
         ASSERT_EQ(classed.size(), 8U);
         EXPECT_EQ(classed[6], "Class: Photos");
@@ -287,7 +287,7 @@ namespace icd::core { namespace {
         EXPECT_EQ(value(facts, "Modified"), "2026-01-01 00:00 UTC");
         EXPECT_EQ(value(facts, "Class"), "(missing)");
         std::vector<std::uint8_t> classes(v.snapshot.files.size(), 0);
-        classes[file] = 12; // "Photos" in the built-in catalog.
+        classes[file] = 14; // "Photos" in the built-in catalog.
         EXPECT_EQ(value(describeFile(v.snapshot, file, nullptr, classes), "Class"), "Photos");
     }
 

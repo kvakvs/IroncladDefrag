@@ -275,7 +275,12 @@ namespace icd::core::strategy {
             try {
                 classify::RuleSet rules;
                 rules.classNames = {"other", "zone"};
-                rules.rules.push_back({.name = "zone", .target = 1, .paths = s.paths, .extensions = s.extensions});
+                rules.rules.push_back({.name = "zone",
+                                       .target = 1,
+                                       .paths = s.paths,
+                                       .extensions = s.extensions,
+                                       .markers = {},
+                                       .folders = {}});
                 (void)classify::RuleEngine(std::move(rules));
             }
             catch (const std::exception& e) {

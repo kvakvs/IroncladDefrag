@@ -445,3 +445,13 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   extensions shared with code (ts, mts, mod) and GIF animations; small .mts / .cts are TypeScript sources.
   `CatalogTest.Video`, check-classes.ps1 (passes on 4 GB). The video preset at Maximum now parks 1.16 x on one
   OptimalityTest volume (a fuller sorted zone), so it joins photos outside `tightPreset()` until T095d.
+- T076a Project markers, churn file types, Logs and Dumps classes - `RuleEngine`: `markers` (in or below a directory
+  holding one) and `folders` + `markers` (in or below such a folder whose parent holds one), one bit per marker glob
+  and per rule, marker bits collected per directory from the listing (one lookup each), `classifyPath()` takes the
+  volume's other entries. `Catalog`: `projectMarkers` + `"inProject"`. `data/classes.json`: development types (source,
+  build extensions, debug info, source maps) only inside projects, build folders of Cargo, Maven, sbt, Mix, rebar,
+  dune, Erlang, npm, Python, Gradle, CMake, Meson, MSBuild, Stack/Cabal, Zig, SwiftPM, Bazel, Dart, Xcode beside their
+  markers, unambiguous caches without, venvs by `pyvenv.cfg`, editor leftovers, partial downloads, browser caches;
+  new Logs class (kept in place with the churn in every preset) and Dumps (anywhere, cold with archives) with colors in
+  every color preset. The synthetic volume gets a root `.git`. SnapshotStoreTest: XPRESS ignores some flipped bits, so
+  random damage must be refused or load identical. CatalogTest, RuleEngineTest.

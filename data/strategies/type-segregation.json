@@ -20,7 +20,8 @@
       "select": {
         "classes": [
           "build",
-          "temp"
+          "temp",
+          "logs"
         ]
       },
       "action": "keep-in-place"
@@ -70,7 +71,8 @@
           "archives",
           "disc-images",
           "vm-disks",
-          "backups"
+          "backups",
+          "dumps"
         ]
       },
       "action": "fast-fill"

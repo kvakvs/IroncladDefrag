@@ -6,7 +6,7 @@
   "zones": [
     { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
       "order": "directory+name" },
-    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Churn", "select": { "classes": ["build", "temp", "logs"] }, "action": "keep-in-place" },
     { "name": "Sources and packs", "select": { "classes": ["source", "repository"] }, "action": "sort",
       "order": "directory+name" },
     { "name": "Dependencies", "select": { "classes": ["dependencies"] }, "action": "fast-fill",

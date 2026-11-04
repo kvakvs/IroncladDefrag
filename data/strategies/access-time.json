@@ -20,7 +20,8 @@
       "select": {
         "classes": [
           "build",
-          "temp"
+          "temp",
+          "logs"
         ]
       },
       "action": "keep-in-place"

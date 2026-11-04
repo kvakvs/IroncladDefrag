@@ -6,7 +6,7 @@
   "zones": [
     { "name": "Directories", "select": { "classes": ["directories"] }, "action": "sort", "anchor": "front",
       "order": "directory+name" },
-    { "name": "Churn", "select": { "classes": ["build", "temp"] }, "action": "keep-in-place" },
+    { "name": "Churn", "select": { "classes": ["build", "temp", "logs"] }, "action": "keep-in-place" },
     { "name": "Catalogs", "select": { "classes": ["catalogs"] }, "action": "fast-fill" },
     { "name": "Photos", "select": { "classes": ["photos"] }, "action": "sort", "order": "directory+name",
       "gapAfter": { "freePercent": 2 } },

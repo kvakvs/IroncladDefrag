@@ -45,6 +45,15 @@ namespace icd::core::classify {
         // with `**`. ASCII letters compare case-insensitively, as NTFS names do. Empty: any path.
         std::vector<std::string> paths;
         std::vector<std::string> extensions; // Lower-case extensions without the dot, any of which must match.
+        // Project markers (plan.md 8.3): one-component globs of entries that show a software project ("Cargo.toml",
+        // "*.sln", ".git"). Without `folders`, the file must be in or below a directory that holds one, so a
+        // development file type counts only inside a project. Read from the snapshot's directory listing, never from
+        // extra disk reads. Empty: no project needed.
+        std::vector<std::string> markers;
+        // One-component globs of build folders ("target", "build*"): the file must be in or below such a folder (the
+        // folder itself included) whose parent directory holds one of `markers`, so `target` counts next to
+        // Cargo.toml but not under Program Files. Needs `markers`.
+        std::vector<std::string> folders;
         std::uint64_t minSize = 0; // Smallest size in bytes (inclusive).
         std::uint64_t maxSize = std::numeric_limits<std::uint64_t>::max(); // Largest size in bytes (exclusive).
         std::uint32_t minAgeDays = 0; // Unmodified for at least this many days.
@@ -105,8 +114,10 @@ namespace icd::core::classify {
                                                     Executor& executor, const CancelToken& token = {}) const;
 
         // The class of one file given by its path from the volume root ("\src\main.cpp") and facts; equal to what
-        // classify() gives that file in a snapshot.
-        [[nodiscard]] ClassId classifyPath(std::string_view path, const FileFacts& facts, std::int64_t now) const;
+        // classify() gives that file in a snapshot whose other entries are `entries` (paths from the root, such as
+        // "\proj\Cargo.toml"; only those that can be project markers matter).
+        [[nodiscard]] ClassId classifyPath(std::string_view path, const FileFacts& facts, std::int64_t now,
+                                           std::span<const std::string> entries = {}) const;
 
         struct Compiled; // The automaton, extension table and per-rule tests (RuleEngine.cpp).
 

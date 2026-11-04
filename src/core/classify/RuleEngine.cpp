@@ -29,6 +29,9 @@ namespace icd::core::classify {
         // "Not a directory" in the file -> directory slot table.
         constexpr std::uint32_t noSlot = 0xFFFF'FFFF;
 
+        // Most distinct marker globs, and most rules with markers: each takes one bit of a 64-bit mask.
+        constexpr std::size_t maxMarkerBits = 64;
+
         // A set of automaton states.
         using StateSet = std::array<std::uint64_t, maxStateWords>;
 
@@ -93,6 +96,65 @@ namespace icd::core::classify {
             return a.size() == b.size() &&
                 std::ranges::equal(a, b, [](char x, char y) { return lower(x) == lower(y); });
         }
+
+        // Whether a < b ignoring ASCII case, for the sorted marker names.
+        bool lessIgnoringCase(std::string_view a, std::string_view b) {
+            return std::ranges::lexicographical_compare(a, b, [](char x, char y) { return lower(x) < lower(y); });
+        }
+
+        // Throws unless a glob is one path component (markers and folders name entries of one directory).
+        void checkComponent(std::string_view glob, std::string_view what) {
+            const bool split = glob.find_first_of("/\\") != std::string_view::npos;
+            if (glob.empty() || split || glob.find("**") != std::string_view::npos) {
+                throw RuleError(std::format("{} \"{}\" must be one name (\"*\" and \"?\" allowed)", what, glob));
+            }
+        }
+
+        // Marker globs numbered as bits, so the markers a directory holds are one 64-bit mask. Exact names are found
+        // by binary search; only the few globs with wildcards are matched one by one.
+        class MarkerTable {
+        public:
+            // The bit of a glob, numbering new ones. Throws RuleError past maxMarkerBits globs.
+            std::uint64_t bitOf(std::string_view glob) {
+                const std::string g = lowered(glob);
+                const bool wild = g.find_first_of("*?") != std::string::npos;
+                std::vector<Entry>& list = wild ? wild_ : exact_;
+                const auto it = std::ranges::lower_bound(list, g, lessIgnoringCase, &Entry::glob);
+                if (it != list.end() && it->glob == g) {
+                    return it->bit;
+                }
+                if (count_ == maxMarkerBits) {
+                    throw RuleError(std::format("more than {} distinct project markers", maxMarkerBits));
+                }
+                const std::uint64_t bit = std::uint64_t{1} << count_++;
+                list.insert(it, {.glob = g, .bit = bit});
+                return bit;
+            }
+
+            // The bits of the globs a name matches (0 for almost every name).
+            [[nodiscard]] std::uint64_t of(std::string_view name) const {
+                std::uint64_t bits = 0;
+                const auto it = std::ranges::lower_bound(exact_, name, lessIgnoringCase, &Entry::glob);
+                if (it != exact_.end() && sameName(it->glob, name)) {
+                    bits |= it->bit;
+                }
+                for (const Entry& w : wild_) {
+                    bits |= globMatch(w.glob, name) ? w.bit : 0;
+                }
+                return bits;
+            }
+
+        private:
+            // One glob and its bit.
+            struct Entry {
+                std::string glob; // Lower case.
+                std::uint64_t bit = 0; // Its bit.
+            };
+
+            std::vector<Entry> exact_; // Globs without wildcards, sorted.
+            std::vector<Entry> wild_; // Globs with `*` or `?`, sorted.
+            std::size_t count_ = 0; // Bits given out.
+        };
 
         // One step of a path glob.
         struct Token {
@@ -200,6 +262,9 @@ namespace icd::core::classify {
             ClassId target = 0; // The class it gives.
             std::vector<std::size_t> accepts; // Accepting states of its path globs; empty: any path.
             std::vector<std::uint64_t> extensions; // Bitset over the extension table; empty: any extension.
+            std::uint64_t markerBit = 0; // Its bit among the rules with markers; 0: no marker condition.
+            std::uint64_t markerMask = 0; // Bits of its marker globs in the marker table.
+            std::vector<std::string> folders; // Lower-case folder globs; empty: in or below a marked directory.
             const Rule* source = nullptr; // Sizes, ages, flags, churn.
         };
 
@@ -211,6 +276,7 @@ namespace icd::core::classify {
             std::uint16_t extension = noExtension; // Index into the extension table.
             bool churn = false; // Flagged as churn.
             const StateSet* states = nullptr; // Path automaton state after the file's own name.
+            std::uint64_t inside = 0; // Marker bits of the rules whose project or build folder holds the file.
         };
 
         // Whole days from a FILETIME to now; changes in the future count as new.
@@ -241,6 +307,27 @@ namespace icd::core::classify {
                 std::ranges::any_of(r.accepts, [&](std::size_t s) { return PathAutomaton::has(*v.states, s); });
         }
 
+        // Whether a file is inside the project or build folder a rule's markers call for.
+        bool markersMatch(const CompiledRule& r, const FileView& v) {
+            return r.markerBit == 0 || (v.inside & r.markerBit) != 0;
+        }
+
+        // The marker bits around one directory, named so the two masks cannot be swapped.
+        struct DirectoryMarkers {
+            std::uint64_t own = 0; // Markers among the directory's entries.
+            std::uint64_t parent = 0; // Markers among its parent's entries.
+        };
+
+        // Whether a directory meets a rule's marker condition by itself: it holds a marker (no folders), or it is one
+        // of the rule's folders and its parent holds a marker.
+        bool entersRule(const CompiledRule& r, std::string_view name, DirectoryMarkers m) {
+            if (r.folders.empty()) {
+                return (m.own & r.markerMask) != 0;
+            }
+            return (m.parent & r.markerMask) != 0 &&
+                std::ranges::any_of(r.folders, [&](const std::string& f) { return globMatch(f, name); });
+        }
+
     } // namespace
 
     // The automaton, the extension table, the rules and the overrides, ready to use.
@@ -250,6 +337,21 @@ namespace icd::core::classify {
         std::vector<std::string> extensions; // Sorted, distinct, lower case.
         std::vector<CompiledRule> rules; // In order.
         std::vector<std::vector<std::string>> overridePaths; // Per override: its components.
+        MarkerTable markers; // Marker globs of all rules.
+        std::vector<std::size_t> markerRules; // Indexes of the rules with markers, in bit order.
+
+        // Marker bits of the rules a directory meets by itself, from the markers among its own and its parent's
+        // entries; the caller adds its parent's result.
+        [[nodiscard]] std::uint64_t entered(std::string_view name, DirectoryMarkers m) const {
+            std::uint64_t out = 0;
+            if ((m.own | m.parent) == 0) {
+                return out;
+            }
+            for (const std::size_t i : markerRules) {
+                out |= entersRule(rules[i], name, m) ? rules[i].markerBit : 0;
+            }
+            return out;
+        }
 
         // Index of an extension in the table, or noExtension.
         [[nodiscard]] std::uint16_t extensionId(std::string_view name) const {
@@ -263,7 +365,7 @@ namespace icd::core::classify {
         // The first rule matching a file, or the fallback.
         [[nodiscard]] ClassId firstMatch(const FileView& v) const {
             for (const CompiledRule& r : rules) {
-                if (factsMatch(*r.source, v) && extensionMatches(r, v) && pathMatches(r, v)) {
+                if (factsMatch(*r.source, v) && extensionMatches(r, v) && markersMatch(r, v) && pathMatches(r, v)) {
                     return r.target;
                 }
             }
@@ -297,6 +399,30 @@ namespace icd::core::classify {
             return out;
         }
 
+        // A rule's marker and folder condition, numbering its bit. Throws RuleError for folders without markers, globs
+        // of more than one name or too many rules with markers.
+        void compileMarkers(const Rule& r, std::size_t index, CompiledRule& out, RuleEngine::Compiled& c) {
+            if (r.markers.empty()) {
+                if (!r.folders.empty()) {
+                    throw RuleError(std::format("rule \"{}\": folders need markers (use paths otherwise)", r.name));
+                }
+                return;
+            }
+            if (c.markerRules.size() == maxMarkerBits) {
+                throw RuleError(std::format("more than {} rules with markers", maxMarkerBits));
+            }
+            out.markerBit = std::uint64_t{1} << c.markerRules.size();
+            c.markerRules.push_back(index);
+            for (const std::string& m : r.markers) {
+                checkComponent(m, "marker");
+                out.markerMask |= c.markers.bitOf(m);
+            }
+            for (const std::string& f : r.folders) {
+                checkComponent(f, "folder");
+                out.folders.push_back(lowered(f));
+            }
+        }
+
         // A rule's extensions as a bitset over the table.
         std::vector<std::uint64_t> extensionBits(const Rule& r, const RuleEngine::Compiled& c) {
             if (r.extensions.empty()) {
@@ -322,7 +448,14 @@ namespace icd::core::classify {
         c.extensions = extensionTable(c.set);
         for (const Rule& r : c.set.rules) {
             checkClass(r.target, c.set, std::format("rule \"{}\"", r.name));
-            CompiledRule compiled{.target = r.target, .accepts = {}, .extensions = extensionBits(r, c), .source = &r};
+            CompiledRule compiled{.target = r.target,
+                                  .accepts = {},
+                                  .extensions = extensionBits(r, c),
+                                  .markerBit = 0,
+                                  .markerMask = 0,
+                                  .folders = {},
+                                  .source = &r};
+            compileMarkers(r, c.rules.size(), compiled, c);
             for (const std::string& p : r.paths) {
                 compiled.accepts.push_back(c.automaton.add(p));
             }
@@ -363,7 +496,63 @@ namespace icd::core::classify {
 
     } // namespace
 
-    ClassId RuleEngine::classifyPath(std::string_view path, const FileFacts& facts, std::int64_t now) const {
+    namespace {
+
+        // One of the given entries whose name is a marker.
+        struct MarkerEntry {
+            std::vector<std::string_view> parts; // Its path components.
+            std::uint64_t bits = 0; // Its marker bits.
+        };
+
+        // The entries that are markers; the others cannot change a class, so they are not even split.
+        std::vector<MarkerEntry> markerEntries(const RuleEngine::Compiled& c, std::span<const std::string> entries) {
+            std::vector<MarkerEntry> out;
+            for (const std::string& e : entries) {
+                const std::size_t slash = e.find_last_of("/\\");
+                const std::uint64_t bits =
+                    c.markers.of(std::string_view(e).substr(slash == std::string::npos ? 0 : slash + 1));
+                if (bits != 0) {
+                    out.push_back({.parts = components(e), .bits = bits});
+                }
+            }
+            return out;
+        }
+
+        // Marker bits of the entries directly in the directory made of a path's first `depth` components: the marker
+        // entries there, and the path's own next component.
+        std::uint64_t markersAt(const RuleEngine::Compiled& c, std::span<const std::string_view> parts,
+                                std::size_t depth, std::span<const MarkerEntry> entries) {
+            const auto prefix = parts.first(depth);
+            std::uint64_t bits = depth < parts.size() ? c.markers.of(parts[depth]) : 0;
+            for (const MarkerEntry& e : entries) {
+                const bool here = e.parts.size() == depth + 1 &&
+                    std::ranges::equal(std::span(e.parts).first(depth), prefix, sameName);
+                bits |= here ? e.bits : 0;
+            }
+            return bits;
+        }
+
+        // FileView::inside of a path: the marker rules met by any directory from the root down to the file's own
+        // directory (or the file itself when it is a directory).
+        std::uint64_t insideOfPath(const RuleEngine::Compiled& c, std::span<const std::string_view> parts,
+                                   bool directory, std::span<const std::string> entries) {
+            const std::vector<MarkerEntry> markerList = markerEntries(c, entries);
+            const std::size_t own = parts.empty() || directory ? parts.size() : parts.size() - 1;
+            std::uint64_t inside = 0;
+            std::uint64_t parentMarkers = 0;
+            for (std::size_t depth = 0; depth <= own; ++depth) {
+                const std::uint64_t markers = markersAt(c, parts, depth, markerList);
+                inside |= c.entered(depth == 0 ? std::string_view() : parts[depth - 1],
+                                    {.own = markers, .parent = parentMarkers});
+                parentMarkers = markers;
+            }
+            return inside;
+        }
+
+    } // namespace
+
+    ClassId RuleEngine::classifyPath(std::string_view path, const FileFacts& facts, std::int64_t now,
+                                     std::span<const std::string> entries) const {
         const Compiled& c = *compiled_;
         const std::vector<std::string_view> parts = components(path);
         StateSet states = c.automaton.initial();
@@ -383,7 +572,8 @@ namespace icd::core::classify {
                          .flags = facts.flags,
                          .extension = c.extensionId(name),
                          .churn = facts.churn,
-                         .states = &states};
+                         .states = &states,
+                         .inside = c.markerRules.empty() ? 0 : insideOfPath(c, parts, directory, entries)};
         return c.firstMatch(v);
     }
 
@@ -399,6 +589,7 @@ namespace icd::core::classify {
             // Directory states and overrides from the root down, then every file.
             std::vector<ClassId> run() {
                 nameExtensions();
+                collectMarkers();
                 directories();
                 std::vector<ClassId> out(s_.files.size(), 0);
                 executor_.parallelFor(
@@ -424,6 +615,74 @@ namespace icd::core::classify {
                         }
                     },
                     token_);
+                if (!usesMarkers()) {
+                    return;
+                }
+                markerName_.assign(s_.names.size(), 0);
+                executor_.parallelFor(
+                    {markerName_.size(), fileGrain},
+                    [&](std::size_t begin, std::size_t end) {
+                        for (std::size_t n = begin; n < end; ++n) {
+                            markerName_[n] = c_.markers.of(s_.names.name(static_cast<NameId>(n))) != 0 ? 1 : 0;
+                        }
+                    },
+                    token_);
+            }
+
+            // Whether any rule has markers; without them none of the marker tables is built.
+            [[nodiscard]] bool usesMarkers() const { return !c_.markerRules.empty(); }
+
+            // The marker bits of every directory that holds a marker, from one pass over the files, sorted by
+            // directory so each directory needs one lookup.
+            void collectMarkers() {
+                if (!usesMarkers()) {
+                    return;
+                }
+                const ChunkedRange range{s_.files.size(), fileGrain};
+                std::vector<std::vector<std::pair<FileIndex, std::uint64_t>>> parts(range.chunks());
+                executor_.parallelFor(
+                    range,
+                    [&](std::size_t begin, std::size_t end) {
+                        for (std::size_t f = begin; f < end; ++f) {
+                            addMarker(static_cast<FileIndex>(f), parts[begin / fileGrain]);
+                        }
+                    },
+                    token_);
+                for (const auto& part : parts) {
+                    markersOf_.insert(markersOf_.end(), part.begin(), part.end());
+                }
+                std::ranges::sort(markersOf_);
+                mergeMarkers();
+            }
+
+            // Records a file's marker bits under its directory when its name is a marker.
+            void addMarker(FileIndex f, std::vector<std::pair<FileIndex, std::uint64_t>>& out) const {
+                const NameId name = s_.files.name(f);
+                const FileIndex parent = s_.files.parent(f);
+                if (markerName_[name] != 0 && parent != noFile && parent != f) {
+                    out.emplace_back(parent, c_.markers.of(s_.names.name(name)));
+                }
+            }
+
+            // Joins the entries of one directory into one.
+            void mergeMarkers() {
+                std::size_t out = 0;
+                for (std::size_t i = 0; i < markersOf_.size(); ++i) {
+                    if (out > 0 && markersOf_[out - 1].first == markersOf_[i].first) {
+                        markersOf_[out - 1].second |= markersOf_[i].second;
+                    }
+                    else {
+                        markersOf_[out++] = markersOf_[i];
+                    }
+                }
+                markersOf_.resize(out);
+            }
+
+            // The marker bits of a directory's entries.
+            [[nodiscard]] std::uint64_t markersIn(FileIndex d) const {
+                const auto it =
+                    std::ranges::lower_bound(markersOf_, d, {}, &std::pair<FileIndex, std::uint64_t>::first);
+                return it != markersOf_.end() && it->first == d ? it->second : 0;
             }
 
             // Directories in levels from the roots; each level's states and overrides from its parents', in parallel.
@@ -489,6 +748,10 @@ namespace icd::core::classify {
                 slotFiles_.insert(slotFiles_.end(), level.begin(), level.end());
                 states_.resize((first + level.size()) * c_.automaton.words());
                 overrides_.resize(first + level.size(), noOverride);
+                if (usesMarkers()) {
+                    markers_.resize(first + level.size(), 0);
+                    inside_.resize(first + level.size(), 0);
+                }
                 return first;
             }
 
@@ -516,6 +779,31 @@ namespace icd::core::classify {
                 const FileIndex parent = s_.files.parent(d);
                 const std::uint32_t parentSlot = parent == noFile ? noSlot : slotOf_[parent];
                 overrides_[slot] = named ? own->second : (parentSlot == noSlot ? noOverride : overrides_[parentSlot]);
+                if (usesMarkers()) {
+                    describeMarkers(slot, d);
+                }
+            }
+
+            // A directory's marker bits and the marker rules it is inside of, from its parent's.
+            void describeMarkers(std::size_t slot, FileIndex d) {
+                const FileIndex parent = s_.files.parent(d);
+                const std::uint32_t parentSlot = parent == noFile || parent == d ? noSlot : slotOf_[parent];
+                const bool hasParent = parentSlot != noSlot;
+                markers_[slot] = markersIn(d);
+                const std::string_view name = hasParent ? s_.names.name(s_.files.name(d)) : std::string_view();
+                inside_[slot] = (hasParent ? inside_[parentSlot] : 0) |
+                    c_.entered(name, {.own = markers_[slot], .parent = hasParent ? markers_[parentSlot] : 0});
+            }
+
+            // FileView::inside of a file: its own slot's for a directory, else its directory's.
+            [[nodiscard]] std::uint64_t insideOf(FileIndex f) const {
+                if (!usesMarkers()) {
+                    return 0;
+                }
+                const FileIndex parent = s_.files.parent(f);
+                const std::uint32_t own = slotOf_[f];
+                const std::uint32_t slot = own != noSlot ? own : (parent == noFile ? noSlot : slotOf_[parent]);
+                return slot == noSlot ? 0 : inside_[slot];
             }
 
             // The automaton state of a directory's parent (the root state for roots and unreachable parents).
@@ -554,7 +842,8 @@ namespace icd::core::classify {
                                  .flags = files.flags(f),
                                  .extension = extensionOfName_[files.name(f)],
                                  .churn = !inputs_.churn.empty() && inputs_.churn[f] != 0,
-                                 .states = &states};
+                                 .states = &states,
+                                 .inside = insideOf(f)};
                 return c_.firstMatch(v);
             }
 
@@ -569,6 +858,10 @@ namespace icd::core::classify {
             std::vector<std::uint64_t> states_; // Per directory slot: automaton state words.
             std::vector<std::uint16_t> overrides_; // Per directory slot: override in force.
             std::vector<std::pair<FileIndex, std::uint16_t>> ownOverride_; // Directories named by overrides.
+            std::vector<std::uint8_t> markerName_; // Per name id: 1 when the name is a marker.
+            std::vector<std::pair<FileIndex, std::uint64_t>> markersOf_; // Directories holding markers, sorted.
+            std::vector<std::uint64_t> markers_; // Per directory slot: marker bits of its entries.
+            std::vector<std::uint64_t> inside_; // Per directory slot: marker rules it is inside of.
         };
 
     } // namespace

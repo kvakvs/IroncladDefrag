@@ -138,17 +138,32 @@ namespace icd::core::classify {
             r.maxAgeDays = numberOr<std::uint32_t>(o, "maxAgeDays", r.maxAgeDays);
         }
 
+        // A rule's markers: its own, plus the catalog's project markers when it asks for "inProject".
+        std::vector<std::string> markersOf(const JsonValue& o, const std::vector<std::string>& projectMarkers) {
+            std::vector<std::string> out = stringsOf(o.find("markers"));
+            const JsonValue* inProject = o.find("inProject");
+            if (inProject != nullptr && inProject->asBool()) {
+                if (projectMarkers.empty()) {
+                    throw CatalogError("\"inProject\" needs the catalog's \"projectMarkers\"");
+                }
+                out.insert(out.end(), projectMarkers.begin(), projectMarkers.end());
+            }
+            return out;
+        }
+
         // One rule.
-        Rule ruleOf(const Catalog& c, const JsonValue& o) {
+        Rule ruleOf(const Catalog& c, const JsonValue& o, const std::vector<std::string>& projectMarkers) {
             Rule r;
             r.name = o.at("name").asString();
             try {
                 checkKeys(o,
-                          {"name", "class", "paths", "extensions", "minSize", "maxSize", "minAgeDays", "maxAgeDays",
-                           "flags", "notFlags", "churn"});
+                          {"name", "class", "paths", "extensions", "markers", "folders", "inProject", "minSize",
+                           "maxSize", "minAgeDays", "maxAgeDays", "flags", "notFlags", "churn"});
                 r.target = classNamed(c, o.at("class").asString());
                 r.paths = stringsOf(o.find("paths"));
                 r.extensions = stringsOf(o.find("extensions"));
+                r.markers = markersOf(o, projectMarkers);
+                r.folders = stringsOf(o.find("folders"));
                 readLimits(o, r);
                 r.flagsAll = flagsOf(o.find("flags"));
                 r.flagsNone = flagsOf(o.find("notFlags"));
@@ -191,8 +206,9 @@ namespace icd::core::classify {
             Catalog c;
             readClasses(root, c);
             c.rules.fallback = classNamed(c, root.at("fallback").asString());
+            const std::vector<std::string> projectMarkers = stringsOf(root.find("projectMarkers"));
             for (const JsonValue& o : root.at("rules").asArray()) {
-                c.rules.rules.push_back(ruleOf(c, o));
+                c.rules.rules.push_back(ruleOf(c, o, projectMarkers));
             }
             return c;
         }
