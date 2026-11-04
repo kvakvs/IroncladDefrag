@@ -374,3 +374,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   fingerprints in the bench; parallel validation per LCN stripe with a serial fallback, lazy and parallel room search,
   flat arrays and live-only rounds in ordering, shared sort keys, parallel pools, items and budget steps; plans
   unchanged except the cycle guard budget (64 -> 4 visits per destination, 0.03% more moves).
+- T095c Cycle breaking parks less at Maximum - `src/core/planner/MoveOrdering.cpp` (`breakGreedily()`: per round each
+  cycle gives up the move with the fewest clusters per wait through it, then chosen moves whose return closes no cycle
+  are kept in place). Worst Maximum ratio on the OptimalityTest volumes 1.44 -> 1.30 (development now within 1.1, test
+  limit 1.5 -> 1.35); `check-planner.ps1 -Scenarios all`: every scenario within 1.1 except `archive` at Maximum (1.377
+  -> 1.216). The 1.1 x goal for sorted zones moved to T095d.

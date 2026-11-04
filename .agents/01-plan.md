@@ -24,17 +24,19 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 6 - Strategies and planner (§8, §9, §13 Phase 6)
 
-### T095c - Sorted zones within 1.1 x at Maximum
+### T095d - Sorted zones within 1.1 x at Maximum
 
-- Depends: T095b
-- Owns: `src/core/planner/SortZone.*`, `src/core/planner/MoveOrdering.*`, `src/core/planner/CycleGuard.*`
-- Do: after T095b, presets that sort large zones (directory-clustering, access-time, read-ahead; photos and sources in
-  photos / development) still move 1.1-1.45 x their lower bound at Maximum on the OptimalityTest volumes, nearly all of
-  it parking: a packed sorted zone's layout is forced (every mover's place is fixed by the order), so moving most of a
-  region in place leaves large dependency cycles (one component of ~1400 of ~2000 movers on directory-clustering).
-  Zone room (10%) and greedy cycle breaking help little. Ideas: stream the sort through free space outside the zone,
-  choose the zone's slack so its packed positions land on free space, or cycle-aware anchor choice. Also size-placement
-  (big files in the pack-to-back zone) reaches 1.27 on one volume.
+- Depends: T095c
+- Owns: `src/core/planner/SortZone.*`, `src/core/planner/MoveOrdering.*`, `src/core/planner/CycleGuard.*`, placement
+  in `src/core/planner/levels/MaximumLevel.*`
+- Do: after T095c (cycles give up the moves with the fewest clusters per wait, unneeded breaks are kept in place),
+  Maximum still parks too much where large files block each other: on the OptimalityTest volumes access-time 1.30 x the
+  lower bound, directory-clustering and read-ahead 1.18-1.23, size-placement 1.08-1.18, photos 1.15, mixed 1.10; on
+  the test bed `check-planner.ps1 -Scenarios all` fails only on `archive` at Maximum (14 moves of ISOs / VHDXs,
+  1.216; was 1.377 before T095c). The cycles come from placement, not from how they are broken: a packed sorted zone's
+  layout is forced, so large movers land on each other's sources. Ideas: place large files where no other mover's
+  sources are (or evict to a spot outside the zone first instead of the fallback placement), stream the sort through
+  free space outside the zone, or choose the zone's slack so packed positions land on free space.
 - Done when: every preset stays within 1.1 x at Maximum in OptimalityTest, and `check-planner.ps1 -Scenarios all`
   passes.
 

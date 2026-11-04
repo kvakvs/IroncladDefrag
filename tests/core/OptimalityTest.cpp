@@ -1,6 +1,6 @@
 // Planner optimality (T095): on tiny volumes an exhaustive search over every target-satisfying final layout confirms
 // that the Maximum plan moves the fewest bytes possible, and on synthetic volumes every preset moves at most 1.1 x what
-// its lower bound requires (presets that sort large zones at Maximum: 1.5 x, T095c).
+// its lower bound requires (presets that sort large zones at Maximum: 1.35 x, T095d).
 
 #include "core/planner/levels/FastLevel.h"
 #include "core/planner/levels/MaximumLevel.h"
@@ -184,11 +184,11 @@ namespace icd::core::planner { namespace {
     }
 
     // The presets held to the plan.md 9.3.1 ratio at every level: the storage presets the test-bed scenarios are
-    // planned with and the presets that fill zones without sorting them. Mixed sorts photos at Maximum and on one of
-    // these volumes now completes the third of its bound that cycles used to leave in place, at about 1.12 (T095c).
+    // planned with and the presets that fill zones without sorting them. Mixed and photos sort photos at Maximum and on
+    // one of these volumes park 1.10-1.15 x (T095d).
     bool tightPreset(std::string_view id) {
-        return id == "archive" || id == "video" || id == "defrag-only" || id == "free-space" || id == "hot-zone" ||
-            id == "cold-zone" || id == "type-segregation";
+        return id == "archive" || id == "video" || id == "development" || id == "defrag-only" || id == "free-space" ||
+            id == "hot-zone" || id == "cold-zone" || id == "type-segregation";
     }
 
     TEST(Optimality, PresetsStayWithinATenthOfTheLowerBound) {
@@ -217,11 +217,11 @@ namespace icd::core::planner { namespace {
                     const double ratio =
                         reached == 0 ? 1.0 : static_cast<double>(p.totals.clustersMoved) / static_cast<double>(reached);
                     // Fast and Moderate never park; Maximum parks to break the dependency cycles placement could not
-                    // avoid, which costs extra moves: presets that sort large zones (whole volumes, sources, photos) or
-                    // pack many large files rewrite most of a packed region in place and reach up to about 1.45x on
-                    // these heavily fragmented volumes (T095c).
+                    // avoid, which costs extra moves: presets that sort large zones (whole volumes, photos) or pack
+                    // many large files rewrite most of a packed region in place and reach up to about 1.3x on these
+                    // heavily fragmented volumes, nearly all of it large files blocking each other (T095d).
                     const bool tight = p.effort != strategy::Effort::Maximum || tightPreset(preset.id);
-                    EXPECT_LE(ratio, tight ? 1.1 : 1.5)
+                    EXPECT_LE(ratio, tight ? 1.1 : 1.35)
                         << "seed " << seed << " " << preset.id << " " << strategy::effortKey(p.effort);
                 }
             }

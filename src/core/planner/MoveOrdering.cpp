@@ -713,25 +713,129 @@ namespace icd::core::planner {
             // so on until none is left: a parked file breaks every cycle through it, so later rounds see only the
             // cycles it did not break and few large files park.
             void breakGreedily(const CycleMoves& moves) {
-                const std::function<bool(std::uint32_t)> live = [&](std::uint32_t v) {
-                    return state_[v] == State::Waiting;
-                };
-                std::vector<std::uint32_t> members = moves.waiting;
+                std::vector<std::uint32_t> chosen = chooseBreaks(moves.waiting);
+                keepNeeded(moves.waiting, chosen);
                 bool broken = false;
+                for (const std::uint32_t v : chosen) {
+                    if (!breakOne(v)) {
+                        outOfScratch(moves, broken);
+                        return;
+                    }
+                    broken = true;
+                }
+            }
+
+            // Moves to break until no cycle is left among the others: per round, the cheapest break of every
+            // component (nothing is parked yet; `marked_` holds the choice).
+            std::vector<std::uint32_t> chooseBreaks(const std::vector<std::uint32_t>& waiting) {
+                marked_.resize(destinations_.size(), 0);
+                const std::function<bool(std::uint32_t)> live = [&](std::uint32_t v) {
+                    return state_[v] == State::Waiting && marked_[v] == 0;
+                };
+                std::vector<std::uint32_t> chosen;
+                std::vector<std::uint32_t> members = waiting;
                 while (!members.empty()) {
                     LocalCycles local(out_, members, localOf_, live);
                     members.clear();
                     for (auto& cycle : local.cycles()) {
-                        const auto smallest = std::ranges::min_element(
-                            cycle, [&](std::uint32_t a, std::uint32_t b) { return smaller(a, b); });
-                        if (!breakOne(*smallest)) {
-                            outOfScratch(moves, broken);
-                            return;
-                        }
-                        broken = true;
+                        const std::uint32_t v = cheapestBreak(cycle);
+                        marked_[v] = 1;
+                        chosen.push_back(v);
                         members.insert(members.end(), cycle.begin(), cycle.end());
                     }
                 }
+                return chosen;
+            }
+
+            // Drops breaks that are not needed: largest first, a chosen move whose return closes no cycle among the
+            // moves not chosen stays where the plan puts it (greedy choices often leave such redundant ones).
+            void keepNeeded(const std::vector<std::uint32_t>& waiting, std::vector<std::uint32_t>& chosen) {
+                std::vector<std::uint32_t> bySize = chosen;
+                std::ranges::sort(bySize, [&](std::uint32_t a, std::uint32_t b) { return smaller(b, a); });
+                for (const std::uint32_t v : waiting) {
+                    localOf_[v] = 0; // Membership of the component, for the cycle walks.
+                }
+                for (const std::uint32_t v : bySize) {
+                    marked_[v] = 0;
+                    if (onCycle(v)) {
+                        marked_[v] = 1;
+                    }
+                }
+                for (const std::uint32_t v : waiting) {
+                    localOf_[v] = none;
+                }
+                std::erase_if(chosen, [&](std::uint32_t v) { return marked_[v] == 0; });
+                for (const std::uint32_t v : chosen) {
+                    marked_[v] = 0;
+                }
+            }
+
+            // Whether a walk from v along waits among unchosen waiting moves of the component comes back to v.
+            [[nodiscard]] bool onCycle(std::uint32_t v) {
+                ++walk_;
+                seen_.resize(destinations_.size(), 0);
+                std::vector<std::uint32_t> stack{v};
+                while (!stack.empty()) {
+                    const std::uint32_t u = stack.back();
+                    stack.pop_back();
+                    for (const std::uint32_t w : out_[u]) {
+                        if (w == v) {
+                            return true;
+                        }
+                        if (localOf_[w] != none && state_[w] == State::Waiting && marked_[w] == 0 &&
+                            seen_[w] != walk_) {
+                            seen_[w] = walk_;
+                            stack.push_back(w);
+                        }
+                    }
+                }
+                return false;
+            }
+
+            // Waits into and out of each move of a component, counting only waits between its waiting moves.
+            struct Degrees {
+                std::vector<std::uint64_t> in; // Per member: members it waits for.
+                std::vector<std::uint64_t> out; // Per member: members waiting for it.
+            };
+
+            // The degrees of a component's members inside it (localOf_ is left as it was found).
+            [[nodiscard]] Degrees degreesIn(const std::vector<std::uint32_t>& component) {
+                Degrees d{.in = std::vector<std::uint64_t>(component.size(), 0),
+                          .out = std::vector<std::uint64_t>(component.size(), 0)};
+                for (std::uint32_t i = 0; i < component.size(); ++i) {
+                    localOf_[component[i]] = i;
+                }
+                for (std::uint32_t i = 0; i < component.size(); ++i) {
+                    for (const std::uint32_t w : out_[component[i]]) {
+                        const std::uint32_t j = localOf_[w];
+                        if (j != none && state_[w] == State::Waiting) {
+                            ++d.out[i];
+                            ++d.in[j];
+                        }
+                    }
+                }
+                for (const std::uint32_t v : component) {
+                    localOf_[v] = none;
+                }
+                return d;
+            }
+
+            // The move of a component whose parking breaks the most cycles per cluster: the fewest clusters for the
+            // most waits through it (waits in times waits out; every member lies on a cycle), the smaller file among
+            // equals.
+            [[nodiscard]] std::uint32_t cheapestBreak(const std::vector<std::uint32_t>& component) {
+                const Degrees d = degreesIn(component);
+                std::size_t best = 0;
+                for (std::size_t i = 1; i < component.size(); ++i) {
+                    const std::uint64_t power = d.in[i] * d.out[i];
+                    const std::uint64_t bestPower = d.in[best] * d.out[best];
+                    const std::uint64_t cost = clusters_[component[i]] * bestPower;
+                    const std::uint64_t bestCost = clusters_[component[best]] * power;
+                    if (cost < bestCost || (cost == bestCost && smaller(component[i], component[best]))) {
+                        best = i;
+                    }
+                }
+                return component[best];
             }
 
             // Parks (Maximum) or redirects one move; false without scratch space for it.
@@ -939,6 +1043,9 @@ namespace icd::core::planner {
             Flat<ClusterRun> sources_; // Per move: the file's movable runs.
             std::vector<ClusterCount> clusters_; // Per move: its file's movable clusters (sizes rank cycle breaking).
             std::vector<std::uint32_t> live_; // Moves that may still be waiting or parked, ascending.
+            std::vector<std::uint8_t> marked_; // Per move: chosen to break cycles (while choosing).
+            std::vector<std::uint32_t> seen_; // Per move: the cycle walk that last reached it.
+            std::uint32_t walk_ = 0; // The current cycle walk.
             Flat<std::uint32_t> out_; // Per move: the moves waiting for it.
             ComponentArrays arrays_; // The component search's arrays, kept across rounds.
             std::vector<std::uint32_t> localOf_; // Scratch for LocalCycles: per move, its local number or none.

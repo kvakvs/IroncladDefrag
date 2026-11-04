@@ -1153,9 +1153,14 @@ All analysis checks passed.
 - Move ordering (T088, `orderMoves()`): move j depends on move i when j's destination overlaps i's sources. Kahn's
   algorithm emits ready moves in destination order (a min-heap of indexes), so the plan is deterministic. When only
   cycles remain, Tarjan (iterative) finds the components; every component nothing else feeds is a cycle to break. At
-  Maximum a component of up to 2000 waiting moves is broken greedily: the smallest move of every cycle left is parked
-  in scratch space (free runs no destination touches), which frees its sources at once, and `LocalCycles` finds the
-  cycles left among the component's moves until none is; larger components park all their back-edge moves when
+  Maximum a component of up to 2000 waiting moves is broken greedily (T095c): per round, every cycle left gives up the
+  move with the fewest clusters per wait through it (waits in times waits out inside the component, the smaller file
+  among equals), and `LocalCycles` finds the cycles left among the others until none is; then the chosen moves are
+  checked largest first and any whose return closes no cycle among the unchosen ones is kept in its place (the greedy
+  rounds leave many such); the rest are parked in scratch space (free runs no destination touches), which frees their
+  sources at once. On the OptimalityTest volumes that parks a tenth of the files the smallest-first rule parked and a
+  third fewer clusters (whole-volume sorts 1.18-1.30 x the bound, were 1.25-1.44); what is left is mostly large files
+  blocking each other (T095d). Larger components park all their back-edge moves when
   there are at most 16 (that removes every cycle in them), else the smallest quarter of them per round. A parked file's return waits for the move's own dependencies (its edges are ignored from
   then on). Elsewhere, or without scratch space, the cycle is dropped with every move that waited on it (skipped as Cycle
   or Dependency; extra moves are dropped without a skip entry, they were never in the bound).
