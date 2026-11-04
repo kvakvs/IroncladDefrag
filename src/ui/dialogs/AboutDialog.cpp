@@ -4,6 +4,7 @@
 #include "core/resources/ResourceCaps.h"
 #include "services/AppInfo.h"
 #include "services/AppServices.h"
+#include "ui/AppIcon.h"
 
 #include <wx/button.h>
 #include <wx/font.h>
@@ -40,6 +41,7 @@ namespace icd::ui {
 
     AboutDialog::AboutDialog(wxWindow* parent, const services::AppServices& services) :
         wxDialog(parent, wxID_ANY, wxString::FromUTF8("About " + std::string(services::appName()))) {
+        SetIcons(appIcons());
         auto* title = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(std::string(services::appName())));
         title->SetFont(title->GetFont().Scaled(1.6F).Bold());
         auto* tagline = new wxStaticText(this, wxID_ANY, "Disk analyser and defragmenter for NTFS hard drives");

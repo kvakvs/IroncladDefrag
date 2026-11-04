@@ -87,18 +87,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Phase 11 - Deployment (§13 Phase 11)
 
-### T141 - App icon
-
-- Depends: T002
-- Needs from the user: the icon. **Gate:** ask for it (a multi-size `.ico` with 16, 20, 24, 32, 48, 64 and 256 px, or a
-  square PNG/SVG master of at least 256 px to build it from) before starting; do not draw one.
-- Owns: `res/IroncladDefrag.ico`, the icon lines of `res/IroncladDefrag.rc`, the frame icon in `src/ui/MainFrame.*`
-- Do: embed the icon as the executable's first icon resource (Explorer, taskbar, Alt+Tab, shortcuts and the installer
-  use it); set it on the main frame and the dialogs through `wxIconBundle` so every size is sharp at any DPI; keep the
-  source file in the repository and note its origin.
-- Done when: Explorer, the taskbar, the title bar and Alt+Tab show the icon at 100% and 150-200% scaling, with no wx
-  default icon left anywhere.
-
 ### T142 - Version 1.0
 
 - Depends: T002

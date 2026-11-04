@@ -6,6 +6,7 @@
 #include "core/log/Log.h"
 #include "core/map/MapData.h"
 #include "core/snapshot/FileSearch.h"
+#include "ui/AppIcon.h"
 
 #include <wx/button.h>
 #include <wx/listctrl.h>
@@ -87,6 +88,7 @@ namespace icd::ui {
         wxDialog(parent, wxID_ANY, "Go to file", wxDefaultPosition, wxDefaultSize,
                  wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER),
         map_(std::move(map)), executor_(executor), mailbox_(std::make_shared<SearchMailbox>()), typingTimer_(this) {
+        SetIcons(appIcons());
         mailbox_->target = this;
         createControls(query);
         Bind(wxEVT_TIMER, [this](wxTimerEvent&) { startSearch(); }, typingTimer_.GetId());

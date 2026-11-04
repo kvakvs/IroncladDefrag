@@ -7,6 +7,10 @@
 #define wxUSE_NO_MANIFEST 1
 #include "wx/msw/wx.rc"
 
+// The app icon (T141; master and credits: res/icon, CREDITS.md). Named so it sorts before wx.rc's "wxICON_AAA":
+// Explorer, the taskbar and shortcuts show the first icon group, and named groups come in alphabetical order.
+APPICON ICON "IroncladDefrag.ico"
+
 VS_VERSION_INFO VERSIONINFO
     FILEVERSION ICD_VERSION_MAJOR, ICD_VERSION_MINOR, ICD_VERSION_PATCH, 0
     PRODUCTVERSION ICD_VERSION_MAJOR, ICD_VERSION_MINOR, ICD_VERSION_PATCH, 0

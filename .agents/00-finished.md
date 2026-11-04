@@ -464,3 +464,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   .inc, .in, .asn1, .app.src, .appup, .mib, .xsd, .s, .svg, .gql, .j2, .pem...), binaries inside projects (exe, dll,
   lib, a, so, dylib, pyd, wasm) build output (the user's call). The synthetic volume's binaries are `.sys` (installed
   programs, outside the root project). FolderWalkTest, CatalogTest.
+- T141 App icon - Flaticon "HDD" by Smashicons (`CREDITS.md`): masters in `res/icon` (`hdd-color.png` used, the
+  outline and blue styles kept), `res/IroncladDefrag.ico` (16, 20, 24, 32, 48, 64, 256 px; 256 as PNG) built by
+  `tools/make-icon.ps1` (ImageMagick), embedded as `APPICON` ahead of wx.rc's `wxICON_AAA`; `ui::appIcons()`
+  (`src/ui/AppIcon.*`) sets the bundle on the main frame and all seven dialogs. Checked: the exe's first icon group,
+  shell extraction at 16-256 px, the frame's small and big icons and its title bar at 100%.

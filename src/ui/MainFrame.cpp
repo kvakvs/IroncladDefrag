@@ -4,6 +4,7 @@
 #include "services/AppInfo.h"
 #include "services/AppServices.h"
 #include "ui/Accelerators.h"
+#include "ui/AppIcon.h"
 #include "ui/Commands.h"
 #include "ui/MainMenu.h"
 #include "ui/WorkflowBinding.h"
@@ -34,6 +35,7 @@ namespace icd {
                 wxString::FromUTF8(std::string(services::appName()) + " " + std::string(services::appVersion())),
                 wxDefaultPosition, wxDefaultSize),
         services_(services) {
+        SetIcons(ui::appIcons());
         SetMenuBar(ui::createMainMenuBar()); // The frame owns the menu bar and its menus.
         ui::applyMenuShortcuts(*GetMenuBar());
         buildLayout();

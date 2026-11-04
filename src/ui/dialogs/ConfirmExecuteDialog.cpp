@@ -3,6 +3,7 @@
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
 #include "core/format/Duration.h"
+#include "ui/AppIcon.h"
 
 #include <wx/button.h>
 #include <wx/checkbox.h>
@@ -54,6 +55,7 @@ namespace icd::ui {
 
     ConfirmExecuteDialog::ConfirmExecuteDialog(wxWindow* parent, const ExecuteConfirmation& what) :
         wxDialog(parent, wxID_ANY, "Execute plan") {
+        SetIcons(appIcons());
         const std::string question = std::format("Execute the {} plan ({}) on {}?",
                                                  services::effortName(what.level.level), what.strategy, what.drive);
         auto* heading = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(question));

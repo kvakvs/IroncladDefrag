@@ -4,6 +4,7 @@
 #include <wx/settings.h>
 #include <wx/sizer.h>
 #include <wx/stattext.h>
+#include "ui/AppIcon.h"
 
 #include <format>
 
@@ -50,6 +51,7 @@ namespace icd::ui {
 
     ScheduleDialog::ScheduleDialog(wxWindow* parent, const ScheduleQuestion& what) :
         wxDialog(parent, wxID_ANY, "Windows scheduled optimization") {
+        SetIcons(appIcons());
         const ScheduleTexts texts = textsFor(what);
         auto* heading = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(texts.heading));
         heading->SetFont(heading->GetFont().Scaled(1.2F).Bold());

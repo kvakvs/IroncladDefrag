@@ -3,6 +3,7 @@
 #include "core/format/ByteSize.h"
 #include "services/AppServices.h"
 #include "services/exec/ThreadPool.h"
+#include "ui/AppIcon.h"
 
 #include <wx/button.h>
 #include <wx/checkbox.h>
@@ -82,6 +83,7 @@ namespace icd::ui {
     SettingsDialog::SettingsDialog(wxWindow* parent, const services::Settings& settings, const ResourceFacts& facts,
                                    SettingsPage page) :
         wxDialog(parent, wxID_ANY, "Settings"), settings_(settings), facts_(facts) {
+        SetIcons(appIcons());
         auto* notebook = new wxNotebook(this, wxID_ANY);
         notebook->AddPage(createPlanningPage(notebook), "Planning");
         notebook->AddPage(createResourcesPage(notebook), "Resources");

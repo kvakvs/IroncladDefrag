@@ -1,6 +1,7 @@
 #include "ui/dialogs/ShortcutsDialog.h"
 
 #include "ui/Accelerators.h"
+#include "ui/AppIcon.h"
 
 #include <wx/button.h>
 #include <wx/listctrl.h>
@@ -70,6 +71,7 @@ namespace icd::ui {
     ShortcutsDialog::ShortcutsDialog(wxWindow* parent, const wxMenuBar& bar) :
         wxDialog(parent, wxID_ANY, "Keyboard shortcuts", wxDefaultPosition, wxDefaultSize,
                  wxDEFAULT_DIALOG_STYLE | wxRESIZE_BORDER) {
+        SetIcons(appIcons());
         auto* list =
             new wxListView(this, wxID_ANY, wxDefaultPosition, FromDIP(wxSize(480, 520)), wxLC_REPORT | wxLC_SINGLE_SEL);
         list->AppendColumn("Keys", wxLIST_FORMAT_LEFT, FromDIP(140));

@@ -411,6 +411,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/WorkflowBinding.h
     src/ui/bridge/JobEvents.cpp
     src/ui/bridge/JobEvents.h
+    src/ui/AppIcon.cpp
+    src/ui/AppIcon.h
     src/ui/dialogs/AboutDialog.cpp
     src/ui/dialogs/AboutDialog.h
     src/ui/dialogs/ConfirmExecuteDialog.cpp

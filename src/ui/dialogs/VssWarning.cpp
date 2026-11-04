@@ -2,6 +2,7 @@
 
 #include "core/format/ByteSize.h"
 #include "core/format/Count.h"
+#include "ui/AppIcon.h"
 
 #include <wx/button.h>
 #include <wx/sizer.h>
@@ -33,6 +34,7 @@ namespace icd::ui {
 
     VssWarningDialog::VssWarningDialog(wxWindow* parent, const VssWarningFacts& facts) :
         wxDialog(parent, wxID_ANY, "Shadow copies") {
+        SetIcons(appIcons());
         auto* heading = new wxStaticText(this, wxID_ANY, "This plan will make the shadow copies grow");
         heading->SetFont(heading->GetFont().Scaled(1.2F).Bold());
         auto* body = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(bodyOf(facts)));

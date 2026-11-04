@@ -23,7 +23,10 @@ changes (see `AGENTS.md`).
 | `run-elevated.bat` | `run-elevated.bat [Debug|Release]`: starts the GUI through the shell (UAC prompt). |
 | `tools/dev-env.cmd` | Shared by the scripts: `ICD_BUILD_DIR`, vcvars64 once, LLVM first on `PATH`. |
 | `res/IroncladDefrag.manifest` | Embedded manifest: `requireAdministrator`, Common Controls v6, PerMonitorV2 DPI, long paths, Win10+. |
-| `res/IroncladDefrag.rc` | wx standard resources (`wx/msw/wx.rc`, its manifest off) and `VERSIONINFO`. |
+| `res/IroncladDefrag.rc` | wx standard resources (`wx/msw/wx.rc`, its manifest off), the app icon `APPICON` and `VERSIONINFO`. |
+| `res/IroncladDefrag.ico` | The app icon (16-256 px), built by `tools/make-icon.ps1` from `res/icon/hdd-color.png`. |
+| `res/icon/*.png` | Icon masters (512 px): `hdd-color.png` (used), `hdd-color-outline.png`, `hdd-blue.png` (spares); origin in `CREDITS.md`. |
+| `CREDITS.md` | Third-party artwork and its attribution (the Flaticon HDD icon by Smashicons). |
 | `.gitattributes` | CRLF for `.bat`, `.cmd`, `.ps1`. |
 | `quality.bat` | `quality.bat [changed|all]`: creates `.venv-quality`, enters vcvars64, configures `build/quality` (Ninja + clang-cl, compile database, no PCH), builds `check-quality[-all]`. |
 | `.clang-tidy` | clang-tidy checks and the cognitive complexity threshold (10). |
@@ -223,6 +226,7 @@ changes (see `AGENTS.md`).
 | `src/precompiled.h` | GUI PCH: `<wx/wx.h>` and std headers only. |
 | `src/main.cpp` | `wxIMPLEMENT_APP(icd::App)`. |
 | `src/ui/App.*` | `icd::App`: starts logging and `AppServices`, applies the light/dark appearance (`MSWEnableDarkMode`), creates the main frame (`--drive X:` selects a drive), stops services on exit. |
+| `src/ui/AppIcon.*` | `appIcons()`: every size of the embedded `APPICON` as one `wxIconBundle`, for the frame and the dialogs. |
 | `src/ui/MainFrame.*` | Main window: menu, drives panel, map/bottom splitter (bottom keeps its height); creates the workflow binding. |
 | `src/ui/WorkflowBinding.*` | Commands to workflow actions, the job per step (all real; fake drives keep the synthetic analysis and a simulated execution), the elevation check before disk actions, the Execute confirmation, Progress fields with worker utilisation, plan overlays to the map (`dropPlan()` clears them), Build plan blocked by strategy problems (`allowed()`), progress and results to the panels, TRIM output to the Log tab, command enable state, per-drive strategy restored on selection and remembered on change, Settings dialog and caps refresh before each job. |
 | `src/ui/StrategyActions.*` | The Strategy tab's Save as / Delete / Import / Export: name, file and confirmation dialogs, library changes, picker refill (`showLibrary()`). |
@@ -395,6 +399,7 @@ changes (see `AGENTS.md`).
 | `tools/testvol/capture-mft-records.ps1` | Reads raw MFT records (fixups as on disk) and their extension records from an ICD-TEST volume into `.bin` test data. |
 | `tools/testvol/make-scalevol/` | `make-scalevol` target: `make-scalevol <drive> --files N [--seed S] [--threads T] [--per-dir N] [--fragmented SHARE] [--min-size B] [--max-size B]`: scale volumes of allocated, never written files. |
 | `tools/testvol/verify-testvol.ps1` | `-Action Hash` writes a JSON manifest (every entry: size, attributes, SHA-256 of the main stream and each ADS, reparse targets not followed); `Verify` compares and runs `chkdsk /scan` (exit 1 on any difference); `Chkdsk` alone. |
+| `tools/make-icon.ps1` | Builds `res/IroncladDefrag.ico` from the PNG master with ImageMagick (one Lanczos resize per size, 256 px stored as PNG). |
 | `tools/fetch-wx.ps1` | Downloads the pinned wxWidgets prebuilt MSVC x64 archives (Dev, ReleaseDLL, headers), checks SHA-256, extracts to `3rdparty/wxWidgets`. No-op when the stamp matches; `-Force` redoes it. |
 
 ## Dependencies
