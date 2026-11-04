@@ -269,9 +269,34 @@ namespace icd::services { namespace {
         drive.media = core::MediaType::Ssd;
         EXPECT_EQ(driveKind(&drive), DriveKind::Ssd);
         drive.media = core::MediaType::Hdd;
+        drive.storage.bus = "Storage Spaces";
+        EXPECT_EQ(driveKind(&drive), DriveKind::AnalyzeOnly);
         drive.fileSystem = "exFAT";
         EXPECT_EQ(driveKind(&drive), DriveKind::Unsupported);
         EXPECT_EQ(driveKind(nullptr), DriveKind::None);
+    }
+
+    // A drive whose setup blocks moves goes through analysis, planning and review, but never executes; selecting a
+    // movable drive afterwards allows it again.
+    TEST(Workflow, AnalyzeOnlyNeverExecutes) {
+        Workflow flow;
+        EXPECT_TRUE(flow.selectDrive(DriveKind::AnalyzeOnly));
+        EXPECT_EQ(flow.state(), NotAnalyzed);
+        EXPECT_EQ(flow.apply(Analyze), WorkflowJob::Analyze);
+        flow.finish(JobOutcome::Succeeded);
+        EXPECT_EQ(flow.apply(BuildPlan), WorkflowJob::Plan);
+        flow.finish(JobOutcome::Succeeded);
+        EXPECT_EQ(flow.state(), Reviewing);
+        EXPECT_TRUE(flow.can(Review));
+        EXPECT_FALSE(flow.can(Execute));
+        EXPECT_EQ(flow.apply(Execute), WorkflowJob::None);
+        EXPECT_EQ(flow.state(), Reviewing);
+        flow.selectDrive(DriveKind::Hdd);
+        flow.apply(Analyze);
+        flow.finish(JobOutcome::Succeeded);
+        flow.apply(BuildPlan);
+        flow.finish(JobOutcome::Succeeded);
+        EXPECT_TRUE(flow.can(Execute));
     }
 
 }} // namespace icd::services

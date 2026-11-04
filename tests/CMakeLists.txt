@@ -78,6 +78,7 @@ add_executable(icd_tests
     platform/UsnJournalTest.cpp
     platform/VolumeBitmapTest.cpp
     platform/VolumesTest.cpp
+    platform/VolumeTopologyTest.cpp
     services/AnalysisJobTest.cpp
     services/AnalysisReportTest.cpp
     services/CatchUpPatchTest.cpp
@@ -123,7 +124,7 @@ set(ICD_SLOW_TESTS
     ":ApiScanner.*:MftScanner.*:AnalysisJob.AnalysesTheSpecialVolume:AnalysisJob.CancelStopsTheScan"
     ":VolumeBitmap.*:Volumes.ListsTheWindowsDriveWithItsDisk:Volumes.NtfsDataMatchesFsutil"
     ":StorageProperties.MatchesGetPhysicalDisk:ShadowCopies.DetectsTheVssScenario:UsnCatchUp.SnapshotDraftsFinishIntoTheSameSnapshot"
-    ":ClusterMove.MovesFilesOnTestVolumes")
+    ":ClusterMove.MovesFilesOnTestVolumes:VolumeTopology.MatchesWindows")
 string(JOIN "" ICD_SLOW_TESTS ${ICD_SLOW_TESTS})
 # Runs the exe at test time to list tests, so building never depends on running it.
 gtest_discover_tests(icd_tests DISCOVERY_MODE PRE_TEST TEST_FILTER "-${ICD_SLOW_TESTS}" PROPERTIES LABELS fast)

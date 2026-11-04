@@ -138,6 +138,69 @@ namespace icd::core { namespace {
         EXPECT_EQ(badgeLabels(drive, now), (std::vector<std::string>{"Auto-optimize on"}));
     }
 
+    // Each storage setup the app does not move files on blocks moves (in MoveBlock order), but not analysis.
+    TEST(DriveInfo, MoveBlocks) {
+        DriveInfo drive = hdd();
+        EXPECT_TRUE(moveBlocks(drive).empty());
+        EXPECT_TRUE(canMove(drive));
+        drive.storage.bus = "SATA";
+        drive.storage.encrypted = false;
+        drive.layout.diskExtentCount = 1;
+        EXPECT_TRUE(canMove(drive));
+        const auto blocked = [](DriveInfo d) {
+            EXPECT_TRUE(canOptimize(d));
+            EXPECT_FALSE(canMove(d));
+            return moveBlocks(d);
+        };
+        DriveInfo raid = drive;
+        raid.storage.bus = "RAID";
+        EXPECT_EQ(blocked(raid), std::vector{MoveBlock::Raid});
+        DriveInfo spaces = drive;
+        spaces.storage.bus = "Storage Spaces";
+        EXPECT_EQ(blocked(spaces), std::vector{MoveBlock::StorageSpaces});
+        DriveInfo dynamic = drive;
+        dynamic.storage.dynamicDisk = true;
+        EXPECT_EQ(blocked(dynamic), std::vector{MoveBlock::DynamicDisk});
+        DriveInfo spanned = drive;
+        spanned.layout.diskExtentCount = 2; // Spanned or striped: no single disk.
+        EXPECT_EQ(blocked(spanned), std::vector{MoveBlock::DynamicDisk});
+        DriveInfo removable = drive;
+        removable.storage.removable = true;
+        EXPECT_EQ(blocked(removable), std::vector{MoveBlock::Removable});
+        DriveInfo encrypted = drive;
+        encrypted.storage.encrypted = true;
+        EXPECT_EQ(blocked(encrypted), std::vector{MoveBlock::Encrypted});
+        encrypted.storage.removable = true;
+        EXPECT_EQ(blocked(encrypted), (std::vector{MoveBlock::Removable, MoveBlock::Encrypted}));
+        // An SSD or a non-NTFS volume is not optimizable at all, blocked or not.
+        encrypted.media = MediaType::Ssd;
+        EXPECT_FALSE(canMove(encrypted));
+    }
+
+    // A blocked drive says so in one badge and explains every reason where Execute would be.
+    TEST(DriveText, MovesBlocked) {
+        const auto now = std::chrono::system_clock::time_point(1000h);
+        DriveInfo drive = hdd();
+        EXPECT_EQ(movesBlockedText(drive), "");
+        drive.storage.bus = "RAID";
+        drive.storage.encrypted = true;
+        drive.badges.vssPresent = true;
+        EXPECT_EQ(badgeLabels(drive, now), (std::vector<std::string>{"No moves (RAID, BitLocker)", "VSS"}));
+        const std::string text = movesBlockedText(drive);
+        EXPECT_TRUE(text.starts_with("Moves are blocked on this drive: it sits behind a RAID controller")) << text;
+        EXPECT_NE(text.find("; it is encrypted with BitLocker"), std::string::npos) << text;
+        EXPECT_TRUE(text.ends_with("Analysis and plans still work, so the layout can be reviewed.")) << text;
+        for (const MoveBlock block : {MoveBlock::Raid, MoveBlock::StorageSpaces, MoveBlock::DynamicDisk,
+                                      MoveBlock::Removable, MoveBlock::Encrypted}) {
+            EXPECT_FALSE(blockName(block).empty());
+            EXPECT_FALSE(blockReason(block).empty());
+        }
+        // SSDs only get TRIM, so a block means nothing there.
+        drive.media = MediaType::Ssd;
+        EXPECT_EQ(movesBlockedText(drive), "");
+        EXPECT_EQ(badgeLabels(drive, now), (std::vector<std::string>{"VSS"}));
+    }
+
     // Stopwatch durations.
     TEST(Duration, Stopwatch) {
         EXPECT_EQ(formatDuration(0s), "0:00");

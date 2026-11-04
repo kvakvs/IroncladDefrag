@@ -1,6 +1,7 @@
 #include "cli/commands/Execute.h"
 
 #include "cli/commands/CliCommon.h"
+#include "core/format/DriveText.h"
 #include "core/job/CancelToken.h"
 #include "core/job/PauseGate.h"
 #include "platform/win/Console.h"
@@ -322,6 +323,10 @@ namespace icd::cli {
             const auto drive = findDrive(app, normalizeRoot(args.volume));
             if (const char* why = refusal(drive)) {
                 std::fprintf(stderr, "icd-cli execute: %s\n", why);
+                return 1;
+            }
+            if (const std::string blocked = core::movesBlockedText(*drive); !blocked.empty()) {
+                std::fprintf(stderr, "icd-cli execute: %s\n", blocked.c_str());
                 return 1;
             }
             Prepared prepared = prepare(args, *drive, context);

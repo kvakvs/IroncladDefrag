@@ -117,6 +117,20 @@ this file records what is actually built and the decisions made along the way.
   penalty, yet it is the test bed and keeps the full workflow), then the seek penalty (HDD / SSD), then TRIM as an
   SSD hint; a device that says nothing stays `Unknown` (full workflow, shown as such). Checked against
   `Get-PhysicalDisk` in `StoragePropertiesTest`.
+- Setups that block moves (T122, plan.md 4 and Phase 9): `core::moveBlocks()` reads them from `StorageFacts` and the
+  layout: RAID bus, Storage Spaces bus, a dynamic disk or a volume with more than one disk extent (spanned, striped,
+  mirrored), removable media (`RemovableMedia` or `DRIVE_REMOVABLE`) and BitLocker. `platform/win/VolumeTopology`
+  adds the two facts the property queries do not give: LDM partitions in `IOCTL_DISK_GET_DRIVE_LAYOUT_EX` (any
+  access) mark a dynamic disk, and one WMI query per listing (`Win32_EncryptableVolume` in
+  `ROOT\CIMV2\Security\MicrosoftVolumeEncryption`, packet privacy, administrators only) gives each volume's
+  `ConversionStatus` (anything but fully decrypted counts as encrypted). Such a drive is still analysed and planned
+  (`DriveKind::AnalyzeOnly`): the badge "No moves (RAID, BitLocker)" names the setups, the plan-ready status and
+  `icd-cli execute` explain each one (`movesBlockedText()`), and `Workflow::can(Execute)` stays false. Checked against
+  `Get-Partition` and `Get-CimInstance` in `VolumeTopologyTest`, and live by
+  `tests/integration/topology/check-topology.ps1`: a temporary Storage Spaces pool of two VHDX files, whose volume is
+  planned while `icd-cli execute` refuses it. Current Windows no longer creates dynamic disks ("convert dynamic" is not
+  supported, also on a VHDX), and RAID, removable media and BitLocker need hardware or system changes, so those are unit
+  tests on the facts.
 - Nothing throws: the first failed query is kept in `VolumeRecord::problem` and logged, and the drive is listed with
   what was answered. Without NTFS data and without elevation the drive gets the "Admin needed" badge.
 - The core model is `core::VolumeLayout` inside `DriveInfo`; `toDriveInfo()` converts (UTF-16 to UTF-8 through

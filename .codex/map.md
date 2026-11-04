@@ -86,8 +86,8 @@ changes (see `AGENTS.md`).
 | `src/core/classify/RuleEngine.*` | `RuleEngine` (ordered rules over path globs, extensions, size, age, flags and churn; per-directory overrides; one automaton for all globs, stepped per directory level and per file name; parallel `classify()`, `classifyPath()`), `RuleSet`, `Rule`, `ClassId`, `extensionOf()`. |
 | `src/core/format/Json.*` | `JsonWriter` (streaming, indented, RFC 8259 escaping), `jsonQuote()`. |
 | `src/core/format/Duration.*` | `formatDuration()` (stopwatch), `formatAge()` ("3 h ago"). |
-| `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeStorage()` (media with bus), `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`. |
-| `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType` (HDD, SSD, Virtual, Unknown), `StorageFacts`, `VolumeLayout`; `classifyMedia()`, `canOptimize()` (NTFS, not SSD), `isSsd()`. |
+| `src/core/format/DriveText.*` | All-disks column texts: `driveName()`, `describeSpace()`, `describeStorage()` (media with bus), `describeFragmentation()`, `describeLastAnalysed()`, `badgeLabels()`, `blockName()` / `blockReason()` / `movesBlockedText()` (setups that block moves). |
+| `src/core/model/DriveInfo.*` | `DriveInfo`, `DriveBadges` (undetected facts optional), `MediaType` (HDD, SSD, Virtual, Unknown), `StorageFacts`, `VolumeLayout`; `classifyMedia()`, `canOptimize()` (NTFS, not SSD), `isSsd()`, `MoveBlock` and `moveBlocks()` / `canMove()` (RAID, Storage Spaces, dynamic disks, removable, BitLocker). |
 | `src/core/model/VolumeLayout.h` | `VolumeLayout` (volume GUID name, sector/cluster size, cluster counts, disk number, partition offset, disk size, extent count) and `NtfsLayout` (serial, version, record size, MFT/mirror/zone, reserved). |
 | `src/core/exec/Executor.*` | `ChunkedRange`, `Executor` interface (`submit`, `parallelFor`), `InlineExecutor`, deterministic `parallelReduce` and `parallelSort` (chunks sorted in parallel, then merged pairwise). |
 | `src/services/exec/ThreadPool.*` | Work-stealing `ThreadPool` (per-worker deques, caller joins `parallelFor`, cancel-aware); `busyTime()` (worker time in tasks, running ones up to now) for the Progress tab's utilisation. |
@@ -156,6 +156,7 @@ changes (see `AGENTS.md`).
 | `src/platform/win/Privileges.*` | `enablePrivilege()` (e.g. `SE_BACKUP_NAME` for files only SYSTEM may open), `relaunchElevated()` (`ShellExecuteExW` "runas" of this program). |
 | `src/platform/win/RetrievalPointers.*` | `readRetrievalPointers()` (all runs of a stream, holes as LCN -1), `readFileFacts()` (times, attributes, size, links, named streams), `openFileById()`, `openForQuery()`. |
 | `src/platform/win/ShadowCopies.*` | `countShadowCopies()` (vssadmin listing, GUID path count, nullopt without rights), `countShadowsInListing()`. |
+| `src/platform/win/VolumeTopology.*` | `isDynamicDisk()` (LDM partitions via `IOCTL_DISK_GET_DRIVE_LAYOUT_EX`, `hasLdmPartition()`), `encryptedVolumes()` (BitLocker states from WMI `Win32_EncryptableVolume`), `volumeKey()`. |
 | `src/platform/win/StorageProperties.*` | `queryDiskStorage()` / `queryVolumeStorage()` (seek penalty, TRIM, bus, removable, model via `IOCTL_STORAGE_QUERY_PROPERTY`), `busTypeName()`. |
 | `src/platform/win/TextConvert.*` | `toUtf8()` / `fromUtf8()` between the Windows API and the core model, `oemToUtf8()` for console tool output. |
 | `src/platform/win/UsnJournal.*` | `queryUsnJournal()` (ID and USN cursor, none when inactive), `enumerateUsnFiles()` (`FSCTL_ENUM_USN_DATA`: reference, parent, attributes, name per MFT record), `mftRecordOf()`. |
@@ -170,7 +171,7 @@ changes (see `AGENTS.md`).
 | `src/services/AppInfo.*` | Product name and version (from `core/Version.h`), `buildDescription()` (configuration, compiler). |
 | `src/services/AppServices.*` | Service composition root: resources (and `detectResources()` for a fresh reading), caps, `ThreadPool`, `JobRunner`, drive provider (`DriveSource`: system, or fake with `ICD_FAKE_DRIVES=1`), `SettingsStore`. |
 | `src/services/drives/IDriveProvider.h` | Drive list source interface used by GUI and CLI. |
-| `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge); the system-wide last-access badge on NTFS drives. |
+| `src/services/drives/SystemDriveProvider.*` | Real drive list from `enumerateVolumes()`; `toDriveInfo()` (admin-needed badge); the system-wide last-access badge on NTFS drives; `addTopology()` (removable, dynamic disk, BitLocker facts). |
 | `src/services/drives/FakeDriveProvider.*` | Fake drives: SSD, three NTFS HDDs in different states, one exFAT drive, and a 30 TB drive at the design target. |
 | `src/services/job/JobRunner.*` | `JobRunner`, `JobContext`, `JobObserver`, `JobResult`: jobs on the pool with cancel, throttled progress, one result. |
 | `src/services/job/FakeJob.*` | `makeFakeParallelJob()`: serial + parallel stages with stage names, item labels and a pause gate; stands in for every workflow step in Phase 1. |
@@ -207,7 +208,7 @@ changes (see `AGENTS.md`).
 | `src/services/scan/ScanCompare.*` | `compareWithApi()` (MFT scan against the API reference), `compareExact()` (snapshot equality), `ScanComparison`. |
 | `src/services/scan/ApiScanner.*` | `scanFilesApi()`: reference scan (enumeration, open by id in MFT order, metadata and retrieval pointers per stream, special-case flags, reconcile, snapshot with USN cursor); statistics in `ScanStats`. |
 | `src/services/trim/TrimJob.*` | `makeTrimJob()` (defrag /L as a job, percentage as progress), `LineSplitter` (CR or LF), `retrimPercent()`, `TrimOutput` (lines for the Log tab). |
-| `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start); no wx, unit-tested. |
+| `src/services/workflow/Workflow.*` | Workflow state machine (states, actions, which job to start; `DriveKind::AnalyzeOnly` never executes); no wx, unit-tested. |
 | `src/services/workflow/SyntheticAnalysis.*` | Analysis of fake drives: synthetic snapshot shaped like the drive, then `MapData` on the job's executor, handed over through `AnalysisOutput`. |
 | `src/services/workflow/FakeResults.*` | `AnalysisSummary` (with `ScanFigures` from a real scan), `PlanSummary`, fake analysis for fake drives, fake three-level plan (UI shell without a map) and skipped files. |
 | `src/ui/bridge/JobEvents.*` | `JobEventBridge` (job callbacks to `wxQueueEvent`), `jobProgressEvent()`, `jobFinishedEvent()`, payloads. |
@@ -252,6 +253,7 @@ changes (see `AGENTS.md`).
 | `src/cli/commands/Plan.*` | `icd-cli plan <volume> [--strategy ID] [--level fast|moderate|max] [--json] [--moves] [--threads N] [--synthetic FILES] [--save FILE]`: analysis (or a synthetic volume), three levels planned, report on stdout; `--save` writes the chosen level for `icd-cli execute --plan`. |
 | `src/cli/commands/Execute.*` | `icd-cli execute`: plan now, `--plan FILE` or `--resume [--log FILE]`, options (chunk, priority, throughput, age, prefetch, `--check-rescan`), `--max-moves N` (a prefix of the plan), test hooks (`--pause-after`, `--cancel-after`, `--take-destination`), JSON or text report, exit codes. |
 | `src/cli/commands/Analyze.*` | `icd-cli analyze <volume> [--json] [--dump-extents] [--scanner api|mft] [--threads N]`: drive lookup, checks, console progress, Ctrl+C cancel, report on stdout. |
+| `tests/integration/topology/check-topology.ps1` | T122: a temporary Storage Spaces pool of two VHDX files; its volume is planned, `icd-cli execute` refuses it naming Storage Spaces; pool and files removed. |
 | `tests/integration/planner/check-planner.ps1` | T095: per scenario a read-only test volume planned with its preset through `icd-cli plan --json --moves`; validity, ratio <= 1.1 per level, Fast within 2% and inside hot spots. |
 | `tests/integration/execute/check-execute.ps1` | T104 / Phase 7 exit (about 12 min for `-Scenarios all`): per scenario a 1 GB volume with a journal, every execution capped by `-MaxMoves`: changes between plan and execute dropped, main run with a stale bitmap, on `mixed` pause/cancel and kill then resume; after each run the report checks and `check-catchup`, at the end hashes and `chkdsk /scan`; `-ChurnGap` measures churn-gap allocation on `dev`; step timings. |
 | `tests/integration/classes/check-classes.ps1` | T074 / Phase 5 exit: read-only `mixed` volume, every file's class against the scenario layout, summary bytes per class = dumped clusters, counts cover every file. |
@@ -296,7 +298,7 @@ changes (see `AGENTS.md`).
 | `tests/core/SmokeTest.cpp` | `formatBytes()` and `formatCount()` tests. |
 | `tests/core/JobTypesTest.cpp` | Cancellation propagation, progress throttling, pause gate, stage clock. |
 | `tests/services/TrimJobTest.cpp` | Line splitting across chunks (CR, CRLF), retrim percentages, output queue. |
-| `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions. |
+| `tests/services/WorkflowTest.cpp` | Every workflow transition, Quick, cancel and failure paths, disallowed actions, analyse-only drives. |
 | `tests/core/OptimalityTest.cpp` | Exhaustive minimum on tiny volumes against Maximum plans and the lower bound; plan / lower-bound ratios of every preset and level on synthetic volumes (1.1, presets that sort large zones 1.5 at Maximum). |
 | `tests/core/CycleGuardTest.cpp` | Swaps and longer cycles reported before they are taken, `cycleEnd()` past the file that closes one, waits recorded against the order still found after its repair. |
 | `tests/core/OverviewTest.cpp` | Minimap placement, hiding, pixel/world round trips, view marker, dragging. |
@@ -343,13 +345,14 @@ changes (see `AGENTS.md`).
 | `tests/services/SimDevice.h` | `testing::SimDevice`: FSCTL_MOVE_FILE semantics over a `SimVolume` (optionally in pieces that stay moved when a later piece is refused, as on NTFS), locked files, a hook before each call, `SimulatedCrash` after N calls. |
 | `tests/services/RevalidateTest.cpp` | Refusals (other volume, serial, size, NTFS, age); unchanged volume keeps and runs every move; scripted deletes, changes and taken destinations dropped with reasons while the rest still runs; moves cut short kept with their rest. |
 | `tests/services/SimVolume.h` | `testing::SimVolume`: a volume in memory (owner per cluster, files as clusters in stream and VCN order) for revalidation and executor tests; `move()`, `remove()`, `occupy()`, `release()`. |
-| `tests/core/DriveInfoTest.cpp` | Drive model rules, column texts, badges, durations and ages. |
+| `tests/core/DriveInfoTest.cpp` | Drive model rules, move blocks, column texts, badges, durations and ages. |
 | `tests/services/AnalysisJobTest.cpp` | Bitmap-only snapshot; full job on the `special` volume (stages, final map, summary); cancel during the scan. |
 | `tests/services/AnalysisReportTest.cpp` | JSON report carries the summary and USN cursor; dumped runs joined; flag names. |
 | `tests/services/ApiScannerTest.cpp` | On the `special` test volume: every special case flagged, extent kinds, every cluster accounted for, extents = `fsutil file queryextents` for sampled files. |
 | `tests/services/FakeDriveProviderTest.cpp` | The fake list covers every row style. |
 | `tests/core/ResourceCapsTest.cpp` | `computeCaps()` edge cases (1 CPU, 2 GB, 128 threads, manual values) and `describeCaps()`. |
 | `tests/platform/ShadowCopiesTest.cpp` | Listing parse; the `vss` scenario volume shows a copy (slow, elevated). |
+| `tests/platform/VolumeTopologyTest.cpp` | LDM partition rule, volume keys; every disk's layout vs `Get-Partition` and BitLocker states vs `Get-CimInstance` (slow). |
 | `tests/platform/StoragePropertiesTest.cpp` | Media and bus of every physical disk vs `Get-PhysicalDisk`; bus names. |
 | `tests/platform/UsnJournalTest.cpp` | Enumeration = directory walk (reference, name, parent) on ICD-TEST volumes; Windows drive journal state; record numbers. |
 | `tests/platform/VolumeBitmapTest.cpp` | Free runs = NTFS free clusters and diskfree (minus reserved) on ICD-TEST volumes, small pieces = large pieces; Windows drive within 1%. |

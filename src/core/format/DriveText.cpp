@@ -4,6 +4,8 @@
 #include "core/format/Duration.h"
 
 #include <format>
+#include <optional>
+#include <utility>
 
 namespace icd::core {
 
@@ -22,6 +24,36 @@ namespace icd::core {
                 letter.pop_back();
             }
             return letter;
+        }
+
+        // The texts of the drive's move blocks, joined by `separator`; empty without blocks.
+        std::string joinBlocks(const DriveInfo& drive, std::string_view (*text)(MoveBlock),
+                               std::string_view separator) {
+            std::string joined;
+            for (const MoveBlock block : moveBlocks(drive)) {
+                joined += joined.empty() ? "" : separator;
+                joined += text(block);
+            }
+            return joined;
+        }
+
+        // "No moves (RAID, BitLocker)" for a drive that is analysed but never moved; empty otherwise.
+        std::string blockBadge(const DriveInfo& drive) {
+            const std::string names = canOptimize(drive) ? joinBlocks(drive, blockName, ", ") : std::string();
+            return names.empty() ? names : "No moves (" + names + ")";
+        }
+
+        // The two labels of an on/off badge.
+        struct ToggleLabels {
+            const char* on = ""; // Shown when the fact is true.
+            const char* off = ""; // Shown when it is false.
+        };
+
+        // Adds an on/off badge for a detected fact; an undetected one shows nothing rather than a guess.
+        void addToggle(std::vector<std::string>& labels, std::optional<bool> fact, ToggleLabels text) {
+            if (fact) {
+                labels.emplace_back(*fact ? text.on : text.off);
+            }
         }
 
     } // namespace
@@ -83,21 +115,67 @@ namespace icd::core {
         return drive.lastAnalysed ? formatAge(ageOf(*drive.lastAnalysed, now)) : "never";
     }
 
+    std::string_view blockName(MoveBlock block) {
+        switch (block) {
+        case MoveBlock::Raid:
+            return "RAID";
+        case MoveBlock::StorageSpaces:
+            return "Storage Spaces";
+        case MoveBlock::DynamicDisk:
+            return "dynamic disk";
+        case MoveBlock::Removable:
+            return "removable";
+        case MoveBlock::Encrypted:
+            return "BitLocker";
+        }
+        return "unsupported";
+    }
+
+    std::string_view blockReason(MoveBlock block) {
+        switch (block) {
+        case MoveBlock::Raid:
+            return "it sits behind a RAID controller, which spreads its clusters over the member disks, so zone "
+                   "placement has no meaning";
+        case MoveBlock::StorageSpaces:
+            return "it is a Storage Spaces disk, whose slabs map to the pool's disks, not to one disk's tracks";
+        case MoveBlock::DynamicDisk:
+            return "it is on a dynamic disk or spans several disks, so its positions do not map to one disk";
+        case MoveBlock::Removable:
+            return "it is removable media, which can be pulled out in the middle of a move";
+        case MoveBlock::Encrypted:
+            return "it is encrypted with BitLocker, and moves on encrypted volumes are not tested yet";
+        }
+        return "the setup is not supported";
+    }
+
+    std::string movesBlockedText(const DriveInfo& drive) {
+        if (!canOptimize(drive)) {
+            return {};
+        }
+        const std::string reasons = joinBlocks(drive, blockReason, "; ");
+        if (reasons.empty()) {
+            return {};
+        }
+        return "Moves are blocked on this drive: " + reasons +
+            ". Analysis and plans still work, so the layout can be reviewed.";
+    }
+
     std::vector<std::string> badgeLabels(const DriveInfo& drive, std::chrono::system_clock::time_point now) {
         const DriveBadges& badges = drive.badges;
         std::vector<std::string> labels;
+        if (std::string block = blockBadge(drive); !block.empty()) {
+            labels.push_back(std::move(block));
+        }
         if (badges.adminNeeded) {
             labels.emplace_back("Admin needed");
         }
         if (badges.vssPresent) {
             labels.emplace_back("VSS");
         }
-        if (canOptimize(drive) && badges.lastAccessTracking) {
-            labels.emplace_back(*badges.lastAccessTracking ? "Last access on" : "Last access off");
+        if (canOptimize(drive)) {
+            addToggle(labels, badges.lastAccessTracking, {.on = "Last access on", .off = "Last access off"});
         }
-        if (badges.scheduledOptimization) {
-            labels.emplace_back(*badges.scheduledOptimization ? "Auto-optimize on" : "Auto-optimize off");
-        }
+        addToggle(labels, badges.scheduledOptimization, {.on = "Auto-optimize on", .off = "Auto-optimize off"});
         if (badges.snapshotSaved) {
             labels.push_back("Snapshot " + formatAge(ageOf(*badges.snapshotSaved, now)));
         }

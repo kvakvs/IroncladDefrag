@@ -71,14 +71,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 - Do: warnings, unaligned-move count, "block unaligned moves" option.
 - Done when: on the `vss` scenario aligned execution leaves `vssadmin list shadowstorage` unchanged.
 
-### T122 - Unsupported configuration warnings
-
-- Depends: T043
-- Owns: `src/platform/win/VolumeTopology.*`
-- Do: detect RAID, Storage Spaces, dynamic disks, removable and BitLocker/encrypted volumes; analyse
-  only, block moves, explain why.
-- Done when: each case shows the right badge and blocks execution. **Phase 9 exit check.**
-
 ---
 
 ## Phase 10 - Settings and custom strategies (§13 Phase 10)

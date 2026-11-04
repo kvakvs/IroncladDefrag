@@ -272,6 +272,8 @@ add_library(icd_platform STATIC
     src/platform/win/TextConvert.h
     src/platform/win/UsnJournal.cpp
     src/platform/win/UsnJournal.h
+    src/platform/win/VolumeTopology.cpp
+    src/platform/win/VolumeTopology.h
     src/platform/win/VolumeBitmap.cpp
     src/platform/win/VolumeBitmap.h
     src/platform/win/Volumes.cpp
@@ -279,7 +281,7 @@ add_library(icd_platform STATIC
     src/platform/win/WinError.cpp
     src/platform/win/WinError.h
 )
-target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32 cabinet)
+target_link_libraries(icd_platform PUBLIC icd_core shell32 ole32 oleaut32 wbemuuid cabinet)
 icd_target_defaults(icd_platform)
 
 # --- icd_services: jobs, thread pool, orchestration ----------------------------------------------

@@ -4,6 +4,7 @@
 
 #include <chrono>
 #include <string>
+#include <string_view>
 #include <vector>
 
 namespace icd::core {
@@ -30,7 +31,18 @@ namespace icd::core {
     // "3 h ago" or "never"; empty for SSDs and unsupported volumes.
     std::string describeLastAnalysed(const DriveInfo& drive, std::chrono::system_clock::time_point now);
 
-    // Badge texts in display order, e.g. {"Admin needed", "VSS", "Last access off", "Snapshot yesterday"}.
+    // Short name of a move block for the badge: "RAID", "Storage Spaces", "dynamic disk", "removable", "BitLocker".
+    std::string_view blockName(MoveBlock block);
+
+    // Why a move block stops execution, as a sentence fragment ("it sits behind a RAID controller, ...").
+    std::string_view blockReason(MoveBlock block);
+
+    // The explanation shown where Execute would be: "Moves are blocked on this drive: <reasons>. ..."; empty when
+    // moves are allowed (or the drive is not optimizable at all).
+    std::string movesBlockedText(const DriveInfo& drive);
+
+    // Badge texts in display order, e.g. {"No moves (RAID)", "Admin needed", "VSS", "Last access off",
+    // "Snapshot yesterday"}.
     std::vector<std::string> badgeLabels(const DriveInfo& drive, std::chrono::system_clock::time_point now);
 
 } // namespace icd::core

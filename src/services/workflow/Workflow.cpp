@@ -57,6 +57,7 @@ namespace icd::services {
         WorkflowState initialState(DriveKind kind) {
             switch (kind) {
             case DriveKind::Hdd:
+            case DriveKind::AnalyzeOnly:
                 return WorkflowState::NotAnalyzed;
             case DriveKind::Ssd:
                 return WorkflowState::SsdReady;
@@ -77,7 +78,10 @@ namespace icd::services {
         if (core::isSsd(*drive)) {
             return DriveKind::Ssd;
         }
-        return core::canOptimize(*drive) ? DriveKind::Hdd : DriveKind::Unsupported;
+        if (!core::canOptimize(*drive)) {
+            return DriveKind::Unsupported;
+        }
+        return core::canMove(*drive) ? DriveKind::Hdd : DriveKind::AnalyzeOnly;
     }
 
     bool Workflow::busy() const { return (busyStates & bit(state_)) != 0; }
@@ -85,6 +89,9 @@ namespace icd::services {
     bool Workflow::can(WorkflowAction action) const {
         if (action == WorkflowAction::Cancel && cancelRequested_) {
             return false; // Already asked; the job is stopping.
+        }
+        if (action == WorkflowAction::Execute && movesBlocked_) {
+            return false;
         }
         return (ruleOf(action).allowed & bit(state_)) != 0;
     }
@@ -94,6 +101,7 @@ namespace icd::services {
             return false;
         }
         state_ = initialState(kind);
+        movesBlocked_ = kind == DriveKind::AnalyzeOnly;
         quick_ = false;
         return true;
     }

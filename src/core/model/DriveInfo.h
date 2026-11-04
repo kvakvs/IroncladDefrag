@@ -6,6 +6,7 @@
 #include <cstdint>
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace icd::core {
 
@@ -27,6 +28,18 @@ namespace icd::core {
         bool virtualDisk = false; // File-backed virtual disk (VHD/VHDX).
         bool removable = false; // Removable media (card readers, some USB sticks).
         std::string model; // Product id, e.g. "ST12000NE0008-2PK103".
+        bool dynamicDisk = false; // The disk holds LDM partitions (spanned, striped, mirrored or RAID-5 volumes).
+        std::optional<bool> encrypted; // BitLocker protects or is converting the volume; empty when not known.
+    };
+
+    // Storage setups the app analyses and plans for but never moves files on (plan.md 4 and Phase 9): each one blocks
+    // execution and is explained to the user.
+    enum class MoveBlock : std::uint8_t {
+        Raid, // Behind a RAID controller: clusters are spread over member disks, so zones mean nothing.
+        StorageSpaces, // A Storage Spaces disk: slabs map to pool disks, not to one platter's tracks.
+        DynamicDisk, // A dynamic disk or a volume over several disks: positions do not map to one disk.
+        Removable, // Removable media: it can be pulled out in the middle of a move.
+        Encrypted, // BitLocker: moves on encrypted volumes are not tested on the test bed (plan.md 10.2).
     };
 
     // Facts shown as badges in the all-disks panel (plan.md 10.1); each one changes what the app can do or
@@ -63,8 +76,14 @@ namespace icd::core {
         [[nodiscard]] double usedFraction() const;
     };
 
-    // Whether the full workflow (analyze, plan, execute) applies: an NTFS volume on an HDD or unknown media.
+    // Whether analysis and planning apply: an NTFS volume on an HDD or unknown media.
     [[nodiscard]] bool canOptimize(const DriveInfo& drive);
+
+    // The setups that block moves on the drive, in MoveBlock order; empty when moves are allowed.
+    [[nodiscard]] std::vector<MoveBlock> moveBlocks(const DriveInfo& drive);
+
+    // Whether the full workflow applies, execution included: canOptimize() and no move block.
+    [[nodiscard]] bool canMove(const DriveInfo& drive);
 
     // Media type from the storage facts: virtual disks first (their seek penalty describes the host file),
     // then the seek penalty, then TRIM support as an SSD hint; Unknown when the device said nothing.

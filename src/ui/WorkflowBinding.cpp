@@ -120,6 +120,9 @@ namespace icd::ui {
         // Hint for the Summary tab when a drive of this kind is selected but not analysed.
         const char* summaryHint(services::DriveKind kind) {
             switch (kind) {
+            case services::DriveKind::AnalyzeOnly:
+                return "Analyze the drive to see its layout. Moves are blocked on this drive (see the badge in the "
+                       "drive list); plans can still be built and reviewed.";
             case services::DriveKind::Hdd:
                 return "Analyze the drive to see fragmentation, free-space runs and per-class counts and bytes.";
             case services::DriveKind::Ssd:
@@ -704,6 +707,10 @@ namespace icd::ui {
         }
         const auto effort = widgets_.bottom.strategy().effort();
         const auto& level = plan_->levels.at(static_cast<std::size_t>(effort));
+        if (const std::string blocked = drive_ ? core::movesBlockedText(*drive_) : std::string(); !blocked.empty()) {
+            return std::format("{} plan for {} ready: {} to move. {}", services::effortName(effort), driveLabel(),
+                               core::formatBytes(level.bytesToMove), blocked);
+        }
         return std::format("{} plan for {} ready: {} to move. Review it on the map, then execute.",
                            services::effortName(effort), driveLabel(), core::formatBytes(level.bytesToMove));
     }
@@ -850,6 +857,9 @@ namespace icd::ui {
         const bool analysis = state == WorkflowState::Analyzing || state == WorkflowState::Analyzed;
         if (analysis && services_.fakeDrives()) {
             caption += " (synthetic volume)";
+        }
+        if (!core::canMove(*drive_) && core::canOptimize(*drive_)) {
+            caption += " (moves blocked)";
         }
         widgets_.map.setCaption(wxString::FromUTF8(caption));
     }

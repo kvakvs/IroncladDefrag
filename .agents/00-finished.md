@@ -379,3 +379,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   are kept in place). Worst Maximum ratio on the OptimalityTest volumes 1.44 -> 1.30 (development now within 1.1, test
   limit 1.5 -> 1.35); `check-planner.ps1 -Scenarios all`: every scenario within 1.1 except `archive` at Maximum (1.377
   -> 1.216). The 1.1 x goal for sorted zones moved to T095d.
+- T122 Unsupported configuration warnings - `core::MoveBlock` / `moveBlocks()` / `canMove()` (RAID and Storage Spaces
+  bus, dynamic disk or several disk extents, removable, BitLocker), `platform/win/VolumeTopology.*` (LDM partitions via
+  `IOCTL_DISK_GET_DRIVE_LAYOUT_EX`, BitLocker states from WMI `Win32_EncryptableVolume`), badge "No moves (...)",
+  `movesBlockedText()` in the plan-ready status and `icd-cli execute`, `DriveKind::AnalyzeOnly` (analysis and plans,
+  never Execute). `tests/integration/topology/check-topology.ps1` (temporary Storage Spaces pool: planned, execute
+  refused); dynamic disks cannot be created on current Windows, the other setups are unit tests on the facts.

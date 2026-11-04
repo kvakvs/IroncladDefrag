@@ -43,8 +43,14 @@ namespace icd::services {
     // Background job the caller must start after an action or a finished step.
     enum class WorkflowJob : std::uint8_t { None, Analyze, Plan, Execute, Trim };
 
-    // What a selected drive allows, from its media and file system.
-    enum class DriveKind : std::uint8_t { None, Unsupported, Ssd, Hdd };
+    // What a selected drive allows, from its media, file system and storage setup.
+    enum class DriveKind : std::uint8_t {
+        None, // Nothing selected.
+        Unsupported, // Not NTFS: nothing to do.
+        Ssd, // TRIM only.
+        Hdd, // The full workflow.
+        AnalyzeOnly, // NTFS on an HDD whose setup blocks moves (core::moveBlocks()): analysis and plans, no Execute.
+    };
 
     // The kind of drive (None for null).
     [[nodiscard]] DriveKind driveKind(const core::DriveInfo* drive);
@@ -85,6 +91,7 @@ namespace icd::services {
         WorkflowState state_ = WorkflowState::NoDrive; // Current state.
         bool quick_ = false; // Quick run in progress.
         bool cancelRequested_ = false; // Cancel asked for the running job.
+        bool movesBlocked_ = false; // The selected drive is AnalyzeOnly: Execute is never allowed.
     };
 
 } // namespace icd::services
