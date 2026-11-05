@@ -419,6 +419,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/MainFrame.h
     src/ui/MainMenu.cpp
     src/ui/MainMenu.h
+    src/ui/ResumeCheck.cpp
+    src/ui/ResumeCheck.h
     src/ui/StrategyActions.cpp
     src/ui/StrategyActions.h
     src/ui/WorkflowBinding.cpp

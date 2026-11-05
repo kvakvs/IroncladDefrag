@@ -219,4 +219,62 @@ namespace icd::services { namespace {
         std::filesystem::remove_all(dir);
     }
 
+    // Only a volume's newest log is offered for resuming (T112): a newer run replaces older unfinished ones; the offer
+    // counts the moves left and what they move.
+    TEST(ExecutionLog, OnlyTheNewestLogIsResumed) {
+        const Bed b = bed(24);
+        const std::string& volume = b.plan.identity.volumeName;
+        const auto dir = scratch("newest");
+        const std::string tag = "Volume{0a1b2c3d-1111-2222-3333-444455556666}-";
+        const auto older = dir / (tag + "20261101-100000.jsonl");
+        const auto newer = dir / (tag + "20261101-110000.jsonl");
+        MoveRecord done;
+        done.move = 0;
+        done.outcome = MoveOutcome::Moved;
+        done.verified = true;
+        {
+            ExecutionLogWriter log(older, b.plan);
+            log.begin(0);
+            log.outcome(done);
+            log.begin(1); // Crashed in move 1.
+        }
+        const std::optional<UnfinishedRun> crashed = findUnfinishedRun(dir, volume);
+        ASSERT_TRUE(crashed.has_value());
+        EXPECT_EQ(crashed->log, older);
+        EXPECT_FALSE(crashed->cancelled);
+        EXPECT_EQ(crashed->moves, b.plan.moves.size());
+        EXPECT_EQ(crashed->movesLeft, b.plan.moves.size() - 1);
+        EXPECT_EQ(crashed->bytesLeft,
+                  (core::execute::plannedClusters(b.plan) - b.plan.moves[0].clusters) *
+                      b.plan.identity.geometry.bytesPerCluster);
+        EXPECT_EQ(crashed->strategy, "mixed");
+        EXPECT_EQ(crashed->effort, core::strategy::Effort::Maximum);
+        EXPECT_NE(crashed->stoppedAt, std::chrono::system_clock::time_point{});
+        const std::string other = R"(\\?\Volume{99999999-1111-2222-3333-444455556666}\)";
+        EXPECT_FALSE(findUnfinishedRun(dir, other).has_value());
+
+        {
+            ExecutionLogWriter log(newer, b.plan);
+            log.end(ExecutionReport{}); // A later run that completed.
+        }
+        EXPECT_FALSE(findUnfinishedRun(dir, volume).has_value());
+        EXPECT_FALSE(unfinishedExecutionLog(dir, volume).has_value());
+
+        {
+            ExecutionLogWriter log(newer, b.plan);
+            ExecutionReport cancelled;
+            cancelled.cancelled = true;
+            log.end(cancelled);
+        }
+        const std::optional<UnfinishedRun> stopped = findUnfinishedRun(dir, volume);
+        ASSERT_TRUE(stopped.has_value());
+        EXPECT_EQ(stopped->log, newer);
+        EXPECT_TRUE(stopped->cancelled);
+        EXPECT_EQ(stopped->movesLeft, b.plan.moves.size());
+
+        std::ofstream(newer, std::ios::trunc) << "not a log\n";
+        EXPECT_FALSE(findUnfinishedRun(dir, volume).has_value()); // The newest one cannot be read: nothing.
+        std::filesystem::remove_all(dir);
+    }
+
 }} // namespace icd::services

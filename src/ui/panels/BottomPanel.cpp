@@ -62,6 +62,7 @@ namespace icd::ui {
             auto* button = new wxButton(this, spec.id, wxString::FromUTF8(spec.label));
             button->SetToolTip(commandTip(spec.id)); // What it does and its key, from the shortcut table.
             button->Disable(); // Enabled by the frame from the app state.
+            button->Show(!spec.onlyWhenEnabled);
             strip->Add(button, wxSizerFlags().Border(wxRIGHT, FromDIP(4)));
         }
         status_ = new wxStaticText(this, wxID_ANY, "Ready", wxDefaultPosition, wxDefaultSize,
@@ -89,6 +90,14 @@ namespace icd::ui {
         }
         gauge_->SetValue(static_cast<int>(std::lround(*fraction * gaugeRange)));
         percent_->SetLabelText(wxString::Format("%d%%", static_cast<int>(std::lround(*fraction * 100.0))));
+    }
+
+    void BottomPanel::showCommand(int id, bool shown) {
+        wxWindow* button = FindWindow(id);
+        if (button != nullptr && button->IsShown() != shown) {
+            button->Show(shown);
+            Layout();
+        }
     }
 
     void BottomPanel::setPauseLabel(bool paused) {

@@ -14,6 +14,7 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <format>
 #include <string>
 #include <utility>
@@ -51,48 +52,105 @@ namespace icd::ui {
             return text;
         }
 
+        // What keeps the volume safe when an unfinished run continues (plan.md 10.4).
+        constexpr const char* resumeNote =
+            "Before anything moves, the volume is read again: moves whose files changed since are dropped, and a move "
+            "that was cut off continues from where it stopped. The run goes on in the same execution log, so Pause and "
+            "Cancel are safe at any time and a cancelled run can be resumed again.";
+
+        // The figures of a plan level.
+        std::vector<std::pair<std::string, std::string>> levelFigures(const services::PlanLevel& level) {
+            return {
+                {"Files to move:", core::formatCount(level.filesToMove)},
+                {"Data to move:",
+                 std::format("{} (least possible {})", core::formatBytes(level.bytesToMove),
+                             core::formatBytes(level.lowerBoundBytes))},
+                {"Estimated time:", core::formatDuration(level.estimate)},
+                {"Fragmentation after:", std::format("{:.1f}%", level.fragmentationAfter)},
+                {"In target zone after:", std::format("{:.0f}%", level.zoneFitAfter)},
+            };
+        }
+
+        // How the run stopped, and when.
+        std::string stoppedText(const services::UnfinishedRun& run) {
+            const char* how = run.cancelled ? "cancelled" : "interrupted (the program ended during the run)";
+            if (run.stoppedAt == std::chrono::system_clock::time_point{}) {
+                return how;
+            }
+            const auto age =
+                std::chrono::duration_cast<std::chrono::seconds>(std::chrono::system_clock::now() - run.stoppedAt);
+            return std::format("{}, {}", how, core::formatAge(age));
+        }
+
+        // The figures of an unfinished run.
+        std::vector<std::pair<std::string, std::string>> resumeFigures(const ResumeConfirmation& what) {
+            const services::UnfinishedRun& run = what.run;
+            return {
+                {"Planned with:",
+                 std::format("{} at {}", what.strategy,
+                             services::effortName(static_cast<services::EffortLevel>(run.effort)))},
+                {"Stopped:", stoppedText(run)},
+                {"Moves left:",
+                 std::format("{} of {}", core::formatCount(run.movesLeft), core::formatCount(run.moves))},
+                {"Data left:", std::format("up to {}", core::formatBytes(run.bytesLeft))},
+                {"Execution log:", run.log.filename().string()},
+            };
+        }
+
     } // namespace
 
     ConfirmExecuteDialog::ConfirmExecuteDialog(wxWindow* parent, const ExecuteConfirmation& what) :
         wxDialog(parent, wxID_ANY, "Execute plan") {
+        Content content;
+        content.question = std::format("Execute the {} plan ({}) on {}?", services::effortName(what.level.level),
+                                       what.strategy, what.drive);
+        content.figures = levelFigures(what.level);
+        content.warnings = what.warnings;
+        content.note = what.simulated
+            ? wxString("This is the fake drive list: the run is simulated and nothing on a disk changes.")
+            : wxString(safetyNote);
+        content.okLabel = "&Execute";
+        build(content);
+    }
+
+    ConfirmExecuteDialog::ConfirmExecuteDialog(wxWindow* parent, const ResumeConfirmation& what) :
+        wxDialog(parent, wxID_ANY, "Resume interrupted run") {
+        Content content;
+        content.question = std::format("Resume the interrupted run on {}?", what.drive);
+        content.figures = resumeFigures(what);
+        if (what.analyzeFirst) {
+            content.warnings.emplace_back("The drive is analyzed first, so the map can follow the moves.");
+        }
+        content.note = resumeNote;
+        content.okLabel = "&Resume";
+        build(content);
+    }
+
+    void ConfirmExecuteDialog::build(const Content& content) {
         SetIcons(appIcons());
-        const std::string question = std::format("Execute the {} plan ({}) on {}?",
-                                                 services::effortName(what.level.level), what.strategy, what.drive);
-        auto* heading = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(question));
+        auto* heading = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(content.question));
         heading->SetFont(heading->GetFont().Scaled(1.2F).Bold());
 
         auto* sizer = new wxBoxSizer(wxVERTICAL);
         const int border = FromDIP(16);
         sizer->Add(heading, wxSizerFlags().Border(wxLEFT | wxRIGHT | wxTOP, border));
-        sizer->Add(createFigures(what.level), wxSizerFlags().Border(wxALL, border));
-        if (!what.warnings.empty()) {
-            auto* warnings = new wxStaticText(this, wxID_ANY, warningText(what.warnings));
+        sizer->Add(createFigures(content.figures), wxSizerFlags().Border(wxALL, border));
+        if (!content.warnings.empty()) {
+            auto* warnings = new wxStaticText(this, wxID_ANY, warningText(content.warnings));
             warnings->Wrap(FromDIP(wrapWidth));
             sizer->Add(warnings, wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
         }
-        const wxString safety = what.simulated
-            ? wxString("This is the fake drive list: the run is simulated and nothing on a disk changes.")
-            : wxString(safetyNote);
-        sizer->Add(note(this, safety), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
+        sizer->Add(note(this, content.note), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
         sizer->Add(createOptions(), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
-        sizer->Add(createButtons(), wxSizerFlags().Right().Border(wxALL, FromDIP(12)));
+        sizer->Add(createButtons(content.okLabel), wxSizerFlags().Right().Border(wxALL, FromDIP(12)));
         SetSizerAndFit(sizer);
         CentreOnParent();
     }
 
-    wxSizer* ConfirmExecuteDialog::createFigures(const services::PlanLevel& level) {
-        const std::array<std::pair<const char*, std::string>, 5> rows{{
-            {"Files to move:", core::formatCount(level.filesToMove)},
-            {"Data to move:",
-             std::format("{} (least possible {})", core::formatBytes(level.bytesToMove),
-                         core::formatBytes(level.lowerBoundBytes))},
-            {"Estimated time:", core::formatDuration(level.estimate)},
-            {"Fragmentation after:", std::format("{:.1f}%", level.fragmentationAfter)},
-            {"In target zone after:", std::format("{:.0f}%", level.zoneFitAfter)},
-        }};
+    wxSizer* ConfirmExecuteDialog::createFigures(const std::vector<Figure>& figures) {
         auto* grid = new wxFlexGridSizer(2, wxSize(FromDIP(16), FromDIP(4)));
-        for (const auto& [label, value] : rows) {
-            grid->Add(new wxStaticText(this, wxID_ANY, label));
+        for (const auto& [label, value] : figures) {
+            grid->Add(new wxStaticText(this, wxID_ANY, wxString::FromUTF8(label)));
             grid->Add(new wxStaticText(this, wxID_ANY, wxString::FromUTF8(value)));
         }
         return grid;
@@ -112,8 +170,8 @@ namespace icd::ui {
         return options;
     }
 
-    wxSizer* ConfirmExecuteDialog::createButtons() {
-        auto* execute = new wxButton(this, wxID_OK, "&Execute");
+    wxSizer* ConfirmExecuteDialog::createButtons(const wxString& okLabel) {
+        auto* execute = new wxButton(this, wxID_OK, okLabel);
         auto* cancel = new wxButton(this, wxID_CANCEL, "&Cancel");
         cancel->SetDefault(); // Enter alone never starts moving files.
         cancel->SetFocus();

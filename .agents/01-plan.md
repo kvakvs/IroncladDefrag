@@ -110,16 +110,19 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Deferred (look at later)
 
-### T112 - Resume an unfinished execution from the GUI
+### T112b - GUI check of Resume run (elevated)
 
-- Depends: T111
-- Owns: resume flow in `src/ui/WorkflowBinding.*`, `src/ui/ExecutionView.*`
-- Why: a GUI run that was cancelled, or a crash or power loss, leaves an execution log the GUI cannot continue; today
-  only `icd-cli execute --resume` does (`unfinishedExecutionLog()`, `resumedExecution()`). A new plan from a fresh
-  analysis also works, so this is convenience, not safety.
-- Do: on drive selection, find the volume's unfinished log and offer "Resume the interrupted run" (with how many moves
-  are left); run it with the same job, Progress, Log and live map.
-- Done when: a run cancelled in the GUI is resumed from the GUI and the volume ends as after an uninterrupted run.
+- Depends: T112
+- Owns: the check only (fixes go to the code they concern)
+- Why: T112 was built in a session without administrator rights, so only the offer was seen (X:'s cancelled run
+  found and announced); no run was resumed from the GUI yet.
+- Do: in an elevated session on the 1 GB `mixed` VHDX (E:\icd-testvol\gui-mixed.vhdx, fresh scenario): Analyze,
+  Maximum plan, Execute, Cancel after a few seconds; Resume run must appear at once; resume it to the end. Then
+  restart the GUI (no map) after another cancelled run: Resume run analyzes first, then runs. Each time: the execution
+  log ends with a non-cancelled end line and no moves left, file hashes unchanged, `chkdsk /scan` clean,
+  `icd-cli check-catchup` equal, every planned file at its last destination (compare with an uninterrupted CLI run of
+  the same plan, or `icd-cli execute --resume --log FILE` reporting nothing left).
+- Done when: both runs end as an uninterrupted run would, and the live map followed both.
 
 ### T114 - Read and write animation (consider)
 

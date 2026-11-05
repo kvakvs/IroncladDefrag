@@ -7,6 +7,7 @@
 #include "ui/CallbackTimer.h"
 
 #include <chrono>
+#include <cstdint>
 #include <memory>
 #include <optional>
 #include <string>
@@ -20,6 +21,13 @@ namespace icd::ui {
 
     class BottomPanel;
     struct ProgressDetails;
+
+    // What a followed run executes, for its status line.
+    enum class RunKind : std::uint8_t {
+        Plan, // A planned level (start()).
+        File, // One file (startFile()).
+        Resume, // An unfinished run from its log (startResume()).
+    };
 
     // The GUI side of one execution (plan.md 11): builds its job, turns the job's feed into Progress tab fields (disk
     // throughput, time left from the bytes still to move, current file, move counts) and Log tab rows, and gives the
@@ -44,8 +52,12 @@ namespace icd::ui {
         [[nodiscard]] services::JobFunction startFile(services::FileDefragRequest request,
                                                       std::shared_ptr<core::PauseGate> pause);
 
-        // Whether the followed run is a single file (its status line says so).
-        [[nodiscard]] bool fileRun() const { return fileRun_; }
+        // A job that resumes an unfinished run from its log with pause (T112); followed like start()'s run.
+        [[nodiscard]] services::JobFunction startResume(services::ResumeJobRequest request,
+                                                        std::shared_ptr<core::PauseGate> pause);
+
+        // What the followed (or last) run executes.
+        [[nodiscard]] RunKind kind() const { return kind_; }
 
         // Whether a run started by start() is followed.
         [[nodiscard]] bool active() const { return feed_ != nullptr; }
@@ -68,12 +80,15 @@ namespace icd::ui {
         [[nodiscard]] const std::shared_ptr<services::ExecutionFeed>& feed() const { return feed_; }
 
     private:
+        // Starts following a new run of a kind; returns its feed.
+        [[nodiscard]] std::shared_ptr<services::ExecutionFeed> follow(RunKind kind);
+
         // Moves the feed's new lines into the Log tab.
         void takeLines();
 
         BottomPanel& bottom_; // Log tab.
         std::shared_ptr<services::ExecutionFeed> feed_; // The followed run; null when none.
-        bool fileRun_ = false; // The followed run defragments one file (startFile()).
+        RunKind kind_ = RunKind::Plan; // What the followed run executes.
         core::RateMeter throughput_; // Bytes moved per second over the last seconds.
         CallbackTimer rows_; // Takes new rows while the run is followed, also while paused (no progress then).
     };

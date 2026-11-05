@@ -71,6 +71,7 @@ namespace icd::ui {
             CommandAction{ID_CANCEL, WorkflowAction::Cancel},
             CommandAction{ID_REFRESH_DRIVES, WorkflowAction::RefreshDrives},
             CommandAction{ID_DEFRAG_FILE, WorkflowAction::DefragmentFile},
+            CommandAction{ID_RESUME_RUN, WorkflowAction::ResumeRun},
         };
 
         // The action of a command in the current state (Pause becomes Resume while paused), if it has one.
@@ -147,7 +148,7 @@ namespace icd::ui {
         bool needsAdministrator(WorkflowAction action) {
             return action == WorkflowAction::Analyze || action == WorkflowAction::Quick ||
                 action == WorkflowAction::Trim || action == WorkflowAction::Execute ||
-                action == WorkflowAction::DefragmentFile;
+                action == WorkflowAction::DefragmentFile || action == WorkflowAction::ResumeRun;
         }
 
         // Whether a warning of the Plan tab belongs to a level: general ones and the level's own ("Fast: ...").
@@ -183,6 +184,8 @@ namespace icd::ui {
     WorkflowBinding::WorkflowBinding(wxFrame& frame, services::AppServices& services, Widgets widgets) :
         frame_(frame), services_(services), widgets_(widgets), execution_(widgets.bottom),
         strategyActions_(frame, widgets.bottom.strategy(), services.strategies()), live_(widgets.map, services.pool()),
+        resumeCheck_(frame, services.pool(),
+                     [this](std::optional<services::UnfinishedRun> run) { onUnfinishedRun(std::move(run)); }),
         bridge_(std::make_shared<JobEventBridge>(&frame)) {
         bindEvents();
         widgets_.drives.setSelectionHandler([this](std::optional<std::size_t>) { onDriveSelected(); });
@@ -434,6 +437,10 @@ namespace icd::ui {
         std::ranges::copy_if(plan.warnings, std::back_inserter(what.warnings),
                              [&what](const std::string& w) { return warningFor(w, what.level.level); });
         what.simulated = services_.fakeDrives() || !planOutcome_;
+        if (unfinished_) {
+            what.warnings.push_back("This drive has an interrupted run; once this plan runs, it is no longer offered "
+                                    "for resuming (this plan already takes the drive as it is now).");
+        }
         return what;
     }
 
@@ -482,7 +489,7 @@ namespace icd::ui {
     }
 
     void WorkflowBinding::resetFor(WorkflowJob job) {
-        fileRun_ = false; // Set again when this job is a single-file run.
+        runKind_ = RunKind::Plan; // Set again when this job is a single-file run or a resume.
         BottomPanel& bottom = widgets_.bottom;
         if (job != WorkflowJob::Execute) {
             live_.stop(); // A new analysis or plan replaces what the live map follows.
@@ -582,7 +589,7 @@ namespace icd::ui {
         request.now = services::fileTimeNow();
         request.options.lowPriority = executeChoices_.lowPriority;
         request.options.throughputLimit = executeChoices_.limitMbPerSecond << 20U;
-        fileRun_ = true;
+        runKind_ = RunKind::File;
         services::JobFunction job = execution_.startFile(std::move(request), pause_);
         live_.follow(execution_.feed());
         return job;
@@ -591,6 +598,9 @@ namespace icd::ui {
     services::JobFunction WorkflowBinding::makeExecuteJob(const core::DriveInfo& drive) {
         if (fileToDefrag_) {
             return makeFileDefragJob(drive);
+        }
+        if (workflow_.resuming()) {
+            return makeResumeJob(drive);
         }
         if (services_.fakeDrives() || !planOutcome_ || !planRequest_) {
             return {}; // The fake drive list simulates execution.
@@ -605,6 +615,80 @@ namespace icd::ui {
         services::JobFunction job = execution_.start(std::move(request), pause_);
         live_.follow(execution_.feed());
         return job;
+    }
+
+    services::JobFunction WorkflowBinding::makeResumeJob(const core::DriveInfo& drive) {
+        if (!unfinished_) {
+            return {}; // Not reached: the workflow resumes only once a run was found.
+        }
+        services::ResumeJobRequest request;
+        request.drive = drive;
+        request.log = unfinished_->log;
+        request.options.lowPriority = executeChoices_.lowPriority;
+        request.options.throughputLimit = executeChoices_.limitMbPerSecond << 20U;
+        runKind_ = RunKind::Resume;
+        services::JobFunction job = execution_.startResume(std::move(request), pause_);
+        live_.follow(execution_.feed());
+        return job;
+    }
+
+    void WorkflowBinding::lookForUnfinishedRun(bool announce) {
+        resumeCheck_.forget();
+        unfinished_.reset();
+        workflow_.setResumable(false);
+        announceUnfinished_ = announce;
+        const services::DriveKind kind = services::driveKind(drive_ ? &*drive_ : nullptr);
+        if (drive_ && kind == services::DriveKind::Hdd && !services_.fakeDrives() &&
+            !drive_->layout.volumeName.empty()) {
+            resumeCheck_.look(drive_->layout.volumeName);
+        }
+    }
+
+    void WorkflowBinding::onUnfinishedRun(std::optional<services::UnfinishedRun> run) {
+        unfinished_ = std::move(run);
+        workflow_.setResumable(unfinished_.has_value());
+        if (unfinished_) {
+            core::logging::info("unfinished run found",
+                                {{"log", unfinished_->log.filename().string()},
+                                 {"left", unfinished_->movesLeft},
+                                 {"moves", unfinished_->moves}});
+            if (announceUnfinished_ && !workflow_.busy()) {
+                widgets_.bottom.setStatus(wxString::FromUTF8(unfinishedText(*unfinished_)));
+            }
+        }
+        announceUnfinished_ = false;
+        refresh();
+    }
+
+    std::string WorkflowBinding::unfinishedText(const services::UnfinishedRun& run) const {
+        return std::format("{}: {} run has {} of {} moves left ({}); Resume run continues it", driveLabel(),
+                           run.cancelled ? "a cancelled" : "an interrupted", core::formatCount(run.movesLeft),
+                           core::formatCount(run.moves), core::formatBytes(run.bytesLeft));
+    }
+
+    std::string WorkflowBinding::strategyName(const std::string& id) const {
+        const core::strategy::ZoneScript* script = services_.strategies().find(id);
+        return script != nullptr ? script->name : id;
+    }
+
+    bool WorkflowBinding::confirmResume() {
+        if (!unfinished_) {
+            return false;
+        }
+        const ResumeConfirmation what{.drive = driveLabel(),
+                                      .strategy = strategyName(unfinished_->strategy),
+                                      .run = *unfinished_,
+                                      .analyzeFirst = workflow_.state() == WorkflowState::NotAnalyzed};
+        ConfirmExecuteDialog dialog(&frame_, what);
+        if (dialog.ShowModal() != wxID_OK) {
+            return false;
+        }
+        executeChoices_ = dialog.choices();
+        core::logging::info("resume confirmed",
+                            {{"log", unfinished_->log.filename().string()},
+                             {"lowPriority", executeChoices_.lowPriority},
+                             {"limitMbPerSecond", executeChoices_.limitMbPerSecond}});
+        return true;
     }
 
     void WorkflowBinding::onJobProgress(wxThreadEvent& event) {
@@ -806,6 +890,9 @@ namespace icd::ui {
         if (action == WorkflowAction::Execute) {
             return confirmExecute();
         }
+        if (action == WorkflowAction::ResumeRun) {
+            return confirmResume();
+        }
         return action != WorkflowAction::DefragmentFile || confirmFileDefrag();
     }
 
@@ -846,7 +933,7 @@ namespace icd::ui {
 
     void WorkflowBinding::showExecution(core::DriveInfo& drive) {
         BottomPanel& bottom = widgets_.bottom;
-        if (!planOutcome_ && !fileRun_) { // The simulated run of the fake drive list.
+        if (runKind_ == RunKind::Plan && !planOutcome_) { // The simulated run of the fake drive list.
             for (const auto& [file, reason] : services::fakeSkippedFiles(drive)) {
                 bottom.log().add(wxString::FromUTF8(file), "skipped", wxString::FromUTF8(reason));
             }
@@ -866,6 +953,7 @@ namespace icd::ui {
         }
         widgets_.bottom.summary().clear("The layout changed: analyze again to refresh these figures.");
         dropPlan("The plan was executed. Analyze again before building a new one.");
+        lookForUnfinishedRun(false); // A cancelled run can be resumed; a completed one is no longer offered.
         return real.value_or(status);
     }
 
@@ -949,29 +1037,39 @@ namespace icd::ui {
         bottom.summary().clear(summaryHint(kind));
         bottom.plan().setShadowCopies(drive_ && drive_->badges.vssPresent);
         restoreStrategy();
+        lookForUnfinishedRun(true);
         refresh();
     }
 
-    void WorkflowBinding::showDriveMenu() {
+    void WorkflowBinding::addMenuCommand(wxMenu& menu, int id, const wxString& label) const {
+        menu.Append(id, withShortcut(id, label));
+        menu.Enable(id, commandEnabled(id));
+    }
+
+    void WorkflowBinding::addWorkflowCommands(wxMenu& menu) const {
         const bool paused = workflow_.state() == WorkflowState::Paused;
-        wxMenu menu;
-        const auto add = [&](int id, const wxString& label) {
-            menu.Append(id, withShortcut(id, label));
-            menu.Enable(id, commandEnabled(id));
-        };
         for (const WorkflowCommand& command : workflowCommands()) {
+            if (command.onlyWhenEnabled && !commandEnabled(command.id)) {
+                continue;
+            }
             if (command.startsGroup) {
                 menu.AppendSeparator();
             }
-            add(command.id, command.id == ID_PAUSE && paused ? wxString("&Resume") : wxString(command.label));
+            const bool resume = command.id == ID_PAUSE && paused;
+            addMenuCommand(menu, command.id, resume ? wxString("&Resume") : wxString(command.label));
         }
+    }
+
+    void WorkflowBinding::showDriveMenu() {
+        wxMenu menu;
+        addWorkflowCommands(menu);
         if (allowed(WorkflowAction::Trim)) { // SSDs: their only action.
             menu.AppendSeparator();
-            add(ID_TRIM, "&TRIM");
+            addMenuCommand(menu, ID_TRIM, "&TRIM");
         }
         if (scheduleChangeable()) {
             menu.AppendSeparator();
-            add(ID_WINDOWS_SCHEDULE, "Windows &schedule...");
+            addMenuCommand(menu, ID_WINDOWS_SCHEDULE, "Windows &schedule...");
         }
         // The chosen item's command event travels up to the frame, where the buttons' handler takes it.
         widgets_.drives.PopupMenu(&menu);
@@ -1036,6 +1134,11 @@ namespace icd::ui {
     void WorkflowBinding::refreshCommands() {
         for (const int id : stateDependentCommands()) {
             enableCommand(frame_, id, commandEnabled(id));
+        }
+        for (const WorkflowCommand& command : workflowCommands()) {
+            if (command.onlyWhenEnabled) {
+                widgets_.bottom.showCommand(command.id, commandEnabled(command.id));
+            }
         }
     }
 

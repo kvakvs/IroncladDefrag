@@ -31,6 +31,13 @@ namespace icd::services {
         ExecuteOptions options; // Priority and throughput limit chosen in the confirmation.
     };
 
+    // What the GUI resumes (T112): the run an execution log describes, on its drive.
+    struct ResumeJobRequest {
+        core::DriveInfo drive; // The volume.
+        std::filesystem::path log; // The unfinished run's log; the resumed run appends to it.
+        ExecuteOptions options; // Priority and throughput limit chosen in the confirmation.
+    };
+
     // Counts of a running execution, for the Progress tab.
     struct ExecutionCounters {
         bool moving = false; // Revalidation is over and the moves run.
@@ -150,10 +157,22 @@ namespace icd::services {
     void runGuiExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan, const ExecuteOptions& options,
                          ExecutionFeed& feed, core::PauseGate* pause, JobContext& context);
 
+    // Runs a prepared request from the GUI (job thread): runExecution() with `pause`, reporting into `feed`. Throws
+    // when the volume refuses the plan. Shared by fresh and resumed runs.
+    void runGuiRequest(const std::shared_ptr<ExecutionRequest>& request, ExecutionFeed& feed, core::PauseGate* pause,
+                       JobContext& context);
+
     // A job that executes a planned level (plan.md 10.3-10.4): builds the execution plan, refuses one that failed
     // validation, then runExecution() (revalidation, log, moves, snapshot after) with `pause`, reporting into `feed`.
     // A plan the volume refuses fails the job with the reason. Needs administrator rights.
     [[nodiscard]] JobFunction makeExecuteJob(ExecuteJobRequest request, std::shared_ptr<ExecutionFeed> feed,
                                              std::shared_ptr<core::PauseGate> pause);
+
+    // A job that resumes an unfinished run from its log (plan.md 10.4, T112): reads the log (plan and the moves without
+    // a final line), then runExecution() appending to the same log, reporting into `feed` like a fresh run.
+    // Revalidation reads the volume and finds how far an interrupted move got. Fails when nothing is left to resume
+    // (the log was finished meanwhile). Needs administrator rights.
+    [[nodiscard]] JobFunction makeResumeJob(ResumeJobRequest request, std::shared_ptr<ExecutionFeed> feed,
+                                            std::shared_ptr<core::PauseGate> pause);
 
 } // namespace icd::services

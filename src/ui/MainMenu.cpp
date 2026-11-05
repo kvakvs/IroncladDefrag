@@ -39,6 +39,7 @@ namespace icd::ui {
             ItemSpec{ID_BUILD_PLAN, "&Build plan"},
             ItemSpec{ID_REVIEW_PLAN, "&Review plan on map"},
             ItemSpec{ID_EXECUTE, "&Execute plan..."},
+            ItemSpec{ID_RESUME_RUN, "Res&ume interrupted run..."},
             separator,
             ItemSpec{ID_DEFRAG_FILE, "&Defragment selected file..."},
             separator,
@@ -110,6 +111,7 @@ namespace icd::ui {
             int{ID_PREVIOUS_FRAGMENT},
             int{ID_WINDOWS_SCHEDULE},
             int{ID_DEFRAG_FILE},
+            int{ID_RESUME_RUN},
         };
 
         // Appends items to menu in order.

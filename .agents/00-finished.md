@@ -480,3 +480,15 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   elevation: silent install into a folder, icd-cli and the GUI start from it at 1.0.0, silent uninstall removes it and
   keeps user data, nothing left in HKLM or the Start menu. The elevated install (Program Files, Installed apps) is the
   user's Phase 11 exit check.
+- T112 Resume an unfinished execution from the GUI - `services::findUnfinishedRun()` / `UnfinishedRun` (the volume's
+  newest log only, when crashed or cancelled with moves left; moves and bytes left, strategy, level, how and when it
+  stopped; `unfinishedExecutionLog()` and so `icd-cli execute --resume` now ignore older logs: a newer run replaces
+  them), `makeResumeJob()` and `runGuiRequest()` (`ExecuteJob`), `WorkflowAction::ResumeRun` (`setResumable()`,
+  analyzes first without a map, then executes; `resuming()`), `ui/ResumeCheck.*` (reads the log on the pool, the
+  latest look reports through `CallAfter`), Resume run button shown only while it can run
+  (`WorkflowCommand::onlyWhenEnabled`, `BottomPanel::showCommand()`), Optimize > Resume interrupted run (Shift+F9),
+  `ConfirmExecuteDialog` for a resume (the run's figures, same options), `ExecutionView::startResume()` / `RunKind`,
+  status line on selection, look again after every run, a warning when a new plan replaces an offered run.
+  `WorkflowTest` (ResumeRun, ResumeRunStopsWithItsAnalysis), `ExecutionLogTest.OnlyTheNewestLogIsResumed`. Seen
+  without elevation: X:'s cancelled run (69,967 of 80,180 moves left) offered on selection. The elevated GUI run is
+  T112b.

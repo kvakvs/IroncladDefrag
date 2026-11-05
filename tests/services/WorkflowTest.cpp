@@ -13,7 +13,7 @@ namespace icd::services { namespace {
 
     // Every action, for exhaustive checks.
     constexpr std::array allActions{SelectDrive, RefreshDrives, Analyze, Quick,  Trim,   ChooseStrategy, BuildPlan,
-                                    Review,      Execute,       Pause,   Resume, Cancel, DefragmentFile};
+                                    Review,      Execute,       Pause,   Resume, Cancel, DefragmentFile, ResumeRun};
 
     // A workflow with an HDD selected and analysed.
     Workflow analyzed() {
@@ -275,6 +275,71 @@ namespace icd::services { namespace {
         blocked.apply(Analyze);
         blocked.finish(JobOutcome::Succeeded);
         EXPECT_FALSE(blocked.can(DefragmentFile));
+    }
+
+    // An unfinished run is resumed only once the caller found one (T112): before an analysis it analyzes first and then
+    // executes, after one it executes at once; the run ends like an execution and the offer is looked up again.
+    TEST(Workflow, ResumeRun) {
+        Workflow flow;
+        flow.selectDrive(DriveKind::Hdd);
+        EXPECT_FALSE(flow.can(ResumeRun));
+        flow.setResumable(true);
+        ASSERT_TRUE(flow.can(ResumeRun));
+        EXPECT_EQ(flow.apply(ResumeRun), WorkflowJob::Analyze);
+        EXPECT_EQ(flow.state(), Analyzing);
+        EXPECT_TRUE(flow.resuming());
+        EXPECT_FALSE(flow.can(ResumeRun));
+        EXPECT_EQ(flow.finish(JobOutcome::Succeeded), WorkflowJob::Execute);
+        EXPECT_EQ(flow.state(), Executing);
+        EXPECT_TRUE(flow.resuming());
+        EXPECT_TRUE(flow.can(Pause));
+        EXPECT_EQ(flow.finish(JobOutcome::Cancelled), WorkflowJob::None);
+        EXPECT_EQ(flow.state(), Executed);
+        EXPECT_FALSE(flow.resuming());
+        EXPECT_FALSE(flow.can(ResumeRun)); // Until the caller finds the log unfinished again.
+        flow.setResumable(true);
+        EXPECT_EQ(flow.apply(ResumeRun), WorkflowJob::Execute); // The live map is shown: no new analysis.
+        EXPECT_EQ(flow.state(), Executing);
+
+        Workflow plan = reviewing();
+        plan.setResumable(true);
+        EXPECT_EQ(plan.apply(ResumeRun), WorkflowJob::Execute);
+        EXPECT_TRUE(plan.resuming());
+        plan.finish(JobOutcome::Succeeded);
+        plan.apply(Analyze);
+        plan.finish(JobOutcome::Succeeded);
+        plan.apply(BuildPlan);
+        plan.finish(JobOutcome::Succeeded);
+        EXPECT_EQ(plan.apply(Execute), WorkflowJob::Execute);
+        EXPECT_FALSE(plan.resuming()); // The reviewed plan, not the old run.
+    }
+
+    // A resume whose analysis fails or is cancelled does not execute; another drive or a moves-blocked drive has no
+    // run to resume.
+    TEST(Workflow, ResumeRunStopsWithItsAnalysis) {
+        Workflow flow;
+        flow.selectDrive(DriveKind::Hdd);
+        flow.setResumable(true);
+        flow.apply(ResumeRun);
+        EXPECT_EQ(flow.apply(Cancel), WorkflowJob::None);
+        EXPECT_EQ(flow.finish(JobOutcome::Cancelled), WorkflowJob::None);
+        EXPECT_EQ(flow.state(), NotAnalyzed);
+        EXPECT_FALSE(flow.resuming());
+        EXPECT_TRUE(flow.can(ResumeRun)); // Still there to try again.
+        flow.apply(Analyze);
+        EXPECT_EQ(flow.finish(JobOutcome::Succeeded), WorkflowJob::None); // A plain analysis stays one.
+        EXPECT_EQ(flow.state(), Analyzed);
+
+        flow.selectDrive(DriveKind::Hdd);
+        EXPECT_FALSE(flow.can(ResumeRun));
+        Workflow blocked;
+        blocked.selectDrive(DriveKind::AnalyzeOnly);
+        blocked.setResumable(true);
+        EXPECT_FALSE(blocked.can(ResumeRun));
+        Workflow ssd;
+        ssd.selectDrive(DriveKind::Ssd);
+        ssd.setResumable(true);
+        EXPECT_FALSE(ssd.can(ResumeRun));
     }
 
     // Finishing with no job running changes nothing.

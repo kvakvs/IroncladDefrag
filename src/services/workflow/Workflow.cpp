@@ -30,6 +30,10 @@ namespace icd::services {
         constexpr StateMask fileDefragmentable =
             bit(WorkflowState::Analyzed) | bit(WorkflowState::Reviewing) | bit(WorkflowState::Executed);
 
+        // States from which an unfinished run may be resumed: a selected movable drive with no job running. Before an
+        // analysis the resume analyzes first; a reviewed plan is dropped, as for a new analysis.
+        constexpr StateMask resumable = analyzable;
+
         // Every state.
         constexpr StateMask allStates = bit(WorkflowState::Executed) * 2 - 1;
 
@@ -41,7 +45,7 @@ namespace icd::services {
         };
 
         // Rules indexed by WorkflowAction.
-        constexpr std::array<Rule, 13> rules{{
+        constexpr std::array<Rule, 14> rules{{
             {allStates & ~busyStates, std::nullopt, WorkflowJob::None}, // SelectDrive
             {allStates & ~busyStates, std::nullopt, WorkflowJob::None}, // RefreshDrives
             {analyzable, WorkflowState::Analyzing, WorkflowJob::Analyze}, // Analyze
@@ -55,6 +59,7 @@ namespace icd::services {
             {bit(WorkflowState::Paused), WorkflowState::Executing, WorkflowJob::None}, // Resume
             {busyStates, std::nullopt, WorkflowJob::None}, // Cancel
             {fileDefragmentable, WorkflowState::Executing, WorkflowJob::Execute}, // DefragmentFile
+            {resumable, WorkflowState::Executing, WorkflowJob::Execute}, // ResumeRun (applyResume())
         }};
 
         // The rule of an action.
@@ -97,7 +102,12 @@ namespace icd::services {
         if (action == WorkflowAction::Cancel && cancelRequested_) {
             return false; // Already asked; the job is stopping.
         }
-        if ((action == WorkflowAction::Execute || action == WorkflowAction::DefragmentFile) && movesBlocked_) {
+        if (action == WorkflowAction::ResumeRun && !resumable_) {
+            return false;
+        }
+        const bool moves = action == WorkflowAction::Execute || action == WorkflowAction::DefragmentFile ||
+            action == WorkflowAction::ResumeRun;
+        if (moves && movesBlocked_) {
             return false;
         }
         return (ruleOf(action).allowed & bit(state_)) != 0;
@@ -110,6 +120,8 @@ namespace icd::services {
         state_ = initialState(kind);
         movesBlocked_ = kind == DriveKind::AnalyzeOnly;
         quick_ = false;
+        resumable_ = false;
+        resuming_ = false;
         return true;
     }
 
@@ -117,13 +129,20 @@ namespace icd::services {
         if (!can(action)) {
             return WorkflowJob::None;
         }
+        if (action == WorkflowAction::ResumeRun) {
+            return applyResume();
+        }
         const Rule& rule = ruleOf(action);
+        if (rule.job == WorkflowJob::Execute) {
+            resuming_ = false; // The reviewed plan or one file.
+        }
         if (action == WorkflowAction::Cancel) {
             cancelRequested_ = true;
             quick_ = false; // A cancelled Quick run does not go on to plan.
         }
         else if (rule.job == WorkflowJob::Analyze) {
             quick_ = action == WorkflowAction::Quick;
+            resuming_ = false;
         }
         state_ = rule.next.value_or(state_);
         return rule.job;
@@ -142,6 +161,8 @@ namespace icd::services {
         case WorkflowState::Executing:
         case WorkflowState::Paused:
             state_ = WorkflowState::Executed; // Even a partial run changed the layout.
+            resumable_ = false; // Whether the run left anything to resume is looked up again.
+            resuming_ = false;
             break;
         case WorkflowState::Trimming:
             state_ = WorkflowState::SsdReady;
@@ -156,10 +177,26 @@ namespace icd::services {
         if (!succeeded) {
             state_ = WorkflowState::NotAnalyzed;
             quick_ = false;
+            resuming_ = false; // A cancelled or failed analysis does not go on to the resumed run.
             return WorkflowJob::None;
+        }
+        if (resuming_) {
+            state_ = WorkflowState::Executing;
+            return WorkflowJob::Execute;
         }
         state_ = quick_ ? WorkflowState::Planning : WorkflowState::Analyzed;
         return quick_ ? WorkflowJob::Plan : WorkflowJob::None;
+    }
+
+    WorkflowJob Workflow::applyResume() {
+        resuming_ = true;
+        quick_ = false;
+        if (state_ == WorkflowState::NotAnalyzed) {
+            state_ = WorkflowState::Analyzing; // No map yet: the live map and the Summary need the analysis.
+            return WorkflowJob::Analyze;
+        }
+        state_ = WorkflowState::Executing;
+        return WorkflowJob::Execute;
     }
 
 } // namespace icd::services

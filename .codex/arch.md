@@ -279,6 +279,20 @@ this file records what is actually built and the decisions made along the way.
   whole snapshot, so its cost grows with the volume; the spacing rule keeps that bounded (not measured at 30 TB).
 - Log tab (`ui/tabs/LogTab`): time, file, result, details; a line above counts the rows per result ("7 dropped");
   new rows scroll into view only while the newest row is visible; bursts are added under one repaint.
+- Resume in the GUI (T112): on drive selection (a real drive whose files can move) `ui::ResumeCheck` reads the
+  volume's newest execution log on the pool (`findUnfinishedRun()`; a long run's log is tens of MB, too slow for the
+  UI thread) and hands the result back through `CallAfter`; only the latest look reports. A found run sets
+  `Workflow::setResumable()`, puts "X: a cancelled run has N of M moves left (size); Resume run continues it" on the
+  status line and shows the Resume run button (`WorkflowCommand::onlyWhenEnabled`: it is hidden, and left out of the
+  drive menu, while it cannot run), Optimize > Resume interrupted run and Shift+F9. `WorkflowAction::ResumeRun` is
+  allowed where Analyze is; without a map (NotAnalyzed) it analyzes first and then executes (`finish()` returns the
+  Execute job, like Quick's plan), since the live map needs a shown map; otherwise it executes at once (a reviewed
+  plan is dropped). The confirmation is `ConfirmExecuteDialog` with the run's figures (strategy and level, how it
+  stopped and when, moves and data left, the log's name) and the same priority and throughput options.
+  `services::makeResumeJob()` reads the log on the job thread (`resumedExecution()`) and runs it like a fresh run
+  (`runGuiRequest()`: same feed, Progress fields, Log rows and live map), appending to the same log. Every execution
+  end looks again, so a cancelled run is offered at once and a completed one disappears. Executing a new plan while
+  a run is offered warns that the old run will no longer be offered (its log is no longer the newest).
 - Phase 8 exit (2026-11-03, elevated, 1 GB `mixed` VHDX on the E: HDD, the GUI driven by UI Automation): the full
   workflow (Analyze, Strategy at Maximum, Build plan, Execute with confirmation) ran from the GUI; Pause, Resume and
   Cancel worked; the map showed the moves as they happened (fragmented data 329 MB, 215 MB mid-run, 41.6 MB at the
@@ -1558,7 +1572,10 @@ All analysis checks passed.
 - Resume: a move is settled by an outcome other than partial, or by a dropped line; `movesToResume()` is every
   unsettled move in order, so the move a crash interrupted (begun without an outcome) and moves cut short are tried
   again. Revalidation then reads the volume and `matchMove()` finds how far each got, so only the rest moves.
-  `unfinishedExecutionLog()` finds a volume's newest log without an end line.
+  `findUnfinishedRun()` (and `unfinishedExecutionLog()`, its path) looks at a volume's newest log only and returns
+  it when it is resumable (no end line, or a cancelled end, with moves left), with the moves and bytes left: a newer
+  run was planned from a later look at the volume and replaces older ones (T112; before, an older cancelled run was
+  still offered after a newer run completed, which the X: logs of the first real-drive run showed).
 - Orchestration (`services/execute/Execution`): `runExecution()` revalidates (a refused plan stops there), creates or
   appends to the log, removes the saved snapshot before the first move (the moves are not journaled, so a crash would
   otherwise leave a snapshot that later catch-ups would trust wrongly), runs `executeLogged()` on a `VolumeMover`
@@ -1571,7 +1588,8 @@ All analysis checks passed.
   the completed one is not.
 - `icd-cli execute` (T104, `cli/commands/Execute`): plans now (analysis, the three levels, the chosen one must
   validate), or runs a plan saved by `icd-cli plan --save FILE` (the plan part of an execution log), or resumes the
-  newest unfinished log of the volume (`--resume`, or `--resume --log FILE`); then `runExecution()`. Options for chunk
+  volume's newest log when it is unfinished (`--resume`, or any log with `--resume --log FILE`); then
+  `runExecution()`. Options for chunk
   size, low priority, a throughput limit, the plan age and prefetch; `--check-rescan` scans the volume in full
   afterwards and compares every moved file with its prediction (the planned destination when its last move completed
   there, else where the executor read it back; `services/execute/ExecuteReport`, which also writes the JSON and text

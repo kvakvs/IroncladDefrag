@@ -57,6 +57,19 @@ namespace icd::ui {
             return c.moves != 0 ? static_cast<double>(c.finished) / static_cast<double>(c.moves) : 0.0;
         }
 
+        // What the status line calls a finished run of a kind.
+        const char* runWords(RunKind kind) {
+            switch (kind) {
+            case RunKind::File:
+                return "File defragmented";
+            case RunKind::Resume:
+                return "Resumed run completed";
+            case RunKind::Plan:
+                break;
+            }
+            return "Plan executed";
+        }
+
     } // namespace
 
     ExecutionView::ExecutionView(BottomPanel& bottom) :
@@ -68,22 +81,27 @@ namespace icd::ui {
 
     ExecutionView::~ExecutionView() { rows_.Stop(); }
 
-    services::JobFunction ExecutionView::start(services::ExecuteJobRequest request,
-                                               std::shared_ptr<core::PauseGate> pause) {
+    std::shared_ptr<services::ExecutionFeed> ExecutionView::follow(RunKind kind) {
         feed_ = std::make_shared<services::ExecutionFeed>();
-        fileRun_ = false;
+        kind_ = kind;
         throughput_.reset();
         rows_.Start(rowsMs);
-        return services::makeExecuteJob(std::move(request), feed_, std::move(pause));
+        return feed_;
+    }
+
+    services::JobFunction ExecutionView::start(services::ExecuteJobRequest request,
+                                               std::shared_ptr<core::PauseGate> pause) {
+        return services::makeExecuteJob(std::move(request), follow(RunKind::Plan), std::move(pause));
     }
 
     services::JobFunction ExecutionView::startFile(services::FileDefragRequest request,
                                                    std::shared_ptr<core::PauseGate> pause) {
-        feed_ = std::make_shared<services::ExecutionFeed>();
-        fileRun_ = true;
-        throughput_.reset();
-        rows_.Start(rowsMs);
-        return services::makeFileDefragJob(std::move(request), feed_, std::move(pause));
+        return services::makeFileDefragJob(std::move(request), follow(RunKind::File), std::move(pause));
+    }
+
+    services::JobFunction ExecutionView::startResume(services::ResumeJobRequest request,
+                                                     std::shared_ptr<core::PauseGate> pause) {
+        return services::makeResumeJob(std::move(request), follow(RunKind::Resume), std::move(pause));
     }
 
     void ExecutionView::fill(ProgressDetails& details, std::optional<double>& fraction,
@@ -124,7 +142,7 @@ namespace icd::ui {
             bottom_.log().add(wxString::FromUTF8(line.file), wxString::FromUTF8(line.result),
                               wxString::FromUTF8(line.details), whenOf(line));
         }
-        return services::summaryStatus(*summary, drive, fileRun_ ? "File defragmented" : "Plan executed");
+        return services::summaryStatus(*summary, drive, runWords(kind_));
     }
 
     void ExecutionView::takeLines() {

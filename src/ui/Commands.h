@@ -55,6 +55,9 @@ namespace icd::ui {
 
         // Optimize > Defragment selected file, the File tab's button and the map's file menu (T128).
         ID_DEFRAG_FILE,
+
+        // Optimize > Resume interrupted run: continues a cancelled or crashed execution from its log (T112).
+        ID_RESUME_RUN,
     };
 
     // A workflow command as the bottom panel's buttons and the drive list's context menu show it, so both list the
@@ -63,6 +66,8 @@ namespace icd::ui {
         int id = 0; // Command id.
         const char* label = ""; // Text with & mnemonic.
         bool startsGroup = false; // A separator goes before it in a menu (job control after the steps).
+        // Shown only while it can run: a rarely available command would otherwise sit disabled in the bar.
+        bool onlyWhenEnabled = false;
     };
 
     // The workflow steps in order (Analyze, Quick, Build plan, Execute...), then job control (Pause, Cancel).

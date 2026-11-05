@@ -23,6 +23,7 @@ namespace icd::ui {
             Shortcut{ID_BUILD_PLAN, wxACCEL_NORMAL, WXK_F7, "Build the plan"},
             Shortcut{ID_REVIEW_PLAN, wxACCEL_NORMAL, WXK_F8, "Review the plan on the map"},
             Shortcut{ID_EXECUTE, wxACCEL_NORMAL, WXK_F9, "Execute the plan (asks first)"},
+            Shortcut{ID_RESUME_RUN, wxACCEL_SHIFT, WXK_F9, "Resume the drive's interrupted run (asks first)"},
             Shortcut{ID_DEFRAG_FILE, wxACCEL_CTRL, 'D', "Defragment the selected file (asks first)"},
             Shortcut{ID_PAUSE, wxACCEL_NORMAL, WXK_PAUSE, "Pause or resume execution"},
             Shortcut{ID_CANCEL, wxACCEL_NORMAL, WXK_ESCAPE, "Cancel the running job"},

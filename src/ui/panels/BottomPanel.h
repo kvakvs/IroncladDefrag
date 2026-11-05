@@ -72,6 +72,9 @@ namespace icd::ui {
         // Shows Pause or Resume on the pause button.
         void setPauseLabel(bool paused);
 
+        // Shows or hides the button of a command that appears only while it can run (WorkflowCommand::onlyWhenEnabled).
+        void showCommand(int id, bool shown);
+
     private:
         // Creates the row of workflow buttons, status line and gauge under the notebook.
         wxSizer* createStatusStrip();

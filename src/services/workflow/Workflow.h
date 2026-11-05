@@ -39,6 +39,9 @@ namespace icd::services {
         Resume, // Continue a paused execution.
         Cancel, // Stop the running job.
         DefragmentFile, // Defragment the file selected on the map on its own (T128); runs like an execution.
+        // Continue an execution that was cancelled or cut off by a crash, from its log (T112). Analyzes first when no
+        // map is shown, since the live map needs one; runs like an execution.
+        ResumeRun,
     };
 
     // Background job the caller must start after an action or a finished step.
@@ -70,6 +73,13 @@ namespace icd::services {
         // Whether the current run is a Quick run (analysis followed by a Fast plan).
         [[nodiscard]] bool quick() const { return quick_; }
 
+        // Whether the running or starting execution resumes an unfinished run (ResumeRun), not the reviewed plan.
+        [[nodiscard]] bool resuming() const { return resuming_; }
+
+        // Whether the selected drive has an unfinished run to resume; the caller looks for one off the UI thread and
+        // says so here. Selecting a drive and ending an execution clear it until the caller looks again.
+        void setResumable(bool resumable) { resumable_ = resumable; }
+
         // Whether Cancel was requested for the running job.
         [[nodiscard]] bool cancelRequested() const { return cancelRequested_; }
 
@@ -86,13 +96,18 @@ namespace icd::services {
         WorkflowJob finish(JobOutcome outcome);
 
     private:
-        // Ends an analysis; starts the plan of a Quick run.
+        // Ends an analysis; starts the plan of a Quick run or the resumed run that waited for it.
         WorkflowJob finishAnalysis(bool succeeded);
+
+        // Applies ResumeRun: the run starts now when a map is shown, else after an analysis.
+        WorkflowJob applyResume();
 
         WorkflowState state_ = WorkflowState::NoDrive; // Current state.
         bool quick_ = false; // Quick run in progress.
         bool cancelRequested_ = false; // Cancel asked for the running job.
         bool movesBlocked_ = false; // The selected drive is AnalyzeOnly: Execute is never allowed.
+        bool resumable_ = false; // The selected drive has an unfinished run (setResumable()).
+        bool resuming_ = false; // ResumeRun was applied: the analysis it waits for or the execution resumes the run.
     };
 
 } // namespace icd::services

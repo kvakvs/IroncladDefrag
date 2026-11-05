@@ -14,6 +14,8 @@ namespace icd::ui {
             WorkflowCommand{.id = ID_QUICK, .label = "&Quick", .startsGroup = false},
             WorkflowCommand{.id = ID_BUILD_PLAN, .label = "&Build plan", .startsGroup = false},
             WorkflowCommand{.id = ID_EXECUTE, .label = "&Execute...", .startsGroup = false},
+            WorkflowCommand{
+                .id = ID_RESUME_RUN, .label = "Res&ume run...", .startsGroup = false, .onlyWhenEnabled = true},
             WorkflowCommand{.id = ID_PAUSE, .label = "&Pause", .startsGroup = true},
             WorkflowCommand{.id = ID_CANCEL, .label = "&Cancel", .startsGroup = false},
         };

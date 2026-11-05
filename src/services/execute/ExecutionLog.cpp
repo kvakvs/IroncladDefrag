@@ -453,29 +453,56 @@ namespace icd::services {
     bool resumable(const ExecutionLogContents& log) {
         return (!log.ended || log.cancelled) && !movesToResume(log).empty();
     }
-    std::optional<std::filesystem::path> unfinishedExecutionLog(const std::filesystem::path& directory,
-                                                                const std::string& volumeName) {
-        std::vector<std::filesystem::path> logs;
+    UnfinishedRun unfinishedRunOf(const std::filesystem::path& log, const ExecutionLogContents& contents) {
+        const core::execute::ExecutionPlan& plan = contents.plan;
+        UnfinishedRun run;
+        run.log = log;
+        run.moves = plan.moves.size();
+        run.strategy = plan.identity.strategy;
+        run.effort = plan.identity.effort;
+        run.cancelled = contents.ended && contents.cancelled;
+        core::ClusterCount clusters = 0;
+        for (const std::uint32_t move : movesToResume(contents)) {
+            ++run.movesLeft;
+            clusters += plan.moves[move].clusters;
+        }
+        run.bytesLeft = clusters * plan.identity.geometry.bytesPerCluster;
+        std::error_code error;
+        if (const auto written = std::filesystem::last_write_time(log, error); !error) {
+            run.stoppedAt = std::chrono::clock_cast<std::chrono::system_clock>(written);
+        }
+        return run;
+    }
+
+    std::optional<UnfinishedRun> findUnfinishedRun(const std::filesystem::path& directory,
+                                                   const std::string& volumeName) {
+        std::optional<std::filesystem::path> newest;
         std::error_code error;
         const std::string prefix = fileTag(volumeName) + "-";
         for (const auto& entry : std::filesystem::directory_iterator(directory, error)) {
-            const std::string name = entry.path().filename().string();
-            if (name.starts_with(prefix) && name.ends_with(".jsonl")) {
-                logs.push_back(entry.path());
+            const std::filesystem::path& file = entry.path();
+            const std::string name = file.filename().string();
+            // The names end in the UTC start time, so the greatest name is the newest run.
+            if (name.starts_with(prefix) && name.ends_with(".jsonl") && (!newest || file > *newest)) {
+                newest = file;
             }
         }
-        std::ranges::sort(logs, std::greater<>());
-        for (const auto& log : logs) {
-            try {
-                if (resumable(readExecutionLog(log))) {
-                    return log;
-                }
-            }
-            catch (const ExecutionLogError&) {
-                continue; // Not a log this version can resume.
-            }
+        if (!newest) {
+            return std::nullopt;
         }
-        return std::nullopt;
+        try {
+            const ExecutionLogContents contents = readExecutionLog(*newest);
+            return resumable(contents) ? std::optional(unfinishedRunOf(*newest, contents)) : std::nullopt;
+        }
+        catch (const ExecutionLogError&) {
+            return std::nullopt; // Not a log this version can resume.
+        }
+    }
+
+    std::optional<std::filesystem::path> unfinishedExecutionLog(const std::filesystem::path& directory,
+                                                                const std::string& volumeName) {
+        const std::optional<UnfinishedRun> run = findUnfinishedRun(directory, volumeName);
+        return run ? std::optional(run->log) : std::nullopt;
     }
 
 } // namespace icd::services

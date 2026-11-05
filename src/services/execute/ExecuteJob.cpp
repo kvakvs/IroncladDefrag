@@ -277,6 +277,11 @@ namespace icd::services {
                          ExecutionFeed& feed, core::PauseGate* pause, JobContext& context) {
         auto run = std::make_shared<ExecutionRequest>(freshExecution(drive, std::move(plan)));
         run->options = options;
+        runGuiRequest(run, feed, pause, context);
+    }
+
+    void runGuiRequest(const std::shared_ptr<ExecutionRequest>& run, ExecutionFeed& feed, core::PauseGate* pause,
+                       JobContext& context) {
         run->observers = feed.hooks();
         run->onRevalidated = [&feed](const Revalidation& v) { feed.revalidated(v); };
         feed.setPlan(std::shared_ptr<const core::execute::ExecutionPlan>(run, &run->plan));
@@ -296,6 +301,19 @@ namespace icd::services {
             context.progress.report({.stage = "Preparing the moves", .done = 0, .total = 0, .message = {}});
             runGuiExecution(r.drive, executionPlanFor(*r.outcome, *r.plan, r.drive, r.level), r.options, *feed,
                             pause.get(), context);
+        };
+    }
+
+    JobFunction makeResumeJob(ResumeJobRequest request, std::shared_ptr<ExecutionFeed> feed,
+                              std::shared_ptr<core::PauseGate> pause) {
+        return [r = std::move(request), feed = std::move(feed), pause = std::move(pause)](JobContext& context) {
+            context.progress.report({.stage = "Reading the execution log", .done = 0, .total = 0, .message = {}});
+            auto run = std::make_shared<ExecutionRequest>(resumedExecution(r.drive, r.log));
+            if (run->order.empty()) {
+                throw std::runtime_error("the run in " + r.log.filename().string() + " has no moves left");
+            }
+            run->options = r.options;
+            runGuiRequest(run, *feed, pause.get(), context);
         };
     }
 

@@ -4,6 +4,7 @@
 #include "core/execute/PlanReplay.h"
 #include "services/execute/Executor.h"
 
+#include <chrono>
 #include <cstdint>
 #include <filesystem>
 #include <fstream>
@@ -117,7 +118,28 @@ namespace icd::services {
     // Whether a log describes a run that can be resumed: it crashed (no end line) or was cancelled, and moves are left.
     [[nodiscard]] bool resumable(const ExecutionLogContents& log);
 
-    // The newest resumable log of a volume in `directory` (a run that crashed or was cancelled), if any.
+    // A run that can be resumed, with what the GUI's offer says about it (T112).
+    struct UnfinishedRun {
+        std::filesystem::path log; // Its execution log.
+        std::uint64_t moves = 0; // Moves in its plan.
+        std::uint64_t movesLeft = 0; // Moves without a final line, which a resume tries.
+        std::uint64_t bytesLeft = 0; // What those moves move as planned (a partly done one counts whole).
+        std::string strategy; // Preset id it was planned with.
+        core::strategy::Effort effort = core::strategy::Effort::Fast; // Level it was planned at.
+        bool cancelled = false; // Stopped by Cancel; otherwise the process ended in the middle (crash, power loss).
+        std::chrono::system_clock::time_point stoppedAt{}; // When the log was last written.
+    };
+
+    // What a resumable log's offer says; `log` is where it was read from.
+    [[nodiscard]] UnfinishedRun unfinishedRunOf(const std::filesystem::path& log, const ExecutionLogContents& contents);
+
+    // The run to resume on a volume: its newest log in `directory`, when that one is resumable (crashed or cancelled,
+    // moves left). Older logs never count: a newer run was planned from a later look at the volume and replaces them.
+    // A newest log this version cannot read gives nothing. Reads the whole log, which can be tens of MB.
+    [[nodiscard]] std::optional<UnfinishedRun> findUnfinishedRun(const std::filesystem::path& directory,
+                                                                 const std::string& volumeName);
+
+    // The log of findUnfinishedRun(), if any.
     [[nodiscard]] std::optional<std::filesystem::path> unfinishedExecutionLog(const std::filesystem::path& directory,
                                                                               const std::string& volumeName);
 

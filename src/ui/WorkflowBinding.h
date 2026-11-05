@@ -5,11 +5,13 @@
 #include "core/job/StageClock.h"
 #include "core/map/World.h"
 #include "core/model/DriveInfo.h"
+#include "services/execute/ExecutionLog.h"
 #include "services/job/JobRunner.h"
 #include "services/trim/TrimJob.h"
 #include "services/workflow/FakeResults.h"
 #include "services/workflow/Workflow.h"
 #include "ui/ExecutionView.h"
+#include "ui/ResumeCheck.h"
 #include "ui/StrategyActions.h"
 #include "ui/dialogs/ConfirmExecuteDialog.h"
 #include "ui/map/MapLiveUpdates.h"
@@ -19,6 +21,7 @@
 #include <string>
 
 class wxCommandEvent;
+class wxMenu;
 class wxFrame;
 class wxThreadEvent;
 
@@ -115,6 +118,25 @@ namespace icd::ui {
 
         // Asks before defragmenting the selected file and keeps it for the job.
         [[nodiscard]] bool confirmFileDefrag();
+
+        // Asks before resuming the selected drive's unfinished run; keeps the chosen options.
+        [[nodiscard]] bool confirmResume();
+
+        // The job that resumes the unfinished run found for drive, followed like an execution (T112).
+        [[nodiscard]] services::JobFunction makeResumeJob(const core::DriveInfo& drive);
+
+        // Looks for the selected drive's unfinished run in the background, when it can have one (a real drive whose
+        // files can move); `announce` puts what is found on the status line.
+        void lookForUnfinishedRun(bool announce);
+
+        // Takes what the look found: the Resume run command follows it.
+        void onUnfinishedRun(std::optional<services::UnfinishedRun> run);
+
+        // "D: Data: an interrupted run has 12 of 40 moves left (3 GB); ...", for the status line.
+        [[nodiscard]] std::string unfinishedText(const services::UnfinishedRun& run) const;
+
+        // The name of a strategy id, or the id when no strategy has it any more.
+        [[nodiscard]] std::string strategyName(const std::string& id) const;
 
         // The job for the file kept by confirmFileDefrag(), followed like an execution.
         [[nodiscard]] services::JobFunction makeFileDefragJob(const core::DriveInfo& drive);
@@ -218,6 +240,13 @@ namespace icd::ui {
         // Right click on a drive: the workflow buttons as a menu (plus TRIM on SSDs), each enabled like its button.
         void showDriveMenu();
 
+        // Appends a command to a context menu with its shortcut, enabled like its button.
+        void addMenuCommand(wxMenu& menu, int id, const wxString& label) const;
+
+        // Appends the bottom bar's commands to a context menu (Pause reads Resume while paused; a command shown only
+        // while it can run is left out otherwise).
+        void addWorkflowCommands(wxMenu& menu) const;
+
         // The user changed preset or effort on the Strategy tab.
         void onStrategyChanged();
 
@@ -251,6 +280,9 @@ namespace icd::ui {
         ExecutionView execution_; // Follows a real execution: Progress fields, Log rows, final status.
         StrategyActions strategyActions_; // The Strategy tab's Save as, Delete, Import and Export.
         MapLiveUpdates live_; // Shows a real execution's moves on the map as they happen.
+        ResumeCheck resumeCheck_; // Looks for the selected drive's unfinished run off the UI thread.
+        std::optional<services::UnfinishedRun> unfinished_; // The selected drive's run to resume, if any.
+        bool announceUnfinished_ = false; // The running look was started by a drive selection: say what it finds.
         ExecuteChoices executeChoices_; // Priority and throughput limit from the last confirmation.
         core::RateMeter busy_; // Worker busy time per second, for the Progress tab's utilisation.
         core::SmoothedEstimate eta_; // Time left as shown: changes every 3 s at most, averaged.
@@ -264,7 +296,8 @@ namespace icd::ui {
         std::optional<core::DriveInfo> drive_; // Selected drive, copied so a refresh cannot change it mid-job.
         std::optional<core::FileIndex> selectedFile_; // File selected on the map, to tell a new pick from a refresh.
         std::optional<core::FileIndex> fileToDefrag_; // Confirmed file for the Execute job being started.
-        bool fileRun_ = false; // The running or last execution is a single-file run (it has no plan).
+        RunKind runKind_ =
+            RunKind::Plan; // What the running or last execution runs (one file and a resume have no plan).
         std::optional<services::AnalysisSummary> analysis_; // Last analysis of drive_.
         std::optional<services::PlanSummary> plan_; // Plan under review.
         std::shared_ptr<services::PlanOutput> planOutput_; // Where the running plan job leaves its outcome.
