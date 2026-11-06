@@ -24,8 +24,9 @@ changes (see `AGENTS.md`).
 | `tools/dev-env.cmd` | Shared by the scripts: `ICD_BUILD_DIR`, vcvars64 once, LLVM first on `PATH`. |
 | `deploy/nginx/ironclad.clau.se` | nginx host of the product site on pupa (static Next.js export, `/downloads/` as attachments, hashed assets cached); certbot adds TLS on the server copy. |
 | `deploy/setup-server.sh` | One-time, rerunnable server setup over WSL ssh: user `defrag`, `www/` and `www/downloads/`, ACL for nginx, placeholder page, nginx host, certificate. |
-| `deploy/publish-web.sh` | `[--dry-run] site\|downloads\|all`: rsync of `web/out/` (deleting remote extras, `downloads/` excluded) and of `dist/*-setup.exe` plus `.sha256` (never deleting). |
+| `deploy/publish-web.sh` | `[--dry-run] site\|downloads\|all`: rsync of `website/out/` (deleting remote extras, `downloads/` excluded) and of `dist/*-setup.exe` plus `.sha256` (never deleting). |
 | `deploy/placeholder/index.html` | The page served until the first site deploy. |
+| `website/` | Product site, Next.js 16 static export managed with pnpm (`pnpm build` -> `website/out/`, git-ignored with `node_modules/` and `.next/`; `/deploy` builds it on Windows, then uploads): `app/layout.tsx`, `app/page.tsx`, `app/globals.css` (light/dark tokens), `components/Background.tsx` and `DiskMap.tsx` (decorative), all texts and links in `lib/site.ts`. |
 | `.claude/skills/deploy/SKILL.md` | The `/deploy` skill: checks inputs, dry run, publish, verify (HTTP 200, served SHA-256 = `.sha256`). |
 | `installer/IroncladDefrag.nsi` | NSIS installer: per-machine into Program Files, the two programs, wx DLLs and the app-local VC++ runtime, Start menu (and optional desktop) shortcut, Installed apps entry (version, icon, size), uninstaller that removes only its own files and keeps `%LOCALAPPDATA%\IroncladDefrag` unless asked. |
 | `make-installer.bat` | Release build, then `makensis` with the version, commit, bin and CRT folders: `dist\IroncladDefrag-<version>-<commit>-setup.exe`. |

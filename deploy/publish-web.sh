@@ -2,8 +2,9 @@
 # Publishes the product site to https://ironclad.clau.se (T143). Run from WSL:
 #   bash deploy/publish-web.sh [--dry-run] site|downloads|all
 #
-#   site       web/out/ (the static Next.js export) -> pupa:/home/defrag/www/, deleting remote files the export no
-#              longer has. www/downloads/ is excluded, so installers survive every site deploy.
+#   site       website/out/ (the static Next.js export, built on Windows first: see the deploy skill) ->
+#              pupa:/home/defrag/www/, deleting remote files the export no longer has. www/downloads/ is excluded, so
+#              installers survive every site deploy.
 #   downloads  dist/*-setup.exe and their .sha256 files -> pupa:/home/defrag/www/downloads/, never deleting: older
 #              installers stay downloadable. A missing or stale .sha256 is written next to the installer first.
 #   all        site, then downloads.
@@ -15,7 +16,7 @@ set -euo pipefail
 HOST=${DEPLOY_HOST:-pupa}
 REMOTE=/home/defrag/www
 REPO=$(cd "$(dirname "$0")/.." && pwd)
-SITE="$REPO/web/out"
+SITE="$REPO/website/out"
 DIST="$REPO/dist"
 
 DRY=()
@@ -35,7 +36,7 @@ RSYNC=(rsync -rlt --compress --itemize-changes --human-readable --stats --chown=
 publish_site() {
     # An empty or missing export with --delete would wipe the live site, so refuse it.
     if [ ! -f "$SITE/index.html" ]; then
-        echo "No $SITE/index.html: build the site first (cd web && npm run build)." >&2
+        echo "No $SITE/index.html: build it on Windows first (pnpm --dir website install --frozen-lockfile; pnpm --dir website build)." >&2
         exit 1
     fi
     echo "== Site: $SITE/ -> $HOST:$REMOTE/ (deleting what the export no longer has; downloads/ kept)"

@@ -90,13 +90,15 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 ### T143 - Product web page
 
 - Depends: T140, T141
-- Decided with the user (2026-11-04): a static Next.js site (`output: 'export'` into `web/out/`) at
+- Decided with the user (2026-11-04): a static Next.js site (`output: 'export'` into `website/out/`, built with pnpm on Windows) at
   https://ironclad.clau.se on the server pupa (`/home/defrag/www`, nginx, certbot), installers under `/downloads/`.
   Published by the `/deploy` skill (`.claude/skills/deploy/SKILL.md`, `deploy/publish-web.sh` over WSL ssh + rsync:
   the site with deletion of remote extras, the installers separately without, so they survive redeploys); server
   setup in `deploy/setup-server.sh` and `deploy/nginx/ironclad.clau.se`. Still needed from the user: the contact /
   license / privacy text. **Gate:** publishing is public; each upload needs the user's go-ahead (invoking /deploy).
-- Owns: `web/` (Next.js sources and assets), `deploy/`
+- Owns: `website/` (Next.js sources and assets), `deploy/`
+- Progress: skeleton committed (hero, numbers, feature cards, steps, light/dark backdrop; texts in `website/lib/site.ts`);
+  `/deploy` builds it before uploading. Still to do: screenshots, requirements, download size and SHA-256, release notes.
 - Do: a small static site (no tracking, readable without JavaScript: static export, no client-only content): what the app does and for whom
   (HDDs, zone strategies, least movement), screenshots of the map, strategies, plan review and live execution taken
   from the fake drive list, the safety model (dry-run plans, revalidation, Windows move API, pause/cancel, logs),
