@@ -110,20 +110,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Deferred (look at later)
 
-### T112b - GUI check of Resume run (elevated)
-
-- Depends: T112
-- Owns: the check only (fixes go to the code they concern)
-- Why: T112 was built in a session without administrator rights, so only the offer was seen (X:'s cancelled run
-  found and announced); no run was resumed from the GUI yet.
-- Do: in an elevated session on the 1 GB `mixed` VHDX (E:\icd-testvol\gui-mixed.vhdx, fresh scenario): Analyze,
-  Maximum plan, Execute, Cancel after a few seconds; Resume run must appear at once; resume it to the end. Then
-  restart the GUI (no map) after another cancelled run: Resume run analyzes first, then runs. Each time: the execution
-  log ends with a non-cancelled end line and no moves left, file hashes unchanged, `chkdsk /scan` clean,
-  `icd-cli check-catchup` equal, every planned file at its last destination (compare with an uninterrupted CLI run of
-  the same plan, or `icd-cli execute --resume --log FILE` reporting nothing left).
-- Done when: both runs end as an uninterrupted run would, and the live map followed both.
-
 ### T114 - Read and write animation (consider)
 
 - Depends: T111

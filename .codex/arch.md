@@ -293,6 +293,12 @@ this file records what is actually built and the decisions made along the way.
   (`runGuiRequest()`: same feed, Progress fields, Log rows and live map), appending to the same log. Every execution
   end looks again, so a cancelled run is offered at once and a completed one disappears. Executing a new plan while
   a run is offered warns that the old run will no longer be offered (its log is no longer the newest).
+- Checked from the GUI (T112b, 2026-11-06, elevated, fresh 1 GB `mixed` VHDX on the E: HDD, Maximum): a run cancelled
+  after 613 of 2,839 moves resumed with the map shown; a GUI killed in the middle of move 617 of 3,284 restarted with
+  no map, analyzed first and resumed (the cut-off move found already done). Both volumes ended as the plan predicted:
+  every moved file at its planned destinations (`fsutil`), hashes unchanged, `chkdsk /scan` clean, catch-up equal to
+  a full scan; the live map followed every move. Driven by posting the command ids to the main window and
+  `WM_COMMAND`/`BN_CLICKED` for the dialog's OK button (`wxID_OK`), progress read from the app log's job lines.
 - Phase 8 exit (2026-11-03, elevated, 1 GB `mixed` VHDX on the E: HDD, the GUI driven by UI Automation): the full
   workflow (Analyze, Strategy at Maximum, Build plan, Execute with confirmation) ran from the GUI; Pause, Resume and
   Cancel worked; the map showed the moves as they happened (fragmented data 329 MB, 215 MB mid-run, 41.6 MB at the

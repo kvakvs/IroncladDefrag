@@ -492,3 +492,11 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   `WorkflowTest` (ResumeRun, ResumeRunStopsWithItsAnalysis), `ExecutionLogTest.OnlyTheNewestLogIsResumed`. Seen
   without elevation: X:'s cancelled run (69,967 of 80,180 moves left) offered on selection. The elevated GUI run is
   T112b.
+- T112b GUI check of Resume run (elevated, 2026-11-06, fresh 1 GB `mixed` VHDX on the E: HDD each, mixed at Maximum,
+  the GUI driven by posted command ids on the IDE's display): (1) Execute cancelled after 613 of 2,839 moves; Resume
+  run appeared at once, resumed with the map shown, 2,226 moves in 33 s, the live map followed all of them (48
+  updates, slowest 19 ms); (2) the GUI killed with move 617 of 3,284 begun; a new start offered "an interrupted run
+  has 2,667 of 3,284 moves left", Resume run analyzed first and ran the rest (move 617 found already done). After
+  each: the log ends with a non-cancelled end line and every move moved or already done and verified, every moved
+  file's extents (`fsutil file queryextents`, 2,726 and 3,167 files) equal its planned destinations, file hashes
+  unchanged, `chkdsk /scan` clean, `icd-cli check-catchup` equal. Nothing to fix.
