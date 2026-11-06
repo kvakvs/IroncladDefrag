@@ -7,10 +7,11 @@ namespace icd::core {
 
     namespace {
 
-        // Size and opacity of a read pulse at its start and end; a write runs them backwards.
+        // Size and opacity of a read pulse at its start and end; a write runs them backwards. Heights in pixels.
         constexpr double smallScale = 1.0;
         constexpr double largeScaleX = 1.2;
-        constexpr double largeScaleY = 10.0;
+        constexpr double smallHeight = 1.0;
+        constexpr double largeHeight = 16.0;
         constexpr double strongOpacity = 0.5;
         constexpr double faintOpacity = 0.05;
 
@@ -38,7 +39,7 @@ namespace icd::core {
         const double t = std::chrono::duration<double>(elapsed) / std::chrono::duration<double>(pulseDuration);
         const double read = kind == ActivityKind::Read ? t : 1.0 - t; // How far along the read direction.
         return PulseLook{.scaleX = lerp(smallScale, largeScaleX, read),
-                         .scaleY = lerp(smallScale, largeScaleY, read),
+                         .height = lerp(smallHeight, largeHeight, read),
                          .opacity = lerp(strongOpacity, faintOpacity, read)};
     }
 

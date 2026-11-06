@@ -83,13 +83,6 @@ namespace icd::ui {
         // Outlines a rectangle with a line centered on its edges.
         void strokeRect(const PixelRect& rect, const LineStyle& line);
 
-        // Draws what follows until popScaledClip() clipped to `clip` and scaled by scaleX across and scaleY down about
-        // its center, clip and all: a read or write pulse fills its bar of the map this way (T114).
-        void pushScaledClip(const PixelRect& clip, double scaleX, double scaleY);
-
-        // Ends what pushScaledClip() started.
-        void popScaledClip();
-
         // Ends and presents the frame. False when the device was lost: every uploaded tile is then invalid and
         // must be dropped; the next begin() creates a new target.
         bool end();

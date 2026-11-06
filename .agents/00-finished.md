@@ -518,3 +518,6 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   default, not on Resume), `ExecuteJobRequest::headOrder`, `icd-cli execute --plan-order`. 1 M moves order in 0.7 s
   on one thread. Also: "workflow job finished" log line with seconds for every GUI job, seconds on the synthetic
   analysis line. `HeadOrderTest`, `BitTreeTest`.
+- T114b Pulse size independent of zoom - a pulse is 1 to 16 window pixels tall (read grows, write shrinks) and 100-120%
+  of its bar's width; the height was a multiple of the row height and grew huge zoomed in. `MapActivity` sizes each
+  bar's rectangle; `D2DRenderer::pushScaledClip()` removed. `ActivityTest` heights.

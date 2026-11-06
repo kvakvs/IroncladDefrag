@@ -21,10 +21,11 @@ namespace icd::core {
         Write, // Bars shrink and fade in, as if the data landed on the map.
     };
 
-    // How a pulse's bars look at one moment: drawn over the map, scaled about their centers, at an opacity.
+    // How a pulse's bars look at one moment: drawn over the map about their centers, at an opacity. The height is in
+    // window pixels so a pulse looks the same at every zoom (a multiple of the row height grew huge when zoomed in).
     struct PulseLook {
         double scaleX = 1.0; // Width scale; 1: the bar's own width.
-        double scaleY = 1.0; // Height scale; 1: the bar's own height.
+        double height = 1.0; // Height in window pixels, whatever the zoom.
         double opacity = 0.0; // 0-1 over the map.
     };
 
@@ -49,10 +50,10 @@ namespace icd::core {
     // How long one pulse lasts.
     inline constexpr std::chrono::milliseconds pulseDuration{400};
 
-    // The look of a pulse `elapsed` after its start: a read grows from its own size to 1.2x as wide and 10x as tall
-    // while it fades from 0.5 to 0.05 opacity, a write the reverse (the user's choice: a flat row piece grows mostly
-    // up and down, so a whole-row bar does not cover the map sideways). Nullopt before the start and once the pulse is
-    // over.
+    // The look of a pulse `elapsed` after its start: a read grows from its bar's width to 1.2x as wide and from 1 to
+    // 16 pixels tall while it fades from 0.5 to 0.05 opacity, a write the reverse (the user's choice: a flat row piece
+    // grows mostly up and down, so a whole-row bar does not cover the map sideways). Nullopt before the start and once
+    // the pulse is over.
     [[nodiscard]] std::optional<PulseLook> pulseLook(ActivityKind kind, AnimationClock::duration elapsed);
 
     // The bars of a cluster run on the map: its piece of the first row, the full rows between as one block and its

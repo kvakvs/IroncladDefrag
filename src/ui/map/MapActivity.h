@@ -21,8 +21,8 @@ namespace icd::ui {
     // the View toggle alone decides). UI thread only.
     class MapActivity {
     public:
-        // Draws one bar: its rectangle in window pixels, how it looks (scale about its center, opacity) and its fill.
-        using BarPainter = std::function<void(const PixelRect&, const core::PulseLook&, core::Rgba)>;
+        // Draws one pulse bar: its rectangle in window pixels (already sized for this moment), opacity and fill.
+        using BarPainter = std::function<void(const PixelRect&, double opacity, core::Rgba)>;
 
         // Repaints canvas while pulses show.
         explicit MapActivity(MapCanvas& canvas);

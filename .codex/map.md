@@ -273,7 +273,7 @@ changes (see `AGENTS.md`).
 | `src/ui/map/Minimap.*` | Minimap overlay drawn in the canvas's Direct2D frame: holds the coarsest tile as its image, frame and view marker, drag state (grab offset). |
 | `src/ui/map/Ruler.*` | Ruler windows (GDI, buffered) beside the map: vertical rows with offset, % and % of disk (`setDisk()`), horizontal offsets within a row; sized for their widest label, refreshed on view changes. |
 | `src/ui/map/MapNavigator.*` | Map input: minimap drags and hand cursor, drag with inertia, wheel and pinch zoom at the pointer, two-finger pan, double-click zoom, map keys, View zoom commands; 8 ms frame timer. |
-| `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles (with an opacity through the brush), rectangle sets blended as one layer (`fillRects`, the grid), a scaled clip for the pulses (`pushScaledClip()`), device-loss detection. |
+| `src/ui/map/D2DRenderer.*` | Direct2D on one HWND: target creation/resize, tile upload as GPU bitmaps, nearest-neighbour or linear drawing with opacity, no edge anti-aliasing (no tile seams), overlay rectangles (with an opacity through the brush), rectangle sets blended as one layer (`fillRects`, the grid), device-loss detection. |
 | `src/cli/main.cpp` | `icd-cli`: `--version`, `--help`, dispatch to commands. |
 | `src/cli/commands/CheckCaps.*` | `icd-cli check-caps <volume> [--threads N] [--memory-budget B]`: capped (mapped) and uncapped full scans compared exactly. |
 | `src/cli/commands/CheckCatchUp.*` | `icd-cli check-catchup <volume>`: saved snapshot caught up and compared with a full MFT scan (access times aside). |

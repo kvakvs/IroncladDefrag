@@ -39,13 +39,16 @@ namespace icd::ui {
             return r;
         }
 
-        // Whether a bar scaled about its center reaches into the window.
-        bool visible(const PixelRect& r, const core::PulseLook& look, const core::Viewport& view) {
-            const double cx = r.x + r.width / 2;
-            const double cy = r.y + r.height / 2;
-            const double halfW = r.width * look.scaleX / 2;
-            const double halfH = r.height * look.scaleY / 2;
-            return cx + halfW > 0 && cx - halfW < view.size.x && cy + halfH > 0 && cy - halfH < view.size.y;
+        // What a pulse draws over a bar: the bar's width scaled about its center, the look's height in pixels about
+        // the bar's middle (the same at every zoom).
+        PixelRect pulseRect(const PixelRect& bar, const core::PulseLook& look) {
+            const double width = bar.width * look.scaleX;
+            return {bar.x + (bar.width - width) / 2, bar.y + (bar.height - look.height) / 2, width, look.height};
+        }
+
+        // Whether a rectangle reaches into the window.
+        bool visible(const PixelRect& r, const core::Viewport& view) {
+            return r.x + r.width > 0 && r.x < view.size.x && r.y + r.height > 0 && r.y < view.size.y;
         }
 
         // The mean of values (0 for none).
@@ -122,8 +125,8 @@ namespace icd::ui {
         bool drew = false;
         for (const core::ClusterRun& run : pulse.runs) {
             for (const core::CellRect& cells : core::activityBars(world, run)) {
-                if (const PixelRect bar = pixelsOf(cells, view); visible(bar, look, view)) {
-                    paint(bar, look, fill);
+                if (const PixelRect rect = pulseRect(pixelsOf(cells, view), look); visible(rect, view)) {
+                    paint(rect, look.opacity, fill);
                     drew = true;
                 }
             }

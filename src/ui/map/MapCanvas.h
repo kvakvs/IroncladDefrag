@@ -183,8 +183,9 @@ namespace icd::ui {
         // The tiles of a level over a window area (clipped to the world).
         [[nodiscard]] TileSpan tilesOver(int level, const PixelRect& area) const;
 
-        // Draws one activity bar: filled with its pulse's color, scaled about its center, at the pulse's opacity.
-        void drawBar(const PixelRect& bar, const core::PulseLook& look, core::Rgba fill);
+        // Draws one activity bar, already sized for this moment of its pulse: filled with the pulse's color at its
+        // opacity.
+        void drawBar(const PixelRect& bar, double opacity, core::Rgba fill);
 
         // Queues a tile on the pool unless it is cached, already rendering, or too many are in flight.
         void request(core::TileId tile);

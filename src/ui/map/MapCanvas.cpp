@@ -352,10 +352,9 @@ namespace icd::ui {
         if (map_ != nullptr) {
             drawTiles();
             drawGrid();
-            pulses = activity_->draw(start, map_->world(), view_,
-                                     [this](const PixelRect& bar, const core::PulseLook& look, core::Rgba fill) {
-                                         drawBar(bar, look, fill);
-                                     });
+            pulses = activity_->draw(
+                start, map_->world(), view_,
+                [this](const PixelRect& bar, double opacity, core::Rgba fill) { drawBar(bar, opacity, fill); });
             drawMinimap();
         }
         if (!renderer_->end()) {
@@ -398,10 +397,8 @@ namespace icd::ui {
         return t;
     }
 
-    void MapCanvas::drawBar(const PixelRect& bar, const core::PulseLook& look, core::Rgba fill) {
-        renderer_->pushScaledClip(bar, look.scaleX, look.scaleY);
-        renderer_->fillRect(bar, {.color = fill, .opacity = look.opacity});
-        renderer_->popScaledClip();
+    void MapCanvas::drawBar(const PixelRect& bar, double opacity, core::Rgba fill) {
+        renderer_->fillRect(bar, {.color = fill, .opacity = opacity});
     }
 
     void MapCanvas::drawLevel(int level, const BitmapStyle& style, bool fallback) {

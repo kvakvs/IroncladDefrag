@@ -971,8 +971,9 @@ All analysis checks passed.
 - During analysis and execution the map shows where the disk is read and written right now, as pulses over the map
   (the design is the user's): each bar of the clusters read or written (`core::activityBars()`: a run's piece of its
   first row, the full rows between as one block, its piece of the last row) is filled again over the map, scaled about
-  its own center and faded over 0.4 s. A read grows from its own size to 1.2x as wide and 10x as tall while its
-  opacity goes from 0.5 to 0.05; a write runs the same backwards (it lands). Bars under a pixel are drawn 1 px.
+  its own center and faded over 0.4 s. A read grows from its bar's width to 1.2x as wide and from 1 to 16 pixels
+  tall (window pixels, the same at every zoom; a multiple of the row height grew huge zoomed in) while its opacity
+  goes from 0.5 to 0.05; a write runs the same backwards (it lands). Bars under a pixel wide are drawn 1 px wide.
 - Colors: two legend keys, `activity.read` and `activity.write`, in every preset (dark: cool white and amber; standard:
   deep blue and orange; colorblind-safe: navy and Okabe-Ito orange). The legend lists "Reading" and "Writing" after
   every mode's own entries (`core::activityLegend()`, no counts), so they can be changed in any mode like any other
@@ -987,8 +988,8 @@ All analysis checks passed.
   simulated execution pulses a file per item (read, then written in place 120 ms later).
 - `core::ActivityLayer` keeps at most 256 pulses (16 runs each); more are dropped and counted (a run of tiny files
   begins hundreds of moves a second). `ui::MapActivity` owns the layer and an 8 ms timer while any pulse waits or
-  shows; the canvas draws the bars after the grid (`D2DRenderer::pushScaledClip()`, a brush fill at the pulse's
-  opacity), so no tile renders again. Pause drops the pulses and takes none until Resume. View > Read/write activity
+  shows; the canvas draws the bars after the grid (one brush fill per bar at the pulse's
+  opacity; `MapActivity` sizes it: the bar's width scaled, the pulse's height in pixels about the bar's middle), so no tile renders again. Pause drops the pulses and takes none until Resume. View > Read/write activity
   switches them off and on (`Settings::mapActivity`, on by default). Windows' "Show animations" setting is not read:
   it is off on the user's machine, and the user chose the View toggle alone.
 - Each stretch of frames with pulses logs "activity frames" (count, fps, interval p95, paint mean, p95, max, dropped).

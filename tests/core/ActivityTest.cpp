@@ -9,23 +9,23 @@ namespace icd::core { namespace {
 
     using namespace std::chrono_literals;
 
-    // A read grows to 1.2x as wide and 10x as tall while it fades from 0.5 to 0.05; a write runs the other way; both
-    // last 0.4 s.
+    // A read grows to 1.2x as wide and from 1 to 16 pixels tall (whatever the zoom) while it fades from 0.5 to 0.05; a
+    // write runs the other way; both last 0.4 s.
     TEST(Activity, PulseLooksOverItsLife) {
         const auto start = pulseLook(ActivityKind::Read, 0ms);
         ASSERT_TRUE(start.has_value());
         EXPECT_DOUBLE_EQ(start->scaleX, 1.0);
-        EXPECT_DOUBLE_EQ(start->scaleY, 1.0);
+        EXPECT_DOUBLE_EQ(start->height, 1.0);
         EXPECT_DOUBLE_EQ(start->opacity, 0.5);
         const auto middle = pulseLook(ActivityKind::Read, 200ms);
         ASSERT_TRUE(middle.has_value());
         EXPECT_DOUBLE_EQ(middle->scaleX, 1.1);
-        EXPECT_DOUBLE_EQ(middle->scaleY, 5.5);
+        EXPECT_DOUBLE_EQ(middle->height, 8.5);
         EXPECT_DOUBLE_EQ(middle->opacity, 0.275);
         const auto late = pulseLook(ActivityKind::Read, 399ms);
         ASSERT_TRUE(late.has_value());
         EXPECT_NEAR(late->scaleX, 1.2, 0.001);
-        EXPECT_NEAR(late->scaleY, 10.0, 0.04);
+        EXPECT_NEAR(late->height, 16.0, 0.04);
         EXPECT_NEAR(late->opacity, 0.05, 0.002);
         EXPECT_FALSE(pulseLook(ActivityKind::Read, 400ms).has_value());
         EXPECT_FALSE(pulseLook(ActivityKind::Read, -1ms).has_value());
@@ -33,11 +33,11 @@ namespace icd::core { namespace {
         const auto landing = pulseLook(ActivityKind::Write, 0ms);
         ASSERT_TRUE(landing.has_value());
         EXPECT_DOUBLE_EQ(landing->scaleX, 1.2);
-        EXPECT_DOUBLE_EQ(landing->scaleY, 10.0);
+        EXPECT_DOUBLE_EQ(landing->height, 16.0);
         EXPECT_DOUBLE_EQ(landing->opacity, 0.05);
         const auto landed = pulseLook(ActivityKind::Write, 399ms);
         ASSERT_TRUE(landed.has_value());
-        EXPECT_NEAR(landed->scaleY, 1.0, 0.04);
+        EXPECT_NEAR(landed->height, 1.0, 0.04);
         EXPECT_NEAR(landed->opacity, 0.5, 0.002);
     }
 
