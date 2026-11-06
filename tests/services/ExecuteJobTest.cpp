@@ -71,6 +71,12 @@ namespace icd::services { namespace {
         EXPECT_TRUE(std::ranges::none_of(
             lines, [](const ExecutionLogLine& l) { return l.at == std::chrono::system_clock::time_point{}; }));
 
+        const auto begun = feed.takeBegun(); // Every move ran, so each began once, in order, with its time.
+        ASSERT_EQ(begun.size(), revalidation.replay.kept.size());
+        EXPECT_TRUE(std::ranges::equal(begun, revalidation.replay.kept, {}, &BegunMove::move));
+        EXPECT_TRUE(std::ranges::is_sorted(begun, {}, &BegunMove::at));
+        EXPECT_TRUE(feed.takeBegun().empty());
+
         const auto moved = feed.takeMoved();
         const auto withClusters =
             std::ranges::count_if(report.records, [](const MoveRecord& r) { return r.clustersMoved != 0; });

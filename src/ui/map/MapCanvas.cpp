@@ -95,6 +95,7 @@ namespace icd::ui {
         navigator_ = std::make_unique<MapNavigator>(*this);
         selection_ = std::make_unique<MapSelection>(*this);
         hover_ = std::make_unique<MapHover>(*this);
+        activity_ = std::make_unique<MapActivity>(*this);
     }
 
     MapCanvas::~MapCanvas() {
@@ -107,6 +108,7 @@ namespace icd::ui {
         navigator_->stop();
         hover_->hide();
         selection_->reset();
+        activity_->clear();
         overlay_.reset();
         map_ = std::move(map);
         resetTiles();
@@ -346,14 +348,22 @@ namespace icd::ui {
         uploadArrived();
         missingTiles_ = 0;
         renderer_->clear(palette_->outside()); // Around the map and under missing tiles, in the scheme's color.
+        bool pulses = false;
         if (map_ != nullptr) {
             drawTiles();
             drawGrid();
+            pulses = activity_->draw(start, map_->world(), view_,
+                                     [this](const PixelRect& bar, const core::PulseLook& look, core::Rgba fill) {
+                                         drawBar(bar, look, fill);
+                                     });
             drawMinimap();
         }
         if (!renderer_->end()) {
             resetTiles(); // Device lost: tiles must be uploaded again.
             Refresh(false);
+        }
+        if (pulses) {
+            activity_->frameDrawn(start, millisecondsSince(start));
         }
         if (recording_) {
             paintTimes_.push_back(millisecondsSince(start));
@@ -372,24 +382,36 @@ namespace icd::ui {
         }
     }
 
-    void MapCanvas::drawLevel(int level, const BitmapStyle& style, bool fallback) {
+    MapCanvas::TileSpan MapCanvas::tilesOver(int level, const PixelRect& area) const {
         const core::World& world = map_->world();
-        const double span = core::World::tileSize * core::World::cellsPerPixel(level); // Cells per tile edge.
-        const double tilePixels = span / view_.scale; // Window pixels per tile edge.
-        const core::WorldPoint topLeft = view_.worldAt({0, 0});
-        const core::WorldPoint bottomRight = view_.worldAt(view_.size);
-        const auto firstX = static_cast<std::int64_t>(std::max(0.0, std::floor(topLeft.x / span)));
-        const auto firstY = static_cast<std::int64_t>(std::max(0.0, std::floor(topLeft.y / span)));
-        const auto lastX = std::min(static_cast<std::int64_t>(world.tilesAcross(level)),
-                                    static_cast<std::int64_t>(std::ceil(bottomRight.x / span)));
-        const auto lastY = std::min(static_cast<std::int64_t>(world.tilesDown(level)),
-                                    static_cast<std::int64_t>(std::ceil(bottomRight.y / span)));
-        for (std::int64_t y = firstY; y < lastY; ++y) {
-            for (std::int64_t x = firstX; x < lastX; ++x) {
+        TileSpan t;
+        t.span = core::World::tileSize * core::World::cellsPerPixel(level);
+        t.tilePixels = t.span / view_.scale;
+        const core::WorldPoint topLeft = view_.worldAt({area.x, area.y});
+        const core::WorldPoint bottomRight = view_.worldAt({area.x + area.width, area.y + area.height});
+        t.firstX = static_cast<std::int64_t>(std::max(0.0, std::floor(topLeft.x / t.span)));
+        t.firstY = static_cast<std::int64_t>(std::max(0.0, std::floor(topLeft.y / t.span)));
+        t.lastX = std::min(static_cast<std::int64_t>(world.tilesAcross(level)),
+                           static_cast<std::int64_t>(std::ceil(bottomRight.x / t.span)));
+        t.lastY = std::min(static_cast<std::int64_t>(world.tilesDown(level)),
+                           static_cast<std::int64_t>(std::ceil(bottomRight.y / t.span)));
+        return t;
+    }
+
+    void MapCanvas::drawBar(const PixelRect& bar, const core::PulseLook& look, core::Rgba fill) {
+        renderer_->pushScaledClip(bar, look.scaleX, look.scaleY);
+        renderer_->fillRect(bar, {.color = fill, .opacity = look.opacity});
+        renderer_->popScaledClip();
+    }
+
+    void MapCanvas::drawLevel(int level, const BitmapStyle& style, bool fallback) {
+        const TileSpan t = tilesOver(level, {0, 0, view_.size.x, view_.size.y});
+        for (std::int64_t y = t.firstY; y < t.lastY; ++y) {
+            for (std::int64_t x = t.firstX; x < t.lastX; ++x) {
                 const core::TileId tile{level, static_cast<std::uint64_t>(x), static_cast<std::uint64_t>(y)};
                 const core::PixelPoint corner =
-                    view_.pixelAt({static_cast<double>(x) * span, static_cast<double>(y) * span});
-                const PixelRect destination{corner.x, corner.y, tilePixels, tilePixels};
+                    view_.pixelAt({static_cast<double>(x) * t.span, static_cast<double>(y) * t.span});
+                const PixelRect destination{corner.x, corner.y, t.tilePixels, t.tilePixels};
                 if (GpuTileHandle* cached = cache_.find(tile); cached != nullptr) {
                     drawCached(tile, *cached, destination, style);
                     continue;

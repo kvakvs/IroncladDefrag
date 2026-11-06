@@ -168,6 +168,7 @@ namespace icd::services {
         out.endObject();
         writeMapColors(out, settings.mapColors);
         out.key("appearance").value(appearanceId(settings.appearance));
+        out.key("mapActivity").value(settings.mapActivity);
         out.endObject();
         return out.str() + "\n";
     }
@@ -218,6 +219,9 @@ namespace icd::services {
             readMapColors(root, settings);
             if (const auto appearance = stringMember(root, "appearance"); appearance) {
                 settings.appearance = appearanceFromId(*appearance).value_or(Appearance::System);
+            }
+            if (const core::JsonValue* activity = root.find("mapActivity"); activity != nullptr && activity->isBool()) {
+                settings.mapActivity = activity->asBool();
             }
             return settings;
         }

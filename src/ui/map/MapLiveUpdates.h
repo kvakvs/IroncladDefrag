@@ -29,7 +29,9 @@ namespace icd::ui {
     // finished moves from the run's feed, applies them to the shown map on the pool (services::applyMoves()) and shows
     // the result with only the tiles over the moved clusters rendered again. One update at a time, the next one at
     // least twice the last one's duration later (500 ms at least), so on a huge volume the map updates less often
-    // instead of falling behind. UI thread only.
+    // instead of falling behind. It also feeds the map's read and write pulses (T114): a read over a move's sources
+    // when it begins, a write over where it went once the map shows it there, spread until the next update. UI thread
+    // only.
     class MapLiveUpdates {
     public:
         // Shows updates on map; applies moves on executor, which must outlive this object.
@@ -67,6 +69,7 @@ namespace icd::ui {
             bool refused = false; // The moves do not fit the map: stop following.
             std::chrono::steady_clock::duration took{}; // How long it took.
             std::size_t moves = 0; // Moves it applied.
+            std::vector<services::MoveRecord> records; // Those moves, for the write pulses.
         };
 
         // What an update starts from and applies (shared with the pool task).
@@ -88,6 +91,12 @@ namespace icd::ui {
 
         // Shows a computed map.
         void show(const Result& result);
+
+        // Read pulses over the sources of the moves begun since the last tick, at the time each began (a tick later).
+        void pulseReads();
+
+        // Write pulses over where the moves of a shown update went, spread until the next update may come.
+        void pulseWrites(const std::vector<services::MoveRecord>& records);
 
         // Takes a finished update: shows it, or stops when it failed or the map changed meanwhile.
         void deliver(const Result& result);

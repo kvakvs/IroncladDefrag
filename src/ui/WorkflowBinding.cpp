@@ -25,6 +25,7 @@
 #include "ui/dialogs/ScheduleDialog.h"
 #include "ui/dialogs/SettingsDialog.h"
 #include "ui/dialogs/VssWarning.h"
+#include "ui/map/MapActivity.h"
 #include "ui/panels/BottomPanel.h"
 #include "ui/panels/DrivesPanel.h"
 #include "ui/panels/MapPanel.h"
@@ -201,6 +202,9 @@ namespace icd::ui {
         widgets_.bottom.plan().setVssHandler([this] { onVssOptionChanged(); });
         widgets_.map.setSelectionHandler([this] { onFileSelected(); });
         widgets_.drives.setDrives(services_.drives().listDrives());
+        const bool activity = services_.settings().current().mapActivity;
+        widgets_.map.activity().setShown(activity);
+        frame_.GetMenuBar()->Check(ID_SHOW_ACTIVITY, activity);
         refresh();
     }
 
@@ -220,6 +224,7 @@ namespace icd::ui {
         }
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_COLOR_CLASS, ID_ZOOM_CLUSTER);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onViewCommand, this, ID_GOTO_FILE, ID_PREVIOUS_FRAGMENT);
+        frame_.Bind(wxEVT_MENU, [this](wxCommandEvent&) { toggleActivity(); }, ID_SHOW_ACTIVITY);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onScheduleCommand, this, ID_WINDOWS_SCHEDULE);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onSettingsCommand, this, ID_RESOURCES);
         frame_.Bind(wxEVT_MENU, &WorkflowBinding::onSettingsCommand, this, wxID_PREFERENCES);
@@ -253,6 +258,46 @@ namespace icd::ui {
         wxMenuBar& menu = *frame_.GetMenuBar();
         menu.Check(ID_SHOW_MINIMAP, widgets_.map.minimapShown());
         menu.Check(widgets_.map.colorModeCommand(), true);
+    }
+
+    void WorkflowBinding::toggleActivity() {
+        MapActivity& activity = widgets_.map.activity();
+        activity.setShown(!activity.shown());
+        frame_.GetMenuBar()->Check(ID_SHOW_ACTIVITY, activity.shown());
+        services::Settings settings = services_.settings().current();
+        settings.mapActivity = activity.shown();
+        services_.settings().update(std::move(settings));
+    }
+
+    void WorkflowBinding::pulseActivity(const core::Progress& progress) {
+        if (activeKind_ == WorkflowJob::Analyze && progress.stage == "Reading MFT") {
+            pulseMftRead(progress);
+        }
+        else if (activeKind_ == WorkflowJob::Execute && services_.fakeDrives() && !execution_.active()) {
+            pulseSimulatedMoves(progress);
+        }
+    }
+
+    void WorkflowBinding::pulseMftRead(const core::Progress& progress) {
+        if (progress.total == 0 || !drive_ || !drive_->layout.ntfs || drive_->layout.bytesPerCluster == 0) {
+            return;
+        }
+        const double read = static_cast<double>(progress.done) / static_cast<double>(progress.total);
+        const double from = read < mftReadFraction_ ? 0.0 : mftReadFraction_; // A second round starts again.
+        const core::NtfsLayout& ntfs = *drive_->layout.ntfs;
+        widgets_.map.pulseMftRead({ntfs.mftStartLcn, ntfs.mftValidDataLength / drive_->layout.bytesPerCluster},
+                                  {.from = from, .to = read});
+        mftReadFraction_ = read;
+    }
+
+    void WorkflowBinding::pulseSimulatedMoves(const core::Progress& progress) {
+        constexpr std::uint64_t perReport = 8; // Enough to look busy, few enough to keep the layer from filling.
+        const std::uint64_t first =
+            std::max(simulatedItems_, progress.done > perReport ? progress.done - perReport : 0);
+        for (std::uint64_t item = first; item < progress.done; ++item) {
+            widgets_.map.pulseSimulatedMove(item);
+        }
+        simulatedItems_ = std::max(simulatedItems_, progress.done);
     }
 
     void WorkflowBinding::onCommand(wxCommandEvent& event) {
@@ -358,12 +403,14 @@ namespace icd::ui {
             if (pause_) {
                 pause_->pause();
             }
+            widgets_.map.activity().setPaused(true); // Nothing is read or written while paused.
             bottom.setStatus("Execution paused between moves");
             break;
         case WorkflowAction::Resume:
             if (pause_) {
                 pause_->resume();
             }
+            widgets_.map.activity().setPaused(false);
             execution_.resumed();
             eta_.reset(); // The estimates made while paused were too long.
             break;
@@ -476,6 +523,8 @@ namespace icd::ui {
         refreshResources(); // The job gets the caps for what the machine offers now.
         const StepText& text = textOf(job);
         clock_.emplace(std::chrono::steady_clock::now());
+        mftReadFraction_ = 0.0;
+        simulatedItems_ = 0;
         activeKind_ = job;
         activeJob_ = services_.jobs().start(std::format("{} {}", text.title, drive.root), makeJob(job, drive), bridge_);
         BottomPanel& bottom = widgets_.bottom;
@@ -708,6 +757,7 @@ namespace icd::ui {
         bottom.progress().show(details);
         takeTrimOutput();
         takeAnalysisMap();
+        pulseActivity(progress);
     }
 
     ProgressDetails WorkflowBinding::progressDetails(const core::Progress& progress, const core::StageClock& clock,
@@ -769,6 +819,7 @@ namespace icd::ui {
         activeJob_.reset();
         activeKind_ = WorkflowJob::None;
         pause_.reset();
+        widgets_.map.activity().setPaused(false); // A run cancelled while paused leaves the pulses off otherwise.
         trimOutput_.reset();
         completeJob(job, payload.result);
     }
@@ -1149,8 +1200,8 @@ namespace icd::ui {
         if (id == ID_RESOURCES || id == wxID_PREFERENCES) {
             return !workflow_.busy(); // Caps change only between jobs.
         }
-        if (id == ID_SHOW_LEGEND) {
-            return true; // The tab exists without a map too.
+        if (id == ID_SHOW_LEGEND || id == ID_SHOW_ACTIVITY) {
+            return true; // The tab exists without a map too; the activity toggle is a preference.
         }
         if (isMapCommand(id)) {
             return widgets_.map.hasMap() && widgets_.map.commandAvailable(id);

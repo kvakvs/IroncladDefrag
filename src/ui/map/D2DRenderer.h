@@ -71,7 +71,10 @@ namespace icd::ui {
                   const BitmapStyle& style = {});
 
         // Fills a rectangle with a color; overlays on the map.
-        void fillRect(const PixelRect& rect, core::Rgba color);
+        void fillRect(const PixelRect& rect, core::Rgba color) { fillRect(rect, {.color = color, .opacity = 1.0}); }
+
+        // Fills a rectangle with a color at the style's opacity, through the brush (no layer): the activity pulses.
+        void fillRect(const PixelRect& rect, const FillStyle& fill);
 
         // Fills rectangles with one color, blended over what is drawn at the style's opacity as one layer, so
         // where rectangles overlap (grid line crossings) the result is no brighter than elsewhere.
@@ -79,6 +82,13 @@ namespace icd::ui {
 
         // Outlines a rectangle with a line centered on its edges.
         void strokeRect(const PixelRect& rect, const LineStyle& line);
+
+        // Draws what follows until popScaledClip() clipped to `clip` and scaled by scaleX across and scaleY down about
+        // its center, clip and all: a read or write pulse fills its bar of the map this way (T114).
+        void pushScaledClip(const PixelRect& clip, double scaleX, double scaleY);
+
+        // Ends what pushScaledClip() started.
+        void popScaledClip();
 
         // Ends and presents the frame. False when the device was lost: every uploaded tile is then invalid and
         // must be dropped; the next begin() creates a new target.

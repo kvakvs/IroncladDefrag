@@ -2,8 +2,10 @@
 
 #include "core/exec/Executor.h"
 #include "core/log/Log.h"
+#include "core/map/Activity.h"
 #include "core/map/MapData.h"
 #include "services/execute/ExecuteJob.h"
+#include "ui/map/MapActivity.h"
 #include "ui/panels/MapPanel.h"
 
 #include <algorithm>
@@ -19,6 +21,19 @@ namespace icd::ui {
 
         // Shortest gap between two updates.
         constexpr std::chrono::milliseconds minimumGap{500};
+
+        // How long after a move began its read pulse starts: one tick, so moves taken together keep their spacing.
+        constexpr std::chrono::milliseconds readDelay{tickMs};
+
+        // The clusters of a move's runs read back, in order.
+        std::vector<core::ClusterRun> lcnRuns(const services::MoveRecord& record) {
+            std::vector<core::ClusterRun> runs;
+            runs.reserve(record.runsAfter.size());
+            for (const core::execute::StreamRun& run : record.runsAfter) {
+                runs.push_back({run.lcn, run.length});
+            }
+            return runs;
+        }
 
         // Milliseconds of a duration, for the log.
         double millis(std::chrono::steady_clock::duration d) {
@@ -75,6 +90,7 @@ namespace icd::ui {
         if (feed_ == nullptr) {
             return;
         }
+        pulseReads();
         std::vector<services::MoveRecord> moved = feed_->takeMoved();
         std::ranges::move(moved, std::back_inserter(pending_));
         if (auto now = feed_->takeVolumeNow(); now != nullptr) {
@@ -106,6 +122,7 @@ namespace icd::ui {
                 r.map = start;
             }
         }
+        r.records = work.records;
         if (auto applied = services::applyMoves(*start, *work.plan, work.records, executor); applied) {
             r.map = std::move(applied->map);
             r.dirty = std::move(applied->dirty);
@@ -185,6 +202,36 @@ namespace icd::ui {
         }
         ++updates_;
         movesApplied_ += result.moves;
+        pulseWrites(result.records);
+    }
+
+    void MapLiveUpdates::pulseReads() {
+        const std::vector<services::BegunMove> begun = feed_->takeBegun();
+        const auto plan = feed_->plan();
+        if (begun.empty() || plan == nullptr) {
+            return;
+        }
+        const auto now = core::AnimationClock::now();
+        for (const services::BegunMove& move : begun) {
+            if (move.move >= plan->moves.size()) {
+                continue;
+            }
+            const auto sources = plan->sources(plan->moves[move.move]);
+            map_.activity().add(core::ActivityKind::Read, {sources.begin(), sources.end()},
+                                std::max(now, move.at + readDelay));
+        }
+    }
+
+    void MapLiveUpdates::pulseWrites(const std::vector<services::MoveRecord>& records) {
+        const auto now = core::AnimationClock::now();
+        const auto spread = std::max<std::chrono::steady_clock::duration>(nextAt_ - now, minimumGap);
+        const auto count = static_cast<std::int64_t>(records.size());
+        for (std::int64_t i = 0; i < count; ++i) {
+            const services::MoveRecord& record = records[static_cast<std::size_t>(i)];
+            if (record.clustersMoved != 0 && !record.runsAfter.empty()) {
+                map_.activity().add(core::ActivityKind::Write, lcnRuns(record), now + spread * i / count);
+            }
+        }
     }
 
     void MapLiveUpdates::end(const char* why) {

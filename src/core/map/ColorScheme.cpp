@@ -44,6 +44,8 @@ namespace icd::core {
             KeyColor{"size.3", rgb(40, 78, 164)},
             KeyColor{"size.4", rgb(44, 44, 122)},
             KeyColor{"size.5", rgb(34, 18, 70)},
+            KeyColor{"activity.read", rgb(18, 40, 110)}, // Light free space: dark and saturated pulses.
+            KeyColor{"activity.write", rgb(232, 112, 0)},
         };
 
         // Okabe-Ito for occupancy, viridis (age) and cividis (size) ramps, Paul Tol's muted and light sets for
@@ -82,6 +84,8 @@ namespace icd::core {
             KeyColor{"class.photos", rgb(17, 119, 51)},
             KeyColor{"class.catalogs", rgb(255, 170, 187)},
             KeyColor{"class.video", rgb(0, 119, 187)},
+            KeyColor{"activity.read", rgb(12, 36, 97)}, // Navy and Okabe-Ito orange stay apart for every deficiency.
+            KeyColor{"activity.write", rgb(230, 159, 0)},
         };
 
         // Dark free space with brighter data colors, so the map does not glare in a dark room.
@@ -119,6 +123,8 @@ namespace icd::core {
             KeyColor{"class.photos", rgb(114, 212, 116)},
             KeyColor{"class.catalogs", rgb(255, 122, 168)},
             KeyColor{"class.video", rgb(164, 124, 255)},
+            KeyColor{"activity.read", rgb(232, 244, 255)}, // Cool white and warm amber over the dark map.
+            KeyColor{"activity.write", rgb(255, 176, 48)},
         };
 
         // The preset's own table.

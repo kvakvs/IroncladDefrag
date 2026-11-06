@@ -113,6 +113,8 @@ add_library(icd_core STATIC
     src/core/log/Log.h
     src/core/log/LogFormat.cpp
     src/core/log/Logger.cpp
+    src/core/map/Activity.cpp
+    src/core/map/Activity.h
     src/core/map/BinSummary.cpp
     src/core/map/BinSummary.h
     src/core/map/ColorModes.cpp
@@ -447,6 +449,8 @@ add_executable(IroncladDefrag WIN32
     src/ui/map/D2DRenderer.h
     src/ui/map/Legend.cpp
     src/ui/map/Legend.h
+    src/ui/map/MapActivity.cpp
+    src/ui/map/MapActivity.h
     src/ui/map/MapCanvas.cpp
     src/ui/map/MapCanvas.h
     src/ui/map/MapHover.cpp
@@ -552,6 +556,7 @@ add_executable(map-bench
     src/ui/Accelerators.cpp
     src/ui/Commands.cpp
     src/ui/map/D2DRenderer.cpp
+    src/ui/map/MapActivity.cpp
     src/ui/map/MapCanvas.cpp
     src/ui/map/MapHover.cpp
     src/ui/map/MapNavigator.cpp

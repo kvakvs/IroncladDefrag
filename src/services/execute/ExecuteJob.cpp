@@ -170,6 +170,11 @@ namespace icd::services {
         return std::exchange(moved_, {});
     }
 
+    std::vector<BegunMove> ExecutionFeed::takeBegun() {
+        const std::scoped_lock lock(mutex_);
+        return std::exchange(begun_, {});
+    }
+
     std::optional<ExecutionSummary> ExecutionFeed::summary() const {
         const std::scoped_lock lock(mutex_);
         return summary_;
@@ -230,6 +235,10 @@ namespace icd::services {
     void ExecutionFeed::begin(std::uint32_t move) {
         const std::scoped_lock lock(mutex_);
         counters_.currentFile = plan_ != nullptr ? pathOf(*plan_, move) : std::string();
+        if (begun_.size() >= maxBegun) {
+            begun_.erase(begun_.begin(), begun_.begin() + maxBegun / 2); // Nobody takes them: keep the newest.
+        }
+        begun_.push_back({move, std::chrono::steady_clock::now()});
     }
 
     void ExecutionFeed::record(const MoveRecord& r) {

@@ -5,6 +5,7 @@
 #include "core/map/Viewport.h"
 #include "core/util/LruCache.h"
 #include "ui/map/D2DRenderer.h"
+#include "ui/map/MapActivity.h"
 #include "ui/map/Minimap.h"
 
 #include <wx/window.h>
@@ -119,6 +120,9 @@ namespace icd::ui {
         // Input and animation of this map.
         [[nodiscard]] MapNavigator& navigator() { return *navigator_; }
 
+        // Read and write pulses drawn over the map (T114).
+        [[nodiscard]] MapActivity& activity() { return *activity_; }
+
         // Starts recording frame times (an animation begins).
         void beginFrameStats();
 
@@ -166,6 +170,22 @@ namespace icd::ui {
         // Draws the nearest cached coarser tile scaled into a missing tile's place; false when none is cached.
         bool drawFallback(core::TileId tile, const PixelRect& destination);
 
+        // The tiles of a level that cover a window area, and their size, for drawLevel().
+        struct TileSpan {
+            std::int64_t firstX = 0; // First tile column.
+            std::int64_t firstY = 0; // First tile row.
+            std::int64_t lastX = 0; // One past the last column.
+            std::int64_t lastY = 0; // One past the last row.
+            double span = 0; // Cells per tile edge.
+            double tilePixels = 0; // Window pixels per tile edge.
+        };
+
+        // The tiles of a level over a window area (clipped to the world).
+        [[nodiscard]] TileSpan tilesOver(int level, const PixelRect& area) const;
+
+        // Draws one activity bar: filled with its pulse's color, scaled about its center, at the pulse's opacity.
+        void drawBar(const PixelRect& bar, const core::PulseLook& look, core::Rgba fill);
+
         // Queues a tile on the pool unless it is cached, already rendering, or too many are in flight.
         void request(core::TileId tile);
 
@@ -203,6 +223,7 @@ namespace icd::ui {
         std::unique_ptr<MapNavigator> navigator_; // Input and animation.
         std::unique_ptr<MapSelection> selection_; // Selected file; sees clicks after the hover, before the navigator.
         std::unique_ptr<MapHover> hover_; // Tooltip; created after the navigator so it sees events first.
+        std::unique_ptr<MapActivity> activity_; // Read and write pulses over the map.
         core::LruCache<core::TileId, GpuTileHandle, core::TileIdHash> cache_{tileCacheBytes}; // Uploaded tiles.
         std::unordered_set<core::TileId, core::TileIdHash> pending_; // Tiles rendering now.
         std::deque<ArrivedTile> arrived_; // Rendered, not yet uploaded (uploads are spread over frames).

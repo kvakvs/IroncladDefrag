@@ -58,6 +58,7 @@ namespace icd::ui {
 
         constexpr std::array viewItems{
             ItemSpec{ID_SHOW_MINIMAP, "&Minimap", wxITEM_CHECK},
+            ItemSpec{ID_SHOW_ACTIVITY, "Read/write &activity", wxITEM_CHECK},
             ItemSpec{ID_SHOW_LEGEND, "Map &colors and legend"},
             separator,
             ItemSpec{ID_ZOOM_IN, "Zoom &in"},

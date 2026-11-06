@@ -58,6 +58,9 @@ namespace icd::ui {
 
         // Optimize > Resume interrupted run: continues a cancelled or crashed execution from its log (T112).
         ID_RESUME_RUN,
+
+        // View > Read/write activity: pulses on the map where the disk is read and written (T114).
+        ID_SHOW_ACTIVITY,
     };
 
     // A workflow command as the bottom panel's buttons and the drive list's context menu show it, so both list the

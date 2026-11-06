@@ -105,12 +105,14 @@ namespace icd::ui {
                                   &from);
     }
 
-    void D2DRenderer::fillRect(const PixelRect& rect, core::Rgba color) {
+    void D2DRenderer::fillRect(const PixelRect& rect, const FillStyle& fill) {
         if (impl_->brush == nullptr) {
             return;
         }
-        impl_->brush->SetColor(colorOf(color));
+        impl_->brush->SetColor(colorOf(fill.color));
+        impl_->brush->SetOpacity(static_cast<float>(fill.opacity));
         impl_->target->FillRectangle(rectOf(rect), impl_->brush.Get());
+        impl_->brush->SetOpacity(1.0F); // The brush is shared with the other overlays.
     }
 
     void D2DRenderer::fillRects(const std::vector<PixelRect>& rects, const FillStyle& fill) {
@@ -140,6 +142,20 @@ namespace icd::ui {
         }
         impl_->brush->SetColor(colorOf(line.color));
         impl_->target->DrawRectangle(rectOf(rect), impl_->brush.Get(), line.width);
+    }
+
+    void D2DRenderer::pushScaledClip(const PixelRect& clip, double scaleX, double scaleY) {
+        const D2D1_POINT_2F center{static_cast<float>(clip.x + clip.width / 2),
+                                   static_cast<float>(clip.y + clip.height / 2)};
+        impl_->target->SetTransform(
+            D2D1::Matrix3x2F::Scale(static_cast<float>(scaleX), static_cast<float>(scaleY), center));
+        // The clip is given before the transform and goes through it, so it grows with the bar.
+        impl_->target->PushAxisAlignedClip(rectOf(clip), D2D1_ANTIALIAS_MODE_ALIASED);
+    }
+
+    void D2DRenderer::popScaledClip() {
+        impl_->target->PopAxisAlignedClip();
+        impl_->target->SetTransform(D2D1::IdentityMatrix());
     }
 
     bool D2DRenderer::end() {

@@ -52,6 +52,13 @@ namespace icd::services {
         std::string currentFile; // Path of the move under way.
     };
 
+    // A move that began, and when: the map shows a read pulse over its sources (T114). The time is the mover's, so
+    // the pulses keep the real spacing however late the UI takes them.
+    struct BegunMove {
+        std::uint32_t move = 0; // Plan index.
+        std::chrono::steady_clock::time_point at{}; // When it began.
+    };
+
     // A line of the Log tab: a file that did not move as planned, or a line about the whole run.
     struct ExecutionLogLine {
         std::string file; // The file's path; empty for a line about the run.
@@ -99,6 +106,9 @@ namespace icd::services {
         // Log tab lines kept per run; the rest are counted and pointed to the execution log.
         static constexpr std::size_t maxLines = 5000;
 
+        // Begun moves kept until taken; past this the older half goes (the UI takes them four times a second).
+        static constexpr std::size_t maxBegun = 512;
+
         // The plan being run, once the job has built it (null before).
         [[nodiscard]] std::shared_ptr<const core::execute::ExecutionPlan> plan() const;
 
@@ -110,6 +120,9 @@ namespace icd::services {
 
         // Moves that moved clusters since the last call, with the runs read back (the live map applies them).
         [[nodiscard]] std::vector<MoveRecord> takeMoved();
+
+        // Moves begun since the last call, oldest first (at most maxBegun).
+        [[nodiscard]] std::vector<BegunMove> takeBegun();
 
         // How the run ended; nullopt while it runs (and after a failure before the end).
         [[nodiscard]] std::optional<ExecutionSummary> summary() const;
@@ -147,6 +160,7 @@ namespace icd::services {
         std::size_t linesAdded_ = 0; // Lines added this run (taken or not), for the cap.
         std::size_t linesOver_ = 0; // Lines past the cap.
         std::vector<MoveRecord> moved_; // Moves with moved clusters not taken yet.
+        std::vector<BegunMove> begun_; // Moves begun, not taken yet.
         std::optional<ExecutionSummary> summary_; // How the run ended.
         std::shared_ptr<const core::Snapshot> volumeNow_; // A copy of revalidation's snapshot, until taken.
     };

@@ -500,3 +500,15 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   each: the log ends with a non-cancelled end line and every move moved or already done and verified, every moved
   file's extents (`fsutil file queryextents`, 2,726 and 3,167 files) equal its planned destinations, file hashes
   unchanged, `chkdsk /scan` clean, `icd-cli check-catchup` equal. Nothing to fix.
+- T114 Read and write animation - pulses over the map where the disk is read and written (the user's design, then
+  tuned with them): each bar of the runs (`core::activityBars()`: first-row piece, full rows as one block, last-row
+  piece) filled over the map and scaled about its center for 0.4 s, reads 1x to 1.2x wide and 10x tall at 0.5 to
+  0.05 opacity, writes backwards. Colors `activity.read` / `activity.write` in every preset, listed as Reading and
+  Writing after every mode's legend entries and editable there. Reads at a move's begin (`ExecutionFeed::takeBegun()`,
+  mover-stamped), writes once the live map shows the move (spread to the next update), the MFT share an analysis read
+  between progress reports, simulated moves on the fake drive list. `core/map/Activity.*` (`ActivityLayer`, 256
+  pulses), `ui/map/MapActivity.*` (8 ms timer, pause, "activity frames" log), `D2DRenderer::pushScaledClip()`, View >
+  Read/write activity (`Settings::mapActivity`). Windows' "Show animations" is not read (off on the user's machine;
+  their choice). Seen on the fake drive list and 1 GB `mixed` VHDXs: 65-67 fps with pulses, paint 2-4 ms, zoom 57-86
+  fps either way; throughput varied 8-34 MB/s run to run with pulses on and off, so further measurement was dropped
+  (the user's call). `ActivityTest`, `ExecutionFeed` begun moves, settings round trip.

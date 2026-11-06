@@ -66,6 +66,7 @@ namespace icd::services {
         core::ResourceSettings resources; // Manual thread and memory caps (plan.md 6.6); 0 is Auto.
         MapColorSettings mapColors; // Map color preset and the user's colors.
         Appearance appearance = Appearance::System; // Light or dark windows, from the next start.
+        bool mapActivity = true; // View > Read/write activity: pulses where the disk is read and written (T114).
 
         // Field-wise equality, for round-trip checks.
         bool operator==(const Settings&) const = default;

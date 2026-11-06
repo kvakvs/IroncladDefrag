@@ -1,11 +1,13 @@
 #include "ui/panels/MapPanel.h"
 
+#include "core/map/Activity.h"
 #include "core/map/MapData.h"
 #include "services/ShellActions.h"
 #include "ui/Accelerators.h"
 #include "ui/Commands.h"
 #include "ui/dialogs/GoToFileDialog.h"
 #include "ui/map/Legend.h"
+#include "ui/map/MapActivity.h"
 #include "ui/map/MapCanvas.h"
 #include "ui/map/MapNavigator.h"
 #include "ui/map/MapSelection.h"
@@ -184,6 +186,7 @@ namespace icd::ui {
 
     void MapPanel::setColorScheme(const core::ColorScheme& scheme) {
         scheme_ = scheme;
+        canvas_->activity().setColors(core::activityColors(scheme));
         if (Legend* counts = legend(); counts != nullptr) {
             counts->setScheme(scheme_);
         }
@@ -327,6 +330,55 @@ namespace icd::ui {
     std::shared_ptr<const core::MapData> MapPanel::currentMap() const { return canvas_->sharedMap(); }
 
     bool MapPanel::minimapShown() const { return canvas_->minimap().shown(); }
+
+    MapActivity& MapPanel::activity() const { return canvas_->activity(); }
+
+    std::vector<core::ClusterRun> MapPanel::mftRuns(core::ClusterRun mft) const {
+        const core::MapData* map = canvas_->map();
+        const core::ExtentRecord* first = map != nullptr ? map->snapshot().extents.find(mft.start) : nullptr;
+        if (first == nullptr) {
+            return {mft};
+        }
+        const core::ExtentIndex& extents = map->snapshot().extents;
+        std::vector<core::ClusterRun> runs;
+        for (const std::uint32_t at : extents.extentsOf(first->file())) {
+            if (const core::ExtentRecord& e = extents.records()[at]; e.stream() == first->stream()) {
+                runs.push_back(e.run());
+            }
+        }
+        return runs;
+    }
+
+    void MapPanel::pulseMftRead(core::ClusterRun mft, core::WorkShare read) {
+        const std::vector<core::ClusterRun> runs = mftRuns(mft);
+        core::ClusterCount total = 0;
+        for (const core::ClusterRun& run : runs) {
+            total += run.length;
+        }
+        const auto at = [total](double fraction) {
+            return static_cast<core::ClusterCount>(std::clamp(fraction, 0.0, 1.0) * static_cast<double>(total));
+        };
+        canvas_->activity().add(core::ActivityKind::Read, core::runsBetween(runs, {at(read.from), at(read.to)}),
+                                core::AnimationClock::now());
+    }
+
+    void MapPanel::pulseSimulatedMove(std::size_t index) {
+        const core::MapData* map = canvas_->map();
+        if (map == nullptr || map->snapshot().files.size() == 0) {
+            return;
+        }
+        const core::Snapshot& snapshot = map->snapshot();
+        // A file picked from the item number, the same one each time; Knuth's multiplier spreads them over the map.
+        const auto file = static_cast<core::FileIndex>((index * 2654435761ULL) % snapshot.files.size());
+        std::vector<core::ClusterRun> runs;
+        for (const std::uint32_t at : snapshot.extents.extentsOf(file)) {
+            runs.push_back(snapshot.extents.records()[at].run());
+        }
+        constexpr std::chrono::milliseconds moveTime{120}; // Read, then written (in place: nothing moves).
+        const auto now = core::AnimationClock::now();
+        canvas_->activity().add(core::ActivityKind::Read, runs, now);
+        canvas_->activity().add(core::ActivityKind::Write, std::move(runs), now + moveTime);
+    }
 
     bool MapPanel::handleViewCommand(int id) { return handleDisplayCommand(id) || handleNavigationCommand(id); }
 

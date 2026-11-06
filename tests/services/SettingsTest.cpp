@@ -34,6 +34,7 @@ namespace icd::services { namespace {
         settings.fastBudgetMultiplier = 4;
         settings.resources = {.workerThreads = 3, .memoryBudgetBytes = 5ULL << 30U};
         settings.appearance = Appearance::Dark;
+        settings.mapActivity = false;
         settings.mapColors.preset = core::ColorPreset::Dark;
         settings.mapColors.custom[core::ColorPreset::Dark] = {{"class.photos", core::rgb(1, 2, 255)}};
         settings.mapColors.custom[core::ColorPreset::Standard] = {{"free", core::rgb(255, 255, 255)}};

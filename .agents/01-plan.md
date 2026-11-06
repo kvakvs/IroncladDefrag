@@ -110,22 +110,6 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
 
 ## Deferred (look at later)
 
-### T114 - Read and write animation (consider)
-
-- Depends: T111
-- Owns: a read/write activity layer in `src/ui/map/*` fed from the analysis and execution progress
-- Why: during analysis and execution the map changes in jumps; showing where the disk is reading and writing right
-  now makes progress visible and tells a working run from a stalled one.
-- Decide first (with the user, from a short mock-up or screenshots): what is shown (analysis: the MFT or bitmap region
-  being read; execution: the source extent glowing as it is read, the destination as it is written, maybe a short trail
-  between them), and how (map overlay with fading highlights, a small read/write indicator by the progress line, or
-  both).
-- Constraints: driven by the existing throttled progress (~10 Hz) and the live map feed, never by the disk I/O path;
-  repaints only the changed tiles and stays within the 7.5 frame budget; off during Pause; respects the Windows
-  "Show animations" setting; a View menu toggle.
-- Done when: the chosen design runs on the fake drive list and a test VHDX without lowering execution throughput or
-  map frame rate (measured before and after).
-
 ### T150 - Churn gap size after measuring NTFS allocation (TODO)
 
 - Depends: T104b

@@ -1,7 +1,9 @@
 #pragma once
 
+#include "core/map/Activity.h"
 #include "core/map/ColorModes.h"
 #include "core/map/Ruler.h"
+#include "core/snapshot/Types.h"
 
 #include <wx/panel.h>
 #include <wx/weakref.h>
@@ -25,6 +27,7 @@ namespace icd::ui {
 
     class FilePage;
     class Legend;
+    class MapActivity;
     class MapCanvas;
     class MapColorsPage;
     struct FileView;
@@ -111,7 +114,22 @@ namespace icd::ui {
         // Whether the minimap is switched on (for the View > Minimap check mark).
         [[nodiscard]] bool minimapShown() const;
 
+        // The map's read and write pulses (T114).
+        [[nodiscard]] MapActivity& activity() const;
+
+        // A read pulse over the part of the MFT an analysis read between two progress reports: along $MFT's extents
+        // when the map shown already has them, else along `mft` (its first cluster and size from the volume data).
+        void pulseMftRead(core::ClusterRun mft, core::WorkShare read);
+
+        // A simulated move of the fake drive list's execution (item `index`): a read and then a write pulse over some
+        // file of the map, so the pulses can be seen without a real volume.
+        void pulseSimulatedMove(std::size_t index);
+
     private:
+        // $MFT's data runs on the map shown (found by the extent at its first cluster), or `mft` when the map does
+        // not have it yet (only the bitmap was read).
+        [[nodiscard]] std::vector<core::ClusterRun> mftRuns(core::ClusterRun mft) const;
+
         // Shows the selection in the File tab and reports it.
         void showSelection();
 

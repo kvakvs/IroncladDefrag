@@ -83,6 +83,19 @@ namespace icd::ui {
         // View menu and map keys: stubs until the map engine (Phase 2) owns them.
         void onViewCommand(wxCommandEvent& event);
 
+        // View > Read/write activity: switches the map's pulses on or off and remembers it in the settings.
+        void toggleActivity();
+
+        // Read pulses from a progress report: the MFT part read since the last report during an analysis, or the
+        // simulated moves of the fake drive list's execution (a real execution's pulses come from its feed).
+        void pulseActivity(const core::Progress& progress);
+
+        // An analysis's "Reading MFT" report: a read pulse over the MFT part read since the last one.
+        void pulseMftRead(const core::Progress& progress);
+
+        // A report of the fake drive list's simulated execution: pulses for the items done since the last one.
+        void pulseSimulatedMoves(const core::Progress& progress);
+
         // Handles every workflow command; other ids are passed on.
         void onCommand(wxCommandEvent& event);
 
@@ -293,6 +306,8 @@ namespace icd::ui {
         services::WorkflowJob activeKind_ = services::WorkflowJob::None; // Step the running job belongs to.
         std::shared_ptr<core::PauseGate> pause_; // Pause control of the running execution.
         std::optional<core::StageClock> clock_; // Timing of the running job.
+        double mftReadFraction_ = 0.0; // How much of the MFT the running analysis had read at the last report.
+        std::uint64_t simulatedItems_ = 0; // Items of the fake execution already shown as pulses.
         std::optional<core::DriveInfo> drive_; // Selected drive, copied so a refresh cannot change it mid-job.
         std::optional<core::FileIndex> selectedFile_; // File selected on the map, to tell a new pick from a refresh.
         std::optional<core::FileIndex> fileToDefrag_; // Confirmed file for the Execute job being started.

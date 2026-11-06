@@ -3,16 +3,20 @@
 #include "core/exec/Executor.h"
 #include "core/format/ByteSize.h"
 #include "core/log/Log.h"
+#include "core/map/Activity.h"
 #include "core/map/MapData.h"
 
 #include <wx/sizer.h>
 #include <wx/stattext.h>
 #include <wx/wrapsizer.h>
 
+#include <algorithm>
 #include <format>
+#include <iterator>
 #include <mutex>
 #include <string>
 #include <utility>
+#include <vector>
 
 namespace icd::ui {
 
@@ -52,6 +56,15 @@ namespace icd::ui {
             const double percent =
                 counts.total == 0 ? 0.0 : 100.0 * static_cast<double>(clusters) / static_cast<double>(counts.total);
             return std::format("{} {} ({:.1f}%)", label, core::formatBytes(clusters * bytesPerCluster), percent);
+        }
+
+        // What the legend lists for a mode: the mode's entries, then the read and write pulses' (T114), so their
+        // colors can be changed in any mode.
+        std::vector<core::LegendEntry> shownEntries(core::ColorMode mode) {
+            const std::span<const core::LegendEntry> own = core::legendOf(mode);
+            std::vector<core::LegendEntry> out(own.begin(), own.end());
+            std::ranges::copy(core::activityLegend(), std::back_inserter(out));
+            return out;
         }
 
     } // namespace
@@ -112,7 +125,7 @@ namespace icd::ui {
             return;
         }
         scheme_ = scheme;
-        const std::span<const core::LegendEntry> legend = core::legendOf(mode_);
+        const std::vector<core::LegendEntry> legend = shownEntries(mode_);
         for (std::size_t index = 0; index < entries_.size() && index < legend.size(); ++index) {
             entries_[index].swatch->SetBackgroundColour(colourOf(scheme_.color(legend[index].key)));
             entries_[index].swatch->Refresh();
@@ -128,7 +141,7 @@ namespace icd::ui {
         sizer_->Clear(true);
         entries_.clear();
         const int square = FromDIP(12);
-        for (const core::LegendEntry& entry : core::legendOf(mode_)) {
+        for (const core::LegendEntry& entry : shownEntries(mode_)) {
             auto* swatch = new wxWindow(this, wxID_ANY, wxDefaultPosition, wxSize(square, square), wxBORDER_SIMPLE);
             swatch->SetBackgroundColour(colourOf(scheme_.color(entry.key)));
             auto* text = new wxStaticText(this, wxID_ANY, wxString::FromUTF8(std::string(entry.label)));
@@ -185,12 +198,14 @@ namespace icd::ui {
     }
 
     void Legend::showCounts() {
-        const std::span<const core::LegendEntry> legend = core::legendOf(mode_);
-        const bool counted = counts_ && map_ != nullptr && counts_->clusters.size() == entries_.size();
+        const std::vector<core::LegendEntry> legend = shownEntries(mode_);
+        const std::size_t modeEntries = core::legendOf(mode_).size(); // The pulses' entries after them have no count.
+        const bool counted = counts_ && map_ != nullptr && counts_->clusters.size() == modeEntries;
         for (std::size_t index = 0; index < entries_.size() && index < legend.size(); ++index) {
-            const std::string text = counted ? countText(legend[index].label, counts_->clusters[index], *counts_,
-                                                         map_->snapshot().geometry.bytesPerCluster)
-                                             : std::string(legend[index].label);
+            const std::string text = counted && index < modeEntries
+                ? countText(legend[index].label, counts_->clusters[index], *counts_,
+                            map_->snapshot().geometry.bytesPerCluster)
+                : std::string(legend[index].label);
             entries_[index].text->SetLabelText(wxString::FromUTF8(text));
         }
         // The texts changed width, so the entries may wrap differently.
