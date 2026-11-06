@@ -140,9 +140,9 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   and parking moves, and the free space it held stays available as zone room and slack for the zones after it. What
   it may cost: new build output less often contiguous next to the sources.
 - How to observe the effect: with the default and with 1%, (1) `pwsh -File tests/integration/execute/check-execute.ps1
-  -Scenarios dev -ChurnGap -SizeGB 4` prints the share of new build files' clusters in the gap against the gap's share
-  of free space; (2) `icd-cli plan T: --strategy development --json` on the same `dev` volume gives `bytesMoved`,
-  `lowerBound` and the ratio per level; (3) after a few build/clean cycles (write and delete build folders, as
-  gen-scenario's `dev` does), `icd-cli analyze T: --json` shows fragmented files and free runs; compare build output
+- Scenarios dev -ChurnGap -SizeGB 4`prints the share of new build files' clusters in the gap against the gap's share
+  of free space; (2)`icd-cli plan T: --strategy development --json`on the same`dev`volume gives`bytesMoved`,
+  `lowerBound`and the ratio per level; (3) after a few build/clean cycles (write and delete build folders, as
+  gen-scenario's`dev`does),`icd-cli analyze T: --json` shows fragmented files and free runs; compare build output
   fragmentation and the largest free run between the two settings.
 - Done when: the measurements for both settings are recorded in `.codex/arch.md` and the default is chosen.

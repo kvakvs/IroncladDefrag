@@ -17,6 +17,9 @@ current drive map panel and controls and info panel in the bottom.
   `test.bat` runs the fast tests; tests on real volumes (`test.bat Release slow`) and the scripts under
   `tests/integration` run on demand, for example before finishing a task that changes scanning.
   In these scripts never `exit /b` inside a `( )` block: cmd loses the exit code there; use `goto`.
+- When the GUI is started for testing, show it on the display where the IDE (VS Code) window is: find the IDE
+  window's monitor and move the app's main window onto that monitor right after it starts (e.g. the IDE on display 2
+  means the app on display 2 too).
 
 # Design
 
