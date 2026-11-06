@@ -513,3 +513,98 @@ img {
   color: var(--muted);
   font-size: 0.9rem;
 }
+
+/* ---------- Versions page ---------- */
+
+.fine a {
+  color: var(--accent);
+}
+
+.releases {
+  padding-top: 32px;
+}
+
+.releases h1 {
+  font-size: clamp(2rem, 4.5vw, 2.8rem);
+}
+
+.section-lead.left {
+  margin: 0 0 32px;
+  text-align: left;
+}
+
+.release-list {
+  display: grid;
+  gap: 18px;
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.release {
+  padding: 24px;
+}
+
+.release-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 24px;
+}
+
+.release h2 {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0;
+  font-size: 1.4rem;
+}
+
+.release .fine {
+  margin: 4px 0 0;
+}
+
+.badge {
+  padding: 2px 10px;
+  border-radius: 999px;
+  background: var(--accent);
+  color: var(--accent-text);
+  font-family: var(--font-body), sans-serif;
+  font-size: 0.75rem;
+  font-weight: 600;
+}
+
+.sha {
+  margin: 16px 0 0;
+  font-size: 0.85rem;
+  color: var(--muted);
+  overflow-wrap: anywhere;
+}
+
+code {
+  font-family: ui-monospace, "Cascadia Mono", Consolas, monospace;
+  font-size: 0.9em;
+}
+
+.release details {
+  margin-top: 14px;
+  border-top: 1px solid var(--panel-border);
+  padding-top: 12px;
+}
+
+.release summary {
+  cursor: pointer;
+  font-weight: 600;
+  color: var(--accent);
+}
+
+.release ul {
+  margin: 10px 0 0;
+  padding-left: 1.2em;
+  color: var(--muted);
+}
+
+.release ul li + li {
+  margin-top: 4px;
+}

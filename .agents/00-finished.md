@@ -521,3 +521,8 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
 - T114b Pulse size independent of zoom - a pulse is 1 to 16 window pixels tall (read grows, write shrinks) and 100-120%
   of its bar's width; the height was a multiple of the row height and grew huge zoomed in. `MapActivity` sizes each
   bar's rectangle; `D2DRenderer::pushScaledClip()` removed. `ActivityTest` heights.
+- T144 Release skill and versions page - `.claude/skills/release/SKILL.md` (`/release [x.y.z|patch|minor|major]`:
+  version in `CMakeLists.txt`, user-approved changelog, `Release x.y.z` commit, `make-installer.bat`, record, upload
+  via `/deploy` with downloads before site), `deploy/record-release.ps1` (installer fields and `.sha256` into
+  `website/data/releases.json`, refuses dirty builds), site `/releases/` (every version newest first, size, SHA-256,
+  changelog in `<details>`), Download buttons on the newest installer. 1.0.0 recorded as build `218867e`.

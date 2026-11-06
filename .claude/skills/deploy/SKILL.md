@@ -16,6 +16,9 @@ config there logs in as root. Files go to the home folder of the site user `defr
 The site is built on Windows with the native Node and pnpm (never npm; WSL has no Node). Uploads run through
 `deploy/publish-web.sh` from WSL; never hand-write rsync commands for this.
 
+A new version (version bump, changelog, installer, entry in `website/data/releases.json`) goes through the `/release`
+skill, which ends with these steps.
+
 Publishing is public: everyone can see what lands there. Invoking `/deploy` (or asking to deploy) is the user's
 go-ahead for that one deploy, but always show the dry run first and stop to ask if it does anything unexpected.
 
@@ -53,7 +56,7 @@ go-ahead for that one deploy, but always show the dry run first and stop to ask 
    wsl -e bash -lc 'curl -sS https://ironclad.clau.se/downloads/<setup>.exe | sha256sum; cat dist/<setup>.exe.sha256'
    ```
    The site answers 200, and each uploaded installer's served SHA-256 equals its `.sha256` file (which the site's
-   download section shows).
+   versions page `/releases/` shows).
 
 ## One-time server setup (done 2026-11-04; rerun only to repair)
 

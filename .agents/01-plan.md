@@ -98,7 +98,8 @@ Step-by-step tasks derived from `plan.md`. Section references (§) point to `pla
   license / privacy text. **Gate:** publishing is public; each upload needs the user's go-ahead (invoking /deploy).
 - Owns: `website/` (Next.js sources and assets), `deploy/`
 - Progress: skeleton committed (hero, numbers, feature cards, steps, light/dark backdrop; texts in `website/lib/site.ts`);
-  `/deploy` builds it before uploading. Still to do: screenshots, requirements, download size and SHA-256, release notes.
+  `/deploy` builds it before uploading; versions page `/releases/` with size, SHA-256 and changelog per version, kept
+  by `/release` (T144). Still to do: screenshots, system requirements, contact/license/privacy text.
 - Do: a small static site (no tracking, readable without JavaScript: static export, no client-only content): what the app does and for whom
   (HDDs, zone strategies, least movement), screenshots of the map, strategies, plan review and live execution taken
   from the fake drive list, the safety model (dry-run plans, revalidation, Windows move API, pause/cancel, logs),

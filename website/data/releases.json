@@ -1,0 +1,19 @@
+[
+  {
+    "version": "1.0.0",
+    "date": "2026-11-04",
+    "changes": [
+      "First public release.",
+      "Fast analysis straight from the NTFS master file table, with a zoomable map of every cluster.",
+      "Move strategies with presets for everyday use, development, photos, video and archives, plus your own.",
+      "Plans you review on the map before anything moves, at Fast, Moderate or Maximum effort.",
+      "Moves through Windows' own defragmentation API, re-checked before each move, with pause, cancel and a full log.",
+      "TRIM for SSDs, and a per-drive switch for Windows' scheduled optimization.",
+      "The icd-cli command-line tool for scripted analysis, planning and execution."
+    ],
+    "commit": "218867e",
+    "file": "IroncladDefrag-1.0.0-218867e-setup.exe",
+    "bytes": 4711370,
+    "sha256": "4eb18ed43c50e4c058ff4973218bf65d696a345480322887c52ad6bdee43b4cc"
+  }
+]

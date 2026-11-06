@@ -7,9 +7,8 @@ export const site = {
     "For people who like to see exactly where their files live, and decide exactly what moves. " +
     "Every cluster on the map, every move planned in the open, nothing touched until you say so.",
   sourceUrl: "https://github.com/kvakvs/IroncladDefrag",
-  // Installers are published next to the site under /downloads/ (see the deploy skill).
-  downloadUrl: "/downloads/",
-  version: "1.0",
+  // The versions page: every installer with its checksum and changelog (see lib/releases.ts).
+  releasesUrl: "/releases/",
 };
 
 // Headline numbers, measured on the project's own benchmarks.

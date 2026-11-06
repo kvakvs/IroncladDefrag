@@ -1,5 +1,9 @@
 import DiskMap from "@/components/DiskMap";
+import { formatDate, formatSize, installerUrl, latest } from "@/lib/releases";
 import { features, site, stats, steps, strategies } from "@/lib/site";
+
+// The Download buttons fetch the latest installer; before the first release they open the versions page.
+const downloadUrl = latest ? installerUrl(latest) : site.releasesUrl;
 
 export default function Home() {
   return (
@@ -12,8 +16,9 @@ export default function Home() {
         <nav>
           <a href="#features">Features</a>
           <a href="#how">How it works</a>
+          <a href={site.releasesUrl}>Versions</a>
           <a href={site.sourceUrl}>Source</a>
-          <a className="button small" href={site.downloadUrl}>
+          <a className="button small" href={downloadUrl}>
             Download
           </a>
         </nav>
@@ -31,14 +36,21 @@ export default function Home() {
               observability and control over their files.
             </p>
             <div className="actions">
-              <a className="button" href={site.downloadUrl}>
+              <a className="button" href={downloadUrl}>
                 Download for Windows
               </a>
               <a className="button ghost" href={site.sourceUrl}>
                 View source on GitHub
               </a>
             </div>
-            <p className="fine">Version {site.version} · 64-bit · NTFS drives, HDD and SSD</p>
+            <p className="fine">
+              {latest && (
+                <>
+                  Version {latest.version} · {formatSize(latest.bytes)} · 64-bit ·{" "}
+                </>
+              )}
+              <a href={site.releasesUrl}>All versions and changelog</a>
+            </p>
           </div>
           <div className="hero-map panel">
             <DiskMap />
@@ -99,8 +111,13 @@ export default function Home() {
           <div className="cta panel">
           <h2>Take a look at your drive</h2>
           <p>Analysis only reads, so the first look costs nothing. You decide what happens next.</p>
+          {latest && (
+            <p className="fine">
+              Version {latest.version}, released {formatDate(latest.date)}. <a href={site.releasesUrl}>Changelog and older versions</a>
+            </p>
+          )}
           <div className="actions center">
-            <a className="button" href={site.downloadUrl}>
+            <a className="button" href={downloadUrl}>
               Download for Windows
             </a>
             <a className="button ghost" href={site.sourceUrl}>
