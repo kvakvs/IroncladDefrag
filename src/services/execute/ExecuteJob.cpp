@@ -308,8 +308,11 @@ namespace icd::services {
                 throw std::runtime_error("the plan failed validation: " + issues.front());
             }
             context.progress.report({.stage = "Preparing the moves", .done = 0, .total = 0, .message = {}});
-            runGuiExecution(r.drive, executionPlanFor(*r.outcome, *r.plan, r.drive, r.level), r.options, *feed,
-                            pause.get(), context);
+            core::execute::ExecutionPlan plan = executionPlanFor(*r.outcome, *r.plan, r.drive, r.level);
+            if (r.headOrder) {
+                plan = headOrdered(plan, context.executor);
+            }
+            runGuiExecution(r.drive, std::move(plan), r.options, *feed, pause.get(), context);
         };
     }
 

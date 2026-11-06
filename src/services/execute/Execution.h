@@ -48,6 +48,12 @@ namespace icd::services {
                                                                 const core::DriveInfo& drive,
                                                                 core::strategy::Effort level);
 
+    // The plan with its moves reordered so a hard drive's head travels less between them (T133; the volume ends the
+    // same), and the change in head travel logged. Run before freshExecution(), so the execution log keeps this order
+    // and a resume follows it.
+    [[nodiscard]] core::execute::ExecutionPlan headOrdered(const core::execute::ExecutionPlan& plan,
+                                                           core::Executor& executor);
+
     // A request for a whole plan, logged to a new file in the default log directory.
     [[nodiscard]] ExecutionRequest freshExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan);
 

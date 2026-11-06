@@ -1541,6 +1541,15 @@ All analysis checks passed.
   (not snapshot index, so a plan survives a rescan, a save and a crash), sources and destinations in the file's
   (stream, VCN) order, each move's region (its zone target's span; the whole volume without a zone) for replacement
   destinations, and the paths for the log.
+- Head order (T133, `core/execute/HeadOrder`): before a fresh run starts, `services::headOrdered()` reorders the
+  execution plan so a hard drive's head travels less: the next move is the ready one whose first read is nearest where
+  the last write ended (a `BitTree` over the moves sorted by first read). Any two moves whose runs overlap (a move
+  writes its destinations and frees its sources) or that move the same file keep their plan order, so the volume ends
+  the same and every prefix stays valid. It works on the execution plan, not the planner's plan, so the planner and
+  the Plan tab keep their order; the execution log stores the reordered plan, so resume, replay and `--max-moves`
+  follow it unchanged. The Execute confirmation offers it (on by default; not on Resume, whose order is fixed);
+  `icd-cli execute --plan-order` turns it off. The gain is largest where sources and destinations share a region; moves
+  that all go to one distant zone are a round trip each in any order.
 - Matching (T101, `core/execute/MovePieces`): `matchMove()` lays a file's runs as the file system reports them now over
   a move: cluster i of the file must lie at cluster i of the sources or of the destinations. The result is pieces with
   stream, VCN, from, to and done, so a move cut short by cancel or a crash is recognised and only the rest is moved;

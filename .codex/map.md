@@ -119,6 +119,7 @@ changes (see `AGENTS.md`).
 | `src/core/ntfs/AttributeList.*` | `AttributeListEntry`, `parseAttributeList()`. |
 | `src/core/ntfs/NtfsText.*` | `utf16ToUtf8()` with U+FFFD for lone surrogates. |
 | `src/core/snapshot/SnapshotIO.*` | Snapshot files: `writeSnapshotFile()`, `readSnapshotFile()`, `readSnapshotMeta()`, `SnapshotMeta`, `BlockCodec`, byte sinks and sources, `SnapshotFormatError`; checksummed parallel blocks, full validation on load. |
+| `src/core/util/BitTree.*` | `BitTree`: a set of indexes as bits with summary levels; nearest member on either side in a few word scans (the head-order ready set). |
 | `src/core/util/Crc32.h` | `Crc32`: IEEE CRC-32 for snapshot blocks. |
 | `src/core/util/LargeArray.h` | `LargeArrayAllocator` (shared memory resource, moves with its container), `LargeVector`, `LargeString` for the big snapshot arrays. |
 | `src/core/resources/MemoryPlanner.*` | `estimateSnapshot()`, `MemoryRung` ladder, `planMemory()`, `giveWay()`, `MemoryPlan`, `describeMemoryPlan()`. |
@@ -156,6 +157,7 @@ changes (see `AGENTS.md`).
 | `src/core/execute/ExecutionPlan.*` | `ExecutionPlan` (identity, moves by file reference with sources, destinations, region and flags, paths, reserved runs), `PlanIdentity`, `PlannedMove`, `executionPlanOf()` (a planned level for execution), `plannedClusters()`. |
 | `src/core/execute/MoveCalls.*` | `moveCalls()` (pending pieces as calls of at most a chunk; compressed files in whole units, never into the next piece), `MoveCall`, `CallShape`, `retarget()`, `Landing` / `landingOf()` / `landed()` (verification of runs read back), `landedPrefix()` / `remainderOf()` (what a refused call moved anyway), `allocatedOf()`. |
 | `src/core/execute/MovePieces.*` | `StreamRun`, `MovePiece`, `matchMove()` (a file's runs now against a move: pending and done pieces, nullopt when changed), `remapMove()`, `lcnRunsOf()`, `asStreamRuns()`, `allDone()`, `pendingClusters()`. |
+| `src/core/execute/HeadOrder.*` | `orderForHead()` (moves reordered so the next read is nearest the last write; moves sharing clusters or a file keep plan order), `headTravel()`, `HeadOrderReport` (T133). |
 | `src/core/execute/PlanReplay.*` | `replayPlan()` (moves kept or dropped on the free space and files now, dependents dropped with them), `ReplayResult`, `DropReason` / `dropKey()`, `CurrentFiles`, `SnapshotFiles` (a plan's files in a later snapshot), `allMoves()`. |
 | `src/core/map/Viewport.*` | View math: `Viewport` (scale, center, size), limits (32 px per cluster to beyond fit), fit, anchored zoom, pan, eased `ZoomMotion` and `PanInertia` by elapsed time. |
 | `src/core/map/World.*` | Fixed map world (plan.md 7.1): `roundToNice()` row width from the screen aspect, LCN <-> cell, zoom levels (-5 = 32 px per cluster up to one tile), `blendFor()` (levels to fade between where cells are under a pixel), tile cell rects, row segments of a run. |
@@ -339,6 +341,7 @@ changes (see `AGENTS.md`).
 | `tests/core/DefragOnlyTest.cpp` | Fits that avoid own runs, large pieces, defragmenting near the file, skips, and on synthetic volumes: plans validate and the untouched files are exactly the good-enough set. |
 | `tests/core/LevelsTest.cpp` | All three levels validate on synthetic volumes; Moderate within Maximum's bytes and goals; Maximum parks where Moderate leaves an unsorted zone; policy table. |
 | `tests/core/LowerBoundTest.cpp` | Fragment rules, must-move files on hand-made layouts, defragment-only files, slack moving zones towards files, conflicts, front zones, fitting = brute force over every slack split on random volumes. |
+| `tests/core/HeadOrderTest.cpp` | Nearest read first, moves into vacated clusters wait, runs and paths follow their moves, random plans stay valid, end the same and travel less. |
 | `tests/core/HoleSetTest.cpp` | HoleSet against a per-cluster model under random takes and adds across block splits; fits in both directions; merging. |
 | `tests/core/VssAlignTest.cpp` | Units for 512 B-64 KB clusters, aligned moves, shifting destinations, no room, the report; blocking at every level leaves only aligned moves and valid plans; drops follow dependencies and parked pairs. |
 | `tests/core/ValidatorTest.cpp` | Valid chain; broken plans for every validation rule (busy and late destinations, unmovable files, stale and reordered sources, lost clusters, zones, parking, accounting, totals); the parallel checks agree with the replay on a planned Maximum level and catch a destination taken twice. |
@@ -357,6 +360,7 @@ changes (see `AGENTS.md`).
 | `tests/core/GridTest.cpp` | Grid fade and edge rounding, no grid at small cells, lines exactly on the last pixel of each drawn cell at random fractional views (also at the partial last row), line count bounded by the window. |
 | `tests/core/ScanReconcileTest.cpp` | Placeholder for unclaimed clusters, newer read wins, stale free space, clipping, random scans always tile. |
 | `tests/core/SelectionTest.cpp` | Fragments vs `fragmentCount()`, overlay merge, run shapes, highlight vs per-cell brute force at every level, refreshed tiles = changed tiles on a synthetic volume, focus view. |
+| `tests/core/BitTreeTest.cpp` | `BitTree` next/prev against `std::set` across word and level boundaries. |
 | `tests/core/LruCacheTest.cpp` | LRU eviction by cost, replace/erase/oversize, tile keys; `MapData` build. |
 | `tests/core/JsonTest.cpp` | JSON structure and indentation, one-line output, string escaping, non-finite numbers. |
 | `tests/core/LogTest.cpp` | Log line format, escaping, level filter, concurrent writes. |

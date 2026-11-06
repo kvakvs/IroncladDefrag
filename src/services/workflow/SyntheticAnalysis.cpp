@@ -5,6 +5,7 @@
 #include "services/scan/Classification.h"
 
 #include <algorithm>
+#include <chrono>
 #include <utility>
 
 namespace icd::services {
@@ -33,6 +34,7 @@ namespace icd::services {
                                       std::shared_ptr<AnalysisOutput> output) {
         return [options = syntheticOptionsFor(drive), aspect, output = std::move(output),
                 name = core::driveName(drive)](JobContext& context) {
+            const auto start = std::chrono::steady_clock::now();
             context.progress.report({"Generating synthetic volume", 0, 2, name});
             core::Snapshot snapshot = core::generateSyntheticVolume(options);
             context.token.throwIfCancelled();
@@ -41,11 +43,13 @@ namespace icd::services {
                                                 context.executor, context.token)
                                      .classes;
             auto map = core::MapData::build(std::move(snapshot), aspect, context.executor, context.token, classes);
-            core::logging::info("synthetic analysis",
-                                {{"drive", name},
-                                 {"files", map->snapshot().files.size()},
-                                 {"extents", map->snapshot().extents.size()},
-                                 {"map_bytes", map->memoryBytes()}});
+            core::logging::info(
+                "synthetic analysis",
+                {{"drive", name},
+                 {"files", map->snapshot().files.size()},
+                 {"extents", map->snapshot().extents.size()},
+                 {"map_bytes", map->memoryBytes()},
+                 {"seconds", std::chrono::duration<double>(std::chrono::steady_clock::now() - start).count()}});
             output->set(std::move(map));
             context.progress.report({"Building map", 2, 2, name});
         };

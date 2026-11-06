@@ -512,3 +512,9 @@ Finished tasks from `.agents/01-plan.md`, one compact bullet each:
   their choice). Seen on the fake drive list and 1 GB `mixed` VHDXs: 65-67 fps with pulses, paint 2-4 ms, zoom 57-86
   fps either way; throughput varied 8-34 MB/s run to run with pulses on and off, so further measurement was dropped
   (the user's call). `ActivityTest`, `ExecutionFeed` begun moves, settings round trip.
+- T133 Order moves by disk head position - `core/execute/HeadOrder.*` (`orderForHead()`: the ready move whose first
+  read is nearest the last write goes next; moves sharing clusters or a file keep plan order), `core/util/BitTree.*`
+  (ready set), `services::headOrdered()` (logs head travel before and after), Execute confirmation checkbox (on by
+  default, not on Resume), `ExecuteJobRequest::headOrder`, `icd-cli execute --plan-order`. 1 M moves order in 0.7 s
+  on one thread. Also: "workflow job finished" log line with seconds for every GUI job, seconds on the synthetic
+  analysis line. `HeadOrderTest`, `BitTreeTest`.

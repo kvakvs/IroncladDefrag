@@ -80,6 +80,8 @@ add_library(icd_core STATIC
     src/core/exec/Executor.h
     src/core/execute/ExecutionPlan.cpp
     src/core/execute/ExecutionPlan.h
+    src/core/execute/HeadOrder.cpp
+    src/core/execute/HeadOrder.h
     src/core/execute/MoveCalls.cpp
     src/core/execute/MoveCalls.h
     src/core/execute/MovePieces.cpp
@@ -242,6 +244,8 @@ add_library(icd_core STATIC
     src/core/strategy/ZoneScript.cpp
     src/core/strategy/ZoneScript.h
     src/core/synth/SynthRandom.h
+    src/core/util/BitTree.cpp
+    src/core/util/BitTree.h
     src/core/util/Crc32.h
     src/core/util/LargeArray.h
     src/core/util/LruCache.h

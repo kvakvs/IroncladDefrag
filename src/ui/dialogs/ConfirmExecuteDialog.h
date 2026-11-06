@@ -36,6 +36,8 @@ namespace icd::ui {
     struct ExecuteChoices {
         bool lowPriority = false; // Background I/O priority, so other programs stay responsive.
         std::uint64_t limitMbPerSecond = 0; // Throughput limit in MB/s; 0: none.
+        // Reorder the moves so the disk head travels less (T133); a resume keeps the order its log was started with.
+        bool headOrder = true;
     };
 
     // Asks for confirmation of an execution: the plan's figures and warnings, what keeps the volume safe, and the
@@ -62,6 +64,7 @@ namespace icd::ui {
             std::vector<std::string> warnings; // Shown with a warning sign.
             wxString note; // What keeps the volume safe.
             wxString okLabel; // The button that starts the moves.
+            bool offerHeadOrder = false; // Show the move-order option (a fresh run only: a resume's order is fixed).
         };
 
         // Lays out the dialog from its content.
@@ -70,14 +73,15 @@ namespace icd::ui {
         // The figures as a label and value grid.
         wxSizer* createFigures(const std::vector<Figure>& figures);
 
-        // The priority and throughput options.
-        wxSizer* createOptions();
+        // The priority and throughput options, and the move-order option when offered.
+        wxSizer* createOptions(bool offerHeadOrder);
 
         // The button that starts the moves, and Cancel.
         wxSizer* createButtons(const wxString& okLabel);
 
         wxCheckBox* lowPriority_ = nullptr; // Low I/O priority; child owned by wx.
         wxSpinCtrl* limit_ = nullptr; // Throughput limit in MB/s; child owned by wx.
+        wxCheckBox* headOrder_ = nullptr; // Order moves by head position; child owned by wx; null when not offered.
     };
 
 } // namespace icd::ui

@@ -29,6 +29,7 @@ namespace icd::services {
         std::shared_ptr<const PlanRequest> plan; // What they were planned from (snapshot, script, planning time).
         core::strategy::Effort level = core::strategy::Effort::Fast; // The level to run.
         ExecuteOptions options; // Priority and throughput limit chosen in the confirmation.
+        bool headOrder = true; // Reorder the moves so the head travels less (T133), chosen in the confirmation.
     };
 
     // What the GUI resumes (T112): the run an execution log describes, on its drive.

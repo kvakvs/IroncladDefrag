@@ -44,6 +44,7 @@ namespace icd::cli {
             bool noPrefetch = false; // No prefetch helper.
             bool checkRescan = false; // Scan again afterwards and compare.
             bool blockUnaligned = false; // When planning now with shadow copies: leave out unaligned moves.
+            bool planOrder = false; // Keep the planned move order instead of ordering by head position (T133).
             std::uint64_t chunkMb = 16; // Largest move call.
             std::uint64_t limitMbps = 0; // Throughput limit in MB/s; 0: none.
             std::uint64_t maxAgeHours = 24; // Oldest plan accepted.
@@ -56,7 +57,7 @@ namespace icd::cli {
         };
 
         // Flags and the field each sets.
-        constexpr std::array<std::pair<std::wstring_view, bool ExecuteArgs::*>, 7> flags{{
+        constexpr std::array<std::pair<std::wstring_view, bool ExecuteArgs::*>, 8> flags{{
             {L"--resume", &ExecuteArgs::resume},
             {L"--json", &ExecuteArgs::json},
             {L"--moves", &ExecuteArgs::moves},
@@ -64,6 +65,7 @@ namespace icd::cli {
             {L"--no-prefetch", &ExecuteArgs::noPrefetch},
             {L"--check-rescan", &ExecuteArgs::checkRescan},
             {L"--block-unaligned", &ExecuteArgs::blockUnaligned},
+            {L"--plan-order", &ExecuteArgs::planOrder},
         }};
 
         // Number options and the field each sets.
@@ -250,6 +252,12 @@ namespace icd::cli {
             std::vector<services::ZoneSpan> zones; // The plan's zones (planned now only).
         };
 
+        // A fresh plan ordered by head position, unless --plan-order keeps the planned order.
+        core::execute::ExecutionPlan ordered(const ExecuteArgs& args, core::execute::ExecutionPlan plan,
+                                             services::JobContext& context) {
+            return args.planOrder ? std::move(plan) : services::headOrdered(plan, context.executor);
+        }
+
         // Analyses and plans the volume now.
         Prepared planNow(const ExecuteArgs& args, const core::DriveInfo& drive, services::JobContext& context) {
             const std::optional<core::strategy::ZoneScript> script = presetNamed(args.strategy);
@@ -267,7 +275,8 @@ namespace icd::cli {
             if (!issues.empty()) {
                 throw std::runtime_error("the plan failed validation: " + issues.front());
             }
-            return {services::freshExecution(drive, services::executionPlanFor(outcome, request, drive, args.level)),
+            return {services::freshExecution(
+                        drive, ordered(args, services::executionPlanFor(outcome, request, drive, args.level), context)),
                     services::zoneSpans(outcome, request, args.level)};
         }
 
@@ -283,7 +292,9 @@ namespace icd::cli {
                 return {services::resumedExecution(drive, *log), {}};
             }
             if (!args.planFile.empty()) {
-                return {services::freshExecution(drive, services::readExecutionLog(args.planFile).plan), {}};
+                return {services::freshExecution(
+                            drive, ordered(args, services::readExecutionLog(args.planFile).plan, context)),
+                        {}};
             }
             return planNow(args, drive, context);
         }
@@ -354,7 +365,7 @@ namespace icd::cli {
         return "icd-cli execute <volume> [--strategy ID] [--level fast|moderate|max] | [--plan FILE] | [--resume "
                "[--log FILE]] [--json] [--moves] [--chunk-mb N] [--low-priority] [--limit-mbps N] [--max-age-hours H] "
                "[--no-prefetch] [--check-rescan] [--threads N] [--pause-after N --pause-ms M] [--cancel-after N] "
-               "[--take-destination MOVE] [--max-moves N] [--block-unaligned]";
+               "[--take-destination MOVE] [--max-moves N] [--block-unaligned] [--plan-order]";
     }
 
     int runExecute(std::span<const std::wstring_view> args) {

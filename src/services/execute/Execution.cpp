@@ -1,5 +1,6 @@
 #include "services/execute/Execution.h"
 
+#include "core/execute/HeadOrder.h"
 #include "core/log/Log.h"
 #include "platform/win/TextConvert.h"
 #include "services/execute/ExecutedSnapshot.h"
@@ -87,6 +88,17 @@ namespace icd::services {
         id.effort = level;
         return core::execute::executionPlanOf(outcome.levels.at(static_cast<std::size_t>(level)).result,
                                               *request.snapshot, std::move(id), request.reserved);
+    }
+
+    core::execute::ExecutionPlan headOrdered(const core::execute::ExecutionPlan& plan, core::Executor& executor) {
+        core::execute::HeadOrderReport report;
+        core::execute::ExecutionPlan out = core::execute::orderForHead(plan, &report, &executor);
+        const std::uint64_t cluster = plan.identity.geometry.bytesPerCluster;
+        core::logging::info("moves ordered by head position",
+                            {{"moves", out.moves.size()},
+                             {"travelBeforeBytes", report.travelBefore * cluster},
+                             {"travelAfterBytes", report.travelAfter * cluster}});
+        return out;
     }
 
     ExecutionRequest freshExecution(const core::DriveInfo& drive, core::execute::ExecutionPlan plan) {

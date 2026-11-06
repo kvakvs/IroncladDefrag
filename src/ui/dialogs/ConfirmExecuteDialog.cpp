@@ -110,6 +110,7 @@ namespace icd::ui {
             ? wxString("This is the fake drive list: the run is simulated and nothing on a disk changes.")
             : wxString(safetyNote);
         content.okLabel = "&Execute";
+        content.offerHeadOrder = true;
         build(content);
     }
 
@@ -141,7 +142,7 @@ namespace icd::ui {
             sizer->Add(warnings, wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
         }
         sizer->Add(note(this, content.note), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
-        sizer->Add(createOptions(), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
+        sizer->Add(createOptions(content.offerHeadOrder), wxSizerFlags().Border(wxLEFT | wxRIGHT | wxBOTTOM, border));
         sizer->Add(createButtons(content.okLabel), wxSizerFlags().Right().Border(wxALL, FromDIP(12)));
         SetSizerAndFit(sizer);
         CentreOnParent();
@@ -156,7 +157,16 @@ namespace icd::ui {
         return grid;
     }
 
-    wxSizer* ConfirmExecuteDialog::createOptions() {
+    wxSizer* ConfirmExecuteDialog::createOptions(bool offerHeadOrder) {
+        auto* options = new wxBoxSizer(wxVERTICAL);
+        if (offerHeadOrder) {
+            headOrder_ =
+                new wxCheckBox(this, wxID_ANY, "&Order moves by disk head position (less seeking on hard drives)");
+            headOrder_->SetValue(true);
+            headOrder_->SetToolTip("Each next move starts reading near where the last one stopped writing. Moves that "
+                                   "touch the same clusters keep their planned order, so the result is the same.");
+            options->Add(headOrder_, wxSizerFlags().Border(wxBOTTOM, FromDIP(6)));
+        }
         lowPriority_ = new wxCheckBox(this, wxID_ANY, "&Low I/O priority (slower; other programs stay responsive)");
         limit_ = new wxSpinCtrl(this, wxID_ANY, "0", wxDefaultPosition, FromDIP(wxSize(90, -1)), wxSP_ARROW_KEYS, 0,
                                 maxLimit, 0);
@@ -164,7 +174,6 @@ namespace icd::ui {
         limitRow->Add(new wxStaticText(this, wxID_ANY, "&Throughput limit:"), wxSizerFlags().CenterVertical());
         limitRow->Add(limit_, wxSizerFlags().CenterVertical().Border(wxLEFT | wxRIGHT, FromDIP(6)));
         limitRow->Add(new wxStaticText(this, wxID_ANY, "MB/s (0: no limit)"), wxSizerFlags().CenterVertical());
-        auto* options = new wxBoxSizer(wxVERTICAL);
         options->Add(lowPriority_, wxSizerFlags().Border(wxBOTTOM, FromDIP(6)));
         options->Add(limitRow);
         return options;
@@ -183,7 +192,8 @@ namespace icd::ui {
 
     ExecuteChoices ConfirmExecuteDialog::choices() const {
         return {.lowPriority = lowPriority_->GetValue(),
-                .limitMbPerSecond = static_cast<std::uint64_t>(std::max(limit_->GetValue(), 0))};
+                .limitMbPerSecond = static_cast<std::uint64_t>(std::max(limit_->GetValue(), 0)),
+                .headOrder = headOrder_ == nullptr || headOrder_->GetValue()};
     }
 
 } // namespace icd::ui

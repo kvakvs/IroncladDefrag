@@ -434,9 +434,10 @@ namespace icd::ui {
             return false;
         }
         executeChoices_ = dialog.choices();
-        core::logging::info(
-            "execution confirmed",
-            {{"lowPriority", executeChoices_.lowPriority}, {"limitMbPerSecond", executeChoices_.limitMbPerSecond}});
+        core::logging::info("execution confirmed",
+                            {{"lowPriority", executeChoices_.lowPriority},
+                             {"limitMbPerSecond", executeChoices_.limitMbPerSecond},
+                             {"headOrder", executeChoices_.headOrder}});
         return true;
     }
 
@@ -661,6 +662,7 @@ namespace icd::ui {
         request.level = static_cast<core::strategy::Effort>(widgets_.bottom.strategy().effort());
         request.options.lowPriority = executeChoices_.lowPriority;
         request.options.throughputLimit = executeChoices_.limitMbPerSecond << 20U;
+        request.headOrder = executeChoices_.headOrder;
         services::JobFunction job = execution_.start(std::move(request), pause_);
         live_.follow(execution_.feed());
         return job;
@@ -825,6 +827,13 @@ namespace icd::ui {
     }
 
     void WorkflowBinding::completeJob(WorkflowJob job, const services::JobResult& result) {
+        static constexpr std::array<const char*, 3> outcomes{"succeeded", "cancelled", "failed"};
+        core::logging::info("workflow job finished",
+                            {{"job", textOf(job).title},
+                             {"drive", driveLabel()},
+                             {"outcome", outcomes.at(static_cast<std::size_t>(result.outcome))},
+                             {"seconds", static_cast<double>(result.elapsed.count()) / 1000.0},
+                             {"error", result.error}});
         const WorkflowJob next = workflow_.finish(result.outcome);
         BottomPanel& bottom = widgets_.bottom;
         bottom.setProgress(std::nullopt);

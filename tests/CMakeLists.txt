@@ -16,6 +16,7 @@ add_executable(icd_tests
     core/AccessTimeHeuristicTest.cpp
     core/ActivityTest.cpp
     core/BitmapToRunsTest.cpp
+    core/BitTreeTest.cpp
     core/BudgetTest.cpp
     core/CatalogTest.cpp
     core/ColorModesTest.cpp
@@ -27,6 +28,7 @@ add_executable(icd_tests
     core/FileSearchTest.cpp
     core/GridTest.cpp
     core/HitTestTest.cpp
+    core/HeadOrderTest.cpp
     core/HoleSetTest.cpp
     core/JobTypesTest.cpp
     core/JsonReaderTest.cpp
